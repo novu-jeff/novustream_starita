@@ -1,0 +1,61 @@
+<header class="header">
+	<div class="header-content responsive-wrapper">
+		<div class="header-logo">
+			<a href="#">
+				<div>
+					<img src="https://assets.codepen.io/285131/untitled-ui-icon.svg" />
+				</div>
+				<img src="https://assets.codepen.io/285131/untitled-ui.svg" />
+			</a>
+		</div>
+		<div class="header-navigation">
+			<nav class="header-navigation-links d-flex gap-5">
+				<a href="{{route('dashboard')}}"> Dashboard </a>
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Meter Reading
+					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><a class="dropdown-item" href="{{route('water-reading.index')}}">Meter Reading</a></li>
+						<li><a class="dropdown-item" href="{{route('roles.index')}}">Reading Report</a></li>
+					</ul>
+				</div>
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Users
+					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
+						<li><a class="dropdown-item" href="{{route('clients.index')}}">Clients</a></li>
+						<li><a class="dropdown-item" href="{{route('users.index')}}">Personnels</a></li>
+					</ul>
+				</div>
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Settings
+					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><a class="dropdown-item" href="{{route('property-types.index')}}">Property Types</a></li>
+						<li><a class="dropdown-item" href="{{route('water-rates.index')}}">Water Rates</a></li>
+					</ul>
+				</div>
+			</nav>
+			<div class="header-navigation-links d-flex gap-4">
+				<a href="{{route('profile.index')}}">
+					Profile
+				</a>
+				<form action="{{ route('logout') }}" method="POST" style="display: inline;">
+					@csrf
+					<button type="submit" class="border-0 bg-transparent p-0 m-0 align-baseline">Logout</button>
+				</form>
+				<a href="#" class="avatar">
+					<img src="https://assets.codepen.io/285131/hat-man.png" alt="" />
+				</a>
+			</div>
+		</div>
+		<a href="#" class="button">
+			<i class="ph-list-bold"></i>
+			<span>Menu</span>
+		</a>
+	</div>
+</header>
