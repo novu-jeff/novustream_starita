@@ -39,6 +39,8 @@ class ProfileController extends Controller
 
         $user_type = $data->user_type;
 
+        $origin = request()->route()->getName() == 'profile.update' ? 'profile' : '';
+
         if($user_type != 'client') {
             $validator = Validator::make($payload, [
                 'firstname' => 'required',
@@ -53,22 +55,20 @@ class ProfileController extends Controller
                 'password' => 'nullable|min:8|required_with:confirm_password',
                 'confirm_password' => 'nullable|same:password|required_with:password',
             ]);
-        } else {
-            
+        } else {            
+
             $validator = Validator::make($payload, [
                 'firstname' => 'required',
                 'lastname' => 'required',
                 'middlename' => 'nullable',
                 'address' => 'required',
                 'contact_no' => 'required',
-                'email' => 'required|unique:users,email',
-                'password' => 'required|min:8',
-                'confirm_password' => 'required|same:password',
-                'isValidated' => 'required|in:true,false',
-                'contract_no' => 'required|unique:users,contract_no',
-                'contract_date' => 'required',
-                'property_type' => 'required|exists:property_types,id',
-                'meter_no' => 'required'
+                'email' => [
+                    'required',
+                    Rule::unique('users', 'email')->ignore($id),
+                ],
+                'password' => 'nullable|min:8|required_with:confirm_password',
+                'confirm_password' => 'nullable|same:password|required_with:password',
             ]);
 
         }
@@ -78,6 +78,8 @@ class ProfileController extends Controller
                 ->withErrors($validator)
                 ->withInput();
         }
+
+        $payload['origin'] = $origin;
 
         $response = $this->profileService::update($id, $payload);
 

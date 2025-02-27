@@ -30,22 +30,32 @@ class ProfileService {
             $data = self::getData($id);
 
             $user_type = $data->user_type;
-            
+        
+
             if($user_type == 'client') {
-                $updateData = [
-                    'firstname' => $payload['firstname'],
-                    'lastname' => $payload['lastname'],
-                    'middlename' => $payload['middlename'],
-                    'address' => $payload['address'],
-                    'contact_no' => $payload['contact_no'],
-                    'email' => $payload['email'],
-                    'isValidated' => $payload['isValidated'],
-                    'contract_no' => $payload['contract_no'],
-                    'contract_date' => $payload['contract_date'],
-                    'residence_type' => $payload['residence_type'],
-                    'meter_no' => $payload['meter_no'],
-                    'isValidated' =>  $payload['isValidated'] == 'true' ? true : false
-                ];
+
+
+                if($payload['origin'] == 'profile') {
+                    
+                    $updateData = [
+                        'firstname' => $payload['firstname'],
+                        'lastname' => $payload['lastname'],
+                        'middlename' => $payload['middlename'],
+                        'address' => $payload['address'],
+                        'contact_no' => $payload['contact_no'],
+                        'email' => $payload['email'],
+                    ];
+                } else {
+                    $updateData = [
+                        'firstname' => $payload['firstname'],
+                        'lastname' => $payload['lastname'],
+                        'middlename' => $payload['middlename'],
+                        'address' => $payload['address'],
+                        'contact_no' => $payload['contact_no'],
+                        'email' => $payload['email'],
+                    ];
+
+                }
     
                 
             } else {
@@ -59,7 +69,6 @@ class ProfileService {
                 ];
 
             }
-
             
             if(isset($payload['password'])) {
                 $updateData['password'] = Hash::make($payload['password']);

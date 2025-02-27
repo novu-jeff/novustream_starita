@@ -75,7 +75,6 @@ class ClientService {
                 'address' => $payload['address'],
                 'contact_no' => $payload['contact_no'],
                 'email' => $payload['email'],
-                'isValidated' => $payload['isValidated'],
                 'contract_no' => $payload['contract_no'],
                 'contract_date' => $payload['contract_date'],
                 'property_type' => $payload['property_type'],

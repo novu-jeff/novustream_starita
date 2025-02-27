@@ -103,8 +103,6 @@
         const oldPreviousReading = parseFloat('{{ old('previous_reading', 0) }}') || 0;
         const oldConsumption = parseFloat('{{ old('consumption', 0) }}') || 0;
 
-        console.log('Old Values:', { oldPresentReading, oldPreviousReading, oldConsumption });
-
         // Initialize values from old inputs
         if (oldMeterNo) {
             getWaterData(oldMeterNo, true);
@@ -131,7 +129,11 @@
 
         function calculateConsumption(presentReading, previousReading, storedConsumption = null) {
             let computedConsumption = presentReading - previousReading;
-            $consumption.val(storedConsumption !== null ? storedConsumption : (computedConsumption >= 0 ? computedConsumption : 0));
+            if (isNaN(computedConsumption)) {
+                computedConsumption = 0;
+            }
+            console.log(presentReading + '-' + previousReading);
+            $consumption.val(computedConsumption);
         }
 
         function getWaterData(meterNo, isOldLoad = false) {
@@ -148,7 +150,7 @@
                     }
 
                     const { firstname, lastname, address, contact_no, contract_no, contract_date } = response.client;
-                    const reading = response.reading?.[0] || {};
+                    const reading = response.reading ?? {};
 
                     $clientInfo.html(`
                         <h5 class="text-uppercase mb-4 mt-3">Client Information</h5>
@@ -164,16 +166,13 @@
 
                     const prevReading = parseFloat(reading.previous_reading ?? 0) || 0;
                     const presReading = parseFloat(reading.present_reading ?? 0) || 0;
-                    const storedConsumption = parseFloat(reading.consumption ?? 0) || 0;
 
-                    $previousReading.val(prevReading);
+                    $previousReading.val(presReading);
                     globalPreviousReading = presReading;
 
                     // If loading from old values, prioritize them
                     if (isOldLoad) {
                         calculateConsumption(oldPresentReading, oldPreviousReading, oldConsumption);
-                    } else {
-                        calculateConsumption(presReading, prevReading, storedConsumption);
                     }
 
                     $action.html(`<button type="submit" class="btn btn-primary px-5 py-3 text-uppercase fw-bold">Print</button>`);

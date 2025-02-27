@@ -70,9 +70,9 @@
                                             <div class="p-0 form-check">
                                                 <label for="isValidated" class="form-label">Is Validated</label>
                                                 <select class="form-select @error('isValidated') is-invalid @enderror" id="isValidated" name="isValidated">
-                                                    <option value="false" {{ old('isValidated', $data->isValidated ?? 'false') == 'false' ? 'selected' : '' }}>No</option>
-                                                    <option value="true" {{ old('isValidated', $data->isValidated ?? 'false') == 'true' ? 'selected' : '' }}>Yes</option>
-                                                </select>
+                                                    <option value="false" {{ old('isValidated', $data->isValidated ?? 0) == 0 ? 'selected' : '' }}>No</option>
+                                                    <option value="true" {{ old('isValidated', $data->isValidated ?? 0) == 1 ? 'selected' : '' }}>Yes</option>
+                                                </select>                                                
                                                 @error('isValidated')
                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                 @enderror

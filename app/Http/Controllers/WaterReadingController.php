@@ -7,9 +7,12 @@ use App\Models\WaterBill;
 use App\Models\WaterRates;
 use App\Models\WaterReading;
 use App\Services\WaterService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
+use Yajra\DataTables\Facades\DataTables;
 
 class WaterReadingController extends Controller
 {
@@ -18,6 +21,19 @@ class WaterReadingController extends Controller
 
     public function __construct(WaterService $waterService)
     {
+
+        $this->middleware(function ($request, $next) {
+            $method = $request->route()->getActionMethod(); // Use request object
+    
+            if (!in_array($method, ['show'])) {
+                if (!Gate::any(['admin', 'technician'])) {
+                    abort(403, 'Unauthorized');
+                }
+            }
+    
+            return $next($request);
+        });
+
         $this->waterService = $waterService;
     }
 
@@ -35,7 +51,26 @@ class WaterReadingController extends Controller
 
         $data = $this->waterService::getBill($reference_no);
 
+        if(is_null($data)) {
+            return redirect()->route('water-reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
+        }
+
         return view('water-reading.show', compact('data'));
+
+    }
+
+    public function report(string $date = null) {
+
+        $data = $this->waterService::getReport($date);
+
+        if(request()->ajax()) {
+            return $this->datatable($data);
+        }
+
+        return view('water-reading.report', compact('data'));
 
     }
 
@@ -84,7 +119,7 @@ class WaterReadingController extends Controller
                 $previous_reading = 0;
             }
 
-            $consumption = $payload['present_reading'] - $previous_reading;
+            $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
 
             $rate = WaterRates::where('cubic_from', '<=', $consumption)
                 ->where('cubic_to', '>=', $consumption)
@@ -99,7 +134,13 @@ class WaterReadingController extends Controller
                 ]);
             }
         
+            $unpaidAmount = WaterBill::where('isPaid', false)->sum('amount') ?? 0;
+
             $water_bill = $rate * $consumption;
+
+            $bill_period_from = Carbon::now()->subMonth()->format('Y-m-d H:i:s');
+            $bill_period_to = Carbon::now()->format('Y-m-d H:i:s');
+            $due_date = Carbon::now()->addDays(14)->format('Y-m-d H:i:s');
 
             $water = WaterReading::create([
                 'meter_no' => $meter_no,
@@ -109,10 +150,16 @@ class WaterReadingController extends Controller
                 'rate' => $rate,
             ]);
 
+            $total = (float) $unpaidAmount + (float) $water_bill;
+
             $bill = WaterBill::create([
                 'water_reading_id' => $water->id,
                 'reference_no' => 'REF-' . time(),
-                'amount' => $water_bill,
+                'bill_period_from' => $bill_period_from,
+                'bill_period_to' => $bill_period_to,
+                'previous_unpaid' => $unpaidAmount,
+                'amount' => $total,
+                'due_date' => $due_date,
             ]);
 
             DB::commit();
@@ -130,6 +177,27 @@ class WaterReadingController extends Controller
         }
         
 
+    }
+
+    public function datatable($query)
+    {
+        return DataTables::of($query)
+            ->addIndexColumn()
+            ->editColumn('created_at', function ($row) {
+                return Carbon::parse($row->created_at)->format('F d, Y');
+            })
+            ->addColumn('actions', function ($row) {
+                return 
+                    '<div class="d-flex align-items-center gap-2">
+                        <a target="_blank" href="' . route('water-reading.show', $row->bill->reference_no) . '" 
+                            class="btn btn-primary text-white text-uppercase fw-bold" 
+                            id="show-btn" data-id="' . e($row->id) . '">
+                            <i class="bx bx-receipt"></i>
+                        </a>
+                    </div>';
+            })
+            ->rawColumns(['actions'])
+            ->make(true);
     }
 
 }

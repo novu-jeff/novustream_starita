@@ -5,9 +5,6 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Update My Profile</h1>
-                <a href="{{route('profile.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
-                    Go Back
-                </a>
             </div>
             <div class="inner-content mt-5">
                 <form action="{{route('profile.update', $data->id)}}" method="POST">
@@ -59,44 +56,6 @@
                                             @enderror
                                         </div>
                                     </div>
-                                    @if($data->user_type === 'client')
-                                        <hr class="my-5">
-                                        <div class="row mb-3">
-                                            <div class="col-md-6 mb-3">
-                                                <label for="contract_no" class="form-label">Contract No</label>
-                                                <input type="text" class="form-control @error('contract_no') is-invalid @enderror" id="contract_no" name="contract_no" value="{{ old('contract_no', $data->contract_no ?? '') }}">
-                                                @error('contract_no')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label for="contract_date" class="form-label">Contract Date</label>
-                                                <input type="date" class="form-control @error('contract_date') is-invalid @enderror" id="contract_date" name="contract_date" value="{{ old('contract_date', $data->contract_date ?? '') }}">
-                                                @error('contract_date')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label for="property_type" class="form-label">Property Type</label>
-                                                <select class="form-select @error('property_type') is-invalid @enderror" id="property_type" name="property_type">
-                                                    <option value=""> - CHOOSE - </option>
-                                                    @foreach($property_types as $type)
-                                                        <option value="{{ $type->id }}" {{ old('property_type', $data->property_type ?? '') == $type->id ? 'selected' : '' }}>{{ $type->name }}</option>
-                                                    @endforeach
-                                                </select>
-                                                @error('property_type')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label for="meter_no" class="form-label">Meter No</label>
-                                                <input type="text" class="form-control @error('meter_no') is-invalid @enderror" id="meter_no" name="meter_no" value="{{ old('meter_no', $data->meter_no ?? '') }}">
-                                                @error('meter_no')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                    @endif
                                 </div>
                             </div>
                         </div>

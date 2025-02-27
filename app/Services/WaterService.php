@@ -10,14 +10,24 @@ use Illuminate\Support\Facades\DB;
 
 class WaterService {
 
+    public static function getReport(string $date = null) {
+
+        if(!is_null($date)) {
+            return WaterReading::whereDate('created_at', $date)->get();
+        }
+
+        return WaterReading::with('bill')->get();
+
+    }
+
     public static function getData(int $id = null) {
 
         if(!is_null($id)) {
-            return WaterRates::with('property_type')->where('id', $id)
+            return WaterRates::with('property_types')->where('id', $id)
                 ->first() ?? null;
         }
 
-        return WaterRates::with('property_type')->get();
+        return WaterRates::with('property_types')->get();
 
     }
 
@@ -47,10 +57,46 @@ class WaterService {
 
     public static function getBill(string $reference_no) {
 
-        $data = WaterBill::with('reading.user')->where('reference_no', $reference_no)
+        $current_bill = WaterBill::with('reading')->where('reference_no', $reference_no)
             ->first() ?? [];
 
+        if(!$current_bill) {
+            return null;
+        }
+
+        $client = User::with('property_types')->where('meter_no', $current_bill->reading->meter_no)->first();
+
+        $previous_payment = WaterBill::with('reading.user')->where('isPaid', true)
+            ->whereHas('reading.user', function($query) use ($current_bill) {
+                return $query->meter_no = $current_bill->reading->user->meter_no;
+            })->latest()->first();
+
+        $data = [
+            'client' => $client,
+            'current_bill' => $current_bill,
+            'previous_payment' => $previous_payment
+        ];
+        
         return $data;
+    }
+
+
+    public static function getBills(string $meter_no, bool $isAll = false) {
+
+        if($isAll) {
+            return WaterBill::with('reading')
+                ->whereHas('reading', function($query) use ($meter_no) {
+                    return $query->where('meter_no', $meter_no);
+                })->orderByDesc('created_at')
+                ->get();
+        }
+
+        return WaterBill::with('reading')
+            ->whereHas('reading', function($query) use ($meter_no) {
+                return $query->where('meter_no', $meter_no);
+            })->latest()
+            ->first();
+
     }
     
 

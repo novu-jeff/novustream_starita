@@ -6,6 +6,7 @@ use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
@@ -17,6 +18,16 @@ class ClientController extends Controller
     public $propertyTypesService;
 
     public function __construct(ClientService $clientService, PropertyTypesService $propertyTypesService) {
+        
+        $this->middleware(function ($request, $next) {
+    
+            if (!Gate::any(['admin'])) {
+                abort(403, 'Unauthorized');
+            }
+    
+            return $next($request);
+        });
+
         $this->clientService = $clientService;
         $this->propertyTypesService = $propertyTypesService;
     }

@@ -16,7 +16,7 @@ class AccountSeeder extends Seeder
     public function run(): void
     {
         User::updateOrCreate(
-            ['email' => 'admin01@gmail.com'],
+            ['email' => 'admin@gmail.com'],
             [
             'firstname' => 'Admin',
             'lastname' => 'User',
@@ -63,6 +63,22 @@ class AccountSeeder extends Seeder
             'property_type' => '',
             'meter_no' => '123456789',
             'isValidated' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+            ]
+        );
+
+        User::updateOrCreate(
+            ['email' => 'technician@gmail.com'],
+            [
+            'firstname' => 'Technician',
+            'lastname' => 'User',
+            'middlename' => null,
+            'address' => '123 Client St',
+            'contact_no' => null,
+            'user_type' => 'technician',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'),
             'created_at' => now(),
             'updated_at' => now(),
             ]

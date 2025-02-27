@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('lastname');
             $table->string('middlename')
                 ->nullable();
-            $table->string('address');
+            $table->string('address')
+                ->nullable();
             $table->string('contact_no')
                 ->nullable();
             $table->string('user_type')

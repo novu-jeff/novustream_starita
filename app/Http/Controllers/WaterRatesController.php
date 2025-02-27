@@ -7,6 +7,7 @@ use App\Services\PropertyTypesService;
 use App\Services\WaterRatesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -17,6 +18,16 @@ class WaterRatesController extends Controller
     public $propertyTypeService;
 
     public function __construct(WaterRatesService $waterRatesService, PropertyTypesService $propertyTypeService) {
+        
+        $this->middleware(function ($request, $next) {
+    
+            if (!Gate::any(['admin'])) {
+                abort(403, 'Unauthorized');
+            }
+    
+            return $next($request);
+        });
+        
         $this->waterRatesService = $waterRatesService;
         $this->propertyTypeService = $propertyTypeService;
     }

@@ -26,6 +26,10 @@ return new class extends Migration
                 ->constrained('water_readings')
                 ->onCascade('delete');
             $table->string('reference_no');
+            $table->string('bill_period_from');
+            $table->string('bill_period_to');
+            $table->string('previous_unpaid')
+                ->nullable();
             $table->string('amount');
             $table->string('amount_paid')
                 ->nullable();
@@ -33,6 +37,7 @@ return new class extends Migration
                 ->default(false);
             $table->string('date_paid')
                 ->nullable();
+            $table->string('due_date');
             $table->timestamps();
         });
     }

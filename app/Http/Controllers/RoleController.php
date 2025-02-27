@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\RoleService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -13,6 +14,16 @@ class RoleController extends Controller
     public $roleTypeService;
 
     public function __construct(RoleService $roleTypeService) {
+
+        $this->middleware(function ($request, $next) {
+            
+            if (!Gate::any(['admin'])) {
+                abort(403, 'Unauthorized');
+            }
+    
+            return $next($request);
+        });
+
         $this->roleTypeService = $roleTypeService;
     }
 

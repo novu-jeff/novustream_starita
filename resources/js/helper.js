@@ -62,3 +62,28 @@ export function remove(table, url, token) {
         }
     });
 }
+
+export function canvasDownload(elem, filename) {
+    const { jsPDF } = window.jspdf;
+
+    html2canvas($(elem)[0]).then(canvas => {
+        let imgData = canvas.toDataURL("image/png");
+        let imgWidth = 57; // Fixed width in mm
+        let imgHeight = (canvas.height * imgWidth) / canvas.width; // Adjust height dynamically
+
+        let doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: [imgWidth, imgHeight] // Width fixed, height dynamic
+        });
+
+        // Calculate center position
+        let pageWidth = doc.internal.pageSize.getWidth();
+        let pageHeight = doc.internal.pageSize.getHeight();
+        let xPos = (pageWidth - imgWidth) / 2; // Center horizontally
+        let yPos = (pageHeight - imgHeight) / 2; // Center vertically
+
+        doc.addImage(imgData, 'PNG', xPos, yPos, imgWidth, imgHeight);
+        doc.save(filename + ".pdf");
+    });
+}

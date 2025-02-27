@@ -88,7 +88,7 @@
                 <div class="overlay-panel overlay-right">
                     <h1>Sofia Waters</h1>
                     <p>Are you ready to view your water bills? and proceed to payments? Start now by creating an account!</p>
-                    <button class="ghost" id="signUp">Sign Up</button>
+                    <a href="/register" class="btn btn-outline-light border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signUp">Sign Up</a>
                 </div>
             </div>
         </div>

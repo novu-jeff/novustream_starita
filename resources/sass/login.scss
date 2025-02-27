@@ -32,6 +32,10 @@
         margin-bottom: 10px;
     }
 
+    span.invalid-feedback {
+        font-size: 11px !important;
+    }
+
     a {
         color: #333;
         font-size: 14px;
@@ -93,6 +97,11 @@
         width: 968px;
         max-width: 100%;
         min-height: 580px;
+    }
+
+    .container.scroll {
+        top: 40px;
+        min-height: 680px;
     }
 
     .form-container {
@@ -244,4 +253,8 @@
         color: #3c97bf;
         text-decoration: none;
     }
+}
+
+.invalid-feedback {
+    font-size: 12px !important;
 }

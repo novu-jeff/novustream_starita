@@ -21,4 +21,8 @@ class WaterReading extends Model
         return $this->hasOne(User::class, 'meter_no', 'meter_no');
     }
 
+    public function bill() {
+        return $this->hasOne(WaterBill::class, 'water_reading_id', 'id');
+    }
+
 }
