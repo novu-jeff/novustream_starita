@@ -2,7 +2,7 @@
 	<div class="header-content responsive-wrapper">
 		<div class="header-logo">
 			<a href="#" class="nav-link text-uppercase fw-bold">
-				NovuWaters
+				<img src="{{asset('images/novustreamlogo.png')}}" alt="" srcset="" style="width: 100px;">
 			</a>
 		</div>
 		<div class="header-navigation">
@@ -25,6 +25,9 @@
 						</ul>
 					</div>
 				@endcan
+				@canany(['admin', 'cashier'])
+					<a href="{{route('payments.index')}}"> Payments </a>
+				@endcanany
 				@can('admin')
 					<div class="dropdown px-0 mx-0">
 						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -46,8 +49,16 @@
 						</ul>
 					</div>
 				@endcan
+				@canany(['admin'])
+					<a href="{{route('support-ticket.create')}}"> Support Tickets </a>
+				@endcanany
 			</nav>
 			<div class="header-navigation-links d-flex gap-4">
+				@canany(['client'])
+					<a href="{{route('support-ticket.create')}}">
+						Submit Ticket
+					</a>
+				@endcanany
 				<a href="{{route('profile.index')}}">
 					Profile
 				</a>

@@ -38,6 +38,10 @@ return new class extends Migration
             $table->string('date_paid')
                 ->nullable();
             $table->string('due_date');
+            $table->string('payor_name')
+                ->nullable();
+            $table->string('paid_by_reference_no')
+                ->nullable();
             $table->timestamps();
         });
     }

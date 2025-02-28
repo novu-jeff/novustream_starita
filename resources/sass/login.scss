@@ -6,7 +6,7 @@
     align-items: center;
 
     h1 {
-        font-weight: 700;
+        font-weight: 900;
         margin: 0;
         text-transform: uppercase;
     }
@@ -164,8 +164,8 @@
 
     .overlay {
         background: #51ade5;
-        background: -webkit-linear-gradient(to right, #3771c1, #51ade5);
-        background: linear-gradient(to right, #3771c1, #51ade5);
+        background: -webkit-linear-gradient(to right, #1c2d44, #0a202e);
+        background: linear-gradient(to right, #0e1825, #185174);
         background-repeat: no-repeat;
         background-size: cover;
         background-position: 0 0;
@@ -258,3 +258,4 @@
 .invalid-feedback {
     font-size: 12px !important;
 }
+

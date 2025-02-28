@@ -44,12 +44,7 @@
         <div class="form-container sign-in-container">
             <form method="POST" action="{{ route('login') }}">
                 @csrf
-                <h1>Sign in</h1>
-                <div class="social-container">
-                    <a href="#" class="social"><i class="fab fa-facebook-f"></i></a>
-                    <a href="#" class="social"><i class="fab fa-google-plus-g"></i></a>
-                    <a href="#" class="social"><i class="fab fa-linkedin-in"></i></a>
-                </div>
+                <h1 class="fw-bold mb-2">Sign in</h1>
                 <span>or use your account</span>
                 <div class="w-100">
                     <input type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" placeholder="Email" />
@@ -86,13 +81,34 @@
                     <button class="ghost" id="signIn">Sign In</button>
                 </div>
                 <div class="overlay-panel overlay-right">
-                    <h1>Sofia Waters</h1>
+                    <img src="{{asset('images/novustreamlogo.png')}}" alt="" srcset="" class="w-100">
                     <p>Are you ready to view your water bills? and proceed to payments? Start now by creating an account!</p>
-                    <a href="/register" class="btn btn-outline-light border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signUp">Sign Up</a>
+                    <a href="/register" class="btn btn-primary fw-bold text-white border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signUp">Sign Up</a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+<style>
+    @media(min-width: 0px) and (max-width: 600px) {
+        .overlay-container {
+            display: none;
+        }
 
+        .login {
+            width: 90%;
+            display: flex;
+            margin: auto !important;
+            justify-content: center;
+        }
+
+        .login .sign-in-container {
+            width: 100%;
+        }
+
+        .login form {
+            padding: 20px;
+        }
+    }
+</style>
 @endsection

@@ -7,6 +7,7 @@ use App\Models\WaterBill;
 use App\Models\WaterRates;
 use App\Models\WaterReading;
 use Illuminate\Support\Facades\DB;
+use PDO;
 
 class WaterService {
 
@@ -29,6 +30,17 @@ class WaterService {
 
         return WaterRates::with('property_types')->get();
 
+    }
+
+    public static function getPayments(?int $reference_no = null, bool $isPaid = false) {
+        
+        $query = WaterBill::with('reading')->where('isPaid', $isPaid);
+    
+        if (!is_null($reference_no)) {
+            $query->where('reference_no', $reference_no);
+        }
+    
+        return $query->get();
     }
 
     public static function locate(array $payload)
@@ -55,31 +67,61 @@ class WaterService {
         ];
     }
 
-    public static function getBill(string $reference_no) {
-
-        $current_bill = WaterBill::with('reading')->where('reference_no', $reference_no)
-            ->first() ?? [];
-
-        if(!$current_bill) {
+    public static function getBill(string $reference_no)
+    {
+        // Fetch the current bill with reading details
+        $current_bill = WaterBill::with('reading')->where('reference_no', $reference_no)->first();
+    
+        if (!$current_bill) {
             return null;
         }
-
-        $client = User::with('property_types')->where('meter_no', $current_bill->reading->meter_no)->first();
-
-        $previous_payment = WaterBill::with('reading.user')->where('isPaid', true)
-            ->whereHas('reading.user', function($query) use ($current_bill) {
-                return $query->meter_no = $current_bill->reading->user->meter_no;
-            })->latest()->first();
-
-        $data = [
+    
+        // Get meter number from current bill
+        $meter_no = optional($current_bill->reading)->meter_no;
+    
+        // Fetch the client details
+        $client = User::with('property_types')->where('meter_no', $meter_no)->first();
+    
+        // Fetch the previous paid payment
+        $previous_payment = WaterBill::with('reading.user')
+            ->where('isPaid', true)
+            ->whereHas('reading.user', function ($query) use ($meter_no) {
+                $query->where('meter_no', $meter_no);
+            })
+            ->latest()
+            ->first();
+    
+        // Prepare base query for unpaid bills
+        $unpaidQuery = WaterBill::with('reading')
+            ->where('isPaid', false)
+            ->whereHas('reading', function ($query) use ($meter_no) {
+                $query->where('meter_no', $meter_no);
+            });
+    
+        // Fetch the latest unpaid payment (active payment)
+        $active_payment = (clone $unpaidQuery)
+            ->latest()
+            ->select('reference_no')
+            ->first();
+    
+        // Fetch other unpaid bills excluding the current reference number
+        $unpaid_bills = (clone $unpaidQuery)
+            ->where('reference_no', '!=', $reference_no)
+            ->get();
+    
+        // Ensure active_payment is null if it matches the current reference_no
+        if ($active_payment && $active_payment->reference_no == $reference_no) {
+            $active_payment = null;
+        }
+    
+        return [
             'client' => $client,
             'current_bill' => $current_bill,
-            'previous_payment' => $previous_payment
+            'previous_payment' => $previous_payment,
+            'active_payment' => $active_payment,
+            'unpaid_bills' => $unpaid_bills,
         ];
-        
-        return $data;
-    }
-
+    }    
 
     public static function getBills(string $meter_no, bool $isAll = false) {
 

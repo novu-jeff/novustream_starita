@@ -36,5 +36,9 @@ class AppServiceProvider extends ServiceProvider
             return $user->user_type == 'technician';
         });
 
+        Gate::define('cashier', function(User $user) {
+            return $user->user_type == 'cashier';
+        });
+
     }
 }

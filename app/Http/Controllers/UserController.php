@@ -91,8 +91,9 @@ class UserController extends Controller
     public function edit(int $id) {
 
         $data = $this->userService::getData($id);
+        $roles = $this->roleService::getData();
 
-        return view('users.form', compact('data'));
+        return view('users.form', compact('data', 'roles'));
     }
 
     public function update(int $id, Request $request) {

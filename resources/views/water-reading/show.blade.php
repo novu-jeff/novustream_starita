@@ -65,7 +65,7 @@
                                         </div>
                                         <div style="display: flex; justify-content: space-between; font-weight: bold;">
                                             <div>Previous Unpaid Amount</div>
-                                            <div>{{$data['current_bill']->previous_unpaid}}</div>
+                                            <div>₱{{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</div>
                                         </div>
                                         <div style="margin: 10px 0 10px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div style="display: flex; justify-content: space-between; font-weight: bold;">

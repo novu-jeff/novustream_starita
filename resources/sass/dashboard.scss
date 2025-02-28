@@ -39,14 +39,14 @@ img {
 .header {
 	display: flex;
 	align-items: center;
-	height: 80px;
+	height: 120px;
 	border-bottom: 1px solid var(--c-border-primary);
 	background-color: var(--c-background-primary);
 }
 
 .header-content {
 	display: flex;
-	align-items: center;
+	align-items: end;
 	& > a {
 		display: none;
 	}
@@ -89,7 +89,7 @@ img {
 .header-navigation {
 	display: flex;
 	flex-grow: 1;
-	align-items: center;
+	align-items: end;
 	justify-content: space-between;
 	@media (max-width: 1200px) {
 		display: none;

@@ -7,13 +7,15 @@
                 <h1>Account Overview</h1>
             </div>
             <div class="inner-content mt-5">
-                @if($statement) 
+                @if($data->meter_no) 
                     <div class="row">
                         <div class="col-12 col-md-6 mb-3">
                             <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">
                                 Payment Due Date:
                                 <span class="ms-2 text-decoration-underline">
-                                    @if(!$statement->isPaid)
+                                    @if(!$statement)
+                                        N/A
+                                    @elseif(!$statement->isPaid)
                                         {{\Carbon\Carbon::parse($statement->due_date)->format('F d, Y')}}
                                     @else
                                         Already Paid
@@ -41,8 +43,8 @@
                                     <hr class="my-4">
                                     <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due: 
                                         <h3 class="ms-2">
-                                            @if(!$statement->isPaid)
-                                                ₱{{number_format($statement->amount, 2)}}
+                                            @if(!$statement || !$statement->isPaid)
+                                                ₱{{number_format($statement->amount ?? 0, 2)}}
                                             @else
                                                 ₱0.00
                                             @endif

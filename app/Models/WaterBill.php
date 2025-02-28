@@ -20,7 +20,9 @@ class WaterBill extends Model
         'amount_paid',
         'isPaid',
         'date_paid',
-        'due_date'
+        'due_date',
+        'payor_name',
+        'paid_by_reference_no',
     ];
 
     public function reading() {

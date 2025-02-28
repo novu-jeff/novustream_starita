@@ -7,7 +7,7 @@
         <div class="form-container sign-up-container">
             <form method="POST" action="{{ route('register') }}">
                 @csrf                
-                <h1>Create Account</h1>
+                <h1 class="fw-bold mb-2">Sign in</h1>
                 <span>or use your email for registration</span>
                 <div class="w-100">
                     <input type="text" class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" placeholder="Name" />
@@ -47,9 +47,9 @@
         <div class="overlay-container">
             <div class="overlay">
                 <div class="overlay-panel overlay-left">
-                    <h1>Welcome Back!</h1>
+                    <img src="{{asset('images/novustreamlogo.png')}}" alt="" srcset="" class="w-100">
                     <p>To keep connected with us please login with your personal info</p>
-                    <a href="/login" class="btn btn-outline-light border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signIn">Sign In</a>
+                    <a href="/login" class="btn btn-primary border-2 fs-6 px-5 py-3 text-white fw-bold text-uppercase fw-bold" id="signIn">Sign In</a>
                 </div>
                 <div class="overlay-panel overlay-right">
                     <h1>Sofia Waters</h1>
@@ -60,5 +60,27 @@
         </div>
     </div>
 </div>
+<style>
+    @media(min-width: 0px) and (max-width: 600px) {
+        .overlay-container {
+            display: none;
+        }
 
+        .login {
+            width: 90%;
+            display: flex;
+            margin: auto !important;
+            justify-content: center;
+        }
+
+        .login .sign-up-container {
+            transform: none !important;
+            width: 100%;
+        }
+
+        .login form {
+            padding: 20px;
+        }
+    }
+</style>
 @endsection

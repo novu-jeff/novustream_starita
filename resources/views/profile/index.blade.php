@@ -6,7 +6,7 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>Update My Profile</h1>
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5">
                 <form action="{{route('profile.update', $data->id)}}" method="POST">
                     @csrf
                     @method('PUT')       

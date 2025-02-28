@@ -126,7 +126,6 @@ class WaterReadingController extends Controller
                 ->where('property_types_id', $property_type_id)
                 ->first()->rates ?? 0;
 
-
             if($rate == 0) {
                 return redirect()->back()->withInput($payload)->with('alert', [
                     'status' => 'error',

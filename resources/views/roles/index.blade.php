@@ -15,7 +15,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
-                            <th>Actions</th>
+                            <th>Description</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -38,7 +38,7 @@
             columns: [
                 { data: 'id', name: 'id' },
                 { data: 'name', name: 'name' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
+                { data: 'description', name: 'description' },
             ],
             responsive: true,
             order: [[0, 'asc']],

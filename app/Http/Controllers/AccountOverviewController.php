@@ -41,6 +41,7 @@ class AccountOverviewController extends Controller
         $id = Auth::user()->id;
 
         $data = $this->clientService::getData($id);
+        
         $statement = $this->waterService::getBills($data->meter_no ?? '') ?? [];
 
         return view('account-overview.index', compact('data', 'statement'));
