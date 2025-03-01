@@ -68,7 +68,7 @@ export function canvasDownload(elem, filename) {
 
     html2canvas($(elem)[0]).then(canvas => {
         let imgData = canvas.toDataURL("image/png");
-        let imgWidth = 57; // Fixed width in mm
+        let imgWidth = 100; // Fixed width in mm
         let imgHeight = (canvas.height * imgWidth) / canvas.width; // Adjust height dynamically
 
         let doc = new jsPDF({

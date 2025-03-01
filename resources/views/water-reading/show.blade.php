@@ -1,140 +1,206 @@
-@extends('layouts.app')
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Print Bill {{$reference_no}}</title>
+</head>
+<body>
+    <div class="print-controls" style="display: flex; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
 
-@section('content')
-    <main class="main">
-        <div class="responsive-wrapper">
-            <div class="inner-content mt-5 pb-5">
-                <div class="d-flex justify-content-center mb-5 gap-3">
-                    <a href="
-                        @if(Auth::user()->user_type == 'client')
-                        {{route('account-overview.show')}}
-                        @else
-                        {{route('water-reading.index')}}
-                        @endif
-                    " class="btn btn-outline-primary px-5 py-3 text-urcase d-flex align-items-center gap-2 text-uppercase"><i style="font-size: 18px" class='bx bx-left-arrow-alt' ></i> Go Back</a>
-                    <button class="btn btn-primary px-5 py-3 text-uppercase d-flex align-items-center gap-2 download-js" data-target="#bill" data-filename="{{$data['current_bill']->reference_no}}"><i style="font-size: 18px" class='bx bxs-download' ></i> Download</button>
-                    <button class="btn btn-primary px-5 py-3 text-uppercase d-flex align-items-center gap-2 print-js"><i style="font-size: 18px" class='bx bxs-printer' ></i> Print</button>
-                </div>
-                @if($data)
-                    <div id="bill">
-                        <div class="bill-container">
-                            <div style="position: relative; width: 100%; max-width: 600px; margin: 0 auto; padding: 50px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-                                @if($data['current_bill']->isPaid == true)
-                                    <div style="padding: 10px 30px 10px 30px; position: absolute; right: 1px; top: 10px; text-transform: uppercase; color: red; letter-spacing: 3px; font-weight: 600">
-                                        PAID
-                                    </div>
-                                @endif
-                                <div style="text-align: center; margin-bottom: 16px;">
-                                    <h5>[LOGO]</h5>
-                                    <h5>[APP NAME]</h5>
-                                    <p style="text-transform: uppercase; margin: 0;">[CLIENT ADDRESS]</p>
-                                    <p style="text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
-                                    <p style="text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
-                                </div>
-                            
-                                <div style="margin-bottom: 8px;">
-                                    <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px;">Service Information</h6>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Contract No:</span> {{$data['client']->contract_no ?? ''}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Account Name: </span> {{$data['client']->firstname . ' ' . $data['client']->lastname}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Address:</span>{{$data['client']->address ?? ''}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Type: </span>{{$data['client']->property_types->name ?? ''}}</p>
-                                </div>
-                            
-                                <div style="margin-bottom: 16px;">
-                                    <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 16px;">Billing Summary</h6>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Bill Reference No.:</span> {{$data['current_bill']->reference_no}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Bill Date:</span> {{$data['current_bill']->created_at->format('d, F, Y')}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Billing Period: </span> {{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</p>
-                                    <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Consumption:</span> {{$data['current_bill']->reading->consumption}} Cubic Meter</p>
-                                </div>
-                            
-                                <div style="margin-bottom: 16px;">
-                                    <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 16px;">Billing Details</h6>
-                                    <div style="font-size: 13px; text-transform: uppercase; display: flex; flex-direction: column; gap: 10px;">
-                                        <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                                            <div>Current Charges</div>
-                                            <div>₱{{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid, 2)}}</div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <div>Total Vatable Current Charge</div>
-                                            <div>0.00</div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <div>VAT 12%</div>
-                                            <div>0.00</div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                                            <div>Previous Unpaid Amount</div>
-                                            <div>₱{{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</div>
-                                        </div>
-                                        <div style="margin: 10px 0 10px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
-                                        <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                                            <div>Total Amount Due</div>
-                                            <div>₱{{number_format($data['current_bill']->amount, 2)}}</div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                                            <div>Due Date</div>
-                                            <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('d F, Y')}}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="margin: 10px 0 10px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                <div style="margin-bottom: 10px;">
-                                    <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin: 18px; 0 15px 0;">Meter Reading Information</h6>
-                                    <div style="width: 100%; font-size: 13px;">
-                                        <div style="display: flex; justify-content: space-between; font-weight: bold; padding: 4px;">
-                                            <div>Meter No</div>
-                                            <div>Previous Reading</div>
-                                            <div>Present Reading</div>
-                                            <div>Consumption</div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; padding: 4px;">
-                                            <div>{{$data['current_bill']->reading->meter_no ?? 'N/A'}}</div>
-                                            <div>{{$data['current_bill']->reading->previous_reading ?? 'N/A'}}</div>
-                                            <div>{{$data['current_bill']->reading->present_reading ?? 'N/A'}}</div>
-                                            <div>{{$data['current_bill']->reading->consumption ?? 'N/A'}}</div>
-                                        </div>
-                                    </div>                            
-                                </div>
-                                <div style="margin: 10px 0 10px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                <div style="margin-bottom: 12px;">
-                                    <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin: 15px 0 10px 0;">Last Payment</h6>
-                                    @if($data['previous_payment'])
-                                        <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Posting Date:</span> {{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('d, F, Y')}}</p>
-                                        <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Payment Ref No.:</span> {{$data['previous_payment']->reference_no}}</p>
-                                        <p style="margin-bottom: 4px; text-transform: uppercase; font-size: 13px;"><span style="font-weight: bold; margin-right: 10px;">Total Amount Paid:</span> ₱{{number_format($data['previous_payment']->amount_paid, 2)}}</p>
-                                    @endif
-                                </div>
-                            </div>                    
+        @php
+            $previousUrl = url()->previous();
+            $currentUrl = url()->current();
+            $fallbackUrl = Auth::user()->user_type == 'client' ? route('account-overview.show') : route('water-reading.index');
+            $backUrl = ($previousUrl !== $currentUrl) ? $previousUrl : $fallbackUrl;
+        @endphp
+
+        <a href="{{ $backUrl }}" 
+            style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
+            <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
+        </a>
+
+        <button 
+            class="download-js" 
+            data-target="#bill" 
+            data-filename="{{$data['current_bill']->reference_no}}" 
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
+        </button>
+
+        <button 
+            class="print-js" 
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+            <i style="font-size: 18px;" class='bx bxs-printer'></i> Print
+        </button>
+    </div>
+    <div style="padding-bottom: 50px">
+        <div id="bill" style="margin-top: 30px">
+            <div class="bill-container">
+                <div style="position: relative; width: 100%; max-width: 200px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                    @if($data['current_bill']->isPaid == true)
+                        <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
+                            PAID
+                        </div>
+                    @endif
+                    <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
+                        <h4 style="margin-bottom: 5px;">NOVUSTREAM</h4>
+                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
+                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
+                    </div>
+                    <div style="text-align:center; text-transform: uppercase; font-size: 14px; margin: 10px 0 10px 0;">
+                        <div style="font-weight: 800;">{{$data['current_bill']->reference_no}}</div>
+                    </div>
+                    <div style="width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                    <div>
+                        <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px; margin-top: 10px;">Service Information</h6>
+                        <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Contract No</div>
+                                <div>{{$data['client']->contract_no ?? ''}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Account Name</div>
+                                <div>{{$data['client']->firstname . ' ' . $data['client']->lastname}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Address</div>
+                                <div>{{$data['client']->address ?? ''}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Type</div>
+                                <div>{{$data['client']->property_types->name ?? ''}}</div>
+                            </div>                
                         </div>
                     </div>
-                @endif
+                    <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    <div>
+                        <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 5px; margin-top: 10px;">Billing Summary</h6>
+                        <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
+                            <div style="display: block; margin: 5px 0 5px 0;">
+                                <div>Bill Date</div>
+                                <div>{{$data['current_bill']->created_at->format('m/d/Y')}}</div>
+                            </div>
+                            <div style="display: block; margin: 5px 0 5px 0;">
+                                <div>Billing Period</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    <div>
+                        <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 10px; margin-top: 10px;">Billing Details</h6>
+                        <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Current Charges</div>
+                                <div>₱{{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid, 2)}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Charge VAT</div>
+                                <div>₱0.00</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>VAT 12%</div>
+                                <div>₱0.00</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Unpaid Amount</div>
+                                <div>₱{{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</div>
+                            </div>
+                            <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Amount Due</div>
+                                <div>₱{{number_format($data['current_bill']->amount, 2)}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Due Date</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('d F, Y')}}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                    <div>
+                        <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Meter Reading Information</h6>
+                        <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Meter No</div>
+                                <div>{{$data['current_bill']->reading->meter_no ?? 'N/A'}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Previous Reading</div>
+                                <div>{{$data['current_bill']->reading->previous_reading ?? 'N/A'}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Present Reading</div>
+                                <div>{{$data['current_bill']->reading->present_reading ?? 'N/A'}}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>Consumption</div>
+                                <div>{{$data['current_bill']->reading->consumption ?? 'N/A'}}</div>
+                            </div>
+                        </div>                            
+                    </div>
+                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                    <div>
+                        <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
+                        @if($data['previous_payment'])
+                            <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div>Date Posted</div>
+                                    <div>{{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('m/d/Y')}}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div>Ref No.</div>
+                                    <div>{{$data['previous_payment']->reference_no}}</div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div>Amount Paid</div>
+                                    <div>₱{{number_format($data['previous_payment']->amount_paid, 2)}}</div>
+                                </div>
+                            </div>      
+                        @endif
+                    </div>
+                    <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                    
+                </div>                    
             </div>
         </div>
-    </main>
-    <style>
-        @media print {
-            @page {
-                size: 57mm auto;
-            }
+    </div><style>
 
-            body * {
-                visibility: hidden !important; 
+        @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+        
+        @media print {
+            
+            @page {
+                margin: 0mm 2mm 0mm 0mm;
             }
-            #bill, #bill * {
+    
+            body * {
+                padding: 0px !important;
                 box-shadow: none !important;
                 visibility: visible !important;
+                font-size: 10px !important;
+                font-weight: 800;
+                font-family: monospace;
             }
-            #bill {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
+    
+            header, .print-controls {
+                display: none !important;
             }
+    
+            .isPaid {
+                display: none;
+                visibility: hidden;
+            }
+    
         }
     </style>
-@endsection
-
+</body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+@vite(['resources/js/app.js'])
 @section('script')
     <script>
         $(function () {
@@ -147,3 +213,4 @@
         });
     </script>
 @endsection
+</html>

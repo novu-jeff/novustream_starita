@@ -53,6 +53,9 @@ Route::middleware('auth')->group(function() {
     Route::post('water-reading', [WaterReadingController::class, 'store'])
         ->name('water-reading.store');
 
+    Route::get('water-reading/view/bill/{reference_no}', [WaterReadingController::class, 'view_bill'])
+        ->name('water-reading.view-bill');
+
     Route::get('water-reading/bill/{reference_no}', [WaterReadingController::class, 'show'])
         ->name('water-reading.show');
 

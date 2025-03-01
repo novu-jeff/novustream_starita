@@ -58,7 +58,7 @@ class WaterReadingController extends Controller
             ]);
         }
 
-        return view('water-reading.show', compact('data'));
+        return view('water-reading.show', compact('data', 'reference_no'));
 
     }
 
