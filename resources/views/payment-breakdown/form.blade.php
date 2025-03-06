@@ -38,7 +38,7 @@
 
                                             <div class="col-md-6 mb-3">
                                                 <label for="type" class="form-label">Amount Type</label>
-                                                <select name="type" id="type" class="form-select @error('type') is-invalid @enderror">
+                                                <select name="type" id="type" class="form-select text-uppercase @error('type') is-invalid @enderror">
                                                     <option value="fixed" {{ old('type', $data->type ?? '') == 'fixed' ? 'selected' : '' }} selected>Fixed Amount</option>
                                                     <option value="percentage" {{ old('type', $data->type ?? '') == 'percentage' ? 'selected' : '' }}>Percentage Amount</option>
                                                 </select>
@@ -49,7 +49,7 @@
 
                                             <div class="col-md-6 mb-3 percentage-of-field">
                                                 <label for="percentage_of" class="form-label">Percentage Amount Of</label>
-                                                <select name="percentage_of" id="percentage_of" class="form-select">
+                                                <select name="percentage_of" id="percentage_of" class="form-select text-uppercase">
                                                     <option value=""> - CHOOSE - </option>
                                                     <option value="basic_charge" {{ old('percentage_of', $data->percentage_of ?? '') == 'basic_charge' ? 'selected' : '' }}>Basic Charge</option>
                                                     <option value="total_amount" {{ old('percentage_of', $data->percentage_of ?? '') == 'total_amount' ? 'selected' : '' }}>Total Amount</option>
@@ -165,8 +165,8 @@
                                                             <!-- Property Type -->
                                                             <div class="col-12 col-md-6 mb-3">
                                                                 <label class="form-label">Property Type</label>
-                                                                <select name="service_fee[property_type][]" class="form-control @error("service_fee.property_type.$index") is-invalid @enderror">
-                                                                    <option value="">Select Property Type</option>
+                                                                <select name="service_fee[property_type][]" class="form-select text-uppercase @error("service_fee.property_type.$index") is-invalid @enderror">
+                                                                    <option value=""> - CHOOSE - </option>
                                                                     @foreach($property_types as $type)
                                                                         <option value="{{ $type->id }}" {{ old("service_fee.property_type.$index", $propertyType) == $type->id ? 'selected' : '' }}>
                                                                             {{ $type->name }}
@@ -235,7 +235,7 @@
                             <!-- Days Due (From) -->
                             <div class="col-12 col-md-4 mb-3">
                                 <label for="from" class="form-label">Days Due (From)</label>
-                                <input type="text" name="penalty[from][]" class="form-control @error('penalty.from.*') is-invalid @enderror" placeholder="Enter">
+                                <input type="text" name="penalty[from][]" class="form-control @error('penalty.from.*') is-invalid @enderror">
                                 @error('penalty.from.*')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -244,7 +244,7 @@
                             <!-- Days Due (To) -->
                             <div class="col-12 col-md-4 mb-3">
                                 <label for="to" class="form-label">Days Due (To)</label>
-                                <input type="text" name="penalty[to][]" class="form-control @error('penalty.to.*') is-invalid @enderror" placeholder="Enter">
+                                <input type="text" name="penalty[to][]" class="form-control @error('penalty.to.*') is-invalid @enderror">
                                 @error('penalty.to.*')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -253,7 +253,7 @@
                             <!-- Amount -->
                             <div class="col-12 col-md-4 mb-3">
                                 <label for="amount" class="form-label">Amount</label>
-                                <input type="text" name="penalty[amount][]" class="form-control @error('penalty.amount.*') is-invalid @enderror" placeholder="Enter">
+                                <input type="text" name="penalty[amount][]" class="form-control @error('penalty.amount.*') is-invalid @enderror">
                                 @error('penalty.amount.*')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -274,7 +274,7 @@
 
             $('#add-row-service').click(function () {
                 let propertyTypes = @json($property_types);
-                let options = `<option value="">Select Property Type</option>`;
+                let options = `<option value=""> - CHOOSE - </option>`;
                 propertyTypes.forEach(type => {
                     options += `<option value="${type.id}">${type.name}</option>`;
                 });
@@ -285,7 +285,7 @@
                             <!-- Property Type -->
                             <div class="col-12 col-md-6 mb-3">
                                 <label for="property_type" class="form-label">Property Type</label>
-                                <select name="service_fee[property_type][]" class="form-control">
+                                <select name="service_fee[property_type][]" class="form-select text-uppercase">
                                     ${options}
                                 </select>
                             </div>
@@ -293,7 +293,7 @@
                             <!-- Amount -->
                             <div class="col-12 col-md-6 mb-3">
                                 <label for="amount" class="form-label">Amount</label>
-                                <input type="text" name="service_fee[amount][]" class="form-control" placeholder="Enter">
+                                <input type="text" name="service_fee[amount][]" class="form-control">
                             </div>
                         </div>
 
@@ -323,7 +323,7 @@
                 const type = $('#type').val();
                 if (type === 'percentage') {
                     $('.percentage-of-field').show();
-                    $('#amount').attr('placeholder', 'Percentage (0.12)');
+                    $('#amount').attr('placeholder', 'ex. 0.12');
                 } else {
                     $('.percentage-of-field').hide();
                     $('#amount').attr('placeholder', 'Fixed Amount');

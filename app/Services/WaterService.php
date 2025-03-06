@@ -271,7 +271,8 @@ class WaterService {
         $other_deductions = $this->paymentBreakdownService::getData();
         $penalty_deductions = $this->paymentBreakdownService::getPenalty();
         $service_fees = $this->paymentBreakdownService::getServiceFee();
-    
+
+
         $deductions = [
             [
                 'name' => 'Previous Balance',
@@ -284,10 +285,6 @@ class WaterService {
                 'description' => '',
             ],
         ];
-
-        $current_timestamp = Carbon::now();
-        $due_timestamp = Carbon::parse($latest_reading->bill->due_date);
-
     
         // Process Other Deductions
         foreach ($other_deductions as $deduction) {
@@ -311,26 +308,34 @@ class WaterService {
 
 
         // Process Penalty
-        if($current_timestamp->gt($due_timestamp)) {
 
-            $due_count = $current_timestamp->diff($due_timestamp)->days;
+        if(!is_null($latest_reading)) {
+            
+            $current_timestamp = Carbon::now();
+            $due_timestamp = Carbon::parse($latest_reading->bill->due_date) ?? null;
 
-            $amount = 0;
+            if($current_timestamp->gt($due_timestamp)) {
 
-            foreach ($penalty_deductions as $penalty) {
-                if ($due_count >= $penalty->due_from && $due_count <= $penalty->due_to) {
-                    $amount = $penalty->amount;
-                    break; 
+                $due_count = $current_timestamp->diff($due_timestamp)->days;
+    
+                $amount = 0;
+    
+                foreach ($penalty_deductions as $penalty) {
+                    if ($due_count >= $penalty->due_from && $due_count <= $penalty->due_to) {
+                        $amount = $penalty->amount;
+                        break; 
+                    }
                 }
+    
+                $deductions[] = [
+                    'name' => 'Penalty',
+                    'description' => '',
+                    'amount' => $amount
+                ];
+    
             }
-
-            $deductions[] = [
-                'name' => 'Penalty',
-                'description' => '',
-                'amount' => $amount
-            ];
-
         }
+        
     
         // Process Service Fees
         foreach ($service_fees as $fee) {

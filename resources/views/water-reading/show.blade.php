@@ -159,7 +159,8 @@
                                 </div>      
                             </div>
                         @endif
-                    <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                    
+                        <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                    
+                    </div>
                 </div>                    
             </div>
         </div>

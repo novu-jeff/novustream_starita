@@ -30,7 +30,7 @@
                                         <div style="text-align:center; text-transform: uppercase; font-size: 14px; margin: 10px 0 10px 0;">
                                             <div style="font-weight: 800;">{{$data['current_bill']->reference_no}}</div>
                                         </div>
-                                        <div style="width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div>
                                             <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px; margin-top: 10px;">Service Information</h6>
                                             <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
@@ -52,7 +52,7 @@
                                                 </div>                
                                             </div>
                                         </div>
-                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                         <div>
                                             <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 5px; margin-top: 10px;">Billing Summary</h6>
                                             <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 60px;">
@@ -66,7 +66,9 @@
                                                         <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
                                                     </div>
                                                 </div>
-                                                {!! $qr_code !!}
+                                                <div>
+                                                    {!! $qr_code !!}
+                                                </div>
                                             </div>
                                         </div>
                                         <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
@@ -79,7 +81,6 @@
                                                         <div>₱{{number_format($breakdown->amount ?? 0, 2)}}</div>
                                                     </div>
                                                 @endforeach
-                                                
                                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Amount Due</div>
@@ -112,35 +113,34 @@
                                                     <div>{{$data['current_bill']->reading->consumption ?? 'N/A'}}</div>
                                                 </div>
                                             </div>                            
-                                        </div>
-                                        <div>
-                                            @if($data['previous_payment'])
-                                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                                    <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
-                                                    <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
-                                                        <div style="display: flex; justify-content: space-between;">
-                                                            <div>Date Posted</div>
-                                                            <div>{{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('m/d/Y')}}</div>
-                                                        </div>
-                                                        <div style="display: flex; justify-content: space-between;">
-                                                            <div>Ref No.</div>
-                                                            <div>{{$data['previous_payment']->reference_no}}</div>
-                                                        </div>
-                                                        <div style="display: flex; justify-content: space-between;">
-                                                            <div>Amount</div>
-                                                            <div>₱{{number_format($data['previous_payment']->amount, 2)}}</div>
-                                                        </div>
-                                                    </div>      
+                                        </div>  
+                                        @if($data['previous_payment'])
+                                            <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                            <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
+                                            <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <div>Date Posted</div>
+                                                    <div>{{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('m/d/Y')}}</div>
                                                 </div>
-                                            @endif         
-                                        <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                                                       
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <div>Ref No.</div>
+                                                    <div>{{$data['previous_payment']->reference_no}}</div>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <div>Amount</div>
+                                                    <div>₱{{number_format($data['previous_payment']->amount, 2)}}</div>
+                                                </div>
+                                            </div>      
+                                        @endif
+                                        <div style="margin: 15px 0 15px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                                     </div>   
                                 </div>
                             </div>
                         </div>
                         <div class="col-12 col-md-6"> 
                             @if(!$data['current_bill']->isPaid)
-                                <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">Total Amount Due: 
+                                <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
+                                    Total Amount Due: 
                                     <h3 class="ms-2">
                                         ₱{{number_format($data['current_bill']->amount ?? 0, 2)}}
                                     </h3>

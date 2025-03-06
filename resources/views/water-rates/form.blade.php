@@ -26,7 +26,7 @@
                                     <div class="row mb-3">
                                         <div class="col-md-12 mb-3">
                                             <label for="property_type" class="form-label">Type</label>
-                                            <select class="form-control @error('property_type') is-invalid @enderror" id="property_type" name="property_type">
+                                            <select class="form-control text-uppercase @error('property_type') is-invalid @enderror" id="property_type" name="property_type">
                                                 <option value=""> - CHOOSE - </option>
                                                 @foreach($property_types as $property_type)
                                                     <option value="{{ $property_type->id }}" {{ old('property_type', $data->property_types_id ?? '') == $property_type->id ? 'selected' : '' }}>
