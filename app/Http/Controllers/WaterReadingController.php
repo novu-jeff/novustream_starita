@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PaymentBreakdown;
+use App\Models\PaymentServiceFee;
 use App\Models\User;
 use App\Models\WaterBill;
+use App\Models\WaterBillBreakdown;
 use App\Models\WaterRates;
 use App\Models\WaterReading;
+use App\Services\GenerateService;
 use App\Services\WaterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,8 +22,14 @@ class WaterReadingController extends Controller
 {
     
     public $waterService;
+    public $paymentBreakdownService;
+    public $paymentServiceFee;
+    public $generateService;
 
-    public function __construct(WaterService $waterService)
+    public function __construct(WaterService $waterService, 
+        PaymentBreakdown $paymentBreakdownService, 
+        PaymentServiceFee $paymentServiceFee,
+        GenerateService $generateService)
     {
 
         $this->middleware(function ($request, $next) {
@@ -35,6 +45,9 @@ class WaterReadingController extends Controller
         });
 
         $this->waterService = $waterService;
+        $this->paymentBreakdownService = $paymentBreakdownService;
+        $this->paymentServiceFee = $paymentServiceFee;
+        $this->generateService = $generateService;
     }
 
     public function index(Request $request) {
@@ -58,8 +71,11 @@ class WaterReadingController extends Controller
             ]);
         }
 
-        return view('water-reading.show', compact('data', 'reference_no'));
+        $url = route('water-reading.show', ['reference_no' => $reference_no]);
 
+        $qr_code = $this->generateService::qr_code($url, 100);
+
+        return view('water-reading.show', compact('data', 'reference_no', 'qr_code'));
     }
 
     public function report(string $date = null) {
@@ -109,57 +125,38 @@ class WaterReadingController extends Controller
 
             $meter_no = $user->meter_no;
             $property_type_id = $user->property_type;
+            $present_reading = $payload['present_reading'];
 
-            $latest_reading = WaterReading::where('meter_no', $meter_no);
+            $computed = $this->waterService->create_breakdown([
+                'meter_no' => $meter_no,
+                'property_type_id' => $property_type_id,
+                'present_reading' => $present_reading
+            ]);
 
-            if($latest_reading->count() > 0) {
-                $latest_reading = $latest_reading->latest()->first();
-                $previous_reading = $latest_reading->present_reading ?? 0;
-            } else {
-                $previous_reading = 0;
-            }
-
-            $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
-
-            $rate = WaterRates::where('cubic_from', '<=', $consumption)
-                ->where('cubic_to', '>=', $consumption)
-                ->where('property_types_id', $property_type_id)
-                ->first()->rates ?? 0;
-
-            if($rate == 0) {
+            if($computed['status'] == 'error') {
                 return redirect()->back()->withInput($payload)->with('alert', [
                     'status' => 'error',
-                    'message' => "We've noticed that there's no water rate for this consumption"
+                    'message' => $computed['message']
                 ]);
             }
-        
-            $unpaidAmount = WaterBill::where('isPaid', false)->sum('amount') ?? 0;
 
-            $water_bill = $rate * $consumption;
+            // WATER READING
+            $water = WaterReading::create($computed['reading']);
 
-            $bill_period_from = Carbon::now()->subMonth()->format('Y-m-d H:i:s');
-            $bill_period_to = Carbon::now()->format('Y-m-d H:i:s');
-            $due_date = Carbon::now()->addDays(14)->format('Y-m-d H:i:s');
+            $computed['bill']['water_reading_id'] = $water->id;
 
-            $water = WaterReading::create([
-                'meter_no' => $meter_no,
-                'previous_reading' => $previous_reading,
-                'present_reading' => $payload['present_reading'],
-                'consumption' => $consumption,
-                'rate' => $rate,
-            ]);
+            // WATER BILL
+            $bill = WaterBill::create($computed['bill']);
 
-            $total = (float) $unpaidAmount + (float) $water_bill;
-
-            $bill = WaterBill::create([
-                'water_reading_id' => $water->id,
-                'reference_no' => 'REF-' . time(),
-                'bill_period_from' => $bill_period_from,
-                'bill_period_to' => $bill_period_to,
-                'previous_unpaid' => $unpaidAmount,
-                'amount' => $total,
-                'due_date' => $due_date,
-            ]);
+            // BILL BREAKDOWN
+            foreach($computed['deductions'] as $deductions) {
+                WaterBillBreakdown::create([
+                    'water_bill_id' => $bill->id,
+                    'name' => $deductions['name'],
+                    'description' => $deductions['description'],
+                    'amount' => $deductions['amount']
+                ]);
+            }
 
             DB::commit();
 

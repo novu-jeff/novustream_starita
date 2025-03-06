@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\WaterRates;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\WaterRatesService;
@@ -57,13 +58,36 @@ class WaterRatesController extends Controller
         $validator = Validator::make($payload, [
             'property_type' => 'required|exists:property_types,id',
             'cubic_from' => 'required|integer',
-            'cubic_to' => 'required|integer',
+            'cubic_to' => 'required|integer|gt:cubic_from',
             'rate' => 'required|numeric'
         ]);
-
-        if($validator->fails()) {
+        
+        if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
+                ->withInput();
+        }
+        
+        $existingRange = WaterRates::where('property_types_id', $payload['property_type'])
+            ->where(function ($query) use ($payload) {
+                $query->whereBetween('cubic_from', [$payload['cubic_from'], $payload['cubic_to']])
+                      ->orWhereBetween('cubic_to', [$payload['cubic_from'], $payload['cubic_to']])
+                      ->orWhere(function ($q) use ($payload) {
+                          $q->where('cubic_from', '<', $payload['cubic_from'])
+                            ->where('cubic_to', '>', $payload['cubic_to']);
+                      });
+            })
+            ->exists();
+        
+        if ($existingRange) {
+            $lastRange = WaterRates::where('property_types_id', $payload['property_type'])
+                ->orderByDesc('cubic_to')
+                ->first();
+        
+            $suggestedStart = $lastRange ? $lastRange->cubic_to + 1 : 1;
+        
+            return redirect()->back()
+                ->withErrors(['cubic_from' => "The range exists. The new range must start from {$suggestedStart}."])
                 ->withInput();
         }
 
@@ -150,9 +174,6 @@ class WaterRatesController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-primary text-white text-uppercase fw-bold" id="view-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-show"></i>
-                    </button>
                     <a href="' . route('water-rates.edit', $row->id) . '" 
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">

@@ -63,27 +63,34 @@ export function remove(table, url, token) {
     });
 }
 
-export function canvasDownload(elem, filename) {
+export function canvasDownload(elem, filename) { 
     const { jsPDF } = window.jspdf;
 
-    html2canvas($(elem)[0]).then(canvas => {
+    let pageWidth = 80; 
+    let pageHeight = 210; 
+
+    html2canvas($(elem)[0], {
+        scale: 5, 
+        useCORS: true, 
+        allowTaint: true
+    }).then(canvas => {
+
         let imgData = canvas.toDataURL("image/png");
-        let imgWidth = 100; // Fixed width in mm
-        let imgHeight = (canvas.height * imgWidth) / canvas.width; // Adjust height dynamically
+
+        let imgWidth = 450;  
+        let imgHeight = pageHeight; 
 
         let doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: [imgWidth, imgHeight] // Width fixed, height dynamic
+            format: [pageWidth, pageHeight] 
         });
 
-        // Calculate center position
-        let pageWidth = doc.internal.pageSize.getWidth();
-        let pageHeight = doc.internal.pageSize.getHeight();
-        let xPos = (pageWidth - imgWidth) / 2; // Center horizontally
-        let yPos = (pageHeight - imgHeight) / 2; // Center vertically
+        let xPos = (pageWidth - imgWidth) / 2; 
+        let yPos = (pageHeight - imgHeight) / 2; 
 
         doc.addImage(imgData, 'PNG', xPos, yPos, imgWidth, imgHeight);
         doc.save(filename + ".pdf");
+        
     });
 }

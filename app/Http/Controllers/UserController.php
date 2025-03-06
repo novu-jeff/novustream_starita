@@ -154,7 +154,6 @@ class UserController extends Controller
                 'message' => $response['message']
             ]);
         }
-
     }
 
     public function datatable($query)
@@ -164,9 +163,6 @@ class UserController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <button class="btn btn-primary text-white text-uppercase fw-bold" id="view-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-show"></i>
-                    </button>
                     <a href="' . route('users.edit', $row->id) . '" 
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">

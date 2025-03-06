@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GenerateService;
 use App\Services\WaterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -12,9 +13,11 @@ class PaymentController extends Controller
 {
 
     public $waterService;
+    public $generateService;
 
-    public function __construct(WaterService $waterService) {
+    public function __construct(WaterService $waterService, GenerateService $generateService) {
         $this->waterService = $waterService;
+        $this->generateService = $generateService;
     }
 
     public function index() {
@@ -54,7 +57,11 @@ class PaymentController extends Controller
             return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']->reference_no]);
         }
 
-        return view('payments.pay', compact('data', 'reference_no'));
+        $url = route('water-reading.show', ['reference_no' => $reference_no]);
+
+        $qr_code = $this->generateService::qr_code($url, 60);
+
+        return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
 
     }
 

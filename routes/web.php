@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountOverviewController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
@@ -92,6 +93,9 @@ Route::middleware('auth')->group(function() {
 
         Route::resource('water-rates', WaterRatesController::class)
             ->names('water-rates');
+
+        Route::resource('payment-breakdown', PaymentBreakdownController::class)
+            ->names('payment-breakdown');
     });
 
     Route::resource('profile', ProfileController::class)

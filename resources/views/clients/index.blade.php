@@ -62,7 +62,6 @@
         
             remove(table, url, token)
 
-
         });
     });
 </script>

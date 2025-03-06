@@ -40,15 +40,13 @@ class DashboardController extends Controller
         });
 
         // Get total unpaid amount (where isPaid is false)
-        $total_unpaid = $water_readings->where('bill.isPaid', false)->sum(function ($reading) {
-            return $reading['bill']['amount'] - $reading['bill']['amount_paid'];
-        });
+        $total_unpaid = $water_readings->where('bill.isPaid', false)->sum('bill.amount');
 
         // Get total paid amount (where isPaid is true)
-        $total_paid = $water_readings->where('bill.isPaid', true)->sum('bill.amount_paid');
+        $total_paid = $water_readings->where('bill.isPaid', true)->sum('bill.amount');
 
         // Get total payment transactions
-        $total_payments = $water_readings->sum('bill.amount_paid');
+        $total_payments = $water_readings->sum('bill.amount');
 
         $data = [
             'users' => $users,
@@ -58,7 +56,6 @@ class DashboardController extends Controller
             'total_paid' => $total_paid,
             'total_payments' => $total_payments
         ];
-
 
         return view('dashboard', compact('data'));
     }

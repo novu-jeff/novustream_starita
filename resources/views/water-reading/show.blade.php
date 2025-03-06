@@ -38,14 +38,19 @@
     <div style="padding-bottom: 50px">
         <div id="bill" style="margin-top: 30px">
             <div class="bill-container">
-                <div style="position: relative; width: 100%; max-width: 200px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <div style="position: relative; width: 100%; max-width: 250px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                     @if($data['current_bill']->isPaid == true)
                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                             PAID
                         </div>
                     @endif
+                    @php
+                        $path = public_path('images/novustreamlogodarken.png');
+                        $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($path));
+                    @endphp
                     <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
-                        <h4 style="margin-bottom: 5px;">NOVUSTREAM</h4>
+                        <img src="{{asset('/images/novustreamlogo.png')}}" alt="logo" class="web-logo">
+                        <img src="{{ $base64 }}" alt="logo" class="print-logo">
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
                     </div>
@@ -76,38 +81,31 @@
                     </div>
                     <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
                     <div>
-                        <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 5px; margin-top: 10px;">Billing Summary</h6>
-                        <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                            <div style="display: block; margin: 5px 0 5px 0;">
-                                <div>Bill Date</div>
-                                <div>{{$data['current_bill']->created_at->format('m/d/Y')}}</div>
+                        <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 0px; margin-top: 10px;">Billing Summary</h6>
+                        <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 20px;">
+                            <div>
+                                <div style="display: block; margin: 5px 0 5px 0;">
+                                    <div>Bill Date</div>
+                                    <div>{{$data['current_bill']->created_at->format('m/d/Y')}}</div>
+                                </div>
+                                <div style="display: block; margin: 5px 0 5px 0;">
+                                    <div>Billing Period</div>
+                                    <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
+                                </div>
                             </div>
-                            <div style="display: block; margin: 5px 0 5px 0;">
-                                <div>Billing Period</div>
-                                <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
-                            </div>
+                            {!! $qr_code !!}
                         </div>
                     </div>
-                    <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    <div style="width: 100%; height: 1px; margin: 0px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
                     <div>
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 10px; margin-top: 10px;">Billing Details</h6>
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>Current Charges</div>
-                                <div>₱{{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid, 2)}}</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>Charge VAT</div>
-                                <div>₱0.00</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>VAT 12%</div>
-                                <div>₱0.00</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>Unpaid Amount</div>
-                                <div>₱{{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</div>
-                            </div>
+                            @foreach($data['current_bill']->breakdown as $breakdown)
+                                <div style="display: flex; justify-content: space-between;">
+                                    <div>{{ $breakdown->name }} {{ !empty($breakdown->description) ? '(' . $breakdown->description . ')' : '' }}</div>
+                                    <div>₱{{number_format($breakdown->amount ?? 0, 2)}}</div>
+                                </div>
+                            @endforeach
                             <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Amount Due</div>
@@ -115,7 +113,7 @@
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Due Date</div>
-                                <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('d F, Y')}}</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('m/d/Y')}}</div>
                             </div>
                         </div>
                     </div>
@@ -141,38 +139,52 @@
                             </div>
                         </div>                            
                     </div>
-                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div>
-                        <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
                         @if($data['previous_payment'])
-                            <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <div>Date Posted</div>
-                                    <div>{{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('m/d/Y')}}</div>
-                                </div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <div>Ref No.</div>
-                                    <div>{{$data['previous_payment']->reference_no}}</div>
-                                </div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <div>Amount Paid</div>
-                                    <div>₱{{number_format($data['previous_payment']->amount_paid, 2)}}</div>
-                                </div>
-                            </div>      
+                            <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
+                                <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <div>Date Posted</div>
+                                        <div>{{\Carbon\Carbon::parse($data['previous_payment']->date_paid)->format('m/d/Y')}}</div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <div>Ref No.</div>
+                                        <div>{{$data['previous_payment']->reference_no}}</div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <div>Amount</div>
+                                        <div>₱{{number_format($data['previous_payment']->amount, 2)}}</div>
+                                    </div>
+                                </div>      
+                            </div>
                         @endif
-                    </div>
                     <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                    
                 </div>                    
             </div>
         </div>
-    </div><style>
+    </div>
+    <style>
 
         @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
         
+        svg {
+            width: 55px !important;
+        }
+
+        .web-logo {
+            width: 100px;
+            margin: 0 auto 10px auto !important;
+        }
+
+        .print-logo {
+            display: none !important;
+        }
+
         @media print {
             
             @page {
-                margin: 0mm 2mm 0mm 0mm;
+                margin: 0mm 5mm 0mm 0mm;
             }
     
             body * {
@@ -192,7 +204,21 @@
                 display: none;
                 visibility: hidden;
             }
-    
+
+            svg {
+                width: 80px !important;
+            }
+
+            .web-logo {
+                display: none !important;
+            }
+
+            .print-logo {
+                width: 100px;
+                margin: 0 auto 10px auto !important;
+                display: block !important;
+            }
+            
         }
     </style>
 </body>

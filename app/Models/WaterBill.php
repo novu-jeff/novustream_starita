@@ -29,4 +29,8 @@ class WaterBill extends Model
         return $this->hasOne(WaterReading::class, 'id', 'water_reading_id');
     }
 
+    public function breakdown() {
+        return $this->hasMany(WaterBillBreakdown::class, 'water_bill_id', 'id');
+    }
+
 }

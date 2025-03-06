@@ -44,6 +44,18 @@ return new class extends Migration
                 ->nullable();
             $table->timestamps();
         });
+
+        Schema::create('water_bill_breakdown', function(Blueprint $table) {
+            $table->id();
+            $table->foreignId('water_bill_id')
+                ->constrained('water_bill')
+                ->onCascade('delete');
+            $table->string('name');
+            $table->string('description')
+                ->nullable();
+            $table->float('amount');
+            $table->timestamps();
+        });
     }
 
     /**
@@ -51,6 +63,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('water_bill_breakdown');
         Schema::dropIfExists('water_bill');
         Schema::dropIfExists('water_readings');
     }
