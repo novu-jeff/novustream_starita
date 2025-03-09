@@ -190,8 +190,9 @@
                                                 <h2 class="text-primary fw-bold" id="changeAmount">₱0.00</h2>
                                             </div>
                                         </div>
-                                        <div class="d-flex justify-content-end my-5">
-                                            <button type="submit" class="btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
+                                        <div class="d-block text-end my-5">
+                                            <button type="submit" class="w-50 mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold">Pay Cash</button>
+                                            <a href="http://136.239.223.234:5000/payment-demo?price={{$data['current_bill']->amount}}" class="w-50 mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold">Pay Online</a>
                                         </div>
                                     </div>
                                 </div>
