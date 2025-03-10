@@ -50,7 +50,6 @@ class PaymentBreakdownController extends Controller
             if($request->action == 'service-fee') {
                 return $this->datatable('service_fee', $service_fee);
             }
-
         }
 
         return view('payment-breakdown.index');
@@ -184,11 +183,18 @@ class PaymentBreakdownController extends Controller
         }
     }
 
-    public function edit(int $id) {
+    public function edit(int $id, Request $request) {
+
+        $action = $request->action;
+
+        if(!in_array($action, ['regular', 'penalty', 'service-fee'])) {
+            return redirect()->route('payment-breakdown.index');
+        }
 
         $data = $this->paymentBreakdownService::getData($id);
-        
-        return view('payment-breakdown.form', compact('data'));
+        $property_types = $this->propertyService->getData() ?? [];
+
+        return view('payment-breakdown.form', compact('action', 'property_types', 'data'));
     }
 
     public function update(int $id, Request $request) {
@@ -259,10 +265,10 @@ class PaymentBreakdownController extends Controller
                     return '₱' .  number_format($row->amount ?? 0, 2);
                 }
             })
-            ->addColumn('actions', function ($row) {
+            ->addColumn('actions', function ($row) use ($action) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('payment-breakdown.edit', $row->id) . '" 
+                    <a href="' . route('payment-breakdown.edit', ['payment_breakdown' => $row->id, 'action' => $action]) . '"
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>
