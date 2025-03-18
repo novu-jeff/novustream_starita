@@ -2,79 +2,50 @@
 
 namespace App\Services;
 
+use App\Models\Admin;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class ProfileService {
 
 
-    public static function getData(int $id = null) {
+    public static function getData() {
 
-        if(!is_null($id)) {
-            return User::where('id', $id)
-                ->first() ?? null;
+        $data = Auth::user();
+
+
+        if ($data && property_exists($data, 'user_type')) {
+            $data->user_type = $data->user_type;
+        } else {
+            $data->user_type = 'client';
         }
-
-        return User::all();
-
+    
+        return $data;
     }
 
     public static function update(int $id, array $payload) {
 
         DB::beginTransaction();
 
-        
         try {
-
-            $data = self::getData($id);
-
-            $user_type = $data->user_type;
         
-
-            if($user_type == 'client') {
-
-
-                if($payload['origin'] == 'profile') {
-                    
-                    $updateData = [
-                        'firstname' => $payload['firstname'],
-                        'lastname' => $payload['lastname'],
-                        'middlename' => $payload['middlename'],
-                        'address' => $payload['address'],
-                        'contact_no' => $payload['contact_no'],
-                        'email' => $payload['email'],
-                    ];
-                } else {
-                    $updateData = [
-                        'firstname' => $payload['firstname'],
-                        'lastname' => $payload['lastname'],
-                        'middlename' => $payload['middlename'],
-                        'address' => $payload['address'],
-                        'contact_no' => $payload['contact_no'],
-                        'email' => $payload['email'],
-                    ];
-
-                }
-    
+            $updateData = [
+                'name' => $payload['name'],
+                'email' => $payload['email'],
+            ];
                 
-            } else {
-                $updateData = [
-                    'firstname' => $payload['firstname'],
-                    'lastname' => $payload['lastname'],
-                    'middlename' => $payload['middlename'],
-                    'address' => $payload['address'],
-                    'contact_no' => $payload['contact_no'],
-                    'email' => $payload['email'],
-                ];
-
-            }
             
             if(isset($payload['password'])) {
                 $updateData['password'] = Hash::make($payload['password']);
             }
 
-            User::where('id', $id)->update($updateData);
+            if($payload['user_type'] == 'client') {
+                User::where('id', $id)->update($updateData);
+            } else {
+                Admin::where('id', $id)->update($updateData);
+            }
 
             DB::commit();
 

@@ -7,7 +7,10 @@
                 <h1>Update My Profile</h1>
             </div>
             <div class="inner-content mt-5 pb-5">
-                <form action="{{route('profile.update', $data->id)}}" method="POST">
+                @php
+                    $prefix = Auth::guard('admins')->check() ? 'admin' : 'client';
+                @endphp
+                <form action="{{route($prefix.'.profile.update', $data->id)}}" method="POST">
                     @csrf
                     @method('PUT')       
                     <div class="row">
@@ -18,44 +21,57 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="row mb-3">
-                                        <div class="col-md-4">
-                                            <label for="firstname" class="form-label">First Name</label>
-                                            <input type="text" class="form-control @error('firstname') is-invalid @enderror" id="firstname" name="firstname" value="{{ old('firstname', $data->firstname ?? '') }}">
-                                            @error('firstname')
+                                        <div class="col-md-12 mb-3">
+                                            <label for="name" class="form-label">Full Name</label>
+                                            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $data->name ?? '') }}">
+                                            @error('name')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
-                                        <div class="col-md-4">
-                                            <label for="lastname" class="form-label">Last Name</label>
-                                            <input type="text" class="form-control @error('lastname') is-invalid @enderror" id="lastname" name="lastname" value="{{ old('lastname', $data->lastname ?? '') }}">
-                                            @error('lastname')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="middlename" class="form-label">Middle Name</label>
-                                            <input type="text" class="form-control @error('middlename') is-invalid @enderror" id="middlename" name="middlename" value="{{ old('middlename', $data->middlename ?? '') }}">
-                                            @error('middlename')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
+                                        @can('client')
+                                            <div class="col-md-12 mb-3">
+                                                <label for="address" class="form-label">Address</label>
+                                                <input type="text" class="form-control @error('address') is-invalid @enderror restricted" id="address" name="address" value="{{ old('name', $data->address ?? '') }}" readonly>
+                                            </div>
+                                        @endcan
                                     </div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-6">
-                                            <label for="address" class="form-label">Address</label>
-                                            <input type="text" class="form-control @error('address') is-invalid @enderror" id="address" name="address" value="{{ old('address', $data->address ?? '') }}">
-                                            @error('address')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
+                                    @can('client')
+                                        <hr class="mb-4">
+                                        <div class="row mb-3">
+                                            <div class="col-md-12 mb-3">
+                                                <label for="property_type" class="form-label">Property Type</label>
+                                                <input type="text" class="form-control restricted" id="property_type" name="property_type" value="{{ strtoupper($property_types->firstWhere('id', $data->property_type)->name) ?? 'N/A' }}" readonly>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label for="rate_code" class="form-label">Rate Code</label>
+                                                <input type="text" class="form-control restricted" id="rate_code" name="rate_code" value="{{ old('rate_code', $data->rate_code ?? '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label for="status" class="form-label">Status</label>
+                                                <input type="text" class="form-control restricted" id="status" name="status" value="{{ old('status', $data->status ?? '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label for="sc_no" class="form-label">SC No.</label>
+                                                <input type="text" class="form-control restricted" id="sc_no" name="sc_no" value="{{ old('sc_no', $data->sc_no ?? '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label for="meter_brand" class="form-label">Meter Brand</label>
+                                                <input type="text" class="form-control restricted" id="meter_brand" name="meter_brand" value="{{ old('meter_brand', $data->meter_brand ?? '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label for="meter_serial_no" class="form-label">Meter Serial No.</label>
+                                                <input type="text" class="form-control restricted" id="meter_serial_no" name="meter_serial_no" value="{{ old('meter_serial_no', $data->meter_serial_no ?? '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label for="date_connected" class="form-label">Date Connected</label>
+                                                <input type="date" class="form-control restricted" id="date_connected" name="date_connected" value="{{ old('date_connected', isset($data->date_connected) ? \Carbon\Carbon::parse($data->date_connected)->format('Y-m-d') : '') }}" readonly>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label for="sequence_no" class="form-label">Sequence No.</label>
+                                                <input type="text" class="form-control restricted" id="sequence_no" name="sequence_no" value="{{ old('sequence_no', $data->sequence_no ?? '') }}" readonly>
+                                            </div>
                                         </div>
-                                        <div class="col-md-6">
-                                            <label for="contact_no" class="form-label">Contact No</label>
-                                            <input type="text" class="form-control @error('contact_no') is-invalid @enderror" id="contact_no" name="contact_no" value="{{ old('contact_no', $data->contact_no ?? '') }}">
-                                            @error('contact_no')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                    </div>
+                                    @endcan
                                 </div>
                             </div>
                         </div>

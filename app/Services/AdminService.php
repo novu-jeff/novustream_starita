@@ -2,21 +2,21 @@
 
 namespace App\Services;
 
+use App\Models\Admin;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-class UserService {
+class AdminService {
 
-    public static function getData(int $id = null) {
+    public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return User::where('user_type', '!=', 'client')
-                ->where('id', $id)
+            return Admin::where('id', $id)
                 ->first() ?? null;
         }
 
-        return User::where('user_type', '!=', 'client')->get();
+        return Admin::all();
 
     }
 
@@ -26,14 +26,10 @@ class UserService {
 
         try {
 
-            User::create([
-                'user_type' => $payload['role'],
-                'firstname' => $payload['firstname'],
-                'lastname' => $payload['lastname'],
-                'middlename' => $payload['middlename'],
-                'address' => $payload['address'],
-                'contact_no' => $payload['contact_no'],
+            Admin::create([
+                'name' => $payload['name'],
                 'email' => $payload['email'],
+                'user_type' => $payload['role'],
                 'password' => $payload['password']
             ]);
 
@@ -41,7 +37,7 @@ class UserService {
 
             return [
                 'status' => 'success',
-                'message' => 'User ' . $payload['firstname'] . ' ' . $payload['lastname'] . ' added.'
+                'message' => 'Admin ' . $payload['name'] . ' added.'
             ];
 
         } catch (\Exception $e) {
@@ -63,27 +59,22 @@ class UserService {
         try {
             
             $updateData = [
-                'user_type' => $payload['role'],
-                'firstname' => $payload['firstname'],
-                'lastname' => $payload['lastname'],
-                'middlename' => $payload['middlename'],
-                'address' => $payload['address'],
-                'contact_no' => $payload['contact_no'],
+                'name' => $payload['name'],
                 'email' => $payload['email'],
-                'password' => $payload['password']
+                'user_type' => $payload['role'],
             ];
 
             if(isset($payload['password'])) {
                 $updateData['password'] = Hash::make($payload['password']);
             }
 
-            User::where('id', $id)->update($updateData);
+            Admin::where('id', $id)->update($updateData);
 
             DB::commit();
 
             return [
                 'status' => 'success',
-                'message' => 'User ' . $payload['firstname'] . ' ' . $payload['lastname'] . ' updated.'
+                'message' => 'Admin ' . $payload['name'] . ' updated.'
             ];
 
         } catch (\Exception $e) {
@@ -104,7 +95,7 @@ class UserService {
 
         try {
             
-            $data = User::where('id', $id)->first();
+            $data = Admin::where('id', $id)->first();
                 
             $data->delete();
 
@@ -112,7 +103,7 @@ class UserService {
 
             return [
                 'status' => 'success',
-                'message' => 'User ' . $data['firstname'] . ' ' . $data['lastname'] . ' deleted.'
+                'message' => 'Admin ' . $data['name'] . ' deleted.'
             ];
 
         } catch (\Exception $e) {
@@ -121,7 +112,7 @@ class UserService {
 
             return [
                 'status' => 'error',
-                'message' => 'Erro occured: ' . $e->getMessage()
+                'message' => 'Error occured: ' . $e->getMessage()
             ];
         }
 

@@ -52,7 +52,7 @@ class LoginController extends Controller
         }
 
         if(auth()->user()->user_type == 'technician') {
-            return '/water-reading';
+            return '/reading';
         }
     }
 

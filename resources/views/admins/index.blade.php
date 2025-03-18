@@ -4,8 +4,8 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Users Lists</h1>
-                <a href="{{route('users.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                <h1>Admins Lists</h1>
+                <a href="{{route('admins.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
                     Add New
                 </a>
             </div>
@@ -16,7 +16,6 @@
                             <th>ID</th>
                             <th>Full Name</th>
                             <th>Email</th>
-                            <th>Contact</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -38,17 +37,10 @@
             serverSide: true,
             ajax: url,
             columns: [
-                { data: 'id', name: 'id' }, // Fix: Converted to object
-                { 
-                    data: 'firstname', 
-                    name: 'firstname', 
-                    render: function(data, type, row) {
-                        return `${row.firstname} ${row.lastname}`;
-                    }
-                },
-                { data: 'email', name: 'email' }, // Fix: Converted to object
-                { data: 'contact_no', name: 'contact_no' }, // Fix: Converted to object
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
+                { data: 'id', name: 'id' }, 
+                { data: 'name', name: 'name' },
+                { data: 'email', name: 'email' },
+                { data: 'actions', name: 'actions', orderable: false, searchable: false }
             ],
             responsive: true,
             order: [[0, 'asc']],
@@ -58,7 +50,7 @@
         $(document).on('click', '.btn-delete', function() {
             const id = $(this).data('id');
             const token = '{{csrf_token()}}';
-            const url = '{{route("users.destroy", ["personnel" => "__ID__"])}}'.replace('__ID__', id);
+            const url = '{{route("admins.destroy", ["personnel" => "__ID__"])}}'.replace('__ID__', id);
         
             remove(table, url, token)
 

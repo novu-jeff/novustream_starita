@@ -2,23 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\UserService;
-use App\Services\PropertyTypesService;
+use App\Services\AdminService;
 use App\Services\RoleService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 
-class UserController extends Controller
+class AdminController extends Controller
 {
 
-    public $userService;
+    public $adminService;
     public $roleService;
 
-    public function __construct(UserService $userService, RoleService $roleService) {
+    public function __construct(AdminService $adminService, RoleService $roleService) {
 
         $this->middleware(function ($request, $next) {
     
@@ -29,26 +27,26 @@ class UserController extends Controller
             return $next($request);
         });
 
-        $this->userService = $userService;
+        $this->adminService = $adminService;
         $this->roleService = $roleService;
     }
 
     public function index() {
 
-        $data = $this->userService::getData();
+        $data = $this->adminService::getData();
 
         if(request()->ajax()) {
             return $this->datatable($data);
         }
 
-        return view('users.index', compact('data'));
+        return view('admins.index', compact('data'));
     }
 
     public function create() {
 
         $roles = $this->roleService::getData();
 
-        return view('users.form', compact('roles'));
+        return view('admins.form', compact('roles'));
     }
 
     public function store(Request $request) {
@@ -56,13 +54,9 @@ class UserController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'role' => 'required|exists:roles,name',
-            'firstname' => 'required',
-            'lastname' => 'required',
-            'middlename' => 'nullable',
-            'address' => 'required',
-            'contact_no' => 'required',
+            'name' => 'required',
             'email' => 'required|unique:users,email',
+            'role' => 'required|exists:roles,name',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
         ]);
@@ -73,7 +67,7 @@ class UserController extends Controller
                 ->withInput();
         }
 
-        $response = $this->userService::create($payload);
+        $response = $this->adminService::create($payload);
 
         if ($response['status'] === 'success') {
             return redirect()->back()->with('alert', [
@@ -90,10 +84,10 @@ class UserController extends Controller
 
     public function edit(int $id) {
 
-        $data = $this->userService::getData($id);
+        $data = $this->adminService::getData($id);
         $roles = $this->roleService::getData();
 
-        return view('users.form', compact('data', 'roles'));
+        return view('admins.form', compact('data', 'roles'));
     }
 
     public function update(int $id, Request $request) {
@@ -101,16 +95,12 @@ class UserController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'role' => 'required|exists:roles,name',
-            'firstname' => 'required',
-            'lastname' => 'required',
-            'middlename' => 'nullable',
-            'address' => 'required',
-            'contact_no' => 'required',
+            'name' => 'required',
             'email' => [
             'required',
-                Rule::unique('users')->ignore($id),
+                Rule::unique('users', 'email')->ignore($id),
             ],
+            'role' => 'required|exists:roles,name',
             'password' => 'nullable|min:8|required_with:confirm_password',
             'confirm_password' => 'nullable|same:password|required_with:password',
         ]);
@@ -121,7 +111,7 @@ class UserController extends Controller
                 ->withInput();
         }
 
-        $response = $this->userService::update($id, $payload);
+        $response = $this->adminService::update($id, $payload);
 
         if ($response['status'] === 'success') {
             return redirect()->back()->with('alert', [
@@ -139,7 +129,7 @@ class UserController extends Controller
 
     public function destroy(int $id) {
 
-        $response = $this->userService::delete($id);
+        $response = $this->adminService::delete($id);
 
         if ($response['status'] === 'success') {
             
@@ -163,7 +153,7 @@ class UserController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('users.edit', $row->id) . '" 
+                    <a href="' . route('admins.edit', $row->id) . '" 
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>

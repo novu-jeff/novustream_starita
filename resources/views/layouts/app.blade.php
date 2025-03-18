@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
 
     <!-- Scripts -->
-    @vite(['resources/sass/app.scss', 'resources/sass/dashboard.scss', 'resources/sass/login.scss', 'resources/js/app.js'])
+    @vite(['resources/sass/app.scss', 'resources/sass/dashboard.scss', 'resources/js/app.js'])
 
 </head>
 <body>

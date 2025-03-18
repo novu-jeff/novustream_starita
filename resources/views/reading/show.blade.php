@@ -12,7 +12,7 @@
         @php
             $previousUrl = url()->previous();
             $currentUrl = url()->current();
-            $fallbackUrl = Auth::user()->user_type == 'client' ? route('account-overview.show') : route('water-reading.index');
+            $fallbackUrl = Auth::user()->user_type == 'client' ? route('account-overview.show') : route('reading.index');
             $backUrl = ($previousUrl !== $currentUrl) ? $previousUrl : $fallbackUrl;
         @endphp
 
@@ -45,11 +45,16 @@
                         </div>
                     @endif
                     @php
-                        $path = public_path('images/novustreamlogodarken.png');
-                        $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($path));
+                        $logoPath = env('APP_PRODUCT') === 'novustream' 
+                                    ? public_path('images/novustreamlogodarken.png') 
+                                    : public_path('images/novupowerlogodarken.png');
+
+                        $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                     @endphp
+
                     <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
-                        <img src="{{asset('/images/novustreamlogo.png')}}" alt="logo" class="web-logo">
+                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') ) }}" 
+                            alt="logo" class="web-logo">
                         <img src="{{ $base64 }}" alt="logo" class="print-logo">
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>

@@ -37,49 +37,27 @@ class ProfileController extends Controller
 
         $data = $this->profileService::getData($id);
 
-        $user_type = $data->user_type;
-
-        $origin = request()->route()->getName() == 'profile.update' ? 'profile' : '';
-
-        if($user_type != 'client') {
-            $validator = Validator::make($payload, [
-                'firstname' => 'required',
-                'lastname' => 'required',
-                'middlename' => 'nullable',
-                'address' => 'required',
-                'contact_no' => 'required',
-                'email' => [
-                    'required',
-                        Rule::unique('users')->ignore($id),
-                    ],
-                'password' => 'nullable|min:8|required_with:confirm_password',
-                'confirm_password' => 'nullable|same:password|required_with:password',
-            ]);
-        } else {            
-
-            $validator = Validator::make($payload, [
-                'firstname' => 'required',
-                'lastname' => 'required',
-                'middlename' => 'nullable',
-                'address' => 'required',
-                'contact_no' => 'required',
-                'email' => [
-                    'required',
-                    Rule::unique('users', 'email')->ignore($id),
-                ],
-                'password' => 'nullable|min:8|required_with:confirm_password',
-                'confirm_password' => 'nullable|same:password|required_with:password',
-            ]);
-
+        if($data->user_type == 'client') {
+            $payload['user_type'] = 'client';
+        } else {
+            $payload['user_type'] = 'admin';
         }
+
+        $validator = Validator::make($payload, [
+            'name' => 'required',
+            'email' => [
+                'required',
+                    Rule::unique('users')->ignore($id),
+                ],
+            'password' => 'nullable|min:8|required_with:confirm_password',
+            'confirm_password' => 'nullable|same:password|required_with:password',
+        ]);
 
         if($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
                 ->withInput();
         }
-
-        $payload['origin'] = $origin;
 
         $response = $this->profileService::update($id, $payload);
 

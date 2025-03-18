@@ -8,15 +8,14 @@ use Illuminate\Support\Facades\Hash;
 
 class ClientService {
 
-    public static function getData(int $id = null) {
+    public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return User::where('user_type', 'client')
-                ->where('id', $id)
+            return User::where('id', $id)
                 ->first() ?? null;
         }
 
-        return User::where('user_type', 'client')->get();
+        return User::all();
 
     }
 
@@ -27,27 +26,26 @@ class ClientService {
         try {
 
             User::create([
-                'user_type' => 'client',
-                'firstname' => $payload['firstname'],
-                'lastname' => $payload['lastname'],
-                'middlename' => $payload['middlename'],
+                'name' => $payload['name'],
                 'address' => $payload['address'],
                 'contact_no' => $payload['contact_no'],
-                'email' => $payload['email'],
-                'isValidated' => $payload['isValidated'],
-                'contract_no' => $payload['contract_no'],
-                'contract_date' => $payload['contract_date'],
                 'property_type' => $payload['property_type'],
-                'meter_no' => $payload['meter_no'],
-                'isValidated' =>  $payload['isValidated'] == 'true' ? true : false,
-                'password' => $payload['password']
+                'rate_code' => $payload['rate_code'],
+                'status' => $payload['status'],
+                'sc_no' => $payload['sc_no'],
+                'meter_brand' => $payload['meter_brand'],
+                'meter_serial_no' => $payload['meter_serial_no'],
+                'date_connected' => $payload['date_connected'],
+                'sequence_no' => $payload['sequence_no'],
+                'email' => $payload['email'],
+                'password' => Hash::make($payload['password'])
             ]);
 
             DB::commit();
 
             return [
                 'status' => 'success',
-                'message' => 'Client ' . $payload['firstname'] . ' ' . $payload['lastname'] . ' added.'
+                'message' => 'Client ' . $payload['name'] . ' added.'
             ];
 
         } catch (\Exception $e) {
@@ -69,17 +67,18 @@ class ClientService {
         try {
             
             $updateData = [
-                'firstname' => $payload['firstname'],
-                'lastname' => $payload['lastname'],
-                'middlename' => $payload['middlename'],
+                'name' => $payload['name'],
                 'address' => $payload['address'],
                 'contact_no' => $payload['contact_no'],
-                'email' => $payload['email'],
-                'contract_no' => $payload['contract_no'],
-                'contract_date' => $payload['contract_date'],
                 'property_type' => $payload['property_type'],
-                'meter_no' => $payload['meter_no'],
-                'isValidated' =>  $payload['isValidated'] == 'true' ? true : false
+                'rate_code' => $payload['rate_code'],
+                'status' => $payload['status'],
+                'sc_no' => $payload['sc_no'],
+                'meter_brand' => $payload['meter_brand'],
+                'meter_serial_no' => $payload['meter_serial_no'],
+                'date_connected' => $payload['date_connected'],
+                'sequence_no' => $payload['sequence_no'],
+                'email' => $payload['email']
             ];
 
             if(isset($payload['password'])) {
@@ -92,7 +91,7 @@ class ClientService {
 
             return [
                 'status' => 'success',
-                'message' => 'Client ' . $payload['firstname'] . ' ' . $payload['lastname'] . ' updated.'
+                'message' => 'Client ' . $payload['name'] . ' updated.'
             ];
 
         } catch (\Exception $e) {
@@ -113,8 +112,7 @@ class ClientService {
 
         try {
             
-            $data = User::where('user_type', 'client')
-                ->where('id', $id)->first();
+            $data = User::where('id', $id)->first();
                 
             $data->delete();
 

@@ -13,31 +13,28 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('firstname');
-            $table->string('lastname');
-            $table->string('middlename')
-                ->nullable();
-            $table->string('address')
-                ->nullable();
+            $table->string('account_no');
+            $table->string('name');
+            $table->string('address');
             $table->string('contact_no')
-                ->nullable();
-            $table->string('user_type')
-                ->nullable();
-            $table->string('email')
-                ->unique();
-            $table->timestamp('email_verified_at')
-                ->nullable();
-            $table->string('password');
-            $table->string('contract_no')
-                ->nullable();
-            $table->string('contract_date')
                 ->nullable();
             $table->string('property_type')
                 ->nullable();
-            $table->string('meter_no')
+            $table->integer('rate_code');
+            $table->string('status');
+            $table->string('meter_brand')
                 ->nullable();
-            $table->boolean('isValidated')
-                ->default(false);
+            $table->string('meter_serial_no');
+            $table->string('sc_no');
+            $table->string('date_connected');
+            $table->string('sequence_no');
+            $table->string('email')
+                ->unique()
+                ->nullable();
+            $table->timestamp('email_verified_at')
+                ->nullable();
+            $table->string('password')
+                ->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

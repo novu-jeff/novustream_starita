@@ -2,7 +2,7 @@
 	<div class="header-content responsive-wrapper">
 		<div class="header-logo">
 			<a href="#" class="nav-link text-uppercase fw-bold">
-				<img src="{{asset('images/novustreamlogo.png')}}" alt="" srcset="" style="width: 100px;">
+				<img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" alt="" style="width: 100px;">
 			</a>
 		</div>
 		<div class="header-navigation">
@@ -20,8 +20,8 @@
 							Meter Reading
 						</button>
 						<ul class="dropdown-menu mt-3">
-							<li><a class="dropdown-item" href="{{route('water-reading.index')}}">Meter Reading</a></li>
-							<li><a class="dropdown-item" href="{{route('water-reading.report')}}">Reading Report</a></li>
+							<li><a class="dropdown-item" href="{{route('reading.index')}}">Meter Reading</a></li>
+							<li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
 						</ul>
 					</div>
 				@endcan
@@ -36,7 +36,7 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('clients.index')}}">Clients</a></li>
-							<li><a class="dropdown-item" href="{{route('users.index')}}">Personnels</a></li>
+							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 						</ul>
 					</div>
 					<div class="dropdown px-0 mx-0">
@@ -45,25 +45,29 @@
 						</button>
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('property-types.index')}}">Property Types</a></li>
-							<li><a class="dropdown-item" href="{{route('water-rates.index')}}">Water Rates</a></li>
+							<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 						</ul>
 					</div>
 				@endcan
-				@canany(['admin'])
-					<a href="{{route('support-ticket.create')}}"> Support Tickets </a>
-				@endcanany
 			</nav>
 			<div class="header-navigation-links d-flex gap-4">
-				@canany(['client'])
-					<a href="{{route('support-ticket.create')}}">
+				@can('client')
+					<a href="{{route('client.support-ticket.create')}}">
 						Submit Ticket
 					</a>
-				@endcanany
-				<a href="{{route('profile.index')}}">
-					Profile
+					<a href="{{route('client.profile.index')}}">
+						Profile
+					</a>
+				@elsecan('admin')
+				<a href="{{route('admin.support-ticket.create')}}">
+					Submit Ticket
 				</a>
-				<form action="{{ route('logout') }}" method="POST" style="display: inline;">
+					<a href="{{route('admin.profile.index')}}">
+						Profile
+					</a>
+				@endcan
+				<form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
 					@csrf
 					<button type="submit" class="border-0 bg-transparent p-0 m-0 align-baseline">Logout</button>
 				</form>

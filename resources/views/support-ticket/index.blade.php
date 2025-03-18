@@ -34,9 +34,10 @@
 
     $(function() {
 
-        alert()
-
         const url = '{{ route(Route::currentRouteName()) }}';
+
+        const isClient = '{{ Auth::check() }}';
+        console.log(isClient);
 
         let table = $('table').DataTable({
             processing: true,

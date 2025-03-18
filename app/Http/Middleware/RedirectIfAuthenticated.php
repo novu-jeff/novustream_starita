@@ -31,7 +31,7 @@ class RedirectIfAuthenticated
                 }
         
                 if(Auth::user()->user_type == 'technician') {
-                    return redirect('/water-reading');
+                    return redirect('/reading');
                 }
             }
         }

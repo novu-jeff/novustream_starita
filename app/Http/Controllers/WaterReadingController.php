@@ -57,7 +57,7 @@ class WaterReadingController extends Controller
             return response()->json($response);
         }
 
-        return view('water-reading.index');
+        return view('reading.index');
     }
 
     public function show(string $reference_no) {
@@ -65,17 +65,17 @@ class WaterReadingController extends Controller
         $data = $this->waterService::getBill($reference_no);
 
         if(is_null($data)) {
-            return redirect()->route('water-reading.index')->with('alert', [
+            return redirect()->route('reading.index')->with('alert', [
                 'status' => 'error',
                 'message' => 'Bill Not Found'
             ]);
         }
 
-        $url = route('water-reading.show', ['reference_no' => $reference_no]);
+        $url = route('reading.show', ['reference_no' => $reference_no]);
 
         $qr_code = $this->generateService::qr_code($url, 100);
 
-        return view('water-reading.show', compact('data', 'reference_no', 'qr_code'));
+        return view('reading.show', compact('data', 'reference_no', 'qr_code'));
     }
 
     public function report(string $date = null) {
@@ -86,7 +86,7 @@ class WaterReadingController extends Controller
             return $this->datatable($data);
         }
 
-        return view('water-reading.report', compact('data'));
+        return view('reading.report', compact('data'));
 
     }
 
@@ -160,7 +160,7 @@ class WaterReadingController extends Controller
 
             DB::commit();
 
-            return redirect()->route('water-reading.show', ['reference_no' => $bill->reference_no])->with('alert', [
+            return redirect()->route('reading.show', ['reference_no' => $bill->reference_no])->with('alert', [
                 'status' => 'success',
                 'message' => 'Water Bill Created'
             ]);
@@ -185,7 +185,7 @@ class WaterReadingController extends Controller
             ->addColumn('actions', function ($row) {
                 return 
                     '<div class="d-flex align-items-center gap-2">
-                        <a target="_blank" href="' . route('water-reading.show', $row->bill->reference_no) . '" 
+                        <a target="_blank" href="' . route('reading.show', $row->bill->reference_no) . '" 
                             class="btn btn-primary text-white text-uppercase fw-bold" 
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>

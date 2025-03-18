@@ -23,10 +23,11 @@
                                             </div>
                                         @endif
                                         <div style="text-align: center; margin: auto !important; padding-bottom: 10px;">
-                                            <img src="{{asset('/images/novustreamlogo.png')}}" alt="logo" style="width: 100px; margin: 0 auto 10px auto">
+                                            <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" 
+                                                 alt="logo" style="width: 100px; margin: 0 auto 10px auto">
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
-                                        </div>
+                                        </div>                                        
                                         <div style="text-align:center; text-transform: uppercase; font-size: 14px; margin: 10px 0 10px 0;">
                                             <div style="font-weight: 800;">{{$data['current_bill']->reference_no}}</div>
                                         </div>

@@ -27,24 +27,10 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="row mb-3">
-                                        <div class="col-md-4">
-                                            <label for="firstname" class="form-label">First Name</label>
-                                            <input type="text" class="form-control @error('firstname') is-invalid @enderror" id="firstname" name="firstname" value="{{ old('firstname', $data->firstname ?? '') }}">
-                                            @error('firstname')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="lastname" class="form-label">Last Name</label>
-                                            <input type="text" class="form-control @error('lastname') is-invalid @enderror" id="lastname" name="lastname" value="{{ old('lastname', $data->lastname ?? '') }}">
-                                            @error('lastname')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="middlename" class="form-label">Middle Name</label>
-                                            <input type="text" class="form-control @error('middlename') is-invalid @enderror" id="middlename" name="middlename" value="{{ old('middlename', $data->middlename ?? '') }}">
-                                            @error('middlename')
+                                        <div class="col-md-12">
+                                            <label for="name" class="form-label">Full Name</label>
+                                            <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $data->name ?? '') }}">
+                                            @error('name')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
@@ -65,52 +51,71 @@
                                             @enderror
                                         </div>
                                     </div>
-                                    <div class="row mb-3">
-                                        <div class="col-md-12">
-                                            <div class="p-0 form-check">
-                                                <label for="isValidated" class="form-label">Is Validated</label>
-                                                <select class="form-select @error('isValidated') is-invalid @enderror" id="isValidated" name="isValidated">
-                                                    <option value="false" {{ old('isValidated', $data->isValidated ?? 0) == 0 ? 'selected' : '' }}>No</option>
-                                                    <option value="true" {{ old('isValidated', $data->isValidated ?? 0) == 1 ? 'selected' : '' }}>Yes</option>
-                                                </select>                                                
-                                                @error('isValidated')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                    </div>
                                     <hr class="my-5">
                                     <div class="row mb-3">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="contract_no" class="form-label">Contract No</label>
-                                            <input type="text" class="form-control @error('contract_no') is-invalid @enderror" id="contract_no" name="contract_no" value="{{ old('contract_no', $data->contract_no ?? '') }}">
-                                            @error('contract_no')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="contract_date" class="form-label">Contract Date</label>
-                                            <input type="date" class="form-control @error('contract_date') is-invalid @enderror" id="contract_date" name="contract_date" value="{{ old('contract_date', $data->contract_date ?? '') }}">
-                                            @error('contract_date')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-12 mb-3">
                                             <label for="property_type" class="form-label">Property Type</label>
                                             <select class="form-select @error('property_type') is-invalid @enderror" id="property_type" name="property_type">
                                                 <option value=""> - CHOOSE - </option>
                                                 @foreach($property_types as $type)
-                                                    <option value="{{ $type->id }}" {{ old('property_type', $data->property_type ?? '') == $type->id ? 'selected' : '' }}>{{ $type->name }}</option>
+                                                    <option value="{{ $type->id }}" {{ old('property_type', $data->property_type ?? '') == $type->id ? 'selected' : '' }}>{{ strtoupper($type->name) }}</option>
                                                 @endforeach
                                             </select>
                                             @error('property_type')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="rate_code" class="form-label">Rate Code</label>
+                                            <input type="text" class="form-control @error('rate_code') is-invalid @enderror" id="rate_code" name="rate_code" value="{{ old('rate_code', $data->rate_code ?? '') }}">
+                                            @error('rate_code')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="status" class="form-label">Status</label>
+                                            <select class="form-select @error('status') is-invalid @enderror" id="status" name="status">
+                                                <option value=""> - CHOOSE - </option>
+                                                @foreach(['AB' => 'AB - Active Billed', 'BL' => 'BL - Black Listed', 'ID' => 'ID - Inactive Deliquent', 'IV' => 'IV - Inactive Discon'] as $key => $label)
+                                                    <option value="{{ $key }}" {{ old('status', $data->status ?? '') == $key ? 'selected' : '' }}>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('status')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="sc_no" class="form-label">SC No.</label>
+                                            <input type="text" class="form-control @error('sc_no') is-invalid @enderror" id="sc_no" name="sc_no" value="{{ old('sc_no', $data->sc_no ?? '') }}">
+                                            @error('sc_no')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
                                         <div class="col-md-6 mb-3">
-                                            <label for="meter_no" class="form-label">Meter No</label>
-                                            <input type="text" class="form-control @error('meter_no') is-invalid @enderror" id="meter_no" name="meter_no" value="{{ old('meter_no', $data->meter_no ?? '') }}">
-                                            @error('meter_no')
+                                            <label for="meter_brand" class="form-label">Meter Brand</label>
+                                            <input type="text" class="form-control @error('meter_brand') is-invalid @enderror" id="meter_brand" name="meter_brand" value="{{ old('meter_brand', $data->meter_brand ?? '') }}">
+                                            @error('meter_brand')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="meter_serial_no" class="form-label">Meter Serial No.</label>
+                                            <input type="text" class="form-control @error('meter_serial_no') is-invalid @enderror" id="meter_serial_no" name="meter_serial_no" value="{{ old('meter_serial_no', $data->meter_serial_no ?? '') }}">
+                                            @error('meter_serial_no')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="date_connected" class="form-label">Date Connected</label>
+                                            <input type="date" class="form-control @error('date_connected') is-invalid @enderror" id="date_connected" name="date_connected" value="{{ old('date_connected', isset($data->date_connected) ? \Carbon\Carbon::parse($data->date_connected)->format('Y-m-d') : '') }}">
+                                            @error('date_connected')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="sequence_no" class="form-label">Sequence No.</label>
+                                            <input type="text" class="form-control @error('sequence_no') is-invalid @enderror" id="sequence_no" name="sequence_no" value="{{ old('sequence_no', $data->sequence_no ?? '') }}">
+                                            @error('sequence_no')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>

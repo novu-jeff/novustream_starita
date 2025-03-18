@@ -10,13 +10,11 @@ class DashboardService {
 
     public static function getAllUsers() {
 
-        $users = User::select('user_type', DB::raw('count(*) as count'))
-            ->groupBy('user_type')
-            ->pluck('count', 'user_type');
+        $users = User::select(DB::raw('count(*) as count'))
+            ->pluck('count');
         
         return $users;
 
     }
-
 
 }

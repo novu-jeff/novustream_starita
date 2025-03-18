@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
-use App\Models\User;
+use App\Models\Admin;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,25 +22,39 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
+    public function boot(Request $request): void
     {
         Paginator::useBootstrapFive();
+        
+        if(Request::is('admin/*')) {
+            Auth::shouldUse('admins');
 
-        Gate::define('client', function(User $user) {
-            return $user->user_type == 'client';
-        });
+            Gate::define('admin', function ($user) {
+                return $user->user_type === 'admin';
+            });
+            
+            Gate::define('technician', function ($user) {
+                return $user->user_type === 'technician';
+            });
+            
+            Gate::define('cashier', function ($user) {
+                return $user->user_type === 'cashier';
+            });
+    
+        }
 
-        Gate::define('admin', function(User $user) {
-            return $user->user_type == 'admin';
-        });
+        if(Request::is('client/*')) {
+            Auth::shouldUse('web');
 
-        Gate::define('technician', function(User $user) {
-            return $user->user_type == 'technician';
-        });
+            Gate::define('client', function ($user) {
+                return true;
+            });
 
-        Gate::define('cashier', function(User $user) {
-            return $user->user_type == 'cashier';
-        });
+            
+            
+        }
 
+        
+        
     }
 }

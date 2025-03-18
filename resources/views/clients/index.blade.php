@@ -5,18 +5,23 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Client Lists</h1>
-                <a href="{{route('clients.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
-                    Add New
-                </a>
+                <div class="d-flex align-items-center gap-3">
+                    <a href="{{route('clients.import.view')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                        Import
+                    </a>
+                    <a href="{{route('clients.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                        Add New
+                    </a>
+                </div>
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5">
                 <table class="w-100 table table-bordered table-hover">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Full Name</th>
-                            <th>Email</th>
-                            <th>Contact</th>
+                            <th>Account No.</th>
+                            <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -38,16 +43,10 @@
             serverSide: true,
             ajax: url,
             columns: [
-                { data: 'id', name: 'id' }, // Fix: Converted to object
-                { 
-                    data: 'firstname', 
-                    name: 'firstname', 
-                    render: function(data, type, row) {
-                        return `${row.firstname} ${row.lastname}`;
-                    }
-                },
-                { data: 'email', name: 'email' }, // Fix: Converted to object
-                { data: 'contact_no', name: 'contact_no' }, // Fix: Converted to object
+                { data: 'id', name: 'id' }, 
+                { data: 'name', name: 'name' },
+                { data: 'account_no', name: 'account_no' },
+                { data: 'status', name: 'status' },
                 { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
             ],
             responsive: true,

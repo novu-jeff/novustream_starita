@@ -41,14 +41,14 @@ class WaterRatesController extends Controller
             return $this->datatable($data);
         }
 
-        return view('water-rates.index', $data);
+        return view('rates.index', $data);
     }
 
     public function create() {
 
         $property_types = $this->propertyTypeService::getData();
 
-        return view('water-rates.form', compact('property_types'));
+        return view('rates.form', compact('property_types'));
     }
 
     public function store(Request $request) {
@@ -111,7 +111,7 @@ class WaterRatesController extends Controller
         $property_types = $this->propertyTypeService::getData();
         $data = $this->waterRatesService::getData($id);
         
-        return view('water-rates.form', compact('data', 'property_types'));
+        return view('rates.form', compact('data', 'property_types'));
     }
 
     public function update(int $id, Request $request) {
@@ -174,7 +174,7 @@ class WaterRatesController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('water-rates.edit', $row->id) . '" 
+                    <a href="' . route('rates.edit', $row->id) . '" 
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>

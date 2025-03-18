@@ -5,7 +5,7 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Water Rates</h1>
-                <a href="{{route('water-rates.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                <a href="{{route('rates.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
                     Add New
                 </a>
             </div>
@@ -54,7 +54,7 @@
         $(document).on('click', '.btn-delete', function() {
             const id = $(this).data('id');
             const token = '{{csrf_token()}}';
-            const url = '{{route("water-rates.destroy", ["water_rate" => "__ID__"])}}'.replace('__ID__', id);
+            const url = '{{route("rates.destroy", ["rate" => "__ID__"])}}'.replace('__ID__', id);
             
             remove(table, url, token)
 

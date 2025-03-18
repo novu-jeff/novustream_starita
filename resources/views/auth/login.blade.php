@@ -5,7 +5,7 @@
 <div class="login">
     <div class="container " id="container">
         <div class="form-container sign-up-container">
-            <form method="POST" action="{{ route('register') }}">
+            <form method="POST" action="{{ route('auth.register') }}">
                 @csrf                
                 <h1>Create Account</h1>
                 <div class="social-container">
@@ -42,7 +42,7 @@
             </form>
         </div>
         <div class="form-container sign-in-container">
-            <form method="POST" action="{{ route('login') }}">
+            <form method="POST" action="{{ route('auth.login') }}">
                 @csrf
                 <h1 class="fw-bold mb-2">Sign in</h1>
                 <span>or use your account</span>
@@ -81,10 +81,10 @@
                     <button class="ghost" id="signIn">Sign In</button>
                 </div>
                 <div class="overlay-panel overlay-right">
-                    <img src="{{asset('images/novustreamlogo.png')}}" alt="" srcset="" class="w-100">
-                    <p>Are you ready to view your water bills? and proceed to payments? Start now by creating an account!</p>
+                    <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" alt="" class="w-100">
+                    <p>Are you ready to view your bills? and proceed to payments? Start now by creating an account!</p>
                     <a href="/register" class="btn btn-primary fw-bold text-white border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signUp">Sign Up</a>
-                </div>
+                </div>                
             </div>
         </div>
     </div>

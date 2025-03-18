@@ -5,13 +5,16 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Resolve Ticket</h1>
-                <a href="{{route('support-ticket.create')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                @php
+                    $prefix = Auth::guard('admins')->check() ? 'admin' : 'client';
+                @endphp
+                <a href="{{route($prefix . '.support-ticket.create')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                     Go Back
                 </a>
             </div>
             <div class="inner-content mt-5 pb-5">
                 <div class="card shadow">
-                    <form method="POST" action="{{route('support-ticket.update', ['ticket' => $data->id])}}">
+                    <form method="POST" action="{{route($prefix.'.support-ticket.update', ['ticket' => $data->id])}}">
                         @csrf
                         @method('PUT')
                         <div class="card-body">
@@ -91,21 +94,22 @@
         $(document).on('click', '.btn-view', function() {
 
             const id = $(this).data('id');
-            const url = `{{ route('support-ticket.show', ['ticket' => '__id__']) }}`.replace('__id__', id);            
+            const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'client'); 
+            const url = `{{ url('${prefix}/support-ticket') }}/${id}`;
 
             show(url)
-                .then(function(response) {
-                    if(response.status == 'success') {
-                        view(response.data)
-                    }
-                }) 
-                .catch(function(error) {
-                    Swal.fire({
-                        title: 'Error occured',
-                        text: error,
-                        icon: 'error',
-                    });
+            .then(function(response) {
+                if(response.status == 'success') {
+                view(response.data)
+                }
+            }) 
+            .catch(function(error) {
+                Swal.fire({
+                title: 'Error occurred',
+                text: error.responseJSON?.message || 'An unexpected error occurred.',
+                icon: 'error',
                 });
+            });
         });
 
         function show(url) {

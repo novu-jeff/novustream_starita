@@ -32,8 +32,9 @@ class SupportTicketController extends Controller {
     }
 
     public function create(Request $request) {
-        $user = Auth::user();
-        $data = $user->user_type == 'client' ? $this->supportTicketService->getTickets($user->id) : $this->supportTicketService->getTickets();;
+        $user = !Auth::guard('admins')->check() ? 'clients' : 'admins';
+        $user_id = Auth::user()->id;
+        $data = $user == 'clients' ? $this->supportTicketService->getTickets($user_id) : $this->supportTicketService->getTickets();
         return $request->ajax() 
             ? $this->datatable($data) 
             : view('support-ticket.create', ['data' => $data, 'categories' => TicketsCategory::all()]);
@@ -178,20 +179,22 @@ class SupportTicketController extends Controller {
             })
             ->addColumn('actions', function ($row) {
 
+                $prefix = Auth::user()->user_type == 'client' ? 'client' : 'admin';
+
                 $viewBtn = '<button type="button" class="btn-view btn btn-primary fw-bold text-uppercase px-4 py-2 text-white view-btn" data-id="' . $row->id . '">View</button>';
                 $deleteBtn = '<button type="button" class="btn-delete btn btn-danger fw-bold text-uppercase px-4 py-2 text-white remove-btn" data-id="' . $row->id . '">Delete</button>';
-                $respondBtn = '<a href="'.route('support-ticket.edit', ['ticket' => $row->id]).'" class="text-uppercase px-4 py-2 fw-bold btn btn-success text-white text"" data-id="'.$row->id.'">Respond</a>';
+                $respondBtn = '<a href="'.route($prefix . '.support-ticket.edit', ['ticket' => $row->id]).'" class="text-uppercase px-4 py-2 fw-bold btn btn-success text-white text"" data-id="'.$row->id.'">Respond</a>';
 
-                if (Auth::check()) { 
+                if (Auth::guard('admins')->check()) { 
                     
                     return Auth::user()->user_type == 'client'
                         ? "<div class='d-flex gap-2'>{$viewBtn} {$deleteBtn}</div>"
                         : "<div class='d-flex gap-2'>{$viewBtn} {$respondBtn} {$deleteBtn}</div>";
                 }
 
-                return "<div class='d-flex gap-2'>{$viewBtn}</div>"; // Default case for unauthenticated users
+                return "<div class='d-flex gap-2'>{$viewBtn}</div>"; 
             })
-            ->rawColumns(['status', 'actions']) // Ensure both columns allow raw HTML output
+            ->rawColumns(['status', 'actions']) 
             ->make(true);
     }
     

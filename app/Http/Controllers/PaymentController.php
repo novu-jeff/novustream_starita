@@ -57,7 +57,7 @@ class PaymentController extends Controller
             return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']->reference_no]);
         }
 
-        $url = route('water-reading.show', ['reference_no' => $reference_no]);
+        $url = route('reading.show', ['reference_no' => $reference_no]);
 
         $qr_code = $this->generateService::qr_code($url, 60);
 
@@ -145,7 +145,7 @@ class PaymentController extends Controller
                 } else {
                     return 
                     '<div class="d-flex align-items-center gap-2">
-                        <a target="_blank" href="' . route('water-reading.show', $row->reference_no) . '" 
+                        <a target="_blank" href="' . route('reading.show', $row->reference_no) . '" 
                             class="btn btn-primary text-white text-uppercase fw-bold" 
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>

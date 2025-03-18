@@ -4,7 +4,7 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="inner-content mt-5">
-                <form action="{{route('water-reading.store')}}" method="POST">
+                <form action="{{route('reading.store')}}" method="POST">
                     @csrf
                     @method('POST')             
                     <div class="row d-flex justify-content-center pb-5">

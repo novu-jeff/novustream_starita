@@ -18,19 +18,6 @@ class AccountOverviewController extends Controller
     public $waterService;
 
     public function __construct(ClientService $clientService, WaterService $waterService) {
-
-        $this->middleware(function ($request, $next) {
-            $method = $request->route()->getActionMethod(); // Use request object
-    
-            if (!in_array($method, ['show'])) {
-                if (!Gate::any(['client'])) {
-                    abort(403, 'Unauthorized');
-                }
-            }
-    
-            return $next($request);
-        });
-        
         $this->clientService = $clientService;
         $this->waterService = $waterService;
     }
@@ -90,7 +77,7 @@ class AccountOverviewController extends Controller
     
                 if ($reference_no) {
                     return '<div class="d-flex align-items-center gap-2">
-                        <a target="_blank" href="' . e(route('water-reading.show', $reference_no)) . '" 
+                        <a target="_blank" href="' . e(route('reading.show', $reference_no)) . '" 
                             class="btn btn-primary text-white text-uppercase fw-bold" 
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>

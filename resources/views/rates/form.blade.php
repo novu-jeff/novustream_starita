@@ -9,12 +9,12 @@
                 @else
                     <h1>Add New Water Rate</h1>
                 @endif
-                <a href="{{route('water-rates.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                <a href="{{route('rates.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                     Go Back
                 </a>
             </div>
             <div class="inner-content mt-5">
-                <form action="{{ isset($data) ? route('water-rates.update', $data->id) : route('water-rates.store') }}" method="POST">
+                <form action="{{ isset($data) ? route('rates.update', $data->id) : route('rates.store') }}" method="POST">
                     @csrf
                     @if(isset($data))
                         @method('PUT')

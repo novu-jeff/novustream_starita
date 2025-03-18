@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ClientImport;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 class ClientController extends Controller
@@ -55,19 +58,20 @@ class ClientController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'firstname' => 'required',
-            'lastname' => 'required',
-            'middlename' => 'nullable',
+            'name' => 'required',
             'address' => 'required',
             'contact_no' => 'required',
+            'property_type' => 'required|exists:property_types,id',
+            'rate_code' => 'required|numeric|gt:0',
+            'status' => 'required|in:AB,BL,ID,IV',
+            'sc_no' => 'required',
+            'meter_brand' => 'required',
+            'meter_serial_no' => 'required',
+            'date_connected' => 'required',
+            'sequence_no' => 'required',
             'email' => 'required|unique:users,email',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
-            'isValidated' => 'required|in:true,false',
-            'contract_no' => 'required|unique:users,contract_no',
-            'contract_date' => 'required',
-            'property_type' => 'required|exists:property_types,id',
-            'meter_no' => 'required'
         ]);
 
         if($validator->fails()) {
@@ -91,6 +95,55 @@ class ClientController extends Controller
         }
     }
 
+    public function import_view() {
+        return view('clients.import');
+    }
+
+    public function import_action(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,csv|max:5120', 
+        ]);
+    
+        try {
+
+            if (!$request->hasFile('file')) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'No file was uploaded.',
+                ]);
+            }
+    
+            Excel::import(new ClientImport, $request->file('file'));
+    
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'Clients imported successfully',
+            ]);
+    
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errors = [];
+    
+            foreach ($failures as $failure) {
+                $errors[] = "Row {$failure->row()}: " . implode(', ', $failure->errors());
+            }
+    
+            return redirect()->back()->withInput()->with('alert', [
+                'status' => 'error',
+                'message' => implode('<br>', $errors),
+            ]);
+    
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+            return redirect()->back()->withInput()->with('alert', [
+                'status' => 'error',
+                'message' => 'Error Occurred: Please check laravel.log',
+            ]);
+        }
+    }
+
+
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);
@@ -104,19 +157,20 @@ class ClientController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'firstname' => 'required',
-            'lastname' => 'required',
-            'middlename' => 'nullable',
+            'name' => 'required',
             'address' => 'required',
             'contact_no' => 'required',
+            'property_type' => 'required|exists:property_types,id',
+            'rate_code' => 'required|numeric|gt:0',
+            'status' => 'required|in:AB,BL,ID,IV',
+            'sc_no' => 'required',
+            'meter_brand' => 'required',
+            'meter_serial_no' => 'required',
+            'date_connected' => 'required',
+            'sequence_no' => 'required',
             'email' => ['required', Rule::unique('users')->ignore($id)],
             'password' => 'nullable|min:8|required_with:confirm_password',
             'confirm_password' => 'nullable|same:password|required_with:password',
-            'isValidated' => 'required|in:true,false',
-            'contract_no' => ['required', Rule::unique('users', 'contract_no')->ignore($id)],
-            'contract_date' => 'required',
-            'property_type' => 'required|exists:property_types,id',
-            'meter_no' => 'required'
         ]);
 
         if($validator->fails()) {

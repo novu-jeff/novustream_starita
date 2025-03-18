@@ -7,8 +7,11 @@
                 <h1>Submit Ticket</h1>
             </div>
             <div class="inner-content mt-5 pb-5">
-                @if(Auth::user()->user_type == 'client')
-                <form action="{{ route('support-ticket.create') }}" method="POST">
+                @if(!Auth::guard('admins')->check())
+                @php
+                    $prefix = Auth::guard('admins')->check() ? 'admin' : 'client';
+                @endphp
+                <form action="{{ route($prefix.'.support-ticket.create') }}" method="POST">
                     @csrf
                     @method('POST')
                         <div class="card mb-3">
@@ -74,6 +77,7 @@
         @endif
 
         const url = '{{ route(Route::currentRouteName()) }}';
+        const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'client'); 
 
         let table = $('table').DataTable({
             processing: true,
@@ -83,7 +87,7 @@
                 { data: 'ticket_no', name: 'ticket_no' },
                 { data: 'status', name: 'status' },
                 { data: 'created_at', name: 'created_at'},
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
+                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
             ],
             responsive: true,
             order: [[0, 'asc']],
@@ -92,33 +96,33 @@
 
         $(document).on('click', '.btn-delete', function() {
             const id = $(this).data('id');
-            const token = '{{csrf_token()}}';
-            const url = `{{ route('support-ticket.destroy', ['ticket' => '__id__']) }}`.replace('__id__', id);
-            
-            remove(table, url, token)
+            const token = '{{ csrf_token() }}';
+
+            const url = `/${prefix}/support/ticket/submit/${id}`;
+
+            remove(table, url, token);
         });
 
-        
-
         $(document).on('click', '.btn-view', function() {
-
             const id = $(this).data('id');
-            const url = `{{ route('support-ticket.show', ['ticket' => '__id__']) }}`.replace('__id__', id);            
+
+            const url = `/${prefix}/support/ticket/submit/${id}`;
 
             show(url)
                 .then(function(response) {
-                    if(response.status == 'success') {
-                        view(response.data)
+                    if (response.status === 'success') {
+                        view(response.data);
                     }
-                }) 
+                })
                 .catch(function(error) {
                     Swal.fire({
-                        title: 'Error occured',
-                        text: error,
+                        title: 'Error Occurred',
+                        text: error.message || 'An unknown error occurred.',
                         icon: 'error',
                     });
                 });
         });
+
 
         function show(url) {
             return new Promise(function(resolve, reject) {
