@@ -5,13 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class WaterBillBreakdown extends Model
+class BillBreakdown extends Model
 {
     use HasFactory;
 
-    protected $table = 'water_bill_breakdown';
+    protected $table = 'bill_breakdown';
     protected $fillable = [
-        'water_bill_id',
+        'bill_id',
         'name',
         'description',
         'amount'

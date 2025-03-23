@@ -11,10 +11,8 @@ use App\Http\Controllers\PropertyTypesController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\WaterRatesController;
-use App\Http\Controllers\WaterReadingController;
-use App\Models\WaterReading;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\RatesController;
+use App\Http\Controllers\ReadingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -49,19 +47,19 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    Route::get('reading', [WaterReadingController::class, 'index'])
+    Route::get('reading', [ReadingController::class, 'index'])
         ->name('reading.index');
 
-    Route::post('reading', [WaterReadingController::class, 'store'])
+    Route::post('reading', [ReadingController::class, 'store'])
         ->name('reading.store');
 
-    Route::get('reading/view/bill/{reference_no}', [WaterReadingController::class, 'view_bill'])
+    Route::get('reading/view/bill/{reference_no}', [ReadingController::class, 'view_bill'])
         ->name('reading.view-bill');
 
-    Route::get('reading/bill/{reference_no}', [WaterReadingController::class, 'show'])
+    Route::get('reading/bill/{reference_no}', [ReadingController::class, 'show'])
         ->name('reading.show');
 
-    Route::get('reading/reports/{date?}', [WaterReadingController::class, 'report'])
+    Route::get('reading/reports/{date?}', [ReadingController::class, 'report'])
         ->name('reading.report');
 
     Route::prefix('users')->group(function() {
@@ -98,7 +96,7 @@ Route::middleware('admin')->prefix('admin')->group(function () {
         Route::resource('property-types', PropertyTypesController::class)
             ->names('property-types');
 
-        Route::resource('rates', WaterRatesController::class)
+        Route::resource('rates', RatesController::class)
             ->names('rates');
 
         Route::resource('payment-breakdown', PaymentBreakdownController::class)

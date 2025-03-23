@@ -132,7 +132,6 @@
             if (isNaN(computedConsumption)) {
                 computedConsumption = 0;
             }
-            console.log(presentReading + '-' + previousReading);
             $consumption.val(computedConsumption);
         }
 
@@ -149,18 +148,19 @@
                         return;
                     }
 
-                    const { firstname, lastname, address, contact_no, contract_no, contract_date } = response.client;
+                    const { name, address, contact_no, account_no, meter_serial_no, date_connected } = response.client;
                     const reading = response.reading ?? {};
 
                     $clientInfo.html(`
                         <h5 class="text-uppercase mb-4 mt-3">Client Information</h5>
                         <table class="table table-bordered">
-                            <tr><th>Full Name</th><td>${firstname ?? ''} ${lastname ?? ''}</td></tr>
+                            <tr><th>Full Name</th><td>${name ?? ''}</td></tr>
                             <tr><th>Address</th><td>${address ?? ''}</td></tr>
                             <tr><th>Contact No</th><td>${contact_no ?? ''}</td></tr>
-                            <tr><th>Contract No</th><td>${contract_no ?? ''}</td></tr>
-                            <tr><th>Contract Date</th><td>${contract_date ?? ''}</td></tr>
-                            <tr><th>Meter No</th><td>${meterNo ?? ''}</td></tr>
+                            <hr>
+                            <tr><th>Account No.</th><td>${account_no ?? ''}</td></tr>
+                            <tr><th>Meter No.</th><td>${meter_serial_no ?? ''}</td></tr>
+                            <tr><th>Date Connected</th><td>${convertDateToWords(date_connected) ?? ''}</td></tr>
                         </table>
                     `);
 

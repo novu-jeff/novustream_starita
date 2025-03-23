@@ -5,13 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class WaterBill extends Model
+class Bill extends Model
 {
     use HasFactory;
 
-    protected $table = 'water_bill';
+    protected $table = 'bill';
     protected $fillable = [
-        'water_reading_id',
+        'reading_id',
         'reference_no',
         'bill_period_from',
         'bill_period_to',
@@ -26,11 +26,11 @@ class WaterBill extends Model
     ];
 
     public function reading() {
-        return $this->hasOne(WaterReading::class, 'id', 'water_reading_id');
+        return $this->hasOne(Reading::class, 'id', 'reading_id');
     }
 
     public function breakdown() {
-        return $this->hasMany(WaterBillBreakdown::class, 'water_bill_id', 'id');
+        return $this->hasMany(BillBreakdown::class, 'bill_id', 'id');
     }
 
 }

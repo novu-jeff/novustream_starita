@@ -2,16 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\PaymentServiceFee;
 use App\Models\User;
-use App\Models\WaterBill;
-use App\Models\WaterRates;
-use App\Models\WaterReading;
+use App\Models\Bill;
+use App\Models\Rates;
+use App\Models\Reading;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PDO;
 
-class WaterService {
+class MeterService {
 
 
     public $paymentBreakdownService;
@@ -21,30 +20,30 @@ class WaterService {
         $this->paymentBreakdownService = $paymentBreakdownService;
     }
 
-    public static function getReport(string $date = null) {
+    public static function getReport(?string $date = null) {
 
         if(!is_null($date)) {
-            return WaterReading::whereDate('created_at', $date)->get();
+            return Reading::whereDate('created_at', $date)->get();
         }
 
-        return WaterReading::with('bill')->get();
+        return Reading::with('bill')->get();
 
     }
 
-    public static function getData(int $id = null) {
+    public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return WaterRates::with('property_types')->where('id', $id)
+            return Rates::with('property_types')->where('id', $id)
                 ->first() ?? null;
         }
 
-        return WaterRates::with('property_types')->get();
+        return Rates::with('property_types')->get();
 
     }
 
     public static function getPayments(?int $reference_no = null, bool $isPaid = false) {
         
-        $query = WaterBill::with('reading')->where('isPaid', $isPaid);
+        $query = Bill::with('reading')->where('isPaid', $isPaid);
     
         if (!is_null($reference_no)) {
             $query->where('reference_no', $reference_no);
@@ -55,8 +54,8 @@ class WaterService {
 
     public static function locate(array $payload)
     {
-        $client = User::where('meter_no', $payload['meter_no'] ?? '')
-            ->orWhere('contract_no', $payload['meter_no'] ?? '')
+        $client = User::where('account_no', $payload['meter_no'] ?? '')
+            ->orWhere('meter_serial_no', $payload['meter_no'] ?? '')
             ->first();
     
         if (!$client) {
@@ -66,7 +65,7 @@ class WaterService {
             ];
         }
     
-        $previous_reading = WaterReading::where('meter_no', $client->meter_no)
+        $previous_reading = Reading::where('meter_no', $client->meter_serial_no)
             ->latest()
             ->first() ?? [];
     
@@ -80,40 +79,42 @@ class WaterService {
     public static function getBill(string $reference_no) {
 
         // Fetch the current bill with reading details
-        $current_bill = WaterBill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();
+        $current_bill = Bill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();
     
         if (!$current_bill) {
-            return null;
+            return [
+                'status' => 'error',
+                'message' => 'No bill found'
+            ];
         }
-    
+
         // Get meter number from current bill
         $meter_no = optional($current_bill->reading)->meter_no;
     
         // Fetch the client details
-        $client = User::with('property_types')->where('meter_no', $meter_no)->first();
+        $client = User::with('property_types')->where('meter_serial_no', $meter_no)->first();
     
         // Fetch the previous paid payment
-        $previous_payment = WaterBill::with('reading.user')
+        $previous_payment = Bill::with('reading.user')
             ->where('isPaid', true)
             ->whereHas('reading.user', function ($query) use ($meter_no) {
-                $query->where('meter_no', $meter_no);
+                $query->where('meter_serial_no', $meter_no);
             })
             ->latest()
             ->first();
     
         // Prepare base query for unpaid bills
-        $unpaidQuery = WaterBill::with('reading')
+        $unpaidQuery = Bill::with('reading')
             ->where('isPaid', false)
             ->whereHas('reading', function ($query) use ($meter_no) {
                 $query->where('meter_no', $meter_no);
-            });
-    
+            });    
         // Fetch the latest unpaid payment (active payment)
         $active_payment = (clone $unpaidQuery)
             ->latest()
             ->select('reference_no')
             ->first();
-    
+
         // Fetch other unpaid bills excluding the current reference number
         $unpaid_bills = (clone $unpaidQuery)
             ->where('reference_no', '!=', $reference_no)
@@ -136,14 +137,14 @@ class WaterService {
     public static function getBills(string $meter_no, bool $isAll = false) {
 
         if($isAll) {
-            return WaterBill::with('reading')
+            return Bill::with('reading')
                 ->whereHas('reading', function($query) use ($meter_no) {
                     return $query->where('meter_no', $meter_no);
                 })->orderByDesc('created_at')
                 ->get();
         }
 
-        return WaterBill::with('reading')
+        return Bill::with('reading')
             ->whereHas('reading', function($query) use ($meter_no) {
                 return $query->where('meter_no', $meter_no);
             })->latest()
@@ -156,7 +157,7 @@ class WaterService {
         DB::beginTransaction();
         try {
 
-            WaterRates::create([
+            Rates::create([
                 'property_types_id' => $payload['property_type'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
@@ -195,7 +196,7 @@ class WaterService {
                 'rates' => $payload['rate']
             ];
 
-            WaterRates::where('id', $id)->update($updateData);
+            Rates::where('id', $id)->update($updateData);
 
             DB::commit();
 
@@ -222,7 +223,7 @@ class WaterService {
 
         try {
             
-            $data = WaterRates::where('id', $id)->first();
+            $data = Rates::where('id', $id)->first();
                 
             $data->delete();
 
@@ -247,12 +248,12 @@ class WaterService {
 
     public function create_breakdown(array $payload) {
 
-        $latest_reading = WaterReading::with('bill')->where('meter_no', $payload['meter_no'])->latest()->first();
+        $latest_reading = Reading::with('bill')->where('meter_no', $payload['meter_no'])->latest()->first();
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
     
-        $rate = WaterRates::where('cubic_from', '<=', $consumption)
+        $rate = Rates::where('cubic_from', '<=', $consumption)
             ->where('cubic_to', '>=', $consumption)
             ->where('property_types_id', $payload['property_type_id'])
             ->value('rates') ?? 0;
@@ -264,7 +265,7 @@ class WaterService {
             ];
         }
     
-        $unpaidAmount = WaterBill::where('isPaid', false)->whereNotNull('amount')->sum('amount') ?? 0;
+        $unpaidAmount = Bill::where('isPaid', false)->whereNotNull('amount')->sum('amount') ?? 0;
         $basic_charge = $rate * $consumption;
         $total_amount = $unpaidAmount + $basic_charge;
     
@@ -378,6 +379,5 @@ class WaterService {
         ];
 
     }
-    
 
 }

@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService {
 
-
     public static function getAllUsers() {
 
         $users = User::select(DB::raw('count(*) as count'))

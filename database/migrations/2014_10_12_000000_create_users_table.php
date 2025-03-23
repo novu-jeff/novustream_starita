@@ -28,6 +28,20 @@ return new class extends Migration
             $table->string('sc_no');
             $table->string('date_connected');
             $table->string('sequence_no');
+            $table->string('meter_type')
+                ->nullable();
+            $table->string('meter_wire')
+                ->nullable();
+            $table->string('meter_form')
+                ->nullable();
+            $table->string('meter_class')
+                ->nullable();
+            $table->string('lat_long')
+                ->nullable();
+            $table->boolean('isErcSealed')
+                ->default(true);
+            $table->string('inspection_image')
+                ->nullable();
             $table->string('email')
                 ->unique()
                 ->nullable();

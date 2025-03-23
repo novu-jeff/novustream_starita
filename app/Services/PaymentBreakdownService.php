@@ -5,15 +5,11 @@ namespace App\Services;
 use App\Models\PaymentBreakdown;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PaymentServiceFee;
-use App\Models\User;
-use App\Models\WaterBill;
-use App\Models\WaterRates;
-use App\Models\WaterReading;
 use Illuminate\Support\Facades\DB;
 
 class PaymentBreakdownService {
 
-    public static function getData(int $id = null) {
+    public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
             return PaymentBreakdown::where('id', $id)
@@ -24,7 +20,7 @@ class PaymentBreakdownService {
 
     }
 
-    public static function getPenalty(int $id = null) {
+    public static function getPenalty(?int $id = null) {
 
         if(!is_null($id)) {
             return PaymentBreakdownPenalty::where('id', $id)
@@ -35,7 +31,7 @@ class PaymentBreakdownService {
 
     }
 
-    public static function getServiceFee(int $id = null) {
+    public static function getServiceFee(?int $id = null) {
 
         if(!is_null($id)) {
             return PaymentServiceFee::with('property')->where('id', $id)
@@ -133,7 +129,7 @@ class PaymentBreakdownService {
 
     }
 
-    public static function update(int $id, array $payload) {
+    public static function update(?int $id, array $payload) {
 
         DB::beginTransaction();
 
@@ -166,7 +162,7 @@ class PaymentBreakdownService {
 
     }
 
-    public static function delete(int $id) {
+    public static function delete(?int $id) {
 
         DB::beginTransaction();
 

@@ -4,20 +4,20 @@ namespace App\Services;
 
 use App\Models\Roles;
 use App\Models\User;
-use App\Models\WaterRates;
+use App\Models\Rates;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-class WaterRatesService {
+class RatesService {
 
-    public static function getData(int $id = null) {
+    public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return WaterRates::with('property_type')->where('id', $id)
+            return Rates::with('property_type')->where('id', $id)
                 ->first() ?? null;
         }
 
-        return WaterRates::with('property_type')->get();
+        return Rates::with('property_type')->get();
 
     }
 
@@ -26,7 +26,7 @@ class WaterRatesService {
         DB::beginTransaction();
         try {
 
-            WaterRates::create([
+            Rates::create([
                 'property_types_id' => $payload['property_type'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
@@ -52,7 +52,7 @@ class WaterRatesService {
 
     }
 
-    public static function update(int $id, array $payload) {
+    public static function update(?int $id, array $payload) {
 
         DB::beginTransaction();
 
@@ -65,7 +65,7 @@ class WaterRatesService {
                 'rates' => $payload['rate']
             ];
 
-            WaterRates::where('id', $id)->update($updateData);
+            Rates::where('id', $id)->update($updateData);
 
             DB::commit();
 
@@ -86,13 +86,13 @@ class WaterRatesService {
 
     }
 
-    public static function delete(int $id) {
+    public static function delete(?int $id) {
 
         DB::beginTransaction();
 
         try {
             
-            $data = WaterRates::where('id', $id)->first();
+            $data = Rates::where('id', $id)->first();
                 
             $data->delete();
 

@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class WaterRates extends Model
+class Rates extends Model
 {
     use HasFactory;
 
-    protected $table = 'water_rates';
+    protected $table = 'rates';
     
     protected $fillable = [
         'property_types_id',

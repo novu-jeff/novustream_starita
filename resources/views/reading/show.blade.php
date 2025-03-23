@@ -38,7 +38,7 @@
     <div style="padding-bottom: 50px">
         <div id="bill" style="margin-top: 30px">
             <div class="bill-container">
-                <div style="position: relative; width: 100%; max-width: 250px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <div style="position: relative; width: 100%; max-width: 300px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                     @if($data['current_bill']->isPaid == true)
                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                             PAID
@@ -53,7 +53,7 @@
                     @endphp
 
                     <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
-                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') ) }}" 
+                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" 
                             alt="logo" class="web-logo">
                         <img src="{{ $base64 }}" alt="logo" class="print-logo">
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
@@ -67,12 +67,12 @@
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px; margin-top: 10px;">Service Information</h6>
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                             <div style="display: flex; justify-content: space-between;">
-                                <div>Contract No</div>
-                                <div>{{$data['client']->contract_no ?? ''}}</div>
+                                <div>Account Name</div>
+                                <div>{{$data['client']->name}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
-                                <div>Account Name</div>
-                                <div>{{$data['client']->firstname . ' ' . $data['client']->lastname}}</div>
+                                <div>Account No.</div>
+                                <div>{{$data['client']->account_no ?? ''}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Address</div>
@@ -89,16 +89,15 @@
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 0px; margin-top: 10px;">Billing Summary</h6>
                         <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 20px;">
                             <div>
-                                <div style="display: block; margin: 5px 0 5px 0;">
+                                <div style="display: block; margin: 10px 0 5px 0;">
                                     <div>Bill Date</div>
                                     <div>{{$data['current_bill']->created_at->format('m/d/Y')}}</div>
                                 </div>
-                                <div style="display: block; margin: 5px 0 5px 0;">
+                                <div style="display: block; margin: 5px 0 10px 0;">
                                     <div>Billing Period</div>
                                     <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
                                 </div>
                             </div>
-                            {!! $qr_code !!}
                         </div>
                     </div>
                     <div style="width: 100%; height: 1px; margin: 0px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
@@ -108,13 +107,13 @@
                             @foreach($data['current_bill']->breakdown as $breakdown)
                                 <div style="display: flex; justify-content: space-between;">
                                     <div>{{ $breakdown->name }} {{ !empty($breakdown->description) ? '(' . $breakdown->description . ')' : '' }}</div>
-                                    <div>₱{{number_format($breakdown->amount ?? 0, 2)}}</div>
+                                    <div>PHP {{number_format($breakdown->amount ?? 0, 2)}}</div>
                                 </div>
                             @endforeach
                             <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Amount Due</div>
-                                <div>₱{{number_format($data['current_bill']->amount, 2)}}</div>
+                                <div>PHP {{number_format($data['current_bill']->amount, 2)}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Due Date</div>
@@ -159,12 +158,26 @@
                                     </div>
                                     <div style="display: flex; justify-content: space-between;">
                                         <div>Amount</div>
-                                        <div>₱{{number_format($data['previous_payment']->amount, 2)}}</div>
+                                        <div>PHP {{number_format($data['previous_payment']->amount, 2)}}</div>
                                     </div>
                                 </div>      
                             </div>
                         @endif
-                        <div style="width: 100%; height: 1px; margin: 10px 0 30px 0; border-bottom: 1px dashed black;"></div>                    
+                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+                        <div>
+                            {!! $qr_code !!}
+                        </div>
+                        <div>
+                            <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
+                            <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
+                                <li>Scan the QR code.</li>
+                                <li>Choose a merchant on NovuPay.</li>
+                                <li>Pay the total amount due.</li>
+                                <li>Keep your receipt.</li>
+                            </ol>                            
+                        </div>
                     </div>
                 </div>                    
             </div>
@@ -174,9 +187,9 @@
 
         @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
         
-        svg {
+        /* svg {
             width: 55px !important;
-        }
+        } */
 
         .web-logo {
             width: 100px;

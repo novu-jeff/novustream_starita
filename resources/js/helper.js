@@ -66,7 +66,7 @@ export function remove(table, url, token) {
 export function canvasDownload(elem, filename) { 
     const { jsPDF } = window.jspdf;
 
-    let pageWidth = 80; 
+    let pageWidth = 100; 
     let pageHeight = 210; 
 
     html2canvas($(elem)[0], {
@@ -93,4 +93,21 @@ export function canvasDownload(elem, filename) {
         doc.save(filename + ".pdf");
         
     });
+}
+
+export function convertDateToWords(dateString) {
+    var months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    var parts = dateString.split('/');
+    if (parts.length !== 3) return "Invalid date format";
+    var month = parseInt(parts[0], 10);
+    var day = parseInt(parts[1], 10);
+    var year = parseInt(parts[2], 10);
+
+    if (!month || !day || !year) return "Invalid date"; 
+
+    return months[month - 1] + " " + day + ", " + year;
 }

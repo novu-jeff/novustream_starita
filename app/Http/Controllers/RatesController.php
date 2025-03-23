@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\WaterRates;
+use App\Models\Rates;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
-use App\Services\WaterRatesService;
+use App\Services\RatesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
-class WaterRatesController extends Controller
+class RatesController extends Controller
 {
 
-    public $waterRatesService;
+    public $RatesService;
     public $propertyTypeService;
 
-    public function __construct(WaterRatesService $waterRatesService, PropertyTypesService $propertyTypeService) {
+    public function __construct(RatesService $RatesService, PropertyTypesService $propertyTypeService) {
         
         $this->middleware(function ($request, $next) {
     
@@ -29,13 +29,13 @@ class WaterRatesController extends Controller
             return $next($request);
         });
         
-        $this->waterRatesService = $waterRatesService;
+        $this->RatesService = $RatesService;
         $this->propertyTypeService = $propertyTypeService;
     }
 
     public function index() {
 
-        $data = $this->waterRatesService::getData();
+        $data = $this->RatesService::getData();
 
         if(request()->ajax()) {
             return $this->datatable($data);
@@ -68,7 +68,7 @@ class WaterRatesController extends Controller
                 ->withInput();
         }
         
-        $existingRange = WaterRates::where('property_types_id', $payload['property_type'])
+        $existingRange = Rates::where('property_types_id', $payload['property_type'])
             ->where(function ($query) use ($payload) {
                 $query->whereBetween('cubic_from', [$payload['cubic_from'], $payload['cubic_to']])
                       ->orWhereBetween('cubic_to', [$payload['cubic_from'], $payload['cubic_to']])
@@ -80,7 +80,7 @@ class WaterRatesController extends Controller
             ->exists();
         
         if ($existingRange) {
-            $lastRange = WaterRates::where('property_types_id', $payload['property_type'])
+            $lastRange = Rates::where('property_types_id', $payload['property_type'])
                 ->orderByDesc('cubic_to')
                 ->first();
         
@@ -91,7 +91,7 @@ class WaterRatesController extends Controller
                 ->withInput();
         }
 
-        $response = $this->waterRatesService::create($payload);
+        $response = $this->RatesService::create($payload);
 
         if ($response['status'] === 'success') {
             return redirect()->back()->with('alert', [
@@ -109,7 +109,7 @@ class WaterRatesController extends Controller
     public function edit(int $id) {
 
         $property_types = $this->propertyTypeService::getData();
-        $data = $this->waterRatesService::getData($id);
+        $data = $this->RatesService::getData($id);
         
         return view('rates.form', compact('data', 'property_types'));
     }
@@ -131,7 +131,7 @@ class WaterRatesController extends Controller
                 ->withInput();
         }
 
-        $response = $this->waterRatesService::update($id, $payload);
+        $response = $this->RatesService::update($id, $payload);
 
         if ($response['status'] === 'success') {
             return redirect()->back()->with('alert', [
@@ -149,7 +149,7 @@ class WaterRatesController extends Controller
 
     public function destroy(int $id) {
 
-        $response = $this->waterRatesService::delete($id);
+        $response = $this->RatesService::delete($id);
 
         if ($response['status'] === 'success') {
             

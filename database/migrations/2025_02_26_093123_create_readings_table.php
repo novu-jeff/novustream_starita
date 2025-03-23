@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('water_readings', function (Blueprint $table) {
+        Schema::create('readings', function (Blueprint $table) {
             $table->id();
             $table->string('meter_no');
             $table->string('previous_reading');
@@ -20,10 +20,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('water_bill', function(Blueprint $table) {
+        Schema::create('bill', function(Blueprint $table) {
             $table->id();
-            $table->foreignId('water_reading_id')
-                ->constrained('water_readings')
+            $table->foreignId('reading_id')
+                ->constrained('readings')
                 ->onCascade('delete');
             $table->string('reference_no');
             $table->string('bill_period_from');
@@ -45,10 +45,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('water_bill_breakdown', function(Blueprint $table) {
+        Schema::create('bill_breakdown', function(Blueprint $table) {
             $table->id();
-            $table->foreignId('water_bill_id')
-                ->constrained('water_bill')
+            $table->foreignId('bill_id')
+                ->constrained('bill')
                 ->onCascade('delete');
             $table->string('name');
             $table->string('description')
@@ -63,8 +63,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('water_bill_breakdown');
-        Schema::dropIfExists('water_bill');
-        Schema::dropIfExists('water_readings');
+        Schema::dropIfExists('bill_breakdown');
+        Schema::dropIfExists('bill');
+        Schema::dropIfExists('readings');
     }
 };

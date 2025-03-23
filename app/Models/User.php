@@ -36,4 +36,8 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'isValidated' => 'boolean',
     ];
+
+    public function property_types() {
+        return $this->hasOne(PropertyTypes::class, 'id', 'property_type');
+    }
 }

@@ -5,12 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\PaymentBreakdown;
 use App\Models\PaymentServiceFee;
 use App\Models\User;
-use App\Models\WaterBill;
-use App\Models\WaterBillBreakdown;
-use App\Models\WaterRates;
-use App\Models\WaterReading;
+use App\Models\Bill;
+use App\Models\BillBreakdown;
+use App\Models\Rates;
+use App\Models\Reading;
 use App\Services\GenerateService;
-use App\Services\WaterService;
+use App\Services\MeterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,22 +18,22 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 
-class WaterReadingController extends Controller
+class ReadingController extends Controller
 {
     
-    public $waterService;
+    public $meterService;
     public $paymentBreakdownService;
     public $paymentServiceFee;
     public $generateService;
 
-    public function __construct(WaterService $waterService, 
+    public function __construct(MeterService $meterService, 
         PaymentBreakdown $paymentBreakdownService, 
         PaymentServiceFee $paymentServiceFee,
         GenerateService $generateService)
     {
 
         $this->middleware(function ($request, $next) {
-            $method = $request->route()->getActionMethod(); // Use request object
+            $method = $request->route()->getActionMethod(); 
     
             if (!in_array($method, ['show'])) {
                 if (!Gate::any(['admin', 'technician'])) {
@@ -44,7 +44,7 @@ class WaterReadingController extends Controller
             return $next($request);
         });
 
-        $this->waterService = $waterService;
+        $this->meterService = $meterService;
         $this->paymentBreakdownService = $paymentBreakdownService;
         $this->paymentServiceFee = $paymentServiceFee;
         $this->generateService = $generateService;
@@ -53,7 +53,7 @@ class WaterReadingController extends Controller
     public function index(Request $request) {
 
         if($request->ajax()) {
-            $response = $this->waterService::locate($request->all());
+            $response = $this->meterService::locate($request->all());
             return response()->json($response);
         }
 
@@ -62,7 +62,7 @@ class WaterReadingController extends Controller
 
     public function show(string $reference_no) {
 
-        $data = $this->waterService::getBill($reference_no);
+        $data = $this->meterService::getBill($reference_no);
 
         if(is_null($data)) {
             return redirect()->route('reading.index')->with('alert', [
@@ -73,14 +73,14 @@ class WaterReadingController extends Controller
 
         $url = route('reading.show', ['reference_no' => $reference_no]);
 
-        $qr_code = $this->generateService::qr_code($url, 100);
+        $qr_code = $this->generateService::qr_code($url, 60);
 
         return view('reading.show', compact('data', 'reference_no', 'qr_code'));
     }
 
-    public function report(string $date = null) {
+    public function report(?string $date = null) {
 
-        $data = $this->waterService::getReport($date);
+        $data = $this->meterService::getReport($date);
 
         if(request()->ajax()) {
             return $this->datatable($data);
@@ -99,13 +99,14 @@ class WaterReadingController extends Controller
                 'required',
                 function ($attribute, $value, $fail) {
                     if (!DB::table('users')
-                        ->where('meter_no', $value)
-                        ->orWhere('contract_no', $value)
+                        ->where('meter_serial_no', $value)
+                        ->orWhere('account_no', $value)
                         ->exists()) {
-                        $fail('The water meter no. or water contract no. does not exist.');
+                        $fail('The meter no. or account no. does not exist.');
                     }
                 },
             ],
+            'previous_reading' => 'required|integer',
             'present_reading' => 'required|integer|gt:previous_reading',
         ]);
 
@@ -119,15 +120,16 @@ class WaterReadingController extends Controller
 
         try {
             
-            $user = User::where('meter_no', $payload['meter_no'])
-                ->orWhere('contract_no', $payload['meter_no'])
+            $user = User::where('meter_serial_no', $payload['meter_no'])
+                ->orWhere('account_no', $payload['meter_no'])
                 ->first();
 
-            $meter_no = $user->meter_no;
+            $meter_no = $user->meter_serial_no;
             $property_type_id = $user->property_type;
+
             $present_reading = $payload['present_reading'];
 
-            $computed = $this->waterService->create_breakdown([
+            $computed = $this->meterService->create_breakdown([
                 'meter_no' => $meter_no,
                 'property_type_id' => $property_type_id,
                 'present_reading' => $present_reading
@@ -140,18 +142,18 @@ class WaterReadingController extends Controller
                 ]);
             }
 
-            // WATER READING
-            $water = WaterReading::create($computed['reading']);
+            // READING
+            $reading = Reading::create($computed['reading']);
 
-            $computed['bill']['water_reading_id'] = $water->id;
+            $computed['bill']['reading_id'] = $reading->id;
 
-            // WATER BILL
-            $bill = WaterBill::create($computed['bill']);
+            // BILL
+            $bill = Bill::create($computed['bill']);
 
             // BILL BREAKDOWN
             foreach($computed['deductions'] as $deductions) {
-                WaterBillBreakdown::create([
-                    'water_bill_id' => $bill->id,
+                BillBreakdown::create([
+                    'bill_id' => $bill->id,
                     'name' => $deductions['name'],
                     'description' => $deductions['description'],
                     'amount' => $deductions['amount']
@@ -162,7 +164,7 @@ class WaterReadingController extends Controller
 
             return redirect()->route('reading.show', ['reference_no' => $bill->reference_no])->with('alert', [
                 'status' => 'success',
-                'message' => 'Water Bill Created'
+                'message' => 'Bill has been created'
             ]);
 
         } catch (\Exception $e) {

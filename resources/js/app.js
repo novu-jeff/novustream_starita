@@ -1,9 +1,10 @@
 import './bootstrap';
 
-import { alert, remove , canvasDownload} from './helper';
+import { alert, remove , canvasDownload, convertDateToWords} from './helper';
 
 window.alert = alert;
 window.remove = remove;
+window.convertDateToWords = convertDateToWords;
 
 $('.download-js').on('click', function() {
     const target = $(this).data('target');

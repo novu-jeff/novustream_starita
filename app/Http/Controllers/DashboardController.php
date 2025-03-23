@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
-use App\Services\WaterService;
+use App\Services\MeterService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -11,9 +11,9 @@ class DashboardController extends Controller
 {
 
     public $dashboardService;
-    public $waterService;
+    public $meterService;
 
-    public function __construct(DashboardService $dashboardService, WaterService $waterService) {
+    public function __construct(DashboardService $dashboardService, MeterService $meterService) {
         
         $this->middleware(function ($request, $next) {
     
@@ -25,14 +25,14 @@ class DashboardController extends Controller
         });
         
         $this->dashboardService = $dashboardService;
-        $this->waterService = $waterService;
+        $this->meterService = $meterService;
     }
 
     public function index()
     {
 
         $users = $this->dashboardService::getAllUsers()->toArray() ?? [];
-        $water_readings = $this->waterService::getReport() ?? collect([]); // Ensure it's a collection
+        $water_readings = $this->meterService::getReport() ?? collect([]); // Ensure it's a collection
 
         // Sum up all bill amounts safely
         $total_transactions = $water_readings->sum(function ($reading) {

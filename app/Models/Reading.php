@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class WaterReading extends Model
+class Reading extends Model
 {
     use HasFactory;
 
-    protected $table = 'water_readings';
+    protected $table = 'readings';
     protected $fillable = [
         'meter_no',
         'previous_reading',
@@ -18,11 +18,11 @@ class WaterReading extends Model
     ];
 
     public function user() {
-        return $this->hasOne(User::class, 'meter_no', 'meter_no');
+        return $this->hasOne(User::class, 'meter_serial_no', 'meter_no');
     }
 
     public function bill() {
-        return $this->hasOne(WaterBill::class, 'water_reading_id', 'id');
+        return $this->hasOne(Bill::class, 'reading_id', 'id');
     }
 
 }
