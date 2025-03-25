@@ -11,6 +11,7 @@ use App\Http\Controllers\PropertyTypesController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\BaseRateController;
 use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
 use Illuminate\Support\Facades\Route;
@@ -97,7 +98,10 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('property-types');
             
         Route::resource('rates', RatesController::class)
-            ->names('rates');
+            ->names('rates')->only('index', 'store');
+        
+        Route::resource('base-rate', BaseRateController::class)
+            ->names('base-rate')->only('index', 'store');
 
         Route::resource('payment-breakdown', PaymentBreakdownController::class)
             ->names('payment-breakdown');

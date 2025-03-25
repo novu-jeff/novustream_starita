@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Rates;
+use App\Models\BaseRate;
 use App\Services\PropertyTypesService;
 use App\Services\RatesService;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Facades\Validator;
 
-class RatesController extends Controller
+
+class BaseRateController extends Controller
 {
-
     public $RatesService;
     public $propertyTypeService;
 
@@ -32,31 +32,33 @@ class RatesController extends Controller
         $this->propertyTypeService = $propertyTypeService;
     }
 
-    public function index(Request $request) {
+    public function index(Request $request)
+    {
         $propertyTypeId = $request->get('property_type') ?? 1;
-        $data = $this->RatesService->getData($propertyTypeId);
+        $data = $this->RatesService->getBaseRates($propertyTypeId);
 
         $property_types = $this->propertyTypeService::getData();
+
+        $app_type = env('APP_PRODUCT') === 'novustream' ? 'Water' : 'Electricity';
+
         $base_rate = $this->RatesService->getActiveBaseRate($propertyTypeId);
 
-        $app_type = config('app.product') === 'novustream' ? 'Water' : 'Electricity';
         if(request()->ajax()) {
             return $this->datatable($data);
         }
 
-        return view('rates.index', compact('property_types', 'base_rate', 'propertyTypeId', 'app_type'));
+        return view('base-rate.index', compact('property_types', 'base_rate', 'propertyTypeId', 'app_type'));
     }
 
-    public function store(Request $request) {
+    public function store(Request $request)
+    {
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
             'property_type' => 'required|exists:property_types,id',
-            'cubic_from' => 'required|integer',
-            'cubic_to' => 'required|integer|gt:cubic_from',
-            'charge' => 'required|numeric'
+            'rate' => 'required|numeric|min:1|max:999999.99'
         ]);
-        
+
         if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
@@ -66,13 +68,13 @@ class RatesController extends Controller
         DB::beginTransaction();
         try {
 
-            $updatecharge = $this->RatesService->updateCharge($payload);
+            $createBaseRate = $this->RatesService->createBaseRate($payload);
             $this->RatesService->recomputeRates($payload['property_type']);
 
             DB::commit();
 
             return redirect()->back()->with('alert', [
-                'update_charge' => $updatecharge,
+                'data' => $createBaseRate,
                 'status' => 'success',
                 'message' => 'Water rate updated.'
             ]);
@@ -86,15 +88,29 @@ class RatesController extends Controller
                 'message' => 'Error occured: ' . $e->getMessage()
             ]);
         }
-        
     }
 
     public function datatable($query)
     {
         return DataTables::of($query)
             ->addIndexColumn()
-            ->rawColumns(['actions'])
+            ->addColumn('status', function ($row) {
+
+                $latestBaseRate = BaseRate::where('property_type_id', $row->property_type_id)->latest()->first();
+
+                if ($latestBaseRate->id === $row->id) {
+                    return '<span class="badge bg-success">Active</span>';
+                } else {
+                    return '<span class="badge bg-secondary opacity-75">Inactive</span>';
+                }
+            })
+            ->addColumn('month_day', function ($row) {
+                return $row->created_at ? $row->created_at->format('F j') : 'N/A';
+            })
+            ->addColumn('year', function ($row) {
+                return $row->created_at ? $row->created_at->format('Y') : 'N/A';
+            })
+            ->rawColumns(['status', 'month', 'year'])
             ->make(true);
     }
-    
 }

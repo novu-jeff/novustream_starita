@@ -2,7 +2,7 @@
 	<div class="header-content responsive-wrapper">
 		<div class="header-logo">
 			<a href="#" class="nav-link text-uppercase fw-bold">
-				<img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" alt="" style="width: 100px;">
+				<img src="{{ asset(config('app.product') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" alt="" style="width: 100px;">
 			</a>
 		</div>
 		<div class="header-navigation">
@@ -45,6 +45,7 @@
 						</button>
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('property-types.index')}}">Property Types</a></li>
+							<li><a class="dropdown-item" href="{{route('base-rate.index')}}">Base Rate</a></li>
 							<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 						</ul>
