@@ -249,10 +249,9 @@ class MeterService {
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
     
-        $rate = Rates::where('cubic_from', '<=', $consumption)
-            ->where('cubic_to', '>=', $consumption)
+        $rate = Rates::where('cu_m', $consumption)
             ->where('property_types_id', $payload['property_type_id'])
-            ->value('rates') ?? 0;
+            ->value('amount') ?? 0;
     
         if ($rate == 0) {
             return [

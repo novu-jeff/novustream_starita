@@ -76,7 +76,7 @@ class PaymentController extends Controller
 
     }
 
-    private function getBill(string $reference_no, $payload)
+    private function getBill(string $reference_no, $payload, bool $strictAmount = false)
     {
         $data = $this->meterService::getBill($reference_no);
     
@@ -86,14 +86,16 @@ class PaymentController extends Controller
     
         $total = $data['current_bill']->amount;
     
-        $validator = Validator::make($payload, [
-            'payment_amount' => 'required|gte:' . $total
-        ], [
-            'payment_amount.gte' => 'Insufficient Payment Amount'
-        ]);
-    
-        if ($validator->fails()) {
-            return ['error' => $validator->errors()->first()];
+        if($strictAmount) {
+            $validator = Validator::make($payload, [
+                'payment_amount' => 'required|gte:' . $total
+            ], [
+                'payment_amount.gte' => 'Cash payment is insufficient'
+            ]);
+        
+            if ($validator->fails()) {
+                return ['error' => $validator->errors()->first()];
+            }
         }
     
         return ['data' => $data]; 
@@ -101,7 +103,7 @@ class PaymentController extends Controller
     
     public function processCashPayment(string $reference_no, array $payload) {
         
-        $result = $this->getBill($reference_no, $payload);
+        $result = $this->getBill($reference_no, $payload, true);
     
         if (isset($result['error'])) {
             return redirect()->back()->with('alert', [
@@ -139,7 +141,7 @@ class PaymentController extends Controller
     
     public function processOnlinePayment(string $reference_no, array $payload) {
 
-        $result = $this->getBill($reference_no, $payload);
+        $result = $this->getBill($reference_no, $payload, false);
     
         if (isset($result['error'])) {
             return redirect()->back()->with('alert', [
@@ -151,7 +153,7 @@ class PaymentController extends Controller
         $data = $result['data']; 
 
         $toSaveSession = [
-            'amount' => (float) number_format($data['current_bill']->amount ?? 0, 2),
+            'amount' => (float) $data['current_bill']->amount,
             'reference_no' => $reference_no,
             'customer' => [
                 'account_number' => '',
@@ -181,7 +183,6 @@ class PaymentController extends Controller
         
         $decodedResponse = json_decode($response, true);
         
-        // Handle curl errors
         if ($curlError) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
