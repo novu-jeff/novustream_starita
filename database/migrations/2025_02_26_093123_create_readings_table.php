@@ -25,6 +25,8 @@ return new class extends Migration
             $table->foreignId('reading_id')
                 ->constrained('readings')
                 ->onCascade('delete');
+            $table->string('payment_id')
+                ->nullable();
             $table->string('reference_no');
             $table->string('bill_period_from');
             $table->string('bill_period_to');

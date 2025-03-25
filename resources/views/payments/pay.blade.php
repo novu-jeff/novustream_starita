@@ -16,7 +16,7 @@
                         <div class="col-12 col-md-6">
                             <div id="bill">
                                 <div class="bill-container">
-                                    <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 50px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                                    <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 50px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                         @if($data['current_bill']->isPaid == true)
                                             <div style="padding: 10px 30px 10px 30px; position: absolute; right: 1px; top: 10px; text-transform: uppercase; color: red; letter-spacing: 3px; font-weight: 600">
                                                 PAID
@@ -67,9 +67,6 @@
                                                         <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
                                                     </div>
                                                 </div>
-                                                <div>
-                                                    {!! $qr_code !!}
-                                                </div>
                                             </div>
                                         </div>
                                         <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
@@ -115,6 +112,21 @@
                                                 </div>
                                             </div>                            
                                         </div>  
+                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+                                            <div>
+                                                {!! $qr_code !!}
+                                            </div>
+                                            <div>
+                                                <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
+                                                <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
+                                                    <li>Scan the QR code.</li>
+                                                    <li>Choose a merchant on NovuPay.</li>
+                                                    <li>Pay the total amount due.</li>
+                                                    <li>Keep your receipt.</li>
+                                                </ol>                            
+                                            </div>
+                                        </div>
                                         @if($data['previous_payment'])
                                             <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                                             <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
@@ -192,8 +204,8 @@
                                             </div>
                                         </div>
                                         <div class="d-block text-end my-5">
-                                            <button type="submit" class="w-50 mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold">Pay Cash</button>
-                                            <a href="http://136.239.223.234:5000/payment-demo?price={{$data['current_bill']->amount}}" class="w-50 mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold">Pay Online</a>
+                                            <button type="submit" class="w-50 mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
+                                            <button class="w-50 mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
                                         </div>
                                     </div>
                                 </div>
@@ -215,10 +227,15 @@
 @section('script')
     <script>
         $(function () {
+
             @if (session('alert'))
                 setTimeout(() => {
                     let alertData = @json(session('alert'));
-                    alert(alertData.status, alertData.message);
+                    if (alertData.status === 'success' && alertData.payment_request) {
+                        window.open(alertData.redirect, '_blank');
+                    } else {
+                        alert(alertData.status.toUpperCase(), alertData.message);
+                    }
                 }, 100);
             @endif
 

@@ -47,7 +47,7 @@
                     @php
                         $logoPath = env('APP_PRODUCT') === 'novustream' 
                                     ? public_path('images/novustreamlogodarken.png') 
-                                    : public_path('images/novupowerlogodarken.png');
+                                    : public_path('images/novusurgelogodarken.png');
 
                         $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                     @endphp
@@ -164,19 +164,19 @@
                             </div>
                         @endif
                         <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
-                    </div>
-                    <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
-                        <div>
-                            {!! $qr_code !!}
-                        </div>
-                        <div>
-                            <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
-                            <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
-                                <li>Scan the QR code.</li>
-                                <li>Choose a merchant on NovuPay.</li>
-                                <li>Pay the total amount due.</li>
-                                <li>Keep your receipt.</li>
-                            </ol>                            
+                        <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+                            <div>
+                                {!! $qr_code !!}
+                            </div>
+                            <div>
+                                <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
+                                <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
+                                    <li>Scan the QR code.</li>
+                                    <li>Choose a merchant on NovuPay.</li>
+                                    <li>Pay the total amount due.</li>
+                                    <li>Keep your receipt.</li>
+                                </ol>                            
+                            </div>
                         </div>
                     </div>
                 </div>                    
@@ -186,10 +186,6 @@
     <style>
 
         @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-        
-        /* svg {
-            width: 55px !important;
-        } */
 
         .web-logo {
             width: 100px;

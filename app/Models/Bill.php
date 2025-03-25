@@ -13,6 +13,7 @@ class Bill extends Model
     protected $fillable = [
         'reading_id',
         'reference_no',
+        'payment_id',
         'bill_period_from',
         'bill_period_to',
         'previous_unpaid',
