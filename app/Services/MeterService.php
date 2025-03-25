@@ -134,23 +134,19 @@ class MeterService {
         ];
     }    
 
-    public static function getBills(string $meter_no, bool $isAll = false) {
-
-        if($isAll) {
-            return Bill::with('reading')
-                ->whereHas('reading', function($query) use ($meter_no) {
-                    return $query->where('meter_no', $meter_no);
-                })->orderByDesc('created_at')
-                ->get();
+    public static function getBills(?string $meter_no = null, bool $isAll = false) 
+    {
+        $query = Bill::with('reading.user');
+    
+        if (!is_null($meter_no)) {
+            $query->whereHas('reading', function ($query) use ($meter_no) {
+                $query->where('meter_no', $meter_no);
+            });
         }
-
-        return Bill::with('reading')
-            ->whereHas('reading', function($query) use ($meter_no) {
-                return $query->where('meter_no', $meter_no);
-            })->latest()
-            ->first();
-
+    
+        return $isAll ? $query->orderByDesc('created_at')->get() : $query->latest()->first();
     }
+    
     
     public static function create(array $payload) {
 
@@ -363,7 +359,7 @@ class MeterService {
         $overall_total = collect($deductions)->sum('amount');
 
         $bill = [
-            'reference_no' => 'REF-' . time(),
+            'reference_no' => $this->generateReferenceNo(),
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $unpaidAmount,
@@ -377,6 +373,16 @@ class MeterService {
             'deductions' => $deductions,
             'bill' => $bill
         ];
+
+    }
+
+    private function generateReferenceNo() {
+        
+        $prefix = env('APP_PRODUCT');
+
+        $prefix = $prefix == 'novustream' ? 'NST' : 'NSU';
+        
+        return $prefix . '-' . time();
 
     }
 

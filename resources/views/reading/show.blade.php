@@ -34,11 +34,16 @@
             style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 18px;" class='bx bxs-printer'></i> Print
         </button>
+
+        <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}" 
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
+            <i style="font-size: 18px;" class='bx bxs-printer'></i> Pay Now
+        </a>
     </div>
     <div style="padding-bottom: 50px">
         <div id="bill" style="margin-top: 30px">
             <div class="bill-container">
-                <div style="position: relative; width: 100%; max-width: 300px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                     @if($data['current_bill']->isPaid == true)
                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                             PAID
@@ -164,7 +169,7 @@
                             </div>
                         @endif
                         <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
-                        <div style="display: flex; justify-content: center; gap: 20px; align-items: center;">
+                        <div style="display: flex; justify-content: center; gap: 35px; align-items: center;">
                             <div>
                                 {!! $qr_code !!}
                             </div>
@@ -184,6 +189,11 @@
         </div>
     </div>
     <style>
+
+        body * {    
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+            font-size: 13px;
+        }
 
         @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 

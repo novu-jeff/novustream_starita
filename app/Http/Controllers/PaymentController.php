@@ -150,12 +150,9 @@ class PaymentController extends Controller
     
         $data = $result['data']; 
 
-        $unique_id = $this->generatePaymentID();
-
         $toSaveSession = [
             'amount' => (float) number_format($data['current_bill']->amount ?? 0, 2),
-            'payment_id' => $unique_id,
-            'operation_id' => $unique_id,
+            'reference_no' => $reference_no,
             'customer' => [
                 'account_number' => '',
                 'name' => $data['client']->name,
@@ -163,6 +160,7 @@ class PaymentController extends Controller
                 'phone_number' => $data['client']->contact_no,
                 'address' => $data['client']->address
             ],
+            'callback' => route('transaction.callback')
         ];
 
         $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
@@ -195,7 +193,6 @@ class PaymentController extends Controller
             $decodedResponse = ['error' => 'Invalid API response', 'raw' => $response];
         }
 
-
         if ($httpCode === 200) {
            
             if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
@@ -212,16 +209,9 @@ class PaymentController extends Controller
 
                 $novupay = $novupayUrl . '/payment/merchants/' . $reference_no;
 
-                // update payment_id
-
-                Bill::where('reference_no', $reference_no)->update([
-                    'payment_id' => $unique_id
-                ]);
-
-                return redirect()->back()->with('alert', [
+                return redirect()->route('payments.pay', ['reference_no', $reference_no])->with('alert', [
                     'status' => 'success',
                     'payment_request' => true,
-                    'message' => 'redirecting...',
                     'redirect' => $novupay,
                 ]);
 
@@ -242,27 +232,17 @@ class PaymentController extends Controller
         }
     }
 
-    private function generatePaymentID()
-    {
-        do {
-            $paymentId = now()->format('YmdHis') . '-' . Str::uuid();
-            $exists = Bill::where('payment_id', $paymentId)->exists();
-        } while ($exists);
-
-        return $paymentId;
-    }
-
     public function datatable($query) {
         return DataTables::of($query)
             ->addIndexColumn()
             ->editColumn('billing_period', function ($row) {
                 return ($row->bill_period_from && $row->bill_period_to) 
-                    ? Carbon::parse($row->bill_period_from)->format('F d, Y') . ' TO ' . Carbon::parse($row->bill_period_to)->format('F d, Y')
+                    ? Carbon::parse($row->bill_period_from)->format('M d, Y') . ' TO ' . Carbon::parse($row->bill_period_to)->format('M d, Y')
                     : 'N/A';
             })
             ->editColumn('bill_date', function ($row) {
                 return !empty($row->bill_period_to) 
-                    ? Carbon::parse($row->bill_period_to)->format('F d, Y') 
+                    ? Carbon::parse($row->bill_period_to)->format('M d, Y') 
                     : 'N/A';
             })
             ->editColumn('amount', function ($row) {
@@ -270,7 +250,7 @@ class PaymentController extends Controller
             })
             ->editColumn('due_date', function ($row) {
                 return !empty($row->due_date) 
-                    ? Carbon::parse($row->due_date)->format('F d, Y') 
+                    ? Carbon::parse($row->due_date)->format('M d, Y') 
                     : 'N/A';
             })
             ->editColumn('status', function ($row) {

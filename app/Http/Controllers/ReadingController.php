@@ -73,7 +73,7 @@ class ReadingController extends Controller
 
         $url = route('reading.show', ['reference_no' => $reference_no]);
 
-        $qr_code = $this->generateService::qr_code($url, 60);
+        $qr_code = $this->generateService::qr_code($url, 80);
 
         return view('reading.show', compact('data', 'reference_no', 'qr_code'));
     }

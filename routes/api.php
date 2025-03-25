@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\CallbackController;
 use App\Http\Controllers\Api\InspectionController;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\MeterController;
 use App\Http\Controllers\Api\ReprintController;
+use App\Http\Controllers\Api\SyncController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +27,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::post('login', [LoginController::class, 'login']);
 Route::post('logout', [LoginController::class, 'logout']);
 
+Route::post('transaction/callback', [CallbackController::class, 'save'])
+    ->name('transaction.callback');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('inspection')->group(function () {
         Route::post('search', [InspectionController::class, 'search']);
@@ -40,4 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('search', [ReprintController::class, 'search']);
         Route::post('search/{reference_no}', [ReprintController::class, 'view']);
     });
+
+    Route::get('sync', [SyncController::class, 'sync']);
+
 });

@@ -95,7 +95,7 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::prefix('settings')->group(function() {
         Route::resource('property-types', PropertyTypesController::class)
             ->names('property-types');
-
+            
         Route::resource('rates', RatesController::class)
             ->names('rates');
 

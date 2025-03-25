@@ -232,7 +232,7 @@
                 setTimeout(() => {
                     let alertData = @json(session('alert'));
                     if (alertData.status === 'success' && alertData.payment_request) {
-                        window.open(alertData.redirect, '_blank');
+                        window.open(alertData.redirect, '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
                     } else {
                         alert(alertData.status.toUpperCase(), alertData.message);
                     }
