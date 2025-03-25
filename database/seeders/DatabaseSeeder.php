@@ -17,7 +17,9 @@ class DatabaseSeeder extends Seeder
             AccountSeeder::class,
             RoleSeeder::class,
             PropertyTypeSeeder::class,
-            TicketsCategorySeeder::class
+            TicketsCategorySeeder::class,
+            BaseRateSeeder::class,
+            RateSeeder::class,
         ]);
 
     }

@@ -11,12 +11,7 @@ class Rates extends Model
 
     protected $table = 'rates';
     
-    protected $fillable = [
-        'property_types_id',
-        'cubic_from',
-        'cubic_to',
-        'rates',
-    ];
+   protected $guarded = ['id', 'created_at', 'updated_at'];
 
     public function property_type() {
         return $this->hasOne(PropertyTypes::class, 'id', 'property_types_id');

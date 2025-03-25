@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BaseRate;
 use App\Models\Roles;
 use App\Models\User;
 use App\Models\Rates;
@@ -10,19 +11,27 @@ use Illuminate\Support\Facades\Hash;
 
 class RatesService {
 
-    public static function getData(?int $id = null) {
+    public function getBaseRates($property_type_id) {
+        return BaseRate::where('property_type_id', $property_type_id)->orderBy('created_at', 'desc')->get();
+    }
+
+    public function getActiveBaseRate($property_type_id) {
+        $baseRateQuery = BaseRate::where('property_type_id', $property_type_id)->latest()->first();
+        $baseRate = $baseRateQuery->rate;
+        return $baseRate;
+    }
+
+    public function getData($property_type = 1, ?int $id = null) {
 
         if(!is_null($id)) {
             return Rates::with('property_type')->where('id', $id)
                 ->first() ?? null;
         }
 
-        return Rates::with('property_type')->get();
-
+        return Rates::where('property_types_id', $property_type)->with('property_type')->get();
     }
 
-    public static function create(array $payload) {
-
+    public function create(array $payload) {
         DB::beginTransaction();
         try {
 
@@ -30,8 +39,9 @@ class RatesService {
                 'property_types_id' => $payload['property_type'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
-                'rates' => $payload['rate']
+                'charge' => $payload['charge']
             ]);
+
 
             DB::commit();
 
@@ -50,6 +60,21 @@ class RatesService {
             ];
         }
 
+    }
+
+    public function createBaseRate(array $payload) {
+        BaseRate::create([
+            'property_type_id' => $payload['property_type'],
+            'rate' => $payload['rate']
+        ]);
+    }
+
+    public function updateAllRates($property_type) {
+
+        $rates = Rates::where('isActive', true)->get();
+        foreach ($rates as $rate) {
+                    
+        }
     }
 
     public static function update(?int $id, array $payload) {
@@ -115,5 +140,59 @@ class RatesService {
 
     }
 
+    public function updateCharge($payload)
+    {
+        $from = $payload['cubic_from'];
+        $to = $payload['cubic_to'];
 
+        $rates = Rates::where('property_types_id', $payload['property_type'])
+            ->whereBetween('cu_m', [$from, $to])
+            ->orWhereBetween('cu_m', [$from, $to])
+            ->get();
+        
+        foreach ($rates as $rate) {
+            $rate->charge = $payload['charge'];
+            $rate->save();
+        }
+        
+        return $rates;
+    }
+
+    public function recomputeRates($property_type) {
+
+        $rates = Rates::where('property_types_id', $property_type)->get();
+        $baseRate = $this->getActiveBaseRate($property_type);
+       
+        $totalAmount = $baseRate;
+    
+        foreach ($rates as $rate) {
+            $charge = $rate->charge;
+            $totalAmount += $charge;
+    
+            $rate->amount = $totalAmount;
+            $rate->save();
+        }
+
+        DB::beginTransaction();
+        try {
+
+            DB::commit();
+
+            return [
+                'data' => $rates,
+                'status' => 'success',
+                'message' => 'Water rate added.'
+            ];
+
+        } catch (\Exception $e) {
+            
+            DB::rollBack();
+
+            return [
+                'status' => 'error',
+                'message' => 'Error occured: ' . $e->getMessage()
+            ];
+        }
+
+    }
 }

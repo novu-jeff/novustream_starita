@@ -15,8 +15,8 @@ class PropertyTypeSeeder extends Seeder
     {
         $propertyTypes = [
             ['name' => 'residential'],
+            ['name' => 'semi-commercial'],
             ['name' => 'commercial'],
-            ['name' => 'industrial'],
         ];
 
         foreach ($propertyTypes as $type) {
