@@ -36,12 +36,12 @@
                                             <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px; margin-top: 10px;">Service Information</h6>
                                             <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                                 <div style="display: flex; justify-content: space-between;">
-                                                    <div>Contract No</div>
-                                                    <div>{{$data['client']->contract_no ?? ''}}</div>
-                                                </div>
-                                                <div style="display: flex; justify-content: space-between;">
                                                     <div>Account Name</div>
                                                     <div>{{$data['client']->firstname . ' ' . $data['client']->lastname}}</div>
+                                                </div>
+                                                <div style="display: flex; justify-content: space-between;">
+                                                    <div>Account No.</div>
+                                                    <div>{{$data['client']->account_no ?? ''}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Address</div>
