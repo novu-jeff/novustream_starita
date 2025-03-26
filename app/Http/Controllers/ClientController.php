@@ -43,14 +43,14 @@ class ClientController extends Controller
             return $this->datatable($data);
         }
 
-        return view('clients.index', compact('data'));
+        return view('concessionaires.index', compact('data'));
     }
 
     public function create() {
 
         $property_types = $this->propertyTypesService::getData();
 
-        return view('clients.form', compact('property_types'));
+        return view('concessionaires.form', compact('property_types'));
     }
 
     public function store(Request $request) {
@@ -96,7 +96,7 @@ class ClientController extends Controller
     }
 
     public function import_view() {
-        return view('clients.import');
+        return view('concessionaires.import');
     }
 
     public function import_action(Request $request)
@@ -149,7 +149,7 @@ class ClientController extends Controller
         $data = $this->clientService::getData($id);
         $property_types = $this->propertyTypesService::getData();
 
-        return view('clients.form', compact('data', 'property_types'));
+        return view('concessionaires.form', compact('data', 'property_types'));
     }
 
     public function update(int $id, Request $request) {
@@ -222,7 +222,7 @@ class ClientController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('clients.edit', $row->id) . '" 
+                    <a href="' . route('concessionaires.edit', $row->id) . '" 
                         class="btn btn-secondary text-white text-uppercase fw-bold" 
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>

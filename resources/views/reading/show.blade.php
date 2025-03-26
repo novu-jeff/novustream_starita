@@ -37,7 +37,7 @@
 
         <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}" 
             style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
-            <i style="font-size: 18px;" class='bx bxs-printer'></i> Pay Now
+            <i style="font-size: 18px;" class='bx bx-wallet'></i> Pay Now
         </a>
     </div>
     <div style="padding-bottom: 50px">

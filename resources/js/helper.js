@@ -63,37 +63,38 @@ export function remove(table, url, token) {
     });
 }
 
-export function canvasDownload(elem, filename) { 
+export function canvasDownload(elem, filename) {
     const { jsPDF } = window.jspdf;
 
-    let pageWidth = 100; 
-    let pageHeight = 210; 
+    const element = document.querySelector(elem);
 
-    html2canvas($(elem)[0], {
-        scale: 5, 
-        useCORS: true, 
+    if (!element) {
+        console.error("Element not found");
+        return;
+    }
+
+    html2canvas(element, {
+        scale: 3, // Adjust for better resolution
+        useCORS: true,
         allowTaint: true
     }).then(canvas => {
+        const imgData = canvas.toDataURL("image/png", 1.0);
 
-        let imgData = canvas.toDataURL("image/png");
+        const imgWidth = canvas.width * 0.264583; // Convert px to mm
+        const imgHeight = canvas.height * 0.264583; 
 
-        let imgWidth = 450;  
-        let imgHeight = pageHeight; 
-
-        let doc = new jsPDF({
-            orientation: 'portrait',
+        const doc = new jsPDF({
+            orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
             unit: 'mm',
-            format: [pageWidth, pageHeight] 
+            format: [imgWidth, imgHeight]
         });
 
-        let xPos = (pageWidth - imgWidth) / 2; 
-        let yPos = (pageHeight - imgHeight) / 2; 
-
-        doc.addImage(imgData, 'PNG', xPos, yPos, imgWidth, imgHeight);
-        doc.save(filename + ".pdf");
-        
+        doc.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        doc.save(`${filename}.pdf`);
     });
 }
+
+
 
 export function convertDateToWords(dateString) {
     console.log(dateString);

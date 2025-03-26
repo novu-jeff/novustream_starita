@@ -5,12 +5,12 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Import Clients</h1>
-                <a href="{{route('clients.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                     Go Back
                 </a>
             </div>
             <div class="inner-content mt-5">
-                <form action="{{ route('clients.import.action') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('concessionaires.import.action') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="row">
                         <div class="col-md-12 mb-3">

@@ -12,7 +12,7 @@
 				@endcan
 				@can('client')
 					<a href="{{route('account-overview.index')}}"> Account Overview </a>
-					<a href="{{route('account-overview.show')}}"> Bills & Payment </a>
+					<a href="{{route('account-overview.bills')}}"> Bills & Payment </a>
 				@endcan
 				@canany(['admin', 'technician'])
 					<div class="dropdown px-0 mx-0">
@@ -35,7 +35,7 @@
 						</button>
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
-							<li><a class="dropdown-item" href="{{route('clients.index')}}">Clients</a></li>
+							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 						</ul>
 					</div>

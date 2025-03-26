@@ -4,17 +4,23 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Bills & Payments</h1>
+                <h1>Client Lists</h1>
+                <div class="d-flex align-items-center gap-3">
+                    <a href="{{route('concessionaires.import.view')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                        Import
+                    </a>
+                    <a href="{{route('concessionaires.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                        Add New
+                    </a>
+                </div>
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5">
                 <table class="w-100 table table-bordered table-hover">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Billing Period</th>
-                            <th>Bill Date</th>
-                            <th>Amount</th>
-                            <th>Due Date</th>
+                            <th>Full Name</th>
+                            <th>Account No.</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -38,10 +44,8 @@
             ajax: url,
             columns: [
                 { data: 'id', name: 'id' }, 
-                { data: 'billing_period', name: 'billing_period' }, 
-                { data: 'bill_date', name: 'bill_date' },
-                { data: 'amount', name: 'amount' },
-                { data: 'due_date', name: 'due_date' },
+                { data: 'name', name: 'name' },
+                { data: 'account_no', name: 'account_no' },
                 { data: 'status', name: 'status' },
                 { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
             ],
@@ -50,6 +54,14 @@
             scrollX: true
         });
 
+        $(document).on('click', '.btn-delete', function() {
+            const id = $(this).data('id');
+            const token = '{{csrf_token()}}';
+            const url = '{{route("concessionaires.destroy", ["concessionaire" => "__ID__"])}}'.replace('__ID__', id);
+        
+            remove(table, url, token)
+
+        });
     });
 </script>
 @endsection

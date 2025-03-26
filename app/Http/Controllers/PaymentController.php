@@ -50,27 +50,29 @@ class PaymentController extends Controller
             
             switch($payload['payment_type']) {
                 case 'cash':
-                    $this->processCashPayment($reference_no, $payload);    
-                    break;
+                    return $this->processCashPayment($reference_no, $payload);    
                 case 'online':
-                    $this->processOnlinePayment($reference_no, $payload);
+                    return $this->processOnlinePayment($reference_no, $payload);
             }
 
         }
 
         $data = $this->meterService::getBill($reference_no);
 
-        if(!$data) {
-            return redirect()->route('payments.index');
+        if(isset($data['status']) && $data['status'] == 'error') {
+            return redirect()->route('payments.index')->with('alert', [
+                'status' => 'error',
+                'message' => $data['message']
+            ]);
         }
 
         if(!is_null($data['active_payment'])) {
             return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']->reference_no]);
         }
 
-        $url = route('reading.show', ['reference_no' => $reference_no]);
+        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
-        $qr_code = $this->generateService::qr_code($url, 60);
+        $qr_code = $this->generateService::qr_code($url, 80);
 
         return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
 
@@ -150,87 +152,14 @@ class PaymentController extends Controller
             ]);
         }
     
-        $data = $result['data']; 
+        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
-        $toSaveSession = [
-            'amount' => (float) $data['current_bill']->amount,
-            'reference_no' => $reference_no,
-            'customer' => [
-                'account_number' => '',
-                'name' => $data['client']->name,
-                'email' => $data['client']->email,
-                'phone_number' => $data['client']->contact_no,
-                'address' => $data['client']->address
-            ],
-            'callback' => route('transaction.callback')
-        ];
-
-        $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
-
-        $ch = curl_init($api);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+        return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with('alert', [
+            'status' => 'success',
+            'payment_request' => true,
+            'redirect' => $url,
         ]);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($toSaveSession)); 
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_errno($ch) ? curl_error($ch) : null;
-        curl_close($ch);
-        
-        $decodedResponse = json_decode($response, true);
-        
-        if ($curlError) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Curl Error: ' . $curlError
-            ]);
-        }
-        
-        if (!is_array($decodedResponse)) {
-            $decodedResponse = ['error' => 'Invalid API response', 'raw' => $response];
-        }
 
-        if ($httpCode === 200) {
-           
-            if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-
-                $reference_no = $decodedResponse['reference_no'];
-                $novupayUrl = env('NOVUPAY_URL');
-                
-                if (!$novupayUrl) {
-                    return redirect()->back()->with('alert', [
-                        'status' => 'error',
-                        'message' => 'NOVUPAY_URL is not configured in the environment file.'
-                    ]);
-                }
-
-                $novupay = $novupayUrl . '/payment/merchants/' . $reference_no;
-
-                return redirect()->route('payments.pay', ['reference_no', $reference_no])->with('alert', [
-                    'status' => 'success',
-                    'payment_request' => true,
-                    'redirect' => $novupay,
-                ]);
-
-            } else {
-                return redirect()->back()->with('alert', [
-                    'status' => 'error',
-                    'payment_request' => false,
-                    'message' => 'Invalid response from the payment gateway.'
-                ]);
-            }
-
-        } else {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Failed to process online payment. Please try again.',
-                'details' => $decodedResponse
-            ]);
-        }
     }
 
     public function datatable($query) {

@@ -71,7 +71,7 @@ class ReadingController extends Controller
             ]);
         }
 
-        $url = route('reading.show', ['reference_no' => $reference_no]);
+        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
         $qr_code = $this->generateService::qr_code($url, 80);
 
@@ -142,15 +142,12 @@ class ReadingController extends Controller
                 ]);
             }
 
-            // READING
             $reading = Reading::create($computed['reading']);
 
             $computed['bill']['reading_id'] = $reading->id;
 
-            // BILL
             $bill = Bill::create($computed['bill']);
 
-            // BILL BREAKDOWN
             foreach($computed['deductions'] as $deductions) {
                 BillBreakdown::create([
                     'bill_id' => $bill->id,
@@ -159,6 +156,14 @@ class ReadingController extends Controller
                     'amount' => $deductions['amount']
                 ]);
             }
+
+            $payload = [
+                'amount' => (float) $computed['bill']['amount'],
+                'reference_no' => $computed['bill']['reference_no'],
+                'callback' => route('transaction.callback'),
+            ];
+
+            $this->generatePaymentQR($bill['reference_no'], $payload);
 
             DB::commit();
 
@@ -174,6 +179,61 @@ class ReadingController extends Controller
             ]);
         }
         
+
+    }
+
+    private function generatePaymentQR(string $reference_no, array $payload) {
+        
+        $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+
+        $ch = curl_init($api);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload)); 
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_errno($ch) ? curl_error($ch) : null;
+        curl_close($ch);
+        
+        $decodedResponse = json_decode($response, true);
+        
+        if ($curlError) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Curl Error: ' . $curlError
+            ]);
+        }
+        
+        if (!is_array($decodedResponse)) {
+            $decodedResponse = ['error' => 'Invalid API response', 'raw' => $response];
+        }
+
+        if ($httpCode == 200) {
+           
+            if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
+
+                return true;
+
+            } else {
+                return [
+                    'status' => 'error',
+                    'payment_request' => false,
+                    'message' => 'Invalid response from the payment gateway.'
+                ];
+            }
+
+        } else {
+            return [
+                'status' => 'error',
+                'message' => 'Failed to process online payment. Please try again.',
+                'details' => $decodedResponse
+            ];
+        }
 
     }
 

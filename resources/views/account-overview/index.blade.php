@@ -7,7 +7,7 @@
                 <h1>Account Overview</h1>
             </div>
             <div class="inner-content mt-5">
-                @if($data->meter_no) 
+                @if($data->meter_serial_no) 
                     <div class="row">
                         <div class="col-12 col-md-6 mb-3">
                             <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">
@@ -25,12 +25,12 @@
                             <div class="card shadow border-0 p-4 mt-3">
                                 <div class="card-body">
                                     <div class="mb-3">
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Account Name: <span class="ms-3 fw-normal">{{$data->firstname . ' ' . $data->lastname}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Address: <span class="ms-3 fw-normal">{{$data->address ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Property Type: <span class="ms-3 fw-normal">{{$data->property_type->name ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Meter No: <span class="ms-3 fw-normal">{{$data->meter_no ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Contract No: <span class="ms-3 fw-normal">{{$data->contract_no ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Contract Date: <span class="ms-3 fw-normal">{{\Carbon\Carbon::parse($data->contract_date)->format('F d, Y') ?? 'N/A'}}</span><h5>    
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Account Name: <span class="ms-3 fw-normal">{{$my->name}}</span><h5>
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Account No: <span class="ms-3 fw-normal">{{$my->account_no}}</span><h5>
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Address: <span class="ms-3 fw-normal">{{$my->address ?? 'N/A'}}</span><h5>
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Property Type: <span class="ms-3 fw-normal">{{$my->property_types->name ?? 'N/A'}}</span><h5>
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Meter No: <span class="ms-3 fw-normal">{{$my->meter_serial_no ?? 'N/A'}}</span><h5>
+                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Date Connected: <span class="ms-3 fw-normal">{{\Carbon\Carbon::parse($my->date_connected)->format('F d, Y') ?? 'N/A'}}</span><h5>    
                                     </div>
                                 </div>
                             </div>

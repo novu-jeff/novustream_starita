@@ -69,14 +69,14 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('roles')
             ->only('index', 'destroy');
 
-        Route::resource('clients', ClientController::class)
-            ->names('clients')
+        Route::resource('concessionaires', ClientController::class)
+            ->names('concessionaires')
             ->except('show');
 
-        Route::get('clients/import', [ClientController::class, 'import_view'])
-            ->name('clients.import.view');
-        Route::post('clients/import', [ClientController::class, 'import_action'])
-            ->name('clients.import.action');
+        Route::get('concessionaires/import', [ClientController::class, 'import_view'])
+            ->name('concessionaires.import.view');
+        Route::post('concessionaires/import', [ClientController::class, 'import_action'])
+            ->name('concessionaires.import.action');
 
         Route::resource('personnel', AdminController::class)
             ->names('admins');
@@ -116,20 +116,6 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::get('/reports', [ClientController::class, 'index'])
         ->name('reports');
 
-
-    // Route::prefix('/support')->group(function() {
-    //     Route::prefix('/ticket')->group(function() {
-    //         Route::get('/', [SupportTicketController::class, 'index'])
-    //             ->name('support-ticket.index');
-    //         Route::get('/{ticket}', [SupportTicketController::class, 'show'])
-    //             ->name('support-ticket.show');
-    //         Route::get('/edit/{ticket}', [SupportTicketController::class, 'edit'])
-    //             ->name('support-ticket.edit');
-    //         Route::put('/edit/{ticket}', [SupportTicketController::class, 'update'])
-    //             ->name('support-ticket.update');
-    //     });
-    // });
-
     Route::prefix('/support')->group(function() {
         Route::prefix('/ticket/submit')->group(function() {
             Route::get('/', [SupportTicketController::class, 'create'])
@@ -153,8 +139,11 @@ Route::middleware('auth')->prefix('client')->group(function() {
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
             ->name('account-overview.index');
-        Route::get('bills', [AccountOverviewController::class, 'show'])
-            ->name('account-overview.show');
+        Route::get('bills', [AccountOverviewController::class, 'bills'])
+            ->name('account-overview.bills');
+        Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
+            ->name('account-overview.bills.reference_no');
+        
     });
 
     Route::resource('profile', ProfileController::class)

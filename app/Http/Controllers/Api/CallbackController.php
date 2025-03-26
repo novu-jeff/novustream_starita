@@ -56,4 +56,23 @@ class CallbackController extends Controller
         ]);
 
     }
+
+    public function status(string $reference_no) {
+
+        $record = Bill::where('reference_no', $reference_no)
+            ->where('isPaid', true)
+            ->first();
+
+        if($record) {
+            return response()->json([
+                'status' => 'paid',
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'unpaid',
+        ]); 
+
+    }
+
 }

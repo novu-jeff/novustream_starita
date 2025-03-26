@@ -9,12 +9,12 @@
                 @else
                     <h1>Add New Client</h1>
                 @endif
-                <a href="{{route('clients.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                     Go Back
                 </a>
             </div>
             <div class="inner-content mt-5">
-                <form action="{{ isset($data) ? route('clients.update', $data->id) : route('clients.store') }}" method="POST">
+                <form action="{{ isset($data) ? route('concessionaires.update', $data->id) : route('concessionaires.store') }}" method="POST">
                     @csrf
                     @if(isset($data))
                         @method('PUT')

@@ -239,6 +239,45 @@
                 }, 100);
             @endif
 
+
+            const isPaid = '{{$data['current_bill']->isPaid == true}}';
+
+            if(!isPaid) {
+                async function checkPaymentStatus() {
+
+                    const reference_no = '{{$reference_no}}';
+                    const url = `{!! route('transaction.status', ['reference_no' => '__reference_no__']) !!}`.replace('__reference_no__', encodeURIComponent(reference_no));
+
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{csrf_token()}}'
+                            },
+                            body: JSON.stringify({ isApi: true })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.status == 'paid') {
+                            window.location.reload();
+                        } else {
+                            setTimeout(checkPaymentStatus, 5000);
+                        }
+                    } catch (error) {
+                        console.error('Error checking payment status:', error);
+                        setTimeout(checkPaymentStatus, 5000);
+                    }
+                }
+
+                checkPaymentStatus();
+            }
+
             const total = '{{$data['current_bill']->amount}}';
             let changeAmount = '';
 

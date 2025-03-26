@@ -29,6 +29,8 @@ Route::post('logout', [LoginController::class, 'logout']);
 
 Route::post('transaction/callback', [CallbackController::class, 'save'])
     ->name('transaction.callback');
+Route::post('payment/status/{reference_no}', [CallbackController::class, 'status'])
+    ->name('transaction.status');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('inspection')->group(function () {
