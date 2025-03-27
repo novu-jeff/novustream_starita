@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Services\ClientService;
 use App\Services\GenerateService;
 use App\Services\MeterService;
-use App\Services\UserService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

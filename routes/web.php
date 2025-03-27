@@ -107,8 +107,6 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('payment-breakdown');
     });
 
-    Route::resource('profile', ProfileController::class)
-        ->names('admin.profile');
 
     Route::get('/transactions', [ClientController::class, 'index'])
         ->name('transactions');
@@ -135,7 +133,7 @@ Route::middleware('admin')->prefix('admin')->group(function () {
 
 });
 
-Route::middleware('auth')->prefix('client')->group(function() {
+Route::middleware('auth')->prefix('concessionaire')->group(function() {
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
             ->name('account-overview.index');
@@ -145,9 +143,6 @@ Route::middleware('auth')->prefix('client')->group(function() {
             ->name('account-overview.bills.reference_no');
         
     });
-
-    Route::resource('profile', ProfileController::class)
-        ->names('client.profile');
 
     Route::prefix('/support')->group(function() {
         Route::prefix('/ticket/submit')->group(function() {
@@ -166,3 +161,6 @@ Route::middleware('auth')->prefix('client')->group(function() {
         });
     });
 });
+
+Route::resource('/{user_type}/profile', ProfileController::class)
+        ->names('profile');

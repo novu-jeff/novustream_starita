@@ -13,6 +13,7 @@ class ClientImport implements ToModel, WithHeadingRow, WithValidation
 {
     public function model(array $row)
     {
+
         return new User([
             'account_no'       => trim($row['account_no']),
             'name'             => trim($row['name']),

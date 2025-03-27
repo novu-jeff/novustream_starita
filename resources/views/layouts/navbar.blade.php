@@ -10,7 +10,7 @@
 				@can('admin')
 					<a href="{{route('dashboard')}}"> Dashboard </a>
 				@endcan
-				@can('client')
+				@can('concessionaire')
 					<a href="{{route('account-overview.index')}}"> Account Overview </a>
 					<a href="{{route('account-overview.bills')}}"> Bills & Payment </a>
 				@endcan
@@ -53,20 +53,20 @@
 				@endcan
 			</nav>
 			<div class="header-navigation-links d-flex gap-4">
-				@can('client')
+				@can('concessionaire')
 					<a href="{{route('client.support-ticket.create')}}">
 						Submit Ticket
 					</a>
-					<a href="{{route('client.profile.index')}}">
+					<a href="{{route('profile.index', ['user_type' => 'concessionaire'])}}">
 						Profile
 					</a>
 				@elsecan('admin')
 				<a href="{{route('admin.support-ticket.create')}}">
 					Submit Ticket
 				</a>
-					<a href="{{route('admin.profile.index')}}">
-						Profile
-					</a>
+				<a href="{{route('profile.index', ['user_type' => 'admin'])}}">
+					Profile
+				</a>
 				@endcan
 				<form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
 					@csrf

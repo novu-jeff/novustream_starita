@@ -15,11 +15,10 @@ class ProfileService {
 
         $data = Auth::user();
 
-
-        if ($data && property_exists($data, 'user_type')) {
+        if ($data && isset($data->user_type)) {
             $data->user_type = $data->user_type;
         } else {
-            $data->user_type = 'client';
+            $data->user_type = 'concesionnaire';
         }
     
         return $data;

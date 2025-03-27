@@ -8,9 +8,9 @@
             </div>
             <div class="inner-content mt-5 pb-5">
                 @php
-                    $prefix = Auth::guard('admins')->check() ? 'admin' : 'client';
+                    $prefix = Auth::guard('admins')->check() ? 'admin' : 'concessionaire';
                 @endphp
-                <form action="{{route($prefix.'.profile.update', $data->id)}}" method="POST">
+                <form action="{{route('profile.update', ['user_type' => $prefix, 'profile' => $data->id],)}}" method="POST">
                     @csrf
                     @method('PUT')       
                     <div class="row">
@@ -28,14 +28,14 @@
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
-                                        @can('client')
+                                        @can('concessionaire')
                                             <div class="col-md-12 mb-3">
                                                 <label for="address" class="form-label">Address</label>
                                                 <input type="text" class="form-control @error('address') is-invalid @enderror restricted" id="address" name="address" value="{{ old('name', $data->address ?? '') }}" readonly>
                                             </div>
                                         @endcan
                                     </div>
-                                    @can('client')
+                                    @can('concessionaire')
                                         <hr class="mb-4">
                                         <div class="row mb-3">
                                             <div class="col-md-12 mb-3">

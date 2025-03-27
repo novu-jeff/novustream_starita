@@ -15,7 +15,6 @@ class AdminService {
             return Admin::where('id', $id)
                 ->first() ?? null;
         }
-
         return Admin::all();
 
     }

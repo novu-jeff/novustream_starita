@@ -51,7 +51,7 @@
                                         </h3>
                                     </div>
                                     <div class="mt-3 text-center">
-                                        <a href="#" class="text-uppercase fw-medium" style="font-size: 13px">View Statement</a>
+                                        <a href="{{route('account-overview.bills')}}" class="text-uppercase fw-medium" style="font-size: 13px">View Statement</a>
                                     </div>
                                 </div>
                             </div>

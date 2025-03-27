@@ -4,7 +4,7 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Client Lists</h1>
+                <h1>Our Concessionaires</h1>
                 <div class="d-flex align-items-center gap-3">
                     <a href="{{route('concessionaires.import.view')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                         Import

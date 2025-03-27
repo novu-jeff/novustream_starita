@@ -23,15 +23,26 @@ class LoginController extends Controller
 
         $credentials = $request->only('email', 'password');
 
-        if (Auth::guard('admins')->attempt($credentials)) {
-            return redirect()->route('dashboard');
+        try {
+            
+            if (Auth::guard('admins')->attempt($credentials)) {
+                return redirect()->route('dashboard');
+            }
+    
+            if (Auth::guard('web')->attempt($credentials)) {
+                return redirect()->route('account-overview.index');
+            }
+
+
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['password' => 'Email or password is incorrect']);            
         }
 
-        if (Auth::guard('web')->attempt($credentials)) {
-            return redirect()->route('account-overview.index');
-        }
-
-        return redirect()->back()->withErrors(['error' => 'Invalid credentials']);
+        return redirect()->back()
+            ->withInput()
+            ->withErrors(['password' => 'Email or password is incorrect']);
     }
 
     public function logout()

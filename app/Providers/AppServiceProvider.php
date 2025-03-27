@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
         
         if(Request::is('admin/*')) {
+
             Auth::shouldUse('admins');
 
             Gate::define('admin', function ($user) {
@@ -43,10 +44,10 @@ class AppServiceProvider extends ServiceProvider
     
         }
 
-        if(Request::is('client/*')) {
+        if(Request::is('concessionaire/*')) {
             Auth::shouldUse('web');
 
-            Gate::define('client', function ($user) {
+            Gate::define('concessionaire', function ($user) {
                 return true;
             });
 

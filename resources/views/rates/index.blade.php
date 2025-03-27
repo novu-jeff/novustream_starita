@@ -7,7 +7,7 @@
                 <h1>{{ $app_type }} Rate</h1>
             </div>
             <div class="inner-content mt-5">
-                <div class="row g-3">
+                <div class="row g-3 pb-5">
                     <div class="col-md-6 col-sm-12 col-lg-5">
                         <div class="card shadow">
                             <div class="card-header border-0 m-0 pt-3">
@@ -114,6 +114,7 @@
                     { data: 'charge', name: 'charge' }, 
                     { data: 'amount', name: 'amount' }, 
                 ],
+                pageLength: 11,
                 responsive: true,
                 order: [[0, 'asc']],
                 scrollX: true

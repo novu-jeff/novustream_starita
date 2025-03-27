@@ -47,7 +47,7 @@ class LoginController extends Controller
             return '/dashboard';
         }
 
-        if(auth()->user()->user_type == 'client') {
+        if(auth()->user()->user_type == 'concessionaire') {
             return 'my/overview';
         }
 

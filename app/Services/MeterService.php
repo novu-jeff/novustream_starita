@@ -261,8 +261,7 @@ class MeterService {
         }
     
         $unpaidAmount = Bill::where('isPaid', false)->whereNotNull('amount')->sum('amount') ?? 0;
-        $basic_charge = $rate * $consumption;
-        $total_amount = $unpaidAmount + $basic_charge;
+        $total_amount = $unpaidAmount + $rate;
     
         $other_deductions = $this->paymentBreakdownService::getData();
         $penalty_deductions = $this->paymentBreakdownService::getPenalty();
@@ -277,7 +276,7 @@ class MeterService {
             ],
             [
                 'name' => 'Basic Charge',
-                'amount' => $basic_charge,
+                'amount' => $rate,
                 'description' => '',
             ],
         ];
@@ -285,7 +284,7 @@ class MeterService {
         // Process Other Deductions
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
-                $base_amount = ($deduction->percentage_of == 'basic_charge') ? $basic_charge : $total_amount;
+                $base_amount = ($deduction->percentage_of == 'basic_charge') ? $rate : $total_amount;
                 $amount = $base_amount * ($deduction->amount / 100); 
     
                 $deductions[] = [

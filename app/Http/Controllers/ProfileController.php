@@ -31,14 +31,14 @@ class ProfileController extends Controller
     
     }
 
-    public function update(int $id, Request $request) {
+    public function update(string $user_type, int $id, Request $request) {
 
         $payload = $request->all();
 
         $data = $this->profileService::getData($id);
 
-        if($data->user_type == 'client') {
-            $payload['user_type'] = 'client';
+        if($data->user_type == 'concessionaire') {
+            $payload['user_type'] = 'concessionaire';
         } else {
             $payload['user_type'] = 'admin';
         }
