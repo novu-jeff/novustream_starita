@@ -60,7 +60,7 @@
                             <div class="card shadow border-0 p-2 pb-4">
                                 <div class="card-body" id="client-info">
                                     <div class="loader pt-3">
-                                        <div class="text-uppercase fw-bold text-muted">Waiting for reading...  <i class='bx bx-loader-alt bx-spin' ></i></div>
+
                                     </div>
                                 </div>
                             </div>
@@ -112,10 +112,11 @@
 
         $meterNo.on('input', function () {
             const meterNo = $(this).val().trim();
-            if (meterNo) {
+            if (meterNo != '') {
                 getWaterData(meterNo);
             } else {
                 resetForm();
+                showWaitingForReading();
             }
         });
 
@@ -136,6 +137,7 @@
         }
 
         function getWaterData(meterNo, isOldLoad = false) {
+
             globalSearch = meterNo;
 
             $.ajax({
@@ -188,6 +190,8 @@
             $action.html('');
             $consumption.val(0);
         }
+
+        showWaitingForReading();
 
         function resetForm(errorMessage = '') {
             $previousReading.val(0);
