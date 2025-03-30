@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BaseRate;
 use App\Models\User;
 use App\Models\Bill;
 use App\Models\Rates;
@@ -249,11 +250,19 @@ class MeterService {
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
     
-        $rate = Rates::where('cu_m', $consumption)
-            ->where('property_types_id', $payload['property_type_id'])
-            ->value('amount') ?? 0;
-    
-        if ($rate == 0) {
+        if(config('app.product') === 'novustream') {
+            # novustream
+            $rate = Rates::where('cu_m', $consumption)
+                ->where('property_types_id', $payload['property_type_id'])
+                ->value('amount') ?? 0;
+        } else {
+            # novusurge
+           $base_rate = BaseRate::where('property_type_id', $payload['property_type_id'])
+                ->value('rate') ?? 0;
+            $rate = $base_rate  *  $consumption;
+        }
+        
+        if ($rate == 0 || $base_rate && $base_rate == 0) {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no water rate for this consumption"
