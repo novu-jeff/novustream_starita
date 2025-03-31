@@ -259,6 +259,8 @@ class MeterService {
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
     
+        $base_rate = null;
+
         if(config('app.product') === 'novustream') {
             # novustream
             $rate = Rates::where('cu_m', $consumption)
