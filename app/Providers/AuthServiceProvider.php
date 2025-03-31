@@ -24,6 +24,14 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-       
+        $this->registerPolicies();
+
+        Gate::define('app-novusurge', function () {
+            return env('APP_PRODUCT') === 'novusurge';
+        });
+
+        Gate::define('app-novustream', function () {
+            return env('APP_PRODUCT') === 'novustream';
+        });
     }
 }

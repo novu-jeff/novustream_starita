@@ -101,7 +101,7 @@ class MeterController extends Controller
             'meter_no' => $toSearch,
         ];
 
-        return $this->meterService::locate($toSearch);
+        return $this->meterService->locate($toSearch);
     }
 
     public function reading(Request $request) {
@@ -111,7 +111,7 @@ class MeterController extends Controller
         $validator = Validator::make($payload, [
             'meter_no' => 'required|string',
                 function ($attribute, $value, $fail) {
-                    if (!DB::table('users')
+                    if (!DB::table('concessioner_accounts')
                         ->where('meter_serial_no', $value)
                         ->orWhere('account_no', $value)
                         ->exists()) {
@@ -134,12 +134,10 @@ class MeterController extends Controller
 
         try {
             
-            $user = User::where('meter_serial_no', $payload['meter_no'])
-                ->orWhere('account_no', $payload['meter_no'])
-                ->first();
+            $account = $this->meterService->getAccount($payload['meter_no']);
 
-            $meter_no = $user->meter_serial_no;
-            $property_type_id = $user->property_type;
+            $meter_no = $account->meter_serial_no;
+            $property_type_id = $account->property_type;
 
             $present_reading = $payload['present_reading'];
 

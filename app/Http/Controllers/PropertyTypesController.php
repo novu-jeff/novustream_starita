@@ -136,20 +136,6 @@ class PropertyTypesController extends Controller
     {
         return DataTables::of($query)
             ->addIndexColumn()
-            ->addColumn('actions', function ($row) {
-                return '
-                <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('property-types.edit', $row->id) . '" 
-                        class="btn btn-secondary text-white text-uppercase fw-bold" 
-                        id="update-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-edit-alt"></i>
-                    </a>
-                    <button class="btn btn-danger text-white text-uppercase fw-bold btn-delete" id="delete-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-trash"></i>
-                    </button>
-                </div>';
-            })
-            ->rawColumns(['actions'])
             ->make(true);
     }
     

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Rates;
 use App\Services\PropertyTypesService;
 use App\Services\RatesService;
 use Illuminate\Http\Request;

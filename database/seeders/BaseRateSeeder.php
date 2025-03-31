@@ -13,26 +13,52 @@ class BaseRateSeeder extends Seeder
      */
     public function run(): void
     {
-        BaseRate::updateOrCreate(
-            ['property_type_id' => 1],
-            [
-                'rate' => 160.00,
-            ]
-        );
 
-        BaseRate::updateOrCreate(
-            ['property_type_id' => 2],
-            [
-                'rate' => 280.00,
-            ]
-        );
+        if(config('app.product') === 'novustream') {
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 1],
+                [
+                    'rate' => 160.00,
+                ]
+            );
+    
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 2],
+                [
+                    'rate' => 280.00,
+                ]
+            );
+    
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 3],
+                [
+                    'rate' => 320.00,
+                ]
+            );
 
-        BaseRate::updateOrCreate(
-            ['property_type_id' => 3],
-            [
-                'rate' => 320.00,
-            ]
-        );
-        
+        } else  {
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 1],
+                [
+                    'rate' => 10.3454,
+                ]
+            );
+    
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 2],
+                [
+                    'rate' => 9.3713,
+                ]
+            );
+    
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 3],
+                [
+                    'rate' => 7.7647,
+                ]
+            );
+            
+        }
+     
     }
 }

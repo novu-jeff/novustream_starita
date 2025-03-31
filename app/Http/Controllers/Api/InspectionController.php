@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\UserAccounts;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -80,10 +81,10 @@ class InspectionController extends Controller
     }
 
     private function find($toSearch) {
-        $data = User::where('account_no', $toSearch)
-            ->orWhere('meter_serial_no', $toSearch)
-            ->first();
-
+        $data = UserAccounts::with('user')->where('account_no', $toSearch)
+                ->orWhere('meter_serial_no', $toSearch)
+                ->first();
+        
         if(!$data) {
             return response()->json([
                 'status' => 'error',
@@ -125,8 +126,8 @@ class InspectionController extends Controller
         DB::beginTransaction();
 
         try {
-            
-            User::where('account_no', $payloads['account_no'])
+
+            UserAccounts::where('account_no', $payloads['account_no'])
                 ->update([
                     'meter_brand' => $payloads['meter_brand'],
                     'meter_serial_no' => $payloads['meter_serial_no'],

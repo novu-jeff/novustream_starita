@@ -11,7 +11,7 @@
                     </a>
                 @endif
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 mb-5">
                 <div class="row g-3">
                     <div class="col-md-6 col-sm-12  col-lg-5">
                         <div class="card shadow border-0">
