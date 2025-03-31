@@ -10,7 +10,7 @@
                 </a>
             </div>
             <div class="inner-content mt-5">
-                <form action="{{ route('concessionaires.import.action') }}" method="POST" enctype="multipart/form-data">
+                <form method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="row">
                         <div class="col-md-12 mb-3">
@@ -39,6 +39,28 @@
                     alert(alertData.status, alertData.message);
                 }, 100);
             @endif
+
+            $("form").on("submit", function(e){
+                e.preventDefault(); 
+                
+                let formData = new FormData(this); 
+
+                axios.post("{{ route('concessionaires.import.action') }}", formData, {
+                    headers: {
+                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content"),
+                        "Content-Type": "multipart/form-data"
+                    }
+                })
+                .then(response => {
+                    alert('success', "File uploaded successfully!");
+                    console.log(response.data);
+                })
+                .catch(error => {
+                    alert('error', "Error uploading file!");
+                    console.error(error.response);
+                });
+
+            });
         });
     </script>
 @endsection

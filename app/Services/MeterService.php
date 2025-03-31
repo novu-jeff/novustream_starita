@@ -7,18 +7,25 @@ use App\Models\User;
 use App\Models\Bill;
 use App\Models\Rates;
 use App\Models\Reading;
+use App\Models\UserAccounts;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PDO;
 
 class MeterService {
 
-
     public $paymentBreakdownService;
     public $paymentServiceFee;
 
     public function __construct(PaymentBreakdownService $paymentBreakdownService) {
         $this->paymentBreakdownService = $paymentBreakdownService;
+    }
+
+    public function getAccount($meter_no)
+    {
+        return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
+        ->orWhere('meter_serial_no', $meter_no ?? '')
+        ->first();
     }
 
     public static function getReport(?string $date = null) {
@@ -53,26 +60,24 @@ class MeterService {
         return $query->get();
     }
 
-    public static function locate(array $payload)
-    {
-        $client = User::where('account_no', $payload['meter_no'] ?? '')
-            ->orWhere('meter_serial_no', $payload['meter_no'] ?? '')
-            ->first();
-    
-        if (!$client) {
+    public function locate(array $payload)
+    {    
+        $account = $this->getAccount($payload['meter_no']);
+
+        if (!$account) {
             return [
                 'status' => 'error',
                 'message' => 'No client found'
             ];
         }
     
-        $previous_reading = Reading::where('meter_no', $client->meter_serial_no)
+        $previous_reading = Reading::where('meter_no', $account->meter_serial_no)
             ->latest()
             ->first() ?? [];
     
         return [
             'status' => 'success',
-            'client' => $client,
+            'account' => $account,
             'reading' => $previous_reading
         ];
     }
@@ -92,18 +97,20 @@ class MeterService {
         // Get meter number from current bill
         $meter_no = optional($current_bill->reading)->meter_no;
     
-        // Fetch the client details
-        $client = User::with('property_types')->where('meter_serial_no', $meter_no)->first();
-    
-        // Fetch the previous paid payment
-        $previous_payment = Bill::with('reading.user')
-            ->where('isPaid', true)
-            ->whereHas('reading.user', function ($query) use ($meter_no) {
-                $query->where('meter_serial_no', $meter_no);
-            })
-            ->latest()
+        $client = User::with(['property_types', 'accounts'])
+                ->whereHas('accounts', function ($query) use ($meter_no) {
+                    $query->where('meter_serial_no', $meter_no);
+                })
+                ->first();
+
+        $previous_payment = DB::table('bill')
+            ->leftJoin('readings', 'bill.reading_id', 'readings.id')
+            ->where('readings.meter_no', $meter_no)
+            ->where('bill.isPaid', true)
+            ->select('bill.*')
+            ->orderBy('bill.created_at', 'desc')
             ->first();
-    
+        
         // Prepare base query for unpaid bills
         $unpaidQuery = Bill::with('reading')
             ->where('isPaid', false)
@@ -135,17 +142,20 @@ class MeterService {
         ];
     }    
 
-    public static function getBills(?string $meter_no = null, bool $isAll = false) 
+    public static function getBills(?string $number = null, bool $isAll = false) 
     {
-        $query = Bill::with('reading.user');
-    
-        if (!is_null($meter_no)) {
-            $query->whereHas('reading', function ($query) use ($meter_no) {
-                $query->where('meter_no', $meter_no);
-            });
+        $query = DB::table('bill')
+        ->leftJoin('readings', 'bill.reading_id', 'readings.id')
+        ->select('bill.*', 'readings.*');
+
+        if(!is_null($number)) {
+            $account = UserAccounts::where('meter_serial_no', $number)->orWhere('account_no', $number)->first();
+            $query->where('readings.meter_no', $account->meter_serial_no);
         }
-    
-        return $isAll ? $query->orderByDesc('created_at')->get() : $query->latest()->first();
+
+        $data = $isAll ? $query->orderByDesc('bill.created_at')->get() : $query->latest('bill.created_at')->first();
+
+        return $data;
     }
     
     

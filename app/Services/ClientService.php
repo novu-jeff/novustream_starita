@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\UserAccounts;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -11,99 +12,82 @@ class ClientService {
     public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return User::where('id', $id)
+            return User::where('id', $id)->with('accounts')
                 ->first() ?? null;
         }
 
-        return User::all();
-
+        return User::with('accounts')->withCount('accounts')->where('isActive', true)->get();
     }
 
     public static function create(array $payload) {
 
-        DB::beginTransaction();
+        $accounts = $payload['accounts'];
 
-        try {
+        $user = User::create([
+            'name' => $payload['name'],
+            'address' => $payload['address'],
+            'email' => $payload['email'],
+            'contact_no' => $payload['contact_no'],
+            'password' => Hash::make($payload['password'])
+        ]);
 
-            User::create([
-                'name' => $payload['name'],
-                'address' => $payload['address'],
-                'contact_no' => $payload['contact_no'],
-                'property_type' => $payload['property_type'],
-                'rate_code' => $payload['rate_code'],
-                'status' => $payload['status'],
-                'sc_no' => $payload['sc_no'],
-                'meter_brand' => $payload['meter_brand'],
-                'meter_serial_no' => $payload['meter_serial_no'],
-                'date_connected' => $payload['date_connected'],
-                'sequence_no' => $payload['sequence_no'],
-                'email' => $payload['email'],
-                'password' => Hash::make($payload['password'])
+        foreach ($accounts as $account) {
+             UserAccounts::create([
+                'user_id'  =>  $user->id,
+                'account_no'  =>  $account['account_no'],
+                'property_type'  =>  $account['property_type'],
+                'rate_code'  =>  $account['rate_code'],
+                'status'  =>  $account['status'],
+                'sc_no'  =>  $account['sc_no'],
+                'meter_brand'  =>  $account['meter_brand'],
+                'meter_serial_no'  =>  $account['meter_serial_no'],
+                'date_connected'  =>  $account['date_connected'],
+                'sequence_no'  =>  $account['sequence_no'],
             ]);
-
-            DB::commit();
-
-            return [
-                'status' => 'success',
-                'message' => 'Client ' . $payload['name'] . ' added.'
-            ];
-
-        } catch (\Exception $e) {
-            
-            DB::rollBack();
-
-            return [
-                'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
-            ];
         }
 
+        return $user;
     }
 
-    public static function update(int $id, array $payload) {
+    public static function update(array $payload, int $id) {
 
-        DB::beginTransaction();
+        $accounts = $payload['accounts'];
 
-        try {
-            
-            $updateData = [
-                'name' => $payload['name'],
-                'address' => $payload['address'],
-                'contact_no' => $payload['contact_no'],
-                'property_type' => $payload['property_type'],
-                'rate_code' => $payload['rate_code'],
-                'status' => $payload['status'],
-                'sc_no' => $payload['sc_no'],
-                'meter_brand' => $payload['meter_brand'],
-                'meter_serial_no' => $payload['meter_serial_no'],
-                'date_connected' => $payload['date_connected'],
-                'sequence_no' => $payload['sequence_no'],
-                'email' => $payload['email']
-            ];
+        $user = User::where('isActive', true)->findOrFail($id);
 
-            if(isset($payload['password'])) {
-                $updateData['password'] = Hash::make($payload['password']);
-            }
+        $updateData = [
+            'name' => $payload['name'],
+            'address' => $payload['address'],
+            'email' => $payload['email'],
+            'contact_no' => $payload['contact_no'],
+        ];
 
-            User::where('id', $id)->update($updateData);
-
-            DB::commit();
-
-            return [
-                'status' => 'success',
-                'message' => 'Client ' . $payload['name'] . ' updated.'
-            ];
-
-        } catch (\Exception $e) {
-            
-            DB::rollBack();
-
-            return [
-                'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
-            ];
+        if (!empty($payload['password'])) {
+            $updateData['password'] = Hash::make($payload['password']);
         }
 
+        $user->update($updateData);
+
+        // Loop through accounts and update or create
+        foreach ($accounts as $account) {
+            UserAccounts::updateOrCreate(
+                ['id' => $account['id'] ?? null],
+                [
+                    'user_id'  => $user->id,
+                    'account_no'  => $account['account_no'],
+                    'property_type'  => $account['property_type'],
+                    'rate_code'  => $account['rate_code'],
+                    'status'  => $account['status'],
+                    'sc_no'  => $account['sc_no'],
+                    'meter_brand'  => $account['meter_brand'],
+                    'meter_serial_no'  => $account['meter_serial_no'],
+                    'date_connected'  => $account['date_connected'],
+                    'sequence_no'  => $account['sequence_no'],
+                ]
+            );
+        }
+
+        return $user->load('accounts'); 
     }
 
     public static function delete(int $id) {
@@ -114,7 +98,9 @@ class ClientService {
             
             $data = User::where('id', $id)->first();
                 
-            $data->delete();
+            $data->isActive = false;
+
+            $data->save();
 
             DB::commit();
 

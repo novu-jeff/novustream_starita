@@ -40,4 +40,8 @@ class User extends Authenticatable
     public function property_types() {
         return $this->hasOne(PropertyTypes::class, 'id', 'property_type');
     }
+
+    public function accounts() {
+        return $this->hasMany(UserAccounts::class);
+    }
 }

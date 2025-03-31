@@ -145,12 +145,15 @@
                 type: 'GET',
                 data: { meter_no: meterNo },
                 success: function (response) {
-                    if (response.status !== 'success' || !response.client) {
+                    if (response.status !== 'success' || !response.account) {
                         showWaitingForReading();
                         return;
                     }
 
-                    const { name, address, contact_no, account_no, meter_serial_no, date_connected } = response.client;
+                    const { account_no, meter_serial_no, date_connected } = response.account;
+                    
+                    const { name, address, contact_no } = response.account.user;
+
                     const reading = response.reading ?? {};
 
                     $clientInfo.html(`
@@ -165,6 +168,7 @@
                             <tr><th>Date Connected</th><td>${convertDateToWords(date_connected) ?? ''}</td></tr>
                         </table>
                     `);
+
 
                     const prevReading = parseFloat(reading.previous_reading ?? 0) || 0;
                     const presReading = parseFloat(reading.present_reading ?? 0) || 0;

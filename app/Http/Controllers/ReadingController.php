@@ -7,7 +7,6 @@ use App\Models\PaymentServiceFee;
 use App\Models\User;
 use App\Models\Bill;
 use App\Models\BillBreakdown;
-use App\Models\Rates;
 use App\Models\Reading;
 use App\Services\GenerateService;
 use App\Services\MeterService;
@@ -53,7 +52,7 @@ class ReadingController extends Controller
     public function index(Request $request) {
 
         if($request->ajax()) {
-            $response = $this->meterService::locate($request->all());
+            $response = $this->meterService->locate($request->all());
             return response()->json($response);
         }
 
@@ -98,7 +97,7 @@ class ReadingController extends Controller
             'meter_no' => [
                 'required',
                 function ($attribute, $value, $fail) {
-                    if (!DB::table('users')
+                    if (!DB::table('concessioner_accounts')
                         ->where('meter_serial_no', $value)
                         ->orWhere('account_no', $value)
                         ->exists()) {
@@ -120,12 +119,10 @@ class ReadingController extends Controller
 
         try {
             
-            $user = User::where('meter_serial_no', $payload['meter_no'])
-                ->orWhere('account_no', $payload['meter_no'])
-                ->first();
+            $account = $this->meterService->getAccount($payload['meter_no']);
 
-            $meter_no = $user->meter_serial_no;
-            $property_type_id = $user->property_type;
+            $meter_no = $account->meter_serial_no;
+            $property_type_id = $account->property_type;
 
             $present_reading = $payload['present_reading'];
 

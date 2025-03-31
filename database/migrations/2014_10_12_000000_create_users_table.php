@@ -13,34 +13,9 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('account_no');
             $table->string('name');
             $table->string('address');
             $table->string('contact_no')
-                ->nullable();
-            $table->string('property_type')
-                ->nullable();
-            $table->integer('rate_code');
-            $table->string('status');
-            $table->string('meter_brand')
-                ->nullable();
-            $table->string('meter_serial_no');
-            $table->string('sc_no');
-            $table->string('date_connected');
-            $table->string('sequence_no');
-            $table->string('meter_type')
-                ->nullable();
-            $table->string('meter_wire')
-                ->nullable();
-            $table->string('meter_form')
-                ->nullable();
-            $table->string('meter_class')
-                ->nullable();
-            $table->string('lat_long')
-                ->nullable();
-            $table->boolean('isErcSealed')
-                ->default(true);
-            $table->string('inspection_image')
                 ->nullable();
             $table->string('email')
                 ->unique()
@@ -50,6 +25,7 @@ return new class extends Migration
             $table->string('password')
                 ->nullable();
             $table->rememberToken();
+            $table->boolean('isActive')->default(true);
             $table->timestamps();
         });
     }

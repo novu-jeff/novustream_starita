@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreClientRequest;
+use App\Http\Requests\UpdateClientRequest;
 use App\Imports\ClientImport;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
@@ -53,45 +55,25 @@ class ClientController extends Controller
         return view('concessionaires.form', compact('property_types'));
     }
 
-    public function store(Request $request) {
+    public function store(StoreClientRequest $request) {
 
-        $payload = $request->all();
+        $payload = $request->validated();
 
-        $validator = Validator::make($payload, [
-            'name' => 'required',
-            'address' => 'required',
-            'contact_no' => 'required',
-            'property_type' => 'required|exists:property_types,id',
-            'rate_code' => 'required|numeric|gt:0',
-            'status' => 'required|in:AB,BL,ID,IV',
-            'sc_no' => 'required',
-            'meter_brand' => 'required',
-            'meter_serial_no' => 'required',
-            'date_connected' => 'required',
-            'sequence_no' => 'required',
-            'email' => 'required|unique:users,email',
-            'password' => 'required|min:8',
-            'confirm_password' => 'required|same:password',
-        ]);
+        DB::beginTransaction();
 
-        if($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
+        try {
 
-        $response = $this->clientService::create($payload);
+            $client = $this->clientService::create($payload);
 
-        if ($response['status'] === 'success') {
-            return redirect()->back()->with('alert', [
-                'status' => 'success',
-                'message' => $response['message']
-            ]);
-        } else {
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => $response['message']
-            ]);
+            DB::commit();
+
+            return response(['data' => $client, 'status' => 'success', 'message' => 'Client ' . $payload['name'] . ' added.']);
+
+        } catch  (\Exception $e)  {
+
+            DB::rollBack();
+
+            return response(['status' => 'error', 'message' => $e->getMessage()]);
         }
     }
 
@@ -115,11 +97,9 @@ class ClientController extends Controller
             }
     
             Excel::import(new ClientImport, $request->file('file'));
-    
-            return redirect()->back()->with('alert', [
-                'status' => 'success',
-                'message' => 'Clients imported successfully',
-            ]);
+
+
+            return response(['status' => 'success', 'message' => 'Clients imported successfully']);
     
         } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
             $failures = $e->failures();
@@ -129,20 +109,14 @@ class ClientController extends Controller
                 $errors[] = "Row {$failure->row()}: " . implode(', ', $failure->errors());
             }
     
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => implode('<br>', $errors),
-            ]);
+            return response(['status' => 'error', 'message' => implode('<br>', $errors)]);
+
     
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => 'Error Occurred: Please check laravel.log',
-            ]);
+            return response(['status' => 'error', 'message' => $e->getMessage()]);
         }
     }
-
 
     public function edit(int $id) {
 
@@ -152,47 +126,26 @@ class ClientController extends Controller
         return view('concessionaires.form', compact('data', 'property_types'));
     }
 
-    public function update(int $id, Request $request) {
+    public function update(int $id, UpdateClientRequest $request) {
 
-        $payload = $request->all();
+        $payload = $request->validated();
+        
+        DB::beginTransaction();
 
-        $validator = Validator::make($payload, [
-            'name' => 'required',
-            'address' => 'required',
-            'contact_no' => 'required',
-            'property_type' => 'required|exists:property_types,id',
-            'rate_code' => 'required|numeric|gt:0',
-            'status' => 'required|in:AB,BL,ID,IV',
-            'sc_no' => 'required',
-            'meter_brand' => 'required',
-            'meter_serial_no' => 'required',
-            'date_connected' => 'required',
-            'sequence_no' => 'required',
-            'email' => ['required', Rule::unique('users')->ignore($id)],
-            'password' => 'nullable|min:8|required_with:confirm_password',
-            'confirm_password' => 'nullable|same:password|required_with:password',
-        ]);
+        try {
 
-        if($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            $client = $this->clientService::update($payload, $id);
+
+            DB::commit();
+
+            return response(['data' => $client, 'status' => 'success', 'message' => 'Client ' . $payload['name'] . ' update succesfully.']);
+
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return response(['status' => 'error', 'message' => $e->getMessage()]);
         }
-
-        $response = $this->clientService::update($id, $payload);
-
-        if ($response['status'] === 'success') {
-            return redirect()->back()->with('alert', [
-                'status' => 'success',
-                'message' => $response['message']
-            ]);
-        } else {
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => $response['message']
-            ]);
-        }
-
     }
 
     public function destroy(int $id) {
@@ -219,6 +172,9 @@ class ClientController extends Controller
     {
         return DataTables::of($query)
             ->addIndexColumn()
+            ->addColumn('accounts', function ($user) {
+                return $user->accounts->pluck('account_no')->implode(', '); 
+            })
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
@@ -232,7 +188,7 @@ class ClientController extends Controller
                     </button>
                 </div>';
             })
-            ->rawColumns(['actions'])
+            ->rawColumns(['actions', 'accounts'])
             ->make(true);
     }
 }
