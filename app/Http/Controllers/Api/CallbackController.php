@@ -21,11 +21,11 @@ class CallbackController extends Controller
                     'message' => 'reference_no and payment_id is required'
                 ]);
         }
+        
+        $records = Bill::with('breakdown')->where('reference_no', $payload['reference_no'])
+            ->get();
 
-        $record = Bill::where('reference_no', $payload['reference_no'])
-            ->first();
-
-        if(!$record) {
+        if(empty($records)) {
             return response()
                 ->json([
                     'status' => 'error',
@@ -33,27 +33,28 @@ class CallbackController extends Controller
                 ]);
         }
 
-        if($record->isPaid) {
-            return response()
-                ->json([
-                    'status' => 'error',
-                    'message' => 'reference_no ' . $payload['reference_no'] . ' is already paid'
-                ]);
-        }
-
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        $bill = Bill::where('reference_no', $payload['reference_no']);
-        $bill->update([
-            'payment_id' => $payload['payment_id'],
-            'isPaid' => true,
-            'date_paid' => $now,
-        ]);
+        foreach($records as $record) {
+            if($record->isPaid) {
+                return response()
+                    ->json([
+                        'status' => 'error',
+                        'message' => 'reference_no ' . $payload['reference_no'] . ' is already paid'
+                    ]);
+            }
+
+            $record->update([
+                'payment_id' => $payload['payment_id'],
+                'isPaid' => true,
+                'date_paid' => $now,
+            ]);
+
+        }
 
         return response()->json([
             'status' => 'success',
             'message' => 'updated payment info',
-            'bill' => $bill
         ]);
 
     }
