@@ -158,7 +158,6 @@ class MeterService {
         return $data;
     }
     
-    
     public static function create(array $payload) {
 
         DB::beginTransaction();
@@ -175,7 +174,7 @@ class MeterService {
 
             return [
                 'status' => 'success',
-                'message' => 'Water rate added.'
+                'message' => 'Rate added.'
             ];
 
         } catch (\Exception $e) {
@@ -209,7 +208,7 @@ class MeterService {
 
             return [
                 'status' => 'success',
-                'message' => 'Water rate  updated.'
+                'message' => 'Rate  updated.'
             ];
 
         } catch (\Exception $e) {
@@ -238,7 +237,7 @@ class MeterService {
 
             return [
                 'status' => 'success',
-                'message' => 'Water rate deleted.'
+                'message' => 'Rate deleted.'
             ];
 
         } catch (\Exception $e) {
@@ -275,7 +274,7 @@ class MeterService {
         if ($rate == 0 || $base_rate && $base_rate == 0) {
             return [
                 'status' => 'error',
-                'message' => "We've noticed that there's no water rate for this consumption"
+                'message' => "We've noticed that there's no rate for this consumption"
             ];
         }
     

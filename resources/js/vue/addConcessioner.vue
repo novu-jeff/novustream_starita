@@ -377,7 +377,11 @@ export default {
       axios({
           method: method,
           url: endpoint,
-          data: this.concessioner 
+          data: this.concessioner ,
+          headers: {
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+              'Content-Type': 'application/json'
+          }
         })
         .then(response => {
           if(this.concessioner.id == null) {
