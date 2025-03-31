@@ -43,16 +43,17 @@ class CallbackController extends Controller
 
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        Bill::where('reference_no', $payload['reference_no'])
-            ->update([
-                'payment_id' => $payload['payment_id'],
-                'isPaid' => true,
-                'date_paid' => $now,
-            ]);
+        $bill = Bill::where('reference_no', $payload['reference_no']);
+        $bill->update([
+            'payment_id' => $payload['payment_id'],
+            'isPaid' => true,
+            'date_paid' => $now,
+        ]);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'updated payment info'
+            'message' => 'updated payment info',
+            'bill' => $bill
         ]);
 
     }

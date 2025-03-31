@@ -23,7 +23,7 @@
                                             </div>
                                         @endif
                                         <div style="text-align: center; margin: auto !important; padding-bottom: 10px;">
-                                            <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" 
+                                            <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" 
                                                  alt="logo" style="width: 100px; margin: 0 auto 10px auto">
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
@@ -203,9 +203,9 @@
                                                 <h2 class="text-primary fw-bold" id="changeAmount">₱0.00</h2>
                                             </div>
                                         </div>
-                                        <div class="d-block text-end my-5">
-                                            <button type="submit" class="w-50 mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
-                                            <button class="w-50 mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
+                                        <div class="d-flex justify-content-end gap-3 text-end my-5">
+                                            <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
+                                            <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
                                         </div>
                                     </div>
                                 </div>
