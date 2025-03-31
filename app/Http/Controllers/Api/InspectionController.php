@@ -16,10 +16,10 @@ class InspectionController extends Controller
     public function search(Request $request) {
 
         $validator = Validator::make($request->all(), [
-            'option' => 'required|string|in:qr_code,input,upload_image',
+            'option' => 'required|string|in:qr_code,input',
             'content' => 'required'
         ], [
-            'option.reqiorequired' => 'Option is required',
+            'option.required' => 'Option is required',
             'option.string' => 'Option must be a string',
             'option.in' => 'Invalid option selected',
         ]);
@@ -44,12 +44,6 @@ class InspectionController extends Controller
             case 'input':
                 $toSearch = $this->searchByInput($content);
                 break;
-
-            case 'upload_image':
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Upload image option is not yet implemented'
-                ], 501);
 
             default:
                 return response()->json([
