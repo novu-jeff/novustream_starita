@@ -181,7 +181,8 @@ class ReadingController extends Controller
 
     private function generatePaymentQR(string $reference_no, array $payload) {
         
-        $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+        // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+        $api = 'https://localhost/api/v1/save/transaction';
 
         $ch = curl_init($api);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
