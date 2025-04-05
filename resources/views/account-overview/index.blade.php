@@ -7,7 +7,7 @@
                 <h1>Account Overview</h1>
             </div>
             <div class="inner-content mt-5">
-                @if($data->meter_serial_no) 
+                @if($data->accounts[0]->meter_serial_no) 
                     <div class="row">
                         <div class="col-12 col-md-6 mb-3">
                             <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">

@@ -33,7 +33,9 @@ class AccountOverviewController extends Controller
 
         $data = $this->clientService::getData($id);
         
-        $statement = $this->meterService::getBills($data->meter_serial_no ?? '') ?? [];
+        $meter_no = $data->accounts[0]->meter_serial_no;
+        
+        $statement = $this->meterService::getBills($data->accounts[0]->meter_serial_no ?? '') ?? [];
 
         return view('account-overview.index', compact('my', 'data', 'statement'));
     }
@@ -63,7 +65,10 @@ class AccountOverviewController extends Controller
         }
 
         $data = $this->clientService::getData($id);
-        $statement = $this->meterService::getBills($data->meter_serial_no ?? '', true);
+
+        $meter_no = $data->accounts[0]->meter_serial_no;
+
+        $statement = $this->meterService::getBills($meter_no ?? '', true);
 
         if(request()->ajax()) {
             return $this->datatable($statement);

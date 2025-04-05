@@ -144,6 +144,7 @@ class MeterService {
 
     public static function getBills(?string $number = null, bool $isAll = false) 
     {
+
         $query = DB::table('bill')
         ->leftJoin('readings', 'bill.reading_id', 'readings.id')
         ->select('bill.*', 'readings.*');

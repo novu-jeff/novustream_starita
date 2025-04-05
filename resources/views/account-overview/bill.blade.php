@@ -85,12 +85,12 @@
                                     $logoPath = env('APP_PRODUCT') === 'novustream' 
                                                 ? public_path('images/novustreamlogodarken.png') 
                                                 : public_path('images/novusurgelogodarken.png');
-            
+
                                     $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                                 @endphp
             
                                 <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
-                                    <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novupowerlogo.png') }}" 
+                                    <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" 
                                         alt="logo" class="web-logo">
                                     <img src="{{ $base64 }}" alt="logo" class="print-logo">
                                     <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
@@ -222,56 +222,62 @@
                 </div>
                 <style>
                 
-                    @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-            
-                    .web-logo {
-                        width: 100px;
-                        margin: 0 auto 10px auto !important;
+                body * {    
+                    font-family: Verdana, Geneva, Tahoma, sans-serif;
+                    font-size: 13px;
+                }
+
+                @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+                .web-logo {
+                    width: 100px;
+                    margin: 0 auto 10px auto !important;
+                }
+
+                .print-logo {
+                    display: none !important;
+                }
+
+                @media print {
+                    
+                    @page {
+                        margin: 0mm 5mm 0mm 0mm;
                     }
             
-                    .print-logo {
+                    body * {
+                        padding: 0px !important;
+                        box-shadow: none !important;
+                        visibility: visible !important;
+                        font-size: 10px !important;
+                        font-weight: 800;
+                        font-family: monospace;
+                    }
+            
+                    header, .print-controls {
                         display: none !important;
                     }
             
-                    @media print {
-                        
-                        @page {
-                            margin: 0mm 5mm 0mm 0mm;
-                        }
-                
-                        body * {
-                            padding: 0px !important;
-                            box-shadow: none !important;
-                            visibility: visible !important;
-                            font-size: 10px !important;
-                            font-weight: 800;
-                            font-family: monospace;
-                        }
-                
-                        header, .print-controls {
-                            display: none !important;
-                        }
-                
-                        .isPaid {
-                            display: none;
-                            visibility: hidden;
-                        }
-            
-                        svg {
-                            width: 80px !important;
-                        }
-            
-                        .web-logo {
-                            display: none !important;
-                        }
-            
-                        .print-logo {
-                            width: 100px;
-                            margin: 0 auto 10px auto !important;
-                            display: block !important;
-                        }
-                        
+                    .isPaid {
+                        display: none;
+                        visibility: hidden;
                     }
+
+                    svg {
+                        width: 80px !important;
+                    }
+
+                    .web-logo {
+                        display: none !important;
+                    }
+
+                    .print-logo {
+                        width: 100px;
+                        margin: 0 auto 10px auto !important;
+                        display: block !important;
+                    }
+                    
+                }    
+
                 </style>
 
             @endif

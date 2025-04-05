@@ -28,6 +28,7 @@ class LoginController extends Controller
             return response()->json([
                 'status' => 'success',
                 'token' => $token,
+                'data' => $admin
             ], 200);
         } else {
             return response()->json([
