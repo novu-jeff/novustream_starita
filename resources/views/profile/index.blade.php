@@ -38,10 +38,10 @@
                                     @can('concessionaire')
                                         <hr class="mb-4">
                                         <div class="row mb-3">
-                                            <div class="col-md-12 mb-3">
+                                            {{-- <div class="col-md-12 mb-3">
                                                 <label for="property_type" class="form-label">Property Type</label>
                                                 <input type="text" class="form-control restricted" id="property_type" name="property_type" value="{{ strtoupper($property_types->firstWhere('id', $data->property_type)->name) ?? 'N/A' }}" readonly>
-                                            </div>
+                                            </div> --}}
                                             <div class="col-md-4 mb-3">
                                                 <label for="rate_code" class="form-label">Rate Code</label>
                                                 <input type="text" class="form-control restricted" id="rate_code" name="rate_code" value="{{ old('rate_code', $data->rate_code ?? '') }}" readonly>
