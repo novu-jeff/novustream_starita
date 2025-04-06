@@ -1,9 +1,9 @@
-import './bootstrap';
-
+import axios from 'axios';
 import { alert, remove , canvasDownload, convertDateToWords} from './helper';
 import { createApp } from 'vue';
 import addConcessioner from './vue/addConcessioner.vue'
 
+window.axios = axios;
 window.alert = alert;
 window.remove = remove;
 window.convertDateToWords = convertDateToWords;
@@ -26,3 +26,9 @@ $('.download-js').on('click', function() {
 $('.print-js').on('click', function() {
     window.print();
 });
+
+$('.btn-navigate, .close-icon').on('click', function() {
+    $('.header-navigation').toggleClass('active');
+});
+
+

@@ -21,7 +21,6 @@
                             <th>ID</th>
                             <th>Full Name</th>
                             <th>Account No. Registered</th>
-                            <th>Address</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -46,7 +45,6 @@
                 { data: 'id', name: 'id' }, 
                 { data: 'name', name: 'name' },
                 { data: 'accounts', name: 'accounts' },
-                { data: 'address', name: 'address' },
                 { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
             ],
             responsive: true,

@@ -4,17 +4,51 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
+use App\Services\MeterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class CallbackController extends Controller
-{
+class CallbackController extends Controller {
+
+    public $meterService;
+
+    public function __construct(MeterService $meterService) {
+        $this->meterService = $meterService;
+    }
+
+    private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
+    {
+        $data = $this->meterService::getBill($reference_no);
+    
+        if (!$data || !isset($data['current_bill'])) {
+            return ['error' => 'Bill not found'];
+        }
+    
+        $total = $data['current_bill']->amount;
+    
+        if($strictAmount) {
+            $validator = Validator::make($payload, [
+                'payment_amount' => 'required|gte:' . $total
+            ], [
+                'payment_amount.gte' => 'Cash payment is insufficient'
+            ]);
+        
+            if ($validator->fails()) {
+                return ['error' => $validator->errors()->first()];
+            }
+        }
+    
+        return ['data' => $data]; 
+    }
+
     public function save(Request $request) {
 
         $payload = $request->all();
 
-        if(!isset($payload['reference_no']) || !isset($payload['payment_id'])) {
+        $reference_no = $payload['reference_no'] ?? null;
+
+        if(!isset($reference_no) || !isset($payload['payment_id'])) {
             return response()
                 ->json([
                     'status' => 'error',
@@ -22,39 +56,47 @@ class CallbackController extends Controller
                 ]);
         }
         
-        $records = Bill::with('breakdown')->where('reference_no', $payload['reference_no'])
-            ->get();
+        $records = $this->getBill($reference_no, $payload, false);
 
         if(empty($records)) {
             return response()
                 ->json([
                     'status' => 'error',
-                    'message' => 'reference_no ' . $payload['reference_no'] . ' does not exists'
+                    'message' => 'reference_no ' . $reference_no . ' does not exists'
                 ]);
         }
 
+        if (isset($records['error'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => $records['error']
+            ]);
+        }
+
+
+        $data = $records['data']; 
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        foreach($records as $record) {
-            if($record->isPaid) {
-                return response()
-                    ->json([
-                        'status' => 'error',
-                        'message' => 'reference_no ' . $payload['reference_no'] . ' is already paid'
-                    ]);
+        $data['current_bill']->update([
+            'isPaid' => true,
+            'payor_name' => $payload['payor'] ?? null,
+            'date_paid' => $now,
+        ]);
+
+        if (!empty($data['unpaid_bills'])) {
+            foreach ($data['unpaid_bills'] as $unpaid_bill) {
+                $unpaid_bill->update([
+                    'payor_name' => $payload['payor'] ?? null,
+                    'date_paid' => $now,
+                    'isPaid' => true,
+                    'paid_by_reference_no' => $reference_no
+                ]);
             }
-
-            $record->update([
-                'payment_id' => $payload['payment_id'],
-                'isPaid' => true,
-                'date_paid' => $now,
-            ]);
-
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => 'updated payment info',
+            'message' => 'Bill has been paid'
         ]);
 
     }

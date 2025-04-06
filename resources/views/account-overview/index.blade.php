@@ -6,17 +6,17 @@
             <div class="main-header">
                 <h1>Account Overview</h1>
             </div>
-            <div class="inner-content mt-5">
-                @if($data->accounts[0]->meter_serial_no) 
-                    <div class="row">
+            <div class="inner-content mt-5 pb-5">
+                @if($data->accounts) 
+                    <div class="row pb-5">
                         <div class="col-12 col-md-6 mb-3">
                             <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">
                                 Payment Due Date:
                                 <span class="ms-2 text-decoration-underline">
-                                    @if(!$statement)
+                                    @if($statement['total'] == 0)
                                         N/A
-                                    @elseif(!$statement->isPaid)
-                                        {{\Carbon\Carbon::parse($statement->due_date)->format('F d, Y')}}
+                                    @elseif($statement['total'] != 0)
+                                        {{\Carbon\Carbon::parse($statement['due_date'])->format('F d, Y')}}
                                     @else
                                         Already Paid
                                     @endif
@@ -25,33 +25,171 @@
                             <div class="card shadow border-0 p-4 mt-3">
                                 <div class="card-body">
                                     <div class="mb-3">
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Account Name: <span class="ms-3 fw-normal">{{$my->name}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Account No: <span class="ms-3 fw-normal">{{$my->account_no}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Address: <span class="ms-3 fw-normal">{{$my->address ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Property Type: <span class="ms-3 fw-normal">{{$my->property_types->name ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Meter No: <span class="ms-3 fw-normal">{{$my->meter_serial_no ?? 'N/A'}}</span><h5>
-                                        <h5 class="text-uppercase fw-bold text-muted mb-3">Date Connected: <span class="ms-3 fw-normal">{{\Carbon\Carbon::parse($my->date_connected)->format('F d, Y') ?? 'N/A'}}</span><h5>    
+                                        <div class="mb-3">
+                                            <small class="text-uppercase fw-bold text-muted">[+] Property Owner</small>
+                                        </div>
+                                        <table class="table table-bordered table-hover">
+                                            <tbody>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Account Name</th>
+                                                    <th class="text-uppercase fw-bold text-muted">{{$my->name}}</th>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Contact No</th>
+                                                    <th class="text-uppercase fw-bold text-muted">{{$my->contact_no}}</th>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Email</th>
+                                                    <th class="text-uppercase fw-bold text-muted">{{$my->email}}</th>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <hr class="my-4">
+                                    <div class="mb-3">
+                                        <small class="text-uppercase fw-bold text-muted">[+] Properties</small>
+                                    </div>
+                                    <div>
+                                        <div class="accordion accordion-flush" id="accordionAccountConnection">
+                                            @forelse($accounts as $key => $account)
+                                                <div class="accordion-item">
+                                                    <h2 class="accordion-header" id="heading{{$key}}">
+                                                        <button class="accordion-button collapsed text-uppercase fw-bold text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{$key}}" aria-expanded="false" aria-controls="collapse{{$key}}">
+                                                            {{$account->address}}
+                                                        </button>
+                                                    </h2>
+                                                    <div id="collapse{{$key}}" class="accordion-collapse collapse" aria-labelledby="heading{{$key}}" data-bs-parent="#accordionAccountConnection">
+                                                        <div class="accordion-body">
+                                                            <table class="table table-bordered table-hover">
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Account No:</th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->account_no}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter No:</th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_serial_no}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter Brand: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_brand}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter Type: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_type}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter Wire: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_wire}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter Form: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_form}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Meter Class: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_class}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Property Type: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->property_types->name}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">SC No: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->rate_code}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Rate Code: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->rate_code}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Sequence No: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->sequence_mp}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Status: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->status}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">SC No: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->sc_no}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Location: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->lat_long}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">ERC Sea;: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->isErcSealed ? 'Yes' : 'No'}}</th>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th class="text-uppercase fw-bold text-muted">Date Connected: </th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{\Carbon\Carbon::parse($account->date_connected)->format('M d, Y')}}</th>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @empty
+                                                <div class="alert alert-info text-muted text-center text-uppercase">No Account Linked</div>
+                                            @endforelse
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="col-12 col-md-6 mb-3">
-                            <div class="card shadow border-0 p-1">
+                            <div class="card shadow border-0 p-3">
                                 <div class="card-body">
                                     <div class="bg-primary mt-1 p-3 text-uppercase fw-bold text-white fs-5">Statement of Account as of <span class="text-decoration-underline text-offset-2">{{Carbon\Carbon::now()->format('F d, Y')}}</span></div>
-                                    <div class="note mt-3 ms-0 fst-italic text-uppercase fw-medium" style="font-size: 12px;"><strong>Disclaimer:</strong> Successful payments will be reflected on the next statement and can be viewd via the <strong>Payment History</strong></div>
+                                    <div class="note mt-3 ms-0 fst-italic text-uppercase fw-medium" style="font-size: 12px;"><strong>Disclaimer:</strong> Successful payments will be reflected on the next statement and can be viewed via the <strong>Payment History</strong></div>
                                     <hr class="my-4">
                                     <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due: 
                                         <h3 class="ms-2">
-                                            @if(!$statement || !$statement->isPaid)
-                                                ₱{{number_format($statement->amount ?? 0, 2)}}
+                                            @if($statement['total'] != 0)
+                                                ₱{{number_format($statement['total'] ?? 0, 2)}}
                                             @else
                                                 ₱0.00
                                             @endif
                                         </h3>
                                     </div>
-                                    <div class="mt-3 text-center">
-                                        <a href="{{route('account-overview.bills')}}" class="text-uppercase fw-medium" style="font-size: 13px">View Statement</a>
+                                    <div class="mt-4 pt-2" style="font-size: 14px;">
+                                        <div style="display:none;" id="statement-content">
+                                            @forelse($statement['transactions'] as $key => $transactions)
+                                                <div class="d-flex justify-content-between pb-3 {{$key == 0 ? 'pt-3' : ''}} mb-3" style="{{$key == 0 ? 'border-top: 3px dotted rgba(0, 0, 0, 0.521);' : ''}} border-bottom: 3px dotted rgba(0, 0, 0, 0.521); cursor: pointer;">
+                                                    <div>
+                                                        <div>
+                                                            {{$transactions['reference_no']}} ⦁ {{$transactions['account_no']}}
+                                                        </div>
+                                                        <div>
+                                                            {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}} 
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <div>
+                                                            @php
+                                                                $nonZeroBreakdown = collect($transactions['breakdown'])->filter(fn($item) => $item['amount'] != 0);
+                                                            @endphp
+                                                            @if($nonZeroBreakdown->count() > 1)
+                                                                <div class="text-muted fw-bold">{{ 'PHP ' . $nonZeroBreakdown->pluck('amount')->implode(' + PHP ') }}</div>
+                                                            @else
+                                                                <span></span>
+                                                            @endif
+                                                        </div>
+                                                        
+                                                        <div class="fw-bold">
+                                                            PHP {{number_format($transactions['amount'], 2)}}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @empty
+                                                <div class="alert alert-danger text-uppercase text-center text-muted fw-bold" style="font-size: 12px">No Statement Found</div>
+                                            @endforelse
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <a href="javascript:void(0)" id="show-statement" class="text-uppercase fw-medium" style="font-size: 13px">View Statement</a>
                                     </div>
                                 </div>
                             </div>
@@ -63,4 +201,21 @@
             </div>
         </div>
     </main>
+@endsection
+
+@section('script')
+    <script>
+        $(function() {
+            $('#show-statement').on('click', function() {
+            const statementContent = $('#statement-content');
+            if (statementContent.is(':visible')) {
+                statementContent.slideUp('slow');
+                $(this).text('View Statement');
+            } else {
+                statementContent.slideDown('slow');
+                $(this).text('Hide Statement');
+            }
+            });
+        });
+    </script>
 @endsection

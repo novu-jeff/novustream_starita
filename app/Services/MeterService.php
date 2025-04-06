@@ -97,7 +97,7 @@ class MeterService {
         // Get meter number from current bill
         $meter_no = optional($current_bill->reading)->meter_no;
     
-        $client = User::with(['property_types', 'accounts'])
+        $client = User::with(['accounts.property_types'])
                 ->whereHas('accounts', function ($query) use ($meter_no) {
                     $query->where('meter_serial_no', $meter_no);
                 })
@@ -132,7 +132,16 @@ class MeterService {
         if ($active_payment && $active_payment->reference_no == $reference_no) {
             $active_payment = null;
         }
-    
+
+        $filteredAccounts = collect($client->accounts)
+            ->where('meter_serial_no', $meter_no)
+            ->values();
+
+        $filteredAccountArray = optional($filteredAccounts->first())->toArray() ?? [];
+        $client = array_merge($filteredAccountArray, $client->toArray());
+
+        unset($client['accounts']);
+        
         return [
             'client' => $client,
             'current_bill' => $current_bill,
@@ -142,21 +151,23 @@ class MeterService {
         ];
     }    
 
-    public static function getBills(?string $number = null, bool $isAll = false) 
-    {
+    public static function getBills(?string $number = null, bool $isAll = false) {
 
-        $query = DB::table('bill')
-        ->leftJoin('readings', 'bill.reading_id', 'readings.id')
-        ->select('bill.*', 'readings.*');
+        $query = Bill::with(['reading', 'breakdown'])->orderBy('created_at', 'desc');
 
-        if(!is_null($number)) {
-            $account = UserAccounts::where('meter_serial_no', $number)->orWhere('account_no', $number)->first();
-            $query->where('readings.meter_no', $account->meter_serial_no);
+        if (!is_null($number)) {
+            $account = UserAccounts::where('meter_serial_no', $number)
+                ->orWhere('account_no', $number)
+                ->first();
+
+            if ($account) {
+                $query->whereHas('reading', function ($q) use ($account) {
+                    $q->where('meter_no', $account->meter_serial_no);
+                });
+            }
         }
 
-        $data = $isAll ? $query->orderByDesc('bill.created_at')->get() : $query->latest('bill.created_at')->first();
-
-        return $data;
+        return $isAll ? $query->get()->toArray() : optional($query->first())->toArray();
     }
     
     public static function create(array $payload) {
@@ -255,7 +266,11 @@ class MeterService {
 
     public function create_breakdown(array $payload) {
 
-        $latest_reading = Reading::with('bill')->where('meter_no', $payload['meter_no'])->latest()->first();
+        $latest_reading = Reading::with('bill')
+            ->where('meter_no', $payload['meter_no'])
+            ->latest()
+            ->first();
+
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
@@ -280,8 +295,15 @@ class MeterService {
                 'message' => "We've noticed that there's no rate for this consumption"
             ];
         }
-    
-        $unpaidAmount = Bill::where('isPaid', false)->whereNotNull('amount')->sum('amount') ?? 0;
+
+        $unpaidAmount = Bill::with('reading')
+            ->where('isPaid', false)
+            ->whereNotNull('amount')
+            ->whereHas('reading', function ($query) use ($payload) {
+                $query->where('meter_no', $payload['meter_no']);
+            })->whereNotNull('amount')
+            ->sum('amount') ?? 0;
+
         $total_amount = $unpaidAmount + $rate;
     
         $other_deductions = $this->paymentBreakdownService::getData();

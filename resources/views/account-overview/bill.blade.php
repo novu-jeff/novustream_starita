@@ -7,7 +7,7 @@
                 <h1>{{ !$isViewBill ? 'Bills & Payments' : "Billing & Payments | $reference_no" }}</h1>
             </div>
             @if(!$isViewBill)
-                <div class="inner-content mt-5">
+                <div class="inner-content mt-5 pb-5">
                     <table class="w-100 table table-bordered table-hover">
                         <thead>
                             <tr>
@@ -52,25 +52,28 @@
                 @endsection
             @else
 
-                <div class="print-controls" style="display: flex; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
+                <div class="d-flex justify-content-center align-items-center text-center m-auto ">
+                    <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
 
-                    @php
-                        $backUrl = route('account-overview.bills');
-                    @endphp
-            
-                    <a href="{{ $backUrl }}" 
-                        style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
-                        <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
-                    </a>
-            
-                    <button 
-                        class="download-js" 
-                        data-target="#bill" 
-                        data-filename="{{$data['current_bill']->reference_no}}" 
-                        style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-                        <i style="font-size: 18px;" class='bx bxs-download'></i> Download
-                    </button>
-
+                        @php
+                            $backUrl = route('account-overview.bills');
+                        @endphp
+                
+                        <a href="{{ $backUrl }}" 
+                            style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;"
+                            class=" btn btn-primary my-2 ">
+                            <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
+                        </a>
+                
+                        <button 
+                            class="download-js btn btn-primary my-2" 
+                            data-target="#bill" 
+                            data-filename="{{$data['current_bill']->reference_no}}" 
+                            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
+                        </button>
+    
+                    </div>
                 </div>
                 <div style="padding-bottom: 50px">
                     <div id="bill" style="margin-top: 30px">
@@ -105,19 +108,19 @@
                                     <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                         <div style="display: flex; justify-content: space-between;">
                                             <div>Account Name</div>
-                                            <div>{{$data['client']->name}}</div>
+                                            <div>{{$data['client']['name']}}</div>
                                         </div>
                                         <div style="display: flex; justify-content: space-between;">
                                             <div>Account No.</div>
-                                            <div>{{$data['client']->account_no ?? ''}}</div>
+                                            <div>{{$data['client']['account_no'] ?? ''}}</div>
                                         </div>
                                         <div style="display: flex; justify-content: space-between;">
                                             <div>Address</div>
-                                            <div>{{$data['client']->address ?? ''}}</div>
+                                            <div>{{$data['client']['address'] ?? ''}}</div>
                                         </div>
                                         <div style="display: flex; justify-content: space-between;">
-                                            <div>Type</div>
-                                            <div>{{$data['client']->property_types->name ?? ''}}</div>
+                                            <div>Property Type</div>
+                                            <div>{{$data['client']['property_types']['name'] ?? ''}}</div>
                                         </div>                
                                     </div>
                                 </div>
@@ -220,68 +223,66 @@
                         </div>
                     </div>
                 </div>
-                <style>
-                
-                body * {    
-                    font-family: Verdana, Geneva, Tahoma, sans-serif;
-                    font-size: 13px;
-                }
-
-                @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
-
-                .web-logo {
-                    width: 100px;
-                    margin: 0 auto 10px auto !important;
-                }
-
-                .print-logo {
-                    display: none !important;
-                }
-
-                @media print {
-                    
-                    @page {
-                        margin: 0mm 5mm 0mm 0mm;
-                    }
-            
-                    body * {
-                        padding: 0px !important;
-                        box-shadow: none !important;
-                        visibility: visible !important;
-                        font-size: 10px !important;
-                        font-weight: 800;
-                        font-family: monospace;
-                    }
-            
-                    header, .print-controls {
-                        display: none !important;
-                    }
-            
-                    .isPaid {
-                        display: none;
-                        visibility: hidden;
-                    }
-
-                    svg {
-                        width: 80px !important;
-                    }
-
-                    .web-logo {
-                        display: none !important;
-                    }
-
-                    .print-logo {
-                        width: 100px;
-                        margin: 0 auto 10px auto !important;
-                        display: block !important;
-                    }
-                    
-                }    
-
-                </style>
-
             @endif
         </div>
     </main>
+    <style>
+
+        body * {    
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+            font-size: 13px;
+        }
+
+        @import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+
+        .web-logo {
+            width: 100px;
+            margin: 0 auto 10px auto !important;
+        }
+
+        .print-logo {
+            display: none !important;
+        }
+
+        @media print {
+            
+            @page {
+                margin: 0mm 5mm 0mm 0mm;
+            }
+    
+            body * {
+                padding: 0px !important;
+                box-shadow: none !important;
+                visibility: visible !important;
+                font-size: 10px !important;
+                font-weight: 800;
+                font-family: monospace;
+            }
+    
+            header, .print-controls {
+                display: none !important;
+            }
+    
+            .isPaid {
+                display: none;
+                visibility: hidden;
+            }
+
+            svg {
+                width: 80px !important;
+            }
+
+            .web-logo {
+                display: none !important;
+            }
+
+            .print-logo {
+                width: 100px;
+                margin: 0 auto 10px auto !important;
+                display: block !important;
+            }
+            
+        }
+    </style>
 @endsection
 

@@ -24,7 +24,6 @@ class UpdateClientRequest extends FormRequest
         $id = $this->route('concessionaire');
         return [
             'name' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
             'email' => 'required|unique:users,email,' . $id,
             'password' => 'nullable|min:8',
             'confirm_password' => 'nullable|same:password',
@@ -33,6 +32,7 @@ class UpdateClientRequest extends FormRequest
             'accounts' => 'required|array',
             'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',
             'accounts.*.account_no' => 'required|string',
+            'accounts.*.address' => 'required|string|max:255',
             'accounts.*.property_type' => 'required|exists:property_types,id',
             'accounts.*.rate_code' => 'required|numeric|gt:0',
             'accounts.*.status' => 'required|in:AB,BL,ID,IV',

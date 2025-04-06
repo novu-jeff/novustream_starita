@@ -23,7 +23,6 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
             'email' => 'required|unique:users,email',
             'password' => 'required|min:8',
             'contact_no' => 'required',
@@ -32,6 +31,7 @@ class StoreClientRequest extends FormRequest
             'accounts' => 'required|array',
             'accounts.*.account_no' => 'required|unique:concessioner_accounts,account_no',
             'accounts.*.property_type' => 'required|exists:property_types,id',
+            'accounts.*.address' => 'required|string|max:255',
             'accounts.*.rate_code' => 'required|numeric|gt:0',
             'accounts.*.status' => 'required|in:AB,BL,ID,IV',
             'accounts.*.sc_no' => 'required',
@@ -57,6 +57,7 @@ class StoreClientRequest extends FormRequest
             'accounts.*.account_no.unique' => 'The account number must be unique.',
             'accounts.*.property_type.required' => 'The property type is required.',
             'accounts.*.property_type.exists' => 'The selected property type is invalid.',
+            'accounts.*.address.required' => 'The address is required.',
             'accounts.*.rate_code.required' => 'The rate code is required.',
             'accounts.*.rate_code.numeric' => 'The rate code must be a number.',
             'accounts.*.rate_code.gt' => 'The rate code must be greater than 0.',

@@ -12,17 +12,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'account_no',
-        'name',
-        'address',
-        'rate_code',
-        'status',
-        'meter_brand',
-        'meter_serial_no',
-        'sc_no',
-        'date_connected',
         'contact_no',
-        'sequence_no',
-        'isValidated',
+        'name',
         'email',
         'password',
     ];

@@ -78,7 +78,7 @@ class PaymentController extends Controller
 
     }
 
-    private function getBill(string $reference_no, $payload, bool $strictAmount = false)
+    private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
         $data = $this->meterService::getBill($reference_no);
     
@@ -151,7 +151,7 @@ class PaymentController extends Controller
                 'message' => $result['error']
             ]);
         }
-    
+        
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
         return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with('alert', [

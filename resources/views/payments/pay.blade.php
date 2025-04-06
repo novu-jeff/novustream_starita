@@ -37,19 +37,19 @@
                                             <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Account Name</div>
-                                                    <div>{{$data['client']->firstname . ' ' . $data['client']->lastname}}</div>
+                                                    <div>{{$data['client']['name']}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Account No.</div>
-                                                    <div>{{$data['client']->account_no ?? ''}}</div>
+                                                    <div>{{$data['client']['account_no'] ?? ''}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Address</div>
-                                                    <div>{{$data['client']->address ?? ''}}</div>
+                                                    <div>{{$data['client']['address'] ?? ''}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Type</div>
-                                                    <div>{{$data['client']->property_types->name ?? ''}}</div>
+                                                    <div>{{$data['client']['property_types']['name'] ?? ''}}</div>
                                                 </div>                
                                             </div>
                                         </div>
@@ -76,13 +76,13 @@
                                                 @foreach($data['current_bill']->breakdown as $breakdown)
                                                     <div style="display: flex; justify-content: space-between;">
                                                         <div>{{ $breakdown->name }} {{ !empty($breakdown->description) ? '(' . $breakdown->description . ')' : '' }}</div>
-                                                        <div>₱{{number_format($breakdown->amount ?? 0, 2)}}</div>
+                                                        <div>PHP {{number_format($breakdown->amount ?? 0, 2)}}</div>
                                                     </div>
                                                 @endforeach
                                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Amount Due</div>
-                                                    <div>₱{{number_format($data['current_bill']->amount, 2)}}</div>
+                                                    <div>PHP {{number_format($data['current_bill']->amount, 2)}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
@@ -141,7 +141,7 @@
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Amount</div>
-                                                    <div>₱{{number_format($data['previous_payment']->amount, 2)}}</div>
+                                                    <div>PHP {{number_format($data['previous_payment']->amount, 2)}}</div>
                                                 </div>
                                             </div>      
                                         @endif
@@ -155,7 +155,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due: 
                                     <h3 class="ms-2">
-                                        ₱{{number_format($data['current_bill']->amount ?? 0, 2)}}
+                                        PHP {{number_format($data['current_bill']->amount ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -170,19 +170,19 @@
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="previous" class="form-label">Previous Unpaid</label>
-                                                <h2>₱{{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
+                                                <h2>PHP {{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="total_charges" class="form-label">Current Charges</label>
-                                                <h2 class="fw-bold">₱{{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
+                                                <h2 class="fw-bold">PHP {{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="total_charges" class="form-label">Total Charges</label>
-                                                <h1 class="fw-bold text-danger">₱{{number_format($data['current_bill']->amount ?? 0, 2)}}</h1>
+                                                <h1 class="fw-bold text-danger">PHP {{number_format($data['current_bill']->amount ?? 0, 2)}}</h1>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end w-100">
@@ -200,7 +200,7 @@
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-1">
                                             <div class="text-end">
                                                 <label for="changeAmount" class="form-label">Change</label>
-                                                <h2 class="text-primary fw-bold" id="changeAmount">₱0.00</h2>
+                                                <h2 class="text-primary fw-bold" id="changeAmount">PHP 0.00</h2>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
@@ -243,6 +243,7 @@
             const isPaid = '{{$data['current_bill']->isPaid == true}}';
 
             if(!isPaid) {
+
                 async function checkPaymentStatus() {
 
                     const reference_no = '{{$reference_no}}';
@@ -286,9 +287,9 @@
                 let change = (value - total).toFixed(2);
 
                 if (value < total) {
-                    $('#changeAmount').text('₱0.00');
+                    $('#changeAmount').text('PHP 0.00');
                 } else {
-                    $('#changeAmount').text('₱' + change);
+                    $('#changeAmount').text('PHP ' + change);
                 }
             });
 

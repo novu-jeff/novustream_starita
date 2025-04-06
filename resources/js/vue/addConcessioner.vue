@@ -8,7 +8,7 @@
                   </div>
                   <div class="card-body">
                     <div class="row border-bottom">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label for="name" class="form-label">Full Name <small class="text-danger"> ( required )</small></label>
                             <input type="text" 
                                   class="form-control" 
@@ -18,17 +18,7 @@
                                   >
                             <small v-if="errors.name" class="text-danger px-1">{{ errors.name[0] }}</small>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label for="address" class="form-label">Address<small class="text-danger"> ( required )</small></label>
-                            <input type="text" 
-                                  class="form-control" 
-                                  id="address" 
-                                  v-model="concessioner.address"
-                                  :class="{ 'is-invalid': errors && errors.address }" 
-                                  >
-                             <small v-if="errors.address" class="text-danger px-1">{{ errors.address[0] }}</small>
-                        </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label for="contact_no" class="form-label">Contact No <small class="text-danger"> ( required )</small></label>
                             <input type="text" 
                                   class="form-control" 
@@ -124,6 +114,17 @@
                                     :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
                                     >
                               <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
+                          </div>
+                          <div class="col-md-12 mb-3">
+                              <label :for="'address_' + index" class="form-label">
+                                Address <small class="text-danger">( required )</small>
+                              </label>
+                              <input type="text" class="form-control" 
+                                      :id="'address_' + index" 
+                                      v-model="account.address" required
+                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" 
+                                      >
+                              <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
                           </div>
                           <div class="col-md-6 mb-3">
                               <label :for="'status_' + index" class="form-label">
@@ -303,7 +304,6 @@ export default {
       loading: false,
       concessioner: {
         name: '',
-        address: '',
         contact_no: '',
         email: '',
         password: '',
@@ -312,6 +312,7 @@ export default {
           {
             account_no: '',
             property_type: null,
+            address: '',
             rate_code: '',
             status: null,
             meter_brand: '',
@@ -347,6 +348,7 @@ export default {
       this.concessioner.accounts.push({
         account_no: '',
         property_type: null,
+        address: '',
         rate_code: '',
         status: '',
         meter_brand: '',
@@ -411,7 +413,6 @@ export default {
     resetForm(){
       this.concessioner = {
         name: '',
-        address: '',
         contact_no: '',
         email: '',
         password: '',
@@ -420,6 +421,7 @@ export default {
           {
             account_no: '',
             property_type: null,
+            address: '',
             rate_code: '',
             status: null,
             meter_brand: '',

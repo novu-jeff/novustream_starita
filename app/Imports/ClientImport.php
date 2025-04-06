@@ -17,7 +17,6 @@ class ClientImport implements ToModel, WithHeadingRow, WithValidation
         // Create the user and save to the database
         $user = User::create([
             'name'         => trim($row['name']),
-            'address'      => trim($row['address']),
             'contact_no'   => trim($row['contact_no']),
         ]);
 
@@ -26,6 +25,7 @@ class ClientImport implements ToModel, WithHeadingRow, WithValidation
             UserAccounts::create([
                 'user_id'         => $user->id,
                 'account_no'   => trim($row['account_no']),
+                'address'      => trim($row['address']),
                 'rate_code'       => trim($row['rate_code']),
                 'status'         => trim($row['status']),
                 'meter_brand'    => trim($row['meter_brand']),

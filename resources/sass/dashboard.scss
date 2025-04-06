@@ -20,11 +20,6 @@ body {
 	color: var(--c-text-primary);
 }
 
-img {
-	display: block;
-	max-width: 100%;
-}
-
 :focus {
 	outline: 0;
 }
@@ -64,7 +59,6 @@ img {
 		display: flex;
 		align-items: center;
 		div {
-			// outline: 2px solid;
 			flex-shrink: 0;
 			position: relative;
 			&:after {
@@ -92,7 +86,19 @@ img {
 	align-items: end;
 	justify-content: space-between;
 	@media (max-width: 1200px) {
-		display: none;
+		display: none; 
+		transition: all ease 0.3s;
+		&.active {
+			display: block !important;
+			position: absolute;
+			top: 0;
+			left: 0;
+			background-color: #ffffff;
+			width: 100%;
+			height: 100vh;;
+			z-index: 999999;
+			transition: all ease 0.3s;
+		}
 	}
 }
 
@@ -107,12 +113,50 @@ img {
 		transition: 0.15s ease;
 		& + * {
 			margin-left: 1.5rem;
+			@media (max-width: 1200px) {
+				display: block !important;
+				margin-left: 0 !important;
+			}
 		}
 
 		&:hover,
 		&:focus {
 			color: var(--c-accent-primary);
 		}
+
+		@media (max-width: 1200px) {
+			display: block !important;
+			margin-left: none !important;
+			text-align: center;
+			margin: 30px 0 30px 0;
+			font-size: 20px;
+		}
+
+	}
+
+	
+	@media (max-width: 1200px) {
+		display: block !important;
+		position: relative;
+		top: 100px;
+
+		.dropdown {
+			display: block !important;
+			margin-left: none !important;
+			text-align: center;
+			margin: 30px 0 30px 0;
+			font-size: 20px;
+			color: var(--c-text-action) !important
+		}
+
+		.dropdown.show {
+			padding: 10px;
+		}
+
+		.dropdown-item {
+			margin: 10px;
+		}
+
 	}
 }
 
@@ -133,7 +177,6 @@ img {
 
 .button {
 	font: inherit;
-	color: inherit;
 	text-decoration: none;
 	display: inline-flex;
 	align-items: center;
@@ -151,10 +194,12 @@ img {
 	i {
 		margin-right: 0.5rem;
 		font-size: 1.25em;
+		color: var(--c-text-action);
 	}
 
 	span {
 		font-weight: 500;
+		color: var(--c-text-action);
 	}
 
 	&:hover,
@@ -164,9 +209,20 @@ img {
 	}
 }
 
+.logout-form {
+	color: var(--c-text-action);
+	@media (max-width: 1200px) {
+		display: block !important;
+		position: relative;
+		text-align: center;
+		font-size: 20px;
+		color: var(--c-text-action);
+	}
+}
+
 .icon-button {
 	font: inherit;
-	color: inherit;
+	color: var(--c-text-action);
 	text-decoration: none;
 	display: inline-flex;
 	align-items: center;
@@ -187,6 +243,21 @@ img {
 	}
 }
 
+.close-icon {
+	display: none; 
+
+	@media (max-width: 1200px) {
+		display: block !important;
+		position: absolute;
+		top: 20px;
+		right: 20px;
+
+		i {
+			font-size: 40px;
+		}
+	}
+}
+
 .avatar {
 	display: inline-flex;
 	align-items: center;
@@ -195,6 +266,15 @@ img {
 	height: 44px;
 	border-radius: 50%;
 	overflow: hidden;
+	
+	img {
+		display: block;
+		max-width: 100%;
+
+		@media (max-width: 1200px) {
+			display: none !important;
+		}
+	}
 }
 
 .main {

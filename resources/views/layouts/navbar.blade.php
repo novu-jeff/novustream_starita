@@ -6,6 +6,9 @@
 			</a>
 		</div>
 		<div class="header-navigation">
+			<div class="close-icon">
+				<i class='bx bx-x'></i>
+			</div>
 			<nav class="header-navigation-links d-flex gap-4">
 				@can('admin')
 					<a href="{{route('dashboard')}}"> Dashboard </a>
@@ -73,7 +76,7 @@
 					Profile
 				</a>
 				@endcan
-				<form action="{{ route('auth.logout') }}" method="POST" style="display: inline;">
+				<form action="{{ route('auth.logout') }}" method="POST" style="display: inline;" class="logout-form">
 					@csrf
 					<button type="submit" class="border-0 bg-transparent p-0 m-0 align-baseline">Logout</button>
 				</form>
@@ -82,7 +85,7 @@
 				</a>
 			</div>
 		</div>
-		<a href="#" class="button">
+		<a href="javascript:void(0)" class="button btn-navigate">
 			<i class="ph-list-bold"></i>
 			<span>Menu</span>
 		</a>

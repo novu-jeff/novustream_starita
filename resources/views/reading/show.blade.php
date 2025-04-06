@@ -7,7 +7,8 @@
     <title>Print Bill {{$reference_no}}</title>
 </head>
 <body>
-    <div class="print-controls" style="display: flex; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
+    
+    <div class="print-controls" style="display: grid; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
 
         @php
             $previousUrl = url()->previous();
@@ -17,7 +18,7 @@
         @endphp
 
         <a href="{{ $backUrl }}" 
-            style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
+            style="border: 1px solid #32667e; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
             <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
         </a>
 
@@ -25,18 +26,18 @@
             class="download-js" 
             data-target="#bill" 
             data-filename="{{$data['current_bill']->reference_no}}" 
-            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 18px;" class='bx bxs-download'></i> Download
         </button>
 
         <button 
             class="print-js" 
-            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 18px;" class='bx bxs-printer'></i> Print
         </button>
 
         <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}" 
-            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
+            style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
             <i style="font-size: 18px;" class='bx bx-wallet'></i> Pay Now
         </a>
     </div>
@@ -73,19 +74,19 @@
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Account Name</div>
-                                <div>{{$data['client']->name}}</div>
+                                <div>{{$data['client']['name']}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Account No.</div>
-                                <div>{{$data['client']->account_no ?? ''}}</div>
+                                <div>{{$data['client']['account_no'] ?? ''}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Address</div>
-                                <div>{{$data['client']->address ?? ''}}</div>
+                                <div>{{$data['client']['address'] ?? ''}}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Type</div>
-                                <div>{{$data['client']->property_types->name ?? ''}}</div>
+                                <div>{{$data['client']['property_types']['name'] ?? ''}}</div>
                             </div>                
                         </div>
                     </div>

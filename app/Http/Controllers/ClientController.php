@@ -56,7 +56,7 @@ class ClientController extends Controller
     }
 
     public function store(StoreClientRequest $request) {
-
+        
         $payload = $request->validated();
 
         DB::beginTransaction();

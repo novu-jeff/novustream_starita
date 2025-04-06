@@ -12,11 +12,11 @@ class ClientService {
     public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return User::where('id', $id)->with('accounts')
+            return User::where('id', $id)->with('accounts.property_types')
                 ->first() ?? null;
         }
 
-        return User::with('accounts')->withCount('accounts')->where('isActive', true)->get();
+        return User::with('accounts.property_types')->withCount('accounts')->where('isActive', true)->get();
     }
 
     public static function create(array $payload) {
@@ -25,7 +25,6 @@ class ClientService {
 
         $user = User::create([
             'name' => $payload['name'],
-            'address' => $payload['address'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],
             'password' => Hash::make($payload['password'])
@@ -35,6 +34,7 @@ class ClientService {
              UserAccounts::create([
                 'user_id'  =>  $user->id,
                 'account_no'  =>  $account['account_no'],
+                'address' => $account['address'],
                 'property_type'  =>  $account['property_type'],
                 'rate_code'  =>  $account['rate_code'],
                 'status'  =>  $account['status'],
@@ -57,7 +57,6 @@ class ClientService {
 
         $updateData = [
             'name' => $payload['name'],
-            'address' => $payload['address'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],
         ];
@@ -75,6 +74,7 @@ class ClientService {
                 [
                     'user_id'  => $user->id,
                     'account_no'  => $account['account_no'],
+                    'address' => $account['address'],
                     'property_type'  => $account['property_type'],
                     'rate_code'  => $account['rate_code'],
                     'status'  => $account['status'],
