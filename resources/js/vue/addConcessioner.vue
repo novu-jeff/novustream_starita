@@ -1,6 +1,6 @@
 <template>
   <form ref="myForm"  @submit.prevent="saveConcessioner">
-      <div class="row pb-5">
+      <div class="row">
           <div class="col-md-12 mb-3">
               <div class="card shadow border-0">
                   <div class="card-header border-0 bg-primary bg-opacity-25">
@@ -64,255 +64,278 @@
                 </div>
               </div>
           </div>
-
-          <div class="col-md-12 mb-3" v-for="(account, index) in concessioner.accounts" :key="index">
-              <div class="card shadow border-0 position-relative">
-                    <div v-if="index !== 0 && account.id == null" class="d-flex py-3 gap-2 justify-content-end position-absolute" style="right: 10px; top: -6px;">
-                      <button type="button" class="btn btn-danger btn-sm px-3 py-2" @click="removeAccount(index)">
-                      <i class="fas fa-trash-alt"></i>
-                      </button>
+      </div>
+      <div class="card mt-3">
+        <div class="card-header border-0 bg-primary bg-opacity-25 pb-3">
+            <div class="text-uppercase fw-bold">Account Informations</div>
+        </div>
+        <div class="accordion accordion-flush border-5" v-for="(account, index) in concessioner.accounts" :key="index" id="accordionAccounts">
+          <div class="accordion-item border-2 shadow">
+            <h2 class="accordion-header d-flex align-items-center gap-3" :id="'flush-account-' + (index + 1)">
+              <button
+                class="accordion-button d-block text-uppercase fw-bold text-muted"
+                :class="{ collapsed: index !== maxIndex }"
+                type="button"
+                data-bs-toggle="collapse"
+                :data-bs-target="'#flush-account-collapse-' + (index + 1)"
+                :aria-controls="'flush-account-collapse-' + (index + 1)">
+                <div class="mb-1">
+                  Account No: {{ account.account_no }}  
+                </div>
+                <small class="text-muted">
+                  {{ account.address }}
+                </small>
+              </button>
+              <button class="remove-account btn btn-danger mb-0 me-3"><i class="bx bx-trash"></i></button>
+            </h2>
+            <div 
+              :id="'flush-account-collapse-' + (index + 1)"
+              class="accordion-collapse collapse"
+              :aria-labelledby="'flush-account-' + (index + 1)"
+              data-bs-parent="#accordionAccounts">
+                <div class="p-3">
+                  <div class="row border-bottom mb-4">
+                    <div class="col-md-4 mb-3">
+                        <label :for="'account_no_' + index" class="form-label">
+                          Account No. <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'account_no_' + index" 
+                                v-model="account.account_no" required
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }" 
+                                >
+                        <small v-if="errors['accounts.' + index + '.account_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
                     </div>
-                  <div class="card-header border-0 bg-primary" :class="{'bg-opacity-25': index % 2 === 0, 'bg-opacity-50': index % 2 !== 0}">
-                    <div class="text-uppercase fw-bold">Account Information #{{ index + 1 }}</div>
-                  </div>
-                  <div class="card-body">
-                      <div class="row border-bottom mb-4">
-                          <div class="col-md-4 mb-3">
-                              <label :for="'account_no_' + index" class="form-label">
-                                Account No. <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'account_no_' + index" 
-                                      v-model="account.account_no" required
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }" 
-                                      >
-                              <small v-if="errors['accounts.' + index + '.account_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                              <label :for="'property_type_' + index" class="form-label">
-                                Property Type <small class="text-danger">( required )</small>
-                              </label>
-                              <select class="form-control" 
-                                      :id="'property_type_' + index" 
-                                      v-model="account.property_type" required
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }" 
-                                      >
-                                <option :value="null" disabled>-- SELECT --</option>
-                                <option v-for="type in property_types" :key="type.id" :value="type.id">
-                                  {{ type.name.toUpperCase() }}
-                                </option>
-                              </select>
-                              <small v-if="errors['accounts.' + index + '.property_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.property_type'][0] }}</small>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                              <label :for="'rate_code_' + index" class="form-label">
-                                Rate Code <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="number" class="form-control" 
-                                    :id="'rate_code_' + index" 
-                                    v-model="account.rate_code" required
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
-                                    >
-                              <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
-                          </div>
-                          <div class="col-md-12 mb-3">
-                              <label :for="'address_' + index" class="form-label">
-                                Address <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'address_' + index" 
-                                      v-model="account.address" required
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" 
-                                      >
-                              <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
-                          </div>
-                          <div class="col-md-6 mb-3">
-                              <label :for="'status_' + index" class="form-label">
-                                Status <small class="text-danger">( required )</small>
-                              </label>
-                              <select class="form-control" 
-                                      :id="'status_' + index" 
-                                      v-model="account.status" required
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.status'] }" 
-                                      >
-                                <option :value="null">-- SELECT --</option>
-                                <option v-for="(label, key) in statusOptions" :key="key" :value="key">
-                                  {{ label }}
-                                </option>
-                              </select>
-                              <small v-if="errors['accounts.' + index + '.status']" class="text-danger px-1">{{ errors['accounts.' + index + '.status'][0] }}</small>
-                          </div>
-                          <div class="col-md-3 mb-3">
-                              <label :for="'meter_serial_no_' + index" class="form-label">
-                                Meter Serial No <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="text" class="form-control" 
-                                    :id="'meter_serial_no_' + index" 
-                                    v-model="account.meter_serial_no" required
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_serial_no'] }"
-                                    >
-                              <small v-if="errors['accounts.' + index + '.meter_serial_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_serial_no'][0] }}</small>
-                          </div>
-                          <div class="col-md-3 mb-3">
-                              <label :for="'sc_no_' + index" class="form-label">
-                                SC No <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="text" class="form-control" 
-                                    :id="'sc_no_' + index" 
-                                    v-model="account.sc_no" required
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_no'] }"
-                                    >
-                              <small v-if="errors['accounts.' + index + '.sc_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sc_no'][0] }}</small>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                              <label :for="'date_connected_' + index" class="form-label">
-                                Date Connected <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="date" class="form-control" 
-                                    :id="'date_connected_' + index" 
-                                    v-model="account.date_connected" required
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.date_connected'] }"
-                                    >
-                              <small v-if="errors['accounts.' + index + '.date_connected']" class="text-danger px-1">{{ errors['accounts.' + index + '.date_connected'][0] }}</small>
-                          </div>
-                          <div class="col-md-8 mb-3">
-                              <label :for="'sequence_no_' + index" class="form-label">
-                                Sequence No <small class="text-danger">( required )</small>
-                              </label>
-                              <input type="text" class="form-control" 
-                                    :id="'sequence_no_' + index" 
-                                    v-model="account.sequence_no" required
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sequence_no'] }"
-                                    >
-                              <small v-if="errors['accounts.' + index + '.sequence_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sequence_no'][0] }}</small>
-                          </div>
-                      </div>
-                      <div class="row">
-                          <div class="col-md-6 mb-3">
-                              <label :for="'meter_brand_' + index" class="form-label">
-                                Meter Brand
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'meter_brand_' + index" 
-                                      v-model="account.meter_brand"
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_brand'] }"
-                                      >
-                              <small v-if="errors['accounts.' + index + '.meter_brand']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_brand'][0] }}</small>
-                          </div>
-                          <div class="col-md-6 mb-3">
-                              <label :for="'meter_type_' + index" class="form-label">
-                                Meter Type 
-                              </label>
-                              <input type="text" class="form-control" 
-                                    :id="'meter_type_' + index" 
-                                    v-model="account.meter_type"
-                                    :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
-                                    >
-                              <small v-if="errors['accounts.' + index + '.meter_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_type'][0] }}</small>
-                          </div>
-                          <div class="col-md-7 mb-3">
-                              <label :for="'meter_wire_' + index" class="form-label">
-                                Meter Wire 
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'meter_wire_' + index" 
-                                      v-model="account.meter_wire"
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
-                                      >
-                          </div>
-                          <div class="col-md-5 mb-3">
-                              <label :for="'meter_form_' + index" class="form-label">
-                                Meter Form 
-                              </label>
-                              <input type="text" class="form-control" 
-                                        :id="'meter_form_' + index" 
-                                        v-model="account.meter_form"
-                                        :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_form'] }"
-                                        >
-                              <small v-if="errors['accounts.' + index + '.meter_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_form'][0] }}</small>
-                          </div>
-                          <div class="col-md-5 mb-3">
-                              <label :for="'meter_class_' + index" class="form-label">
-                                Meter Class 
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'meter_class_' + index" 
-                                      v-model="account.meter_class"
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_class'] }"
-                                      >
-                              <small v-if="errors['accounts.' + index + '.meter_class']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_class'][0] }}</small>
-                          </div>
-                          <div class="col-md-4 mb-3">
-                              <label :for="'lat_long_' + index" class="form-label">
-                                Latitude/Longitude
-                              </label>
-                              <input type="text" class="form-control" 
-                                      :id="'lat_long_' + index" 
-                                      v-model="account.lat_long"
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.lat_long'] }"
-                                      >
-                              <small v-if="errors['accounts.' + index + '.lat_long']" class="text-danger px-1">{{ errors['accounts.' + index + '.lat_long'][0] }}</small>
-                          </div>
-                          <div class="col-md-3 mb-3">
-                              <label :for="'isErcSealed_' + index" class="form-label">
-                                ERC Sealed
-                              </label>
-                              <select class="form-control" 
-                                      :id="'isErcSealed_' + index" 
-                                      v-model="account.isErcSealed"
-                                      :class="{ 'is-invalid': errors && errors['accounts.' + index + '.isErcSealed'] }"
-                                      >
-                                <option :value="null">-- SELECT --</option>
-                                <option :value="1">Yes</option>
-                                <option :value="0">No</option>
-                              </select>
-                              <small v-if="errors['accounts.' + index + '.isErcSealed']" class="text-danger px-1">{{ errors['accounts.' + index + '.isErcSealed'][0] }}</small>
-                          </div>
-                          <div class="col-md-12 mb-3">
-                            <label :for="'inspectionImage_' + index" class="form-label">
-                              Upload Inspection Image
-                            </label>
-                            <input
-                              type="file"
-                              class="form-control"
-                              :id="'inspectionImage_' + index"
-                              @change="handleFileUpload($event, index)"
-                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.inspectionImage'] }"
-                            />
-                            <small v-if="errors['accounts.' + index + '.inspectionImage']" class="text-danger px-1">
-                              {{ errors['accounts.' + index + '.inspectionImage'][0] }}
-                            </small>
-                          </div>
-                          <div class="col-md-12 mb-3">
-                            <label :for="'inspectedImage' + index" class="form-label">
-                              Inspection Image
-                            </label>
-                            <img
-                              v-if="account.inspectionImage"
-                              :src="getImageSrc(account.inspectionImage)"
-                              alt="Inspection Preview"
-                              class="w-100 mt-2"
-                            />
-                          </div>
+                    <div class="col-md-4 mb-3">
+                        <label :for="'property_type_' + index" class="form-label">
+                          Property Type <small class="text-danger">( required )</small>
+                        </label>
+                        <select class="form-control" 
+                                :id="'property_type_' + index" 
+                                v-model="account.property_type" required
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }" 
+                                >
+                          <option :value="null" disabled>-- SELECT --</option>
+                          <option v-for="type in property_types" :key="type.id" :value="type.id">
+                            {{ type.name.toUpperCase() }}
+                          </option>
+                        </select>
+                        <small v-if="errors['accounts.' + index + '.property_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.property_type'][0] }}</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label :for="'rate_code_' + index" class="form-label">
+                          Rate Code <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="number" class="form-control" 
+                              :id="'rate_code_' + index" 
+                              v-model="account.rate_code" required
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
+                              >
+                        <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <label :for="'address_' + index" class="form-label">
+                          Address <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'address_' + index" 
+                                v-model="account.address" required
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" 
+                                >
+                        <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label :for="'status_' + index" class="form-label">
+                          Status <small class="text-danger">( required )</small>
+                        </label>
+                        <select class="form-control" 
+                                :id="'status_' + index" 
+                                v-model="account.status" required
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.status'] }" 
+                                >
+                          <option :value="null">-- SELECT --</option>
+                          <option v-for="(label, key) in statusOptions" :key="key" :value="key">
+                            {{ label }}
+                          </option>
+                        </select>
+                        <small v-if="errors['accounts.' + index + '.status']" class="text-danger px-1">{{ errors['accounts.' + index + '.status'][0] }}</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label :for="'meter_serial_no_' + index" class="form-label">
+                          Meter Serial No <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="text" class="form-control" 
+                              :id="'meter_serial_no_' + index" 
+                              v-model="account.meter_serial_no" required
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_serial_no'] }"
+                              >
+                        <small v-if="errors['accounts.' + index + '.meter_serial_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_serial_no'][0] }}</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label :for="'sc_no_' + index" class="form-label">
+                          SC No <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="text" class="form-control" 
+                              :id="'sc_no_' + index" 
+                              v-model="account.sc_no" required
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_no'] }"
+                              >
+                        <small v-if="errors['accounts.' + index + '.sc_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sc_no'][0] }}</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label :for="'date_connected_' + index" class="form-label">
+                          Date Connected <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="date" class="form-control" 
+                              :id="'date_connected_' + index" 
+                              v-model="account.date_connected" required
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.date_connected'] }"
+                              >
+                        <small v-if="errors['accounts.' + index + '.date_connected']" class="text-danger px-1">{{ errors['accounts.' + index + '.date_connected'][0] }}</small>
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label :for="'sequence_no_' + index" class="form-label">
+                          Sequence No <small class="text-danger">( required )</small>
+                        </label>
+                        <input type="text" class="form-control" 
+                              :id="'sequence_no_' + index" 
+                              v-model="account.sequence_no" required
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sequence_no'] }"
+                              >
+                        <small v-if="errors['accounts.' + index + '.sequence_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sequence_no'][0] }}</small>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label :for="'meter_brand_' + index" class="form-label">
+                          Meter Brand
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'meter_brand_' + index" 
+                                v-model="account.meter_brand"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_brand'] }"
+                                >
+                        <small v-if="errors['accounts.' + index + '.meter_brand']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_brand'][0] }}</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label :for="'meter_type_' + index" class="form-label">
+                          Meter Type 
+                        </label>
+                        <input type="text" class="form-control" 
+                              :id="'meter_type_' + index" 
+                              v-model="account.meter_type"
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
+                              >
+                        <small v-if="errors['accounts.' + index + '.meter_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_type'][0] }}</small>
+                    </div>
+                    <div class="col-md-7 mb-3">
+                        <label :for="'meter_wire_' + index" class="form-label">
+                          Meter Wire 
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'meter_wire_' + index" 
+                                v-model="account.meter_wire"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
+                                >
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <label :for="'meter_form_' + index" class="form-label">
+                          Meter Form 
+                        </label>
+                        <input type="text" class="form-control" 
+                                  :id="'meter_form_' + index" 
+                                  v-model="account.meter_form"
+                                  :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_form'] }"
+                                  >
+                        <small v-if="errors['accounts.' + index + '.meter_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_form'][0] }}</small>
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <label :for="'meter_class_' + index" class="form-label">
+                          Meter Class 
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'meter_class_' + index" 
+                                v-model="account.meter_class"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_class'] }"
+                                >
+                        <small v-if="errors['accounts.' + index + '.meter_class']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_class'][0] }}</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label :for="'lat_long_' + index" class="form-label">
+                          Latitude/Longitude
+                        </label>
+                        <input type="text" class="form-control" 
+                                :id="'lat_long_' + index" 
+                                v-model="account.lat_long"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.lat_long'] }"
+                                >
+                        <small v-if="errors['accounts.' + index + '.lat_long']" class="text-danger px-1">{{ errors['accounts.' + index + '.lat_long'][0] }}</small>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label :for="'isErcSealed_' + index" class="form-label">
+                          ERC Sealed
+                        </label>
+                        <select class="form-control" 
+                                :id="'isErcSealed_' + index" 
+                                v-model="account.isErcSealed"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.isErcSealed'] }"
+                                >
+                          <option :value="null">-- SELECT --</option>
+                          <option :value="1">Yes</option>
+                          <option :value="0">No</option>
+                        </select>
+                        <small v-if="errors['accounts.' + index + '.isErcSealed']" class="text-danger px-1">{{ errors['accounts.' + index + '.isErcSealed'][0] }}</small>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                      <label :for="'inspectionImage_' + index" class="form-label">
+                        Upload Inspection Image
+                      </label>
+                      <input
+                        type="file"
+                        class="form-control"
+                        :id="'inspectionImage_' + index"
+                        @change="handleFileUpload($event, index)"
+                        :class="{ 'is-invalid': errors && errors['accounts.' + index + '.inspectionImage'] }"
+                      />
+                      <small v-if="errors['accounts.' + index + '.inspectionImage']" class="text-danger px-1">
+                        {{ errors['accounts.' + index + '.inspectionImage'][0] }}
+                      </small>
+                    </div>
+                    <div v-if="account.inspection_image" class="col-md-12 mb-3">
+                      <label :for="'inspectedImage' + index" class="form-label">
+                        Inspection Image
+                      </label>
+                      <div class="card shadow mt-2">
+                        <div class="card-body">
+                          <img
+                            v-if="inspection_image"
+                            :src="getImageSrc(account)"
+                            alt="Inspection Preview"
+                            class="w-100 mt-2 image-inspected"
+                          />
+                        </div>
                       </div>
                   </div>
+                </div>
               </div>
+            </div>
           </div>
-          
-          <div class="d-flex py-3 gap-2 justify-content-end">
-            <button type="button" class="btn btn-secondary px-5 py-3 text-uppercase" :disabled="loading" @click="addAccount">Add Account</button>
-            <button type="submit" class="btn btn-primary px-5 py-3 text-uppercase d-flex align-items-center gap-2" :disabled="loading">
-              Submit
-              <div class="spinner-border spinner-border-sm" role="status" v-if="loading">
-                <span class="visually-hidden">Loading...</span>
-              </div>
-            </button>
+        </div>
+      </div>
+      <div class="d-flex py-3 gap-3 justify-content-end mt-5 pb-5">
+        <button type="button" class="btn btn-secondary px-5 py-3 text-uppercase" :disabled="loading" @click="addAccount">Add Account</button>
+        <button type="submit" class="btn btn-primary px-5 py-3 text-uppercase d-flex align-items-center gap-2" :disabled="loading">
+          Submit
+          <div class="spinner-border spinner-border-sm" role="status" v-if="loading">
+            <span class="visually-hidden">Loading...</span>
           </div>
+        </button>
       </div>
   </form>
 </template>
 
 <script>
+
 export default {
   props: {
     property_types: {
@@ -375,12 +398,12 @@ export default {
     }
   },
   methods: {
-    getImageSrc(image) {
-      if (image instanceof File) {
-        return URL.createObjectURL(image);
+    getImageSrc(account) {
+      if (typeof account.inspection_image === 'string') {
+        // If it's a string (filename), return the full URL path
+        return '/storage/inspection_images/' + account.account_no + '/' + account.inspection_image;
       }
-    return `/storage/inspection_images/${image}`;
-  },
+    },
     handleFileUpload(event, index) {
       const file = event.target.files[0];
       if (file) {
@@ -516,5 +539,18 @@ export default {
 </script>
 
 <style>
+  img.image-inspected {
+    width: 100%;
+    height: 500px;
+    overflow-y: scroll;
+    object-fit: cover;
+    cursor: pointer;
+  }
+  
+  .remove-account {
+    position: absolute;
+    right: 0;
+    z-index: 999;
+  }
 
 </style>

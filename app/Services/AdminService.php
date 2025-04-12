@@ -29,7 +29,7 @@ class AdminService {
                 'name' => $payload['name'],
                 'email' => $payload['email'],
                 'user_type' => $payload['role'],
-                'password' => $payload['password']
+                'password' => Hash::make($payload['password'])
             ]);
 
             DB::commit();

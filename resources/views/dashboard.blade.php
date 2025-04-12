@@ -18,7 +18,7 @@
                 <div class="col-12 col-md-4 mb-3">
                     <div class="card border-primary border-2 shadow p-3">
                         <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-medium">Clients</h4>
+                            <h4 class="mb-3 text-uppercase fw-medium">Concessionaires</h4>
                             <h1>{{$data['users']['client'] ?? 0}}</h1>
                         </div>
                     </div>
@@ -31,6 +31,18 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div>
+                <hr class="mt-3 mb-3">
+                <p class="text-uppercase text-muted fw-bold">
+                    As of 
+                    <span class="text-decoration-underline fst-italic">
+                      {{ \Carbon\Carbon::now()->format('F d, Y \a\t h:i A') }}
+                    </span>
+                </p>                  
+            </div>
+
+            <div class="row">
                 <div class="col-12 col-md-4 mb-3">
                     <div class="card border-primary border-2 shadow p-3">
                         <div class="card-body">
