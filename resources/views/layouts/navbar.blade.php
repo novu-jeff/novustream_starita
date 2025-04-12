@@ -51,7 +51,6 @@
 							<li><a class="dropdown-item" href="{{route('base-rate.index')}}">Base Rate</a></li>
 
 							@can('app-novustream')
-								<!-- novustream only -->
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
 							@endcan
 
