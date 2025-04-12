@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountOverviewController;
-use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ConcessionaireController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
@@ -69,13 +69,13 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('roles')
             ->only('index', 'destroy');
 
-        Route::resource('concessionaires', ClientController::class)
+        Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
             ->except('show');
 
-        Route::get('concessionaires/import', [ClientController::class, 'import_view'])
+        Route::get('concessionaires/import', [ConcessionaireController::class, 'import_view'])
             ->name('concessionaires.import.view');
-        Route::post('concessionaires/import', [ClientController::class, 'import_action'])
+        Route::post('concessionaires/import', [ConcessionaireController::class, 'import_action'])
             ->name('concessionaires.import.action');
 
         Route::resource('personnel', AdminController::class)
@@ -108,10 +108,10 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     });
 
 
-    Route::get('/transactions', [ClientController::class, 'index'])
+    Route::get('/transactions', [ConcessionaireController::class, 'index'])
         ->name('transactions');
 
-    Route::get('/reports', [ClientController::class, 'index'])
+    Route::get('/reports', [ConcessionaireController::class, 'index'])
         ->name('reports');
 
     Route::prefix('/support')->group(function() {

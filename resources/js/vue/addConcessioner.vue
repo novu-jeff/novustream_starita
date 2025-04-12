@@ -1,6 +1,6 @@
 <template>
-  <form ref="myForm" @submit.prevent="saveConcessioner">
-      <div class="row">
+  <form ref="myForm"  @submit.prevent="saveConcessioner">
+      <div class="row pb-5">
           <div class="col-md-12 mb-3">
               <div class="card shadow border-0">
                   <div class="card-header border-0 bg-primary bg-opacity-25">
@@ -268,6 +268,32 @@
                               </select>
                               <small v-if="errors['accounts.' + index + '.isErcSealed']" class="text-danger px-1">{{ errors['accounts.' + index + '.isErcSealed'][0] }}</small>
                           </div>
+                          <div class="col-md-12 mb-3">
+                            <label :for="'inspectionImage_' + index" class="form-label">
+                              Upload Inspection Image
+                            </label>
+                            <input
+                              type="file"
+                              class="form-control"
+                              :id="'inspectionImage_' + index"
+                              @change="handleFileUpload($event, index)"
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.inspectionImage'] }"
+                            />
+                            <small v-if="errors['accounts.' + index + '.inspectionImage']" class="text-danger px-1">
+                              {{ errors['accounts.' + index + '.inspectionImage'][0] }}
+                            </small>
+                          </div>
+                          <div class="col-md-12 mb-3">
+                            <label :for="'inspectedImage' + index" class="form-label">
+                              Inspection Image
+                            </label>
+                            <img
+                              v-if="account.inspectionImage"
+                              :src="getImageSrc(account.inspectionImage)"
+                              alt="Inspection Preview"
+                              class="w-100 mt-2"
+                            />
+                          </div>
                       </div>
                   </div>
               </div>
@@ -290,14 +316,14 @@
 export default {
   props: {
     property_types: {
-      type: Array, 
+      type: Array,
       required: true,
     },
     data: {
-      type: Array,
+      type: Object,
       required: false,
-      default: () => null
-    }
+      default: () => null,
+    },
   },
   data() {
     return {
@@ -326,6 +352,7 @@ export default {
             meter_class: '',
             lat_long: '',
             isErcSealed: null,
+            inspectionImage: '',
           },
         ],
       },
@@ -337,13 +364,29 @@ export default {
         IV: 'IV - Inactive Discon',
       },
     };
-  }, 
+  },
   created() {
-    if(this.data) {
-      this.concessioner = this.data
+    if (this.data) {
+      this.concessioner = {
+        ...this.concessioner,
+        ...this.data,
+        accounts: this.data.accounts ?? this.concessioner.accounts,
+      };
     }
   },
   methods: {
+    getImageSrc(image) {
+      if (image instanceof File) {
+        return URL.createObjectURL(image);
+      }
+    return `/storage/inspection_images/${image}`;
+  },
+    handleFileUpload(event, index) {
+      const file = event.target.files[0];
+      if (file) {
+        this.concessioner.accounts[index].inspectionImage = file;
+      }
+    },
     addAccount() {
       this.concessioner.accounts.push({
         account_no: '',
@@ -362,6 +405,7 @@ export default {
         meter_class: '',
         lat_long: '',
         isErcSealed: true,
+        inspectionImage: '',
       });
     },
     saveConcessioner() {
@@ -372,29 +416,55 @@ export default {
       let method = 'post';
 
       if (this.concessioner.id != null) {
-          endpoint = `/admin/users/concessionaires/${this.concessioner.id}`;
-          method = 'put';
+        endpoint = `/admin/users/concessionaires/${this.concessioner.id}`;
+        method = 'post'; // Use POST with `_method` override since PUT doesn't handle FormData well
+      }
+
+      const formData = new FormData();
+
+      // Append top-level fields
+      for (const key in this.concessioner) {
+        if (key !== 'accounts') {
+          formData.append(key, this.concessioner[key]);
+        }
+      }
+
+      // Append nested accounts
+      this.concessioner.accounts.forEach((account, index) => {
+        for (const key in account) {
+          const value = account[key];
+          if (key === 'inspectionImage' && value instanceof File) {
+            formData.append(`accounts[${index}][${key}]`, value);
+          } else {
+            formData.append(`accounts[${index}][${key}]`, value ?? '');
+          }
+        }
+      });
+
+      if (this.concessioner.id != null) {
+        formData.append('_method', 'PUT');
       }
 
       axios({
-          method: method,
-          url: endpoint,
-          data: this.concessioner ,
-          headers: {
-              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-              'Content-Type': 'application/json'
-          }
-        })
-        .then(response => {
-          if(this.concessioner.id == null) {
+        method: method,
+        url: endpoint,
+        data: formData,
+        headers: {
+          'X-CSRF-TOKEN': document
+            .querySelector('meta[name="csrf-token"]')
+            .getAttribute('content'),
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+        .then((response) => {
+          if (this.concessioner.id == null) {
             this.resetForm();
           }
           alert(response.data.status, response.data.message);
         })
-        .catch(error => {
-          if (error.response.status && error.response.status === 422) {
+        .catch((error) => {
+          if (error.response && error.response.status === 422) {
             const errors = error.response.data.errors
-            console.log(errors);
             this.errors = errors;
             if (errors.accounts) {
               alert('error', errors.accounts[0]);
@@ -402,15 +472,15 @@ export default {
           } else {
             alert(error.status, error.message);
           }
-        }).finally(() => {
+        })
+        .finally(() => {
           this.loading = false;
         });
-
     },
     removeAccount(index) {
       this.concessioner.accounts.splice(index, 1);
     },
-    resetForm(){
+    resetForm() {
       this.concessioner = {
         name: '',
         contact_no: '',
@@ -435,12 +505,13 @@ export default {
             meter_class: '',
             lat_long: '',
             isErcSealed: null,
+            inspectionImage: '',
           },
         ],
       };
-    }
-  }
-}
+    },
+  },
+};
 
 </script>
 

@@ -48,6 +48,7 @@ class UpdateClientRequest extends FormRequest
             'accounts.*.meter_class' => 'nullable|string|max:120',
             'accounts.*.lat_long' => 'nullable|string|max:120',
             'accounts.*.isErcSealed' => 'nullable',
+            'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif'
         ];
     }
 
@@ -101,6 +102,9 @@ class UpdateClientRequest extends FormRequest
             'accounts.*.meter_class.max' => 'The meter class must not exceed 120 characters.',
             'accounts.*.lat_long.string' => 'The latitude/longitude must be a valid string.',
             'accounts.*.lat_long.max' => 'The latitude/longitude must not exceed 120 characters.',
+            'accounts.*.inspectionImage.image' => 'The uploaded file must be an image.',
+            'accounts.*.inspectionImage.mimes' => 'The image must be a file of type: jpg, png, jpeg, gif.',
         ];
+
     }
 }

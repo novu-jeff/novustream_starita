@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserAccounts;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Calculation\Database\DVar;
@@ -127,18 +129,30 @@ class InspectionController extends Controller
 
         try {
 
-            UserAccounts::where('account_no', $payloads['account_no'])
-                ->update([
-                    'meter_brand' => $payloads['meter_brand'],
-                    'meter_serial_no' => $payloads['meter_serial_no'],
-                    'meter_type' => $payloads['meter_type'],
-                    'meter_wire' => $payloads['meter_wire'],
-                    'meter_form' => $payloads['meter_form'],
-                    'meter_class' => $payloads['meter_class'],
-                    'lat_long' => $payloads['lat_long'],
-                    'isErcSealed' => $payloads['isErcSealed'] == 'true' ? true : false,
-                    'inspection_image' => $request->file('inspection_image')->store('inspection_images', 'public'),
-                ]);
+            $path = 'inspection_images/' . $payloads['account_no'];
+
+
+            if (isset($payloads['inspection_image']) && $payloads['inspection_image'] instanceof UploadedFile) {
+                
+                $extension = $payloads['inspection_image']->getClientOriginalExtension();
+                $date = Carbon::now()->timestamp; 
+                $fileName = "inspection_image_{$date}.{$extension}";
+            
+                $payloads['inspection_image']->storeAs($path, $fileName, 'public');
+            
+                UserAccounts::where('account_no', $payloads['account_no'])
+                    ->update([
+                        'meter_brand' => $payloads['meter_brand'],
+                        'meter_serial_no' => $payloads['meter_serial_no'],
+                        'meter_type' => $payloads['meter_type'],
+                        'meter_wire' => $payloads['meter_wire'],
+                        'meter_form' => $payloads['meter_form'],
+                        'meter_class' => $payloads['meter_class'],
+                        'lat_long' => $payloads['lat_long'],
+                        'isErcSealed' => $payloads['isErcSealed'] == 'true' ? true : false,
+                        'inspection_image' => $fileName, 
+                    ]);
+            }
             
             DB::commit();
 

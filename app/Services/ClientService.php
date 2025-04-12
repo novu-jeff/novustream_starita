@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\UserAccounts;
+use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -31,6 +33,19 @@ class ClientService {
         ]);
 
         foreach ($accounts as $account) {
+
+            $path = 'inspection_images/' . $account['account_no'];
+                        
+            if (isset($account['inspectionImage']) && $account['inspectionImage'] instanceof UploadedFile) {
+                $extension = $account['inspectionImage']->getClientOriginalExtension();
+                $date = Carbon::now()->timestamp;
+                $fileName = "inspection_image_{$date}.{$extension}";
+        
+                $account['inspectionImage']->storeAs($path, $fileName, 'public');
+        
+                $inspectionImage = $fileName; 
+            }
+
              UserAccounts::create([
                 'user_id'  =>  $user->id,
                 'account_no'  =>  $account['account_no'],
@@ -43,6 +58,7 @@ class ClientService {
                 'meter_serial_no'  =>  $account['meter_serial_no'],
                 'date_connected'  =>  $account['date_connected'],
                 'sequence_no'  =>  $account['sequence_no'],
+                'inspection_image'  => $inspectionImage,
             ]);
         }
 
@@ -53,7 +69,7 @@ class ClientService {
 
         $accounts = $payload['accounts'];
 
-        $user = User::where('isActive', true)->findOrFail($id);
+        $user = User::with('accounts')->where('isActive', true)->findOrFail($id);
 
         $updateData = [
             'name' => $payload['name'],
@@ -67,8 +83,29 @@ class ClientService {
 
         $user->update($updateData);
 
-        // Loop through accounts and update or create
         foreach ($accounts as $account) {
+
+            $path = 'inspection_images/' . $account['account_no'];
+            
+            $savedInspection = $user->accounts->where('account_no', $account['account_no'])->first()->inspection_image ?? null;
+
+            if (isset($account['inspectionImage']) && $account['inspectionImage'] instanceof UploadedFile) {
+                $extension = $account['inspectionImage']->getClientOriginalExtension();
+                $date = Carbon::now()->timestamp;
+                $fileName = "inspection_image_{$date}.{$extension}";
+        
+                $account['inspectionImage']->storeAs($path, $fileName, 'public');
+        
+                $inspectionImage = $fileName; 
+
+                UserAccounts::updateOrCreate(
+                    ['id' => $account['id'] ?? null],
+                    [
+                        'inspection_image' => $inspectionImage        
+                    ]
+                );
+            } 
+
             UserAccounts::updateOrCreate(
                 ['id' => $account['id'] ?? null],
                 [

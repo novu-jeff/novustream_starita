@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
-class ClientController extends Controller
+class ConcessionaireController extends Controller
 {
 
     public $clientService;
@@ -122,14 +122,15 @@ class ClientController extends Controller
 
         $data = $this->clientService::getData($id);
         $property_types = $this->propertyTypesService::getData();
-
+        
         return view('concessionaires.form', compact('data', 'property_types'));
     }
 
     public function update(int $id, UpdateClientRequest $request) {
 
+
         $payload = $request->validated();
-        
+
         DB::beginTransaction();
 
         try {
