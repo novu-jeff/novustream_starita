@@ -103,7 +103,7 @@ class InspectionController extends Controller
     public function update(Request $request) {
 
         $validator = Validator::make($request->all(), [
-            'account_no' => 'required|string',
+            'account_no' => 'required|string|exists:concessioner_accounts,account_no',
             'meter_brand' => 'required|string',
             'meter_serial_no' => 'required|string',
             'meter_type' => 'required|string',
@@ -113,6 +113,8 @@ class InspectionController extends Controller
             'lat_long' => 'required|string',
             'isErcSealed' => 'required|in:true,false',
             'inspection_image' => 'required|image|mimes:jpeg,png,jpg',
+        ] , [
+            'account_no.exists' => 'The account no does not exists.'
         ]);
 
         if($validator->fails()) {

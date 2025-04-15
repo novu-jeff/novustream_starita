@@ -307,12 +307,17 @@
                       </label>
                       <div class="card shadow mt-2">
                         <div class="card-body">
-                          <img
-                            v-if="inspection_image"
-                            :src="getImageSrc(account)"
-                            alt="Inspection Preview"
-                            class="w-100 mt-2 image-inspected"
-                          />
+                          <div v-if="account.inspection_image" class="col-md-12 mb-3">
+                            <div class="lightgallery" :id="'lightgallery-' + index">
+                              <a :href="getImageSrc(account)">
+                                <img
+                                  :src="getImageSrc(account)"
+                                  alt="Inspection Preview"
+                                  class="w-100 mt-2 image-inspected"
+                                />
+                              </a>
+                            </div>
+                          </div>
                         </div>
                       </div>
                   </div>
@@ -336,7 +341,12 @@
 
 <script>
 
+import { nextTick } from 'vue';
+
 export default {
+  mounted() {
+    this.lightGallery();
+  },
   props: {
     property_types: {
       type: Array,
@@ -398,6 +408,16 @@ export default {
     }
   },
   methods: {
+    lightGallery() {
+      nextTick(() => {
+        document.querySelectorAll('.lightgallery').forEach((gallery) => {
+          lightGallery(gallery, {
+            plugins: [lgZoom, lgThumbnail],
+            speed: 500,
+          });
+        });
+      });
+    },
     getImageSrc(account) {
       if (typeof account.inspection_image === 'string') {
         // If it's a string (filename), return the full URL path

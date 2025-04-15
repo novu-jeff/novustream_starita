@@ -30,7 +30,6 @@ return new class extends Migration
             $table->string('sc_no');
             $table->string('date_connected');
             $table->string('sequence_no');
-            
             $table->string('meter_type')
                 ->nullable();
             $table->string('meter_wire')

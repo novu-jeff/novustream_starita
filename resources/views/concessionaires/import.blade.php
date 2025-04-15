@@ -22,7 +22,7 @@
                         </div> 
                     </div>
                     <div class="d-flex justify-content-end my-5">
-                        <button type="submit" class="btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
+                        <button type="submit" class="showBtn btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
                     </div>
                 </form>                
             </div>
@@ -41,7 +41,10 @@
             @endif
 
             $("form").on("submit", function(e){
+
                 e.preventDefault(); 
+
+                showLoader();
                 
                 let formData = new FormData(this); 
 
@@ -53,14 +56,23 @@
                 })
                 .then(response => {
                     alert('success', "File uploaded successfully!");
-                    console.log(response.data);
+                    hideLoader();
                 })
                 .catch(error => {
                     alert('error', "Error uploading file!");
-                    console.error(error.response);
+                    hideLoader();
                 });
 
             });
+
+            function showLoader() {
+                $('.showBtn').html("<i class='bx bx-loader-alt bx-spin' ></i>");
+            }
+
+            function hideLoader() {
+                $('.showBtn').html("Submit");
+            }
+
         });
     </script>
 @endsection
