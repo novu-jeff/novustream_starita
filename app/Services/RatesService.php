@@ -30,6 +30,7 @@ class RatesService {
 
         return Rates::where('property_types_id', $property_type)->with('property_type')->get();
     }
+    
     public function create(array $payload) {
       
         $rates =  $this->getData($payload['property_type']);
