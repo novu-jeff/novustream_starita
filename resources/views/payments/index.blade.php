@@ -5,9 +5,13 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>{{$filter}} Bills</h1>
-                <div class="d-flex align-items-center gap-2">
-                    <a href="{{ route('payments.show', ['payment' => $filter === 'paid' ? 'unpaid' : 'paid']) }}" 
+                <div class="d-flex align-items-center gap-3">
+                    <a href="{{ route('payments.upload') }}" 
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                         Upload Billing
+                     </a>     
+                    <a href="{{ route('payments.show', ['payment' => $filter === 'paid' ? 'unpaid' : 'paid']) }}" 
+                        class="btn btn-primary px-5 py-3 text-uppercase">
                          View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
                      </a>                     
                 </div>
@@ -32,10 +36,21 @@
         </div>
     </main>
 @endsection
-
 @section('script')
 <script>
     $(function() {
+
+        @if (session('alert'))
+            setTimeout(() => {
+                let alertData = @json(session('alert'));
+                if (alertData.status === 'success' && alertData.payment_request) {
+                    window.open(alertData.redirect, '_blank', 'width=1200,height=900,scrollbars=yes,resizable=yes');
+                } else {
+                    alert(alertData.status, alertData.message);
+                }
+            }, 100);
+        @endif
+
         const url = '{{ route('payments.show', ['payment' => $filter]) }}';
 
         let table = $('table').DataTable({
@@ -49,7 +64,7 @@
                 { data: 'amount', name: 'amount' },
                 { data: 'due_date', name: 'due_date' },
                 { data: 'status', name: 'status' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
+                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
             ],
             responsive: true,
             order: [[0, 'asc']],

@@ -35,6 +35,8 @@ return new class extends Migration
             $table->string('amount');
             $table->string('amount_paid')
                 ->nullable();
+            $table->string('change')
+                ->nullable();
             $table->boolean('isPaid')
                 ->default(false);
             $table->string('date_paid')

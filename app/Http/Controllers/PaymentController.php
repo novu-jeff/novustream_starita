@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\PreviousBillingImport;
 use App\Models\Bill;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 class PaymentController extends Controller
@@ -24,6 +27,50 @@ class PaymentController extends Controller
 
     public function index() {
         return redirect()->route('payments.show', ['payment' => 'unpaid']);
+    }
+
+    public function upload(Request $request) {
+        
+        if($request->getMethod() == 'POST') {
+
+            $request->validate([
+                'file' => 'required|mimes:xlsx,csv|max:5120', 
+            ]);
+        
+            try {
+    
+                if (!$request->hasFile('file')) {
+                    return redirect()->back()->with('alert', [
+                        'status' => 'error',
+                        'message' => 'No file was uploaded.',
+                    ]);
+                }
+        
+                Excel::import(new PreviousBillingImport, $request->file('file'));
+    
+    
+                return response(['status' => 'success', 'message' => 'Clients imported successfully']);
+        
+            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+                $failures = $e->failures();
+                $errors = [];
+        
+                foreach ($failures as $failure) {
+                    $errors[] = "Row {$failure->row()}: " . implode(', ', $failure->errors());
+                }
+        
+                return response(['status' => 'error', 'message' => implode('<br>', $errors)]);
+    
+        
+            } catch (\Exception $e) {
+                Log::error($e->getMessage());
+                return response(['status' => 'error', 'message' => $e->getMessage()]);
+            }
+
+        } else {
+            return view('payments.upload');
+        }
+
     }
 
     public function show(string $filter) {
@@ -59,8 +106,9 @@ class PaymentController extends Controller
 
         $data = $this->meterService::getBill($reference_no);
 
+
         if(isset($data['status']) && $data['status'] == 'error') {
-            return redirect()->route('payments.index')->with('alert', [
+            return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => $data['message']
             ]);
@@ -117,9 +165,14 @@ class PaymentController extends Controller
         $data = $result['data']; 
     
         $now = Carbon::now()->format('Y-m-d H:i:s');
+        
+        $amount = $data['current_bill']->amount;
+        $change = $payload['payment_amount'] - $amount;
     
         $data['current_bill']->update([
             'isPaid' => true,
+            'amount_paid' => $payload['payment_amount'],
+            'change' => $change,
             'payor_name' => $payload['payor'],
             'date_paid' => $now,
         ]);
@@ -130,6 +183,8 @@ class PaymentController extends Controller
                     'payor_name' => $payload['payor'],
                     'date_paid' => $now,
                     'isPaid' => true,
+                    'amount_paid' => $payload['payment_amount'],
+                    'change' => $change,
                     'paid_by_reference_no' => $reference_no
                 ]);
             }

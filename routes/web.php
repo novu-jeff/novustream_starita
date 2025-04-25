@@ -85,6 +85,10 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::prefix('payments')->group(function() {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
+        Route::get('previous/billing', [PaymentController::class, 'upload'])
+            ->name('payments.upload'); 
+        Route::post('previous/billing', [PaymentController::class, 'upload'])
+            ->name('payments.upload'); 
         Route::get('{payment}', [PaymentController::class, 'show'])
             ->name('payments.show');
         Route::get('process/{reference_no}', [PaymentController::class, 'pay'])

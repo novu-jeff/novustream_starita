@@ -87,6 +87,7 @@ class MeterService {
         // Fetch the current bill with reading details
         $current_bill = Bill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();
     
+
         if (!$current_bill) {
             return [
                 'status' => 'error',
@@ -133,6 +134,12 @@ class MeterService {
             $active_payment = null;
         }
 
+        if (is_null($client)) {
+            return [
+                'status' => 'error',
+                'message' => 'No Concessionaire found for this transaction'
+            ];
+        }
         $filteredAccounts = collect($client->accounts)
             ->where('meter_serial_no', $meter_no)
             ->values();

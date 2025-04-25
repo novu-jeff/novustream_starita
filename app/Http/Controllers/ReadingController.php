@@ -157,6 +157,14 @@ class ReadingController extends Controller
             $payload = [
                 'amount' => (float) $computed['bill']['amount'],
                 'reference_no' => $computed['bill']['reference_no'],
+                'customer' => [
+                    'account_number' => $account->account_no ?? '',
+                    'address' => $account->address ?? '',
+                    'email' => $account->user->email ?? '',
+                    'name' => $account->user->name ?? '',
+                    'phone_number' => $account->user->contact_no ?? '',
+                    'remark' => 'This is a Testing.'
+                ],
                 'callback' => route('transaction.callback'),
             ];
 
@@ -175,13 +183,13 @@ class ReadingController extends Controller
                 'message' => 'Error occured: ' . $e->getMessage()
             ]);
         }
-        
-
     }
 
     private function generatePaymentQR(string $reference_no, array $payload) {
         
+
         $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+
         // $api = 'http://localhost/api/v1/save/transaction';
 
         $ch = curl_init($api);

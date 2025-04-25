@@ -19,6 +19,7 @@ class Bill extends Model
         'previous_unpaid',
         'amount',
         'amount_paid',
+        'change',
         'isPaid',
         'date_paid',
         'due_date',

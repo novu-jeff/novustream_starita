@@ -170,13 +170,13 @@
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="previous" class="form-label">Previous Unpaid</label>
-                                                <h2>PHP {{number_format($data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
+                                                <h2>PHP {{number_format((float)($data['current_bill']->previous_unpaid ?? 0), 2)}}</h2>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="total_charges" class="form-label">Current Charges</label>
-                                                <h2 class="fw-bold">PHP {{number_format($data['current_bill']->amount - $data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
+                                                <h2 class="fw-bold">PHP {{number_format((float)$data['current_bill']->amount - (float) $data['current_bill']->previous_unpaid ?? 0, 2)}}</h2>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
