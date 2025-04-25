@@ -30,36 +30,36 @@ class RatesService {
 
         return Rates::where('property_types_id', $property_type)->with('property_type')->get();
     }
-
     public function create(array $payload) {
-        DB::beginTransaction();
-        try {
+      
+        $rates =  $this->getData($payload['property_type']);
+        $highestCuM = $rates->isEmpty() ? 0 : $rates->max('cu_m');
+
+        $cu_m = (int) $payload['cubic_meter'];
+
+        for($highest = $highestCuM + 1; $highest <= $cu_m; $highest++)
+        {
+            if($highest <= 10) {
+                $charge = 0;
+            } else {
+                $charge = $payload['charge'];
+            }
 
             Rates::create([
                 'property_types_id' => $payload['property_type'],
-                'cubic_from' => $payload['cubic_from'],
-                'cubic_to' => $payload['cubic_to'],
-                'charge' => $payload['charge']
+                'cu_m' => $highest,
+                'charge' => $charge,
+                'amount' => 0
             ]);
-
-
-            DB::commit();
-
-            return [
-                'status' => 'success',
-                'message' => 'Water rate added.'
-            ];
-
-        } catch (\Exception $e) {
-            
-            DB::rollBack();
-
-            return [
-                'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
-            ];
         }
 
+        $data = $this->recomputeRates($payload['property_type']);
+
+        return [
+            'data' => $data,
+            'status' => 'success',
+            'message' => 'Water rate added.'
+        ];
     }
 
     public function createBaseRate(array $payload) {

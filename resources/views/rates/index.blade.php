@@ -5,6 +5,9 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>{{ $app_type }} Rate</h1>
+                <a href="{{route('rates.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                    Add New Rate
+                </a>
             </div>
             <div class="inner-content mt-5 mb-5">
                 <div class="row g-3 pb-5">
@@ -14,8 +17,10 @@
                                 <h6 class="card-title mb-0 text-uppercase fw-bold">Form</h6>
                             </div>
                             <div class="card-body">
-                                <form action="{{ route('rates.store') }}" method="POST">
-                                    @csrf  
+                                <form action="{{ route('bulk-rates.update') }}" method="POST">
+                                    @csrf
+                                    @method('PUT')
+                                    
                                     <div class="row g-3">
                                         <div class="col-md-12">
                                             <div class="property_type_dropdown">

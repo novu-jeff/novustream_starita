@@ -102,7 +102,9 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('property-types')->only('index');
             
         Route::resource('rates', RatesController::class)
-            ->names('rates')->only('index', 'store');
+            ->names('rates')->only('index', 'create', 'update', 'store');
+        
+        Route::put('update-rates', [RatesController::class, 'updateBulkRate'])->name('bulk-rates.update');
         
         Route::resource('base-rate', BaseRateController::class)
             ->names('base-rate')->only('index', 'store');

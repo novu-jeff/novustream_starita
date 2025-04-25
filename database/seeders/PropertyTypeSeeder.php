@@ -13,13 +13,22 @@ class PropertyTypeSeeder extends Seeder
      */
     public function run(): void
     {
-        $propertyTypes = [
-            ['name' => 'residential'],
-            ['name' => 'government'],
-            ['name' => 'commercial and industrial'],
-            ['name' => 'semi-commercial'],
-            ['name' => 'commercial'],
-        ];
+        if(config('app.product') === 'novustream') {
+            $propertyTypes = [
+                ['name' => 'residential'],
+                ['name' => 'government'],
+                ['name' => 'commercial and industrial'],
+                ['name' => 'semi-commercial'],
+                ['name' => 'commercial'],
+            ];
+        } else {
+            $propertyTypes = [
+                ['name' => 'residential'],
+                ['name' => 'semi-commercial'],
+                ['name' => 'commercial'],
+            ];
+        }
+        
 
         foreach ($propertyTypes as $type) {
             PropertyTypes::updateOrCreate(['name' => $type['name']], $type);

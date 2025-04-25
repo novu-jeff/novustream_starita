@@ -427,24 +427,24 @@ class RateSeeder extends Seeder
 
         $property_types = PropertyTypes::all(); #1 is the residential 2 is the semi-commercial 3 is the commercial
 
-        foreach ($property_types as $property_type) {
-            $rates = [];
-            if ($property_type->id == 1) {
-            $rates = $residential;
-            } elseif ($property_type->id == 2) {
-            $rates = $semi_commercial;
-            } elseif ($property_type->id == 3) {
-            $rates = $commercial;
-            }
+        // foreach ($property_types as $property_type) {
+        //     $rates = [];
+        //     if ($property_type->id == 1) {
+        //         $rates = $residential;
+        //     } elseif ($property_type->id == 4) {
+        //         $rates = $semi_commercial;
+        //     } elseif ($property_type->id == 5) {
+        //         $rates = $commercial;
+        //     }
 
-            foreach ($rates as $row) {
-            Rates::create([
-                'property_types_id' => $property_type->id,
-                'cu_m' => $row['cu_m'],
-                'charge' => $row['charge'],
-                'amount' => $row['amount']
-            ]);
-            }
-        }
+        //     foreach ($rates as $row) {
+        //         Rates::create([
+        //             'property_types_id' => $property_type->id,
+        //             'cu_m' => $row['cu_m'],
+        //             'charge' => $row['charge'],
+        //             'amount' => $row['amount']
+        //         ]);
+        //     }
+        // }
     }
 }

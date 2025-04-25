@@ -25,12 +25,26 @@ class BaseRateSeeder extends Seeder
             BaseRate::updateOrCreate(
                 ['property_type_id' => 2],
                 [
+                    'rate' => 120.00,
+                ]
+            );
+
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 3],
+                [
+                    'rate' => 125.00,
+                ]
+            );
+            
+            BaseRate::updateOrCreate(
+                ['property_type_id' => 4],
+                [
                     'rate' => 280.00,
                 ]
             );
-    
+
             BaseRate::updateOrCreate(
-                ['property_type_id' => 3],
+                ['property_type_id' => 5],
                 [
                     'rate' => 320.00,
                 ]

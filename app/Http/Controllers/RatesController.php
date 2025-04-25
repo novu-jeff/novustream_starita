@@ -33,12 +33,15 @@ class RatesController extends Controller
 
     public function index(Request $request) {
         $propertyTypeId = $request->get('property_type') ?? 1;
+
         $data = $this->RatesService->getData($propertyTypeId);
 
         $property_types = $this->propertyTypeService::getData();
+
         $base_rate = $this->RatesService->getActiveBaseRate($propertyTypeId);
 
         $app_type = config('app.product') === 'novustream' ? 'Water' : 'Electricity';
+
         if(request()->ajax()) {
             return $this->datatable($data);
         }
@@ -46,7 +49,69 @@ class RatesController extends Controller
         return view('rates.index', compact('property_types', 'base_rate', 'propertyTypeId', 'app_type'));
     }
 
-    public function store(Request $request) {
+    public function create()
+    {
+        $property_types = $this->propertyTypeService::getData();
+
+        return view('rates.form', compact('property_types'));
+    }
+
+    public function store(Request $request)
+    {
+        $payload = $request->all();
+
+        $validator = Validator::make($payload, [
+            'property_type' => 'required|exists:property_types,id',
+            'cubic_meter' => [
+                'required',
+                'integer',
+                'max:300',
+                function ($attribute, $value, $fail) use ($payload) {
+                    $exists = DB::table('rates')
+                        ->where('cu_m', $value)
+                        ->where('property_types_id', $payload['property_type'])
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('The cubic meter already exist.');
+                    }
+                },
+            ],
+            'charge' => 'required|numeric'
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        DB::beginTransaction();
+        try {
+
+            $data = $this->RatesService->create($payload);
+            
+            DB::commit();
+            return redirect()->back()->with('alert', [
+                'data' => $data,
+                'status' => 'success',
+                'message' => 'Water rate added.'
+            ]);
+
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return redirect()->back()->withInput()->with('alert', [
+                'status' => 'error',
+                'message' => 'Error occured: ' . $e->getMessage()
+            ]);
+
+        }
+    }
+
+    public function updateBulkRate(Request $request) {
+
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
