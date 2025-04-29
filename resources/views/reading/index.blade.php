@@ -150,9 +150,9 @@
                         return;
                     }
 
-                    const { account_no, meter_serial_no, date_connected } = response.account;
+                    const { account_no, meter_serial_no, address, date_connected } = response.account;
                     
-                    const { name, address, contact_no } = response.account.user;
+                    const { name, contact_no } = response.account.user;
 
                     const reading = response.reading ?? {};
 
