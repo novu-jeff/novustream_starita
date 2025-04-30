@@ -86,7 +86,7 @@
                   {{ account.address }}
                 </small>
               </button>
-              <button class="remove-account btn btn-danger mb-0 me-3"><i class="bx bx-trash"></i></button>
+              <button type="button" v-if="index != 0" @click="removeAccount(index)" class="remove-account btn btn-danger mb-0 me-3"><i class="bx bx-trash"></i></button>
             </h2>
             <div 
               :id="'flush-account-collapse-' + (index + 1)"
