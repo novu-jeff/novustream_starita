@@ -58,7 +58,7 @@ class ClientService {
                 'meter_serial_no'  =>  $account['meter_serial_no'],
                 'date_connected'  =>  $account['date_connected'],
                 'sequence_no'  =>  $account['sequence_no'],
-                'inspection_image'  => $inspectionImage,
+                'inspection_image'  => $inspectionImage ?? null,
             ]);
         }
 
