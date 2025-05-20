@@ -155,7 +155,8 @@ class ReadingController extends Controller
             }
 
             $payload = [
-                'amount' => (float) $computed['bill']['amount'],
+                // 'amount' => $this->convertAmount((float) $computed['bill']['amount']),
+                'amount' => $this->convertAmount(100),
                 'reference_no' => $computed['bill']['reference_no'],
                 'customer' => [
                     'account_number' => $account->account_no ?? '',
@@ -165,7 +166,6 @@ class ReadingController extends Controller
                     'phone_number' => $account->user->contact_no ?? '',
                     'remark' => 'This is a Testing.'
                 ],
-                'callback' => route('transaction.callback'),
             ];
 
             $this->generatePaymentQR($bill['reference_no'], $payload);
@@ -185,12 +185,24 @@ class ReadingController extends Controller
         }
     }
 
+    private function convertAmount(float $amount): string
+    {
+        if (fmod($amount, 1) === 0.0) {
+            return $amount . '00';
+        } else {
+            $formatted = number_format($amount, 2, '.', ''); 
+            $parts = explode('.', $formatted); 
+            return $parts[0] . $parts[1] . '00';
+        }
+    }
+    
+
     private function generatePaymentQR(string $reference_no, array $payload) {
         
 
-        $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+        // $api = 'http://novupay.novulutions.com/api/v1/save/transaction';
 
-        // $api = 'http://localhost/api/v1/save/transaction';
+        $api = 'http://localhost/api/v1/save/transaction';
 
         $ch = curl_init($api);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

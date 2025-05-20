@@ -55,3 +55,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('sync', [SyncController::class, 'sync']);
 
 });
+
+Route::prefix('v1')->group(function() {
+    Route::post('callback/{operation_id}', function() {
+        Log::info("sample");
+    });
+});
