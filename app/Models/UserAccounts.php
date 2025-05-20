@@ -13,6 +13,7 @@ class UserAccounts extends Model
 
     protected $guarded = [
         'id',
+        'isActive',
         'created_at',
         'updated_at'
     ];
