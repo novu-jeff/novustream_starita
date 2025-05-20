@@ -255,16 +255,6 @@ class ReadingController extends Controller
 
     }
 
-    private function convertAmount(float $amount): string
-    {
-        if (fmod($amount, 1) === 0.0) {
-            return $amount . '00';
-        } else {
-            $formatted = number_format($amount, 2, '.', ''); 
-            $parts = explode('.', $formatted); 
-            return $parts[0] . $parts[1] . '00';
-        }
-    }
 
     public function datatable($query)
     {

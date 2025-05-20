@@ -20,7 +20,8 @@ class PaymentController extends Controller
     public $meterService;
     public $generateService;
 
-    public function __construct(MeterService $meterService, GenerateService $generateService) {
+    public function __construct(MeterService $meterService, 
+        GenerateService $generateService) {
         $this->meterService = $meterService;
         $this->generateService = $generateService;
     }
@@ -214,6 +215,35 @@ class PaymentController extends Controller
             'payment_request' => true,
             'redirect' => $url,
         ]);
+
+    }
+
+    public function callback(Request $request, string $reference_no) {
+
+        $payload = $request->all();
+
+        $bill = Bill::where('reference_no', $reference_no)
+            ->where('isPaid', false)
+            ->first();
+
+        if($bill) {
+
+            $bill->update([
+                'isPaid' => true,
+                'amount_paid' => $payload['amount'],
+                'date_paid' => Carbon::now()->format('Y-m-d H:i:s'),
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Payment successful'
+            ]);
+        } 
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Payment not found'
+        ], 404);
 
     }
 

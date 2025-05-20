@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\MeterController;
 use App\Http\Controllers\Api\ReprintController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -57,7 +58,5 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::prefix('v1')->group(function() {
-    Route::post('callback/{operation_id}', function() {
-        Log::info("sample");
-    });
+    Route::post('callback/{reference_no}', [PaymentController::class, 'callback']);
 });
