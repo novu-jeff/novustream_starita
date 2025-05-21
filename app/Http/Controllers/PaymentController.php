@@ -107,7 +107,6 @@ class PaymentController extends Controller
 
         $data = $this->meterService::getBill($reference_no);
 
-
         if(isset($data['status']) && $data['status'] == 'error') {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
@@ -222,17 +221,28 @@ class PaymentController extends Controller
 
         $payload = $request->all();
 
-        $bill = Bill::where('reference_no', $reference_no)
-            ->where('isPaid', false)
-            ->first();
-
+        $bill = $this->meterService->getBill($reference_no);
+            
         if($bill) {
 
-            $bill->update([
+            $now = Carbon::now()->format('Y-m-d H:i:s');
+
+            $bill['current_bill']->update([
                 'isPaid' => true,
                 'amount_paid' => $payload['amount'],
-                'date_paid' => Carbon::now()->format('Y-m-d H:i:s'),
+                'date_paid' => $now,
             ]);
+
+            if (!empty($bill['unpaid_bills'])) {
+                foreach ($bill['unpaid_bills'] as $unpaid_bill) {
+                    $unpaid_bill->update([
+                        'isPaid' => true,
+                        'amount_paid' => $payload['amount'],
+                        'date_paid' => $now,
+                        'paid_by_reference_no' => $reference_no
+                    ]);
+                }
+            }
 
             return response()->json([
                 'status' => 'success',

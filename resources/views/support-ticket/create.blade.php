@@ -77,7 +77,7 @@
         @endif
 
         const url = '{{ route(Route::currentRouteName()) }}';
-        const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'client'); 
+        const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'concessionaire'); 
 
         let table = $('table').DataTable({
             processing: true,

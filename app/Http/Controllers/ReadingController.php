@@ -155,8 +155,8 @@ class ReadingController extends Controller
             }
 
             $payload = [
-                // 'amount' => $this->convertAmount((float) $computed['bill']['amount']),
-                'amount' => $this->convertAmount(100),
+                'amount' => round($this->convertAmount((float) $computed['bill']['amount']), 2),
+                // 'amount' => $this->convertAmount(100),
                 'reference_no' => $computed['bill']['reference_no'],
                 'customer' => [
                     'account_number' => $account->account_no ?? '',
@@ -187,18 +187,19 @@ class ReadingController extends Controller
 
     private function convertAmount(float $amount): string
     {
-        if (fmod($amount, 1) === 0.0) {
-            return $amount . '00';
+        $amountFloat = floatval(str_replace(',', '', $amount));
+
+        if (fmod($amountFloat, 1) === 0.0) {
+            return number_format($amountFloat, 2, '', ''); 
         } else {
-            $formatted = number_format($amount, 2, '.', ''); 
-            $parts = explode('.', $formatted); 
-            return $parts[0] . $parts[1] . '00';
+        
+            $amountNoDot = str_replace('.', '', number_format($amountFloat, 2, '.', ''));
+            return $amountNoDot;
         }
     }
     
 
     private function generatePaymentQR(string $reference_no, array $payload) {
-        
 
         $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
 

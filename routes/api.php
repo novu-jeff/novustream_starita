@@ -60,3 +60,5 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::prefix('v1')->group(function() {
     Route::post('callback/{reference_no}', [PaymentController::class, 'callback']);
 });
+
+
