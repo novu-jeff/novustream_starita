@@ -60,7 +60,7 @@ class PaymentController extends Controller
 
 
             $expected = [
-                'reference_no', 'meter_no', 'billing_from', 'billing_to', 'previous_reading',
+                'reference_no', 'account_no', 'billing_from', 'billing_to', 'previous_reading',
                 'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
                 'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
                 'payment_reference_no',
