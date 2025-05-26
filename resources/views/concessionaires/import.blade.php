@@ -16,9 +16,9 @@
                         <div class="col-md-12 mb-3">
                             <label for="file" class="form-label">Client's CSV File</label>
                             <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file">
-                            @error('file')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <div class="warning">
+
+                            </div>
                         </div> 
                     </div>
                     <div class="d-flex justify-content-end my-5">
@@ -40,13 +40,14 @@
                 }, 100);
             @endif
 
-            $("form").on("submit", function(e){
-
-                e.preventDefault(); 
+            $("form").on("submit", function (e) {
+                e.preventDefault();
 
                 showLoader();
-                
-                let formData = new FormData(this); 
+
+                let formData = new FormData(this);
+
+                $(".warning").html(""); 
 
                 axios.post("{{ route('concessionaires.import.action') }}", formData, {
                     headers: {
@@ -55,14 +56,37 @@
                     }
                 })
                 .then(response => {
-                    alert('success', "File uploaded successfully!");
-                    hideLoader();
+
+                    const res = response.data;
+
+                    $(".warning").html(""); 
+
+                    if (res.status === 'success') {
+                        alert('success', "File uploaded successfully!");
+                    } else if (res.status === 'error') {
+                        alert('error', res.message || "An error occurred during import.");
+                    } else if (res.status === 'warning') {
+                        alert('success', "File uploaded successfully but with warnings!");
+
+                        const warnings = Array.isArray(res.errors) ? res.errors : [];
+
+                        const warningHTML = `
+                            <div class="card shadow mt-4 p-3 rounded mb-3">
+                                <div class="card-body">
+                                    <p class="text-uppercase fw-bold mb-4">Warning: Some rows are skipped because of encountered error.</p>
+                                    <div style="height: 400px; overflow-y: auto">
+                                        <ul class="list-unstyled">
+                                            ${warnings.map(error => `<li>${error}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>`;
+                        $(".warning").html(warningHTML);
+                    } 
                 })
-                .catch(error => {
-                    alert('error', "Error uploading file!");
+                .finally(() => {
                     hideLoader();
                 });
-
             });
 
             function showLoader() {

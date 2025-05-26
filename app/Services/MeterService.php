@@ -71,7 +71,7 @@ class MeterService {
             ];
         }
     
-        $previous_reading = Reading::where('meter_no', $account->meter_serial_no)
+        $previous_reading = Reading::where('account_no', $account->account_no)
             ->latest()
             ->first() ?? [];
     
@@ -85,8 +85,7 @@ class MeterService {
     public static function getBill(string $reference_no) {
 
         // Fetch the current bill with reading details
-        $current_bill = Bill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();
-    
+        $current_bill = Bill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();    
 
         if (!$current_bill) {
             return [
@@ -96,17 +95,17 @@ class MeterService {
         }
 
         // Get meter number from current bill
-        $meter_no = optional($current_bill->reading)->meter_no;
+        $account_no = optional($current_bill->reading)->account_no;
     
         $client = User::with(['accounts.property_types'])
-                ->whereHas('accounts', function ($query) use ($meter_no) {
-                    $query->where('meter_serial_no', $meter_no);
+                ->whereHas('accounts', function ($query) use ($account_no) {
+                    $query->where('account_no', $account_no);
                 })
                 ->first();
 
         $previous_payment = DB::table('bill')
             ->leftJoin('readings', 'bill.reading_id', 'readings.id')
-            ->where('readings.meter_no', $meter_no)
+            ->where('readings.account_no', $account_no)
             ->where('bill.isPaid', true)
             ->select('bill.*')
             ->orderBy('bill.created_at', 'desc')
@@ -115,8 +114,8 @@ class MeterService {
         // Prepare base query for unpaid bills
         $unpaidQuery = Bill::with('reading')
             ->where('isPaid', false)
-            ->whereHas('reading', function ($query) use ($meter_no) {
-                $query->where('meter_no', $meter_no);
+            ->whereHas('reading', function ($query) use ($account_no) {
+                $query->where('account_no', $account_no);
             });    
         // Fetch the latest unpaid payment (active payment)
         $active_payment = (clone $unpaidQuery)
@@ -140,8 +139,9 @@ class MeterService {
                 'message' => 'No Concessionaire found for this transaction'
             ];
         }
+
         $filteredAccounts = collect($client->accounts)
-            ->where('meter_serial_no', $meter_no)
+            ->where('account_no', $account_no)
             ->values();
 
         $filteredAccountArray = optional($filteredAccounts->first())->toArray() ?? [];
@@ -273,8 +273,9 @@ class MeterService {
 
     public function create_breakdown(array $payload) {
 
+
         $latest_reading = Reading::with('bill')
-            ->where('meter_no', $payload['meter_no'])
+            ->where('account_no', $payload['account_no'])
             ->latest()
             ->first();
 
@@ -307,7 +308,7 @@ class MeterService {
             ->where('isPaid', false)
             ->whereNotNull('amount')
             ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('meter_no', $payload['meter_no']);
+                $query->where('account_no', $payload['account_no']);
             })->whereNotNull('amount')
             ->sum('amount') ?? 0;
 
@@ -316,7 +317,6 @@ class MeterService {
         $other_deductions = $this->paymentBreakdownService::getData();
         $penalty_deductions = $this->paymentBreakdownService::getPenalty();
         $service_fees = $this->paymentBreakdownService::getServiceFee();
-
 
         $deductions = [
             [
@@ -350,7 +350,6 @@ class MeterService {
                 ];
             }
         }
-
 
         // Process Penalty
 
@@ -394,7 +393,7 @@ class MeterService {
         }    
 
         $reading = [
-            'meter_no' => $payload['meter_no'],
+            'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
             'present_reading' => $payload['present_reading'],
             'consumption' => $consumption,

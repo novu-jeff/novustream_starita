@@ -4,17 +4,24 @@ namespace App\Imports;
 
 use App\Models\Bill;
 use App\Models\Reading;
-use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
+use Maatwebsite\Excel\Concerns\SkipsFailures;
+use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithHeadings;
 
-class PreviousBillingImport implements ToModel, WithHeadingRow
+class PreviousBillingImport implements 
+    ToModel, 
+    WithHeadingRow,
+    WithChunkReading,
+    SkipsEmptyRows,
+    SkipsOnFailure
+
 {
-    /**
-    * @param Collection $collection
-    */
+    
+    use SkipsFailures;
+
     public function model(array $row)
     {
         $reading = Reading::create([
@@ -39,5 +46,11 @@ class PreviousBillingImport implements ToModel, WithHeadingRow
             'payor_name' => trim($row['payor_name']),
         ]);
 
+    }
+
+
+    public function chunkSize(): int
+    {
+        return 1000; 
     }
 }

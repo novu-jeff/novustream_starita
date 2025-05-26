@@ -37,15 +37,15 @@
                                             <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Account Name</div>
-                                                    <div>{{$data['client']['name']}}</div>
+                                                    <div style="width: calc(100% - 150px); text-align: end">{{$data['client']['name']}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Account No.</div>
-                                                    <div>{{$data['client']['account_no'] ?? ''}}</div>
+                                                    <div style="width: calc(100% - 150px); text-align: end">{{$data['client']['account_no'] ?? ''}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Address</div>
-                                                    <div>{{$data['client']['address'] ?? ''}}</div>
+                                                    <div style="width: calc(100% - 150px); text-align: end">{{$data['client']['address'] ?? ''}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Type</div>
@@ -96,7 +96,7 @@
                                             <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Meter No</div>
-                                                    <div>{{$data['current_bill']->reading->meter_no ?? 'N/A'}}</div>
+                                                    <div>{{$data['client']['meter_serial_no'] ?? 'N/A'}}</div>
                                                 </div>
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div>Previous Reading</div>

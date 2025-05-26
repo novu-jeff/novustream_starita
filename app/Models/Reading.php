@@ -11,14 +11,14 @@ class Reading extends Model
 
     protected $table = 'readings';
     protected $fillable = [
-        'meter_no',
+        'account_no',
         'previous_reading',
         'present_reading',
         'consumption',
     ];
 
     public function user() {
-        return $this->hasOne(User::class, 'meter_serial_no', 'meter_no');
+        return $this->hasOne(User::class, 'account_no', 'account_no');
     }
 
     public function bill() {

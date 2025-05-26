@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
 
 class PaymentController extends Controller
@@ -34,38 +35,110 @@ class PaymentController extends Controller
         
         if($request->getMethod() == 'POST') {
 
-            $request->validate([
-                'file' => 'required|mimes:xlsx,csv|max:5120', 
-            ]);
-        
+            
+            if (!$request->hasFile('file')) {
+                return response([
+                    'status' => 'error',
+                    'message' => 'No file uploaded.'
+                ]);
+            }
+
+            $file = $request->file('file');
+
+            if (
+                !$file->isValid() ||
+                $file->getClientOriginalExtension() !== 'xlsx' ||
+                $file->getMimeType() !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only excel files are allowed.',
+                ]);
+            }
+
+            $headings = (new HeadingRowImport())->toArray($file)[0][0];
+
+
+            $expected = [
+                'reference_no', 'meter_no', 'billing_from', 'billing_to', 'previous_reading',
+                'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
+                'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
+                'payment_reference_no',
+            ];
+
+            $missing = array_diff($expected, array_values($headings));
+
+            if (count($missing)) {
+                return response([
+                    'status' => 'error',
+                    'message' => 'Invalid file. Please make sure to upload the correct template.',
+                    'missing_headers' => array_values($missing),
+                ]);
+            }
+
             try {
+
+                $import = new PreviousBillingImport;
     
-                if (!$request->hasFile('file')) {
-                    return redirect()->back()->with('alert', [
-                        'status' => 'error',
-                        'message' => 'No file was uploaded.',
+                ini_set('max_execution_time', 300);
+                ini_set('memory_limit', '512M');
+
+                Excel::import($import, $file, null, null, [
+                    'readOnly' => true,
+                ]);
+
+                $failures = $import->failures();
+    
+                if ($failures->isNotEmpty()) {
+
+                    $messages = [];
+
+                    foreach ($failures as $failure) {
+                        $row = $failure->row();
+                        foreach ($failure->errors() as $error) {
+                            $messages[] = "Row [$row]: $error";
+                        }
+                    }
+
+                    return response()->json([
+                        'status' => 'warning',
+                        'message' => 'Some rows were skipped due to validation errors.',
+                        'errors' => $messages,
                     ]);
                 }
-        
-                Excel::import(new PreviousBillingImport, $request->file('file'));
-    
-    
-                return response(['status' => 'success', 'message' => 'Clients imported successfully']);
-        
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Previous billings are imported successfully.',
+                ]);
+                    
             } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-                $failures = $e->failures();
-                $errors = [];
-        
-                foreach ($failures as $failure) {
-                    $errors[] = "Row {$failure->row()}: " . implode(', ', $failure->errors());
-                }
-        
-                return response(['status' => 'error', 'message' => implode('<br>', $errors)]);
-    
-        
+                
+                  $failures = $e->failures();
+                    $messages = [];
+
+                    foreach ($failures as $failure) {
+                        $row = $failure->row();
+                        foreach ($failure->errors() as $error) {
+                            $messages[] = "Row [$row]: $error";
+                        }
+                    }
+
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Validation errors found during import.',
+                        'errors' => $messages,
+                    ]);
+
             } catch (\Exception $e) {
-                Log::error($e->getMessage());
-                return response(['status' => 'error', 'message' => $e->getMessage()]);
+                Log::error('Import error: ' . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'An error occurred during import: ' . $e->getMessage(),
+                ], 500);
             }
 
         } else {
@@ -260,6 +333,9 @@ class PaymentController extends Controller
     public function datatable($query) {
         return DataTables::of($query)
             ->addIndexColumn()
+            ->editColumn('meter_no', function($row) {
+                return $row->reading->meter_no ?? 'N/A';
+            })
             ->editColumn('billing_period', function ($row) {
                 return ($row->bill_period_from && $row->bill_period_to) 
                     ? Carbon::parse($row->bill_period_from)->format('M d, Y') . ' TO ' . Carbon::parse($row->bill_period_to)->format('M d, Y')

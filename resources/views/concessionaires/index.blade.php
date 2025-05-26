@@ -20,7 +20,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Full Name</th>
-                            <th>Account No. Registered</th>
+                            <th>Account No.</th>
                             <th>Actions</th>
                         </tr>
                     </thead>

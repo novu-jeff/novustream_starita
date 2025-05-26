@@ -121,13 +121,13 @@ class ReadingController extends Controller
             
             $account = $this->meterService->getAccount($payload['meter_no']);
 
-            $meter_no = $account->meter_serial_no;
+            $account_no = $account->account_no;
             $property_type_id = $account->property_type;
 
             $present_reading = $payload['present_reading'];
 
             $computed = $this->meterService->create_breakdown([
-                'meter_no' => $meter_no,
+                'account_no' => $account_no,
                 'property_type_id' => $property_type_id,
                 'present_reading' => $present_reading
             ]);
@@ -156,7 +156,6 @@ class ReadingController extends Controller
 
             $payload = [
                 'amount' => round($this->convertAmount((float) $computed['bill']['amount']), 2),
-                // 'amount' => $this->convertAmount(100),
                 'reference_no' => $computed['bill']['reference_no'],
                 'customer' => [
                     'account_number' => $account->account_no ?? '',
@@ -164,7 +163,7 @@ class ReadingController extends Controller
                     'email' => $account->user->email ?? '',
                     'name' => $account->user->name ?? '',
                     'phone_number' => $account->user->contact_no ?? '',
-                    'remark' => 'This is a Testing.'
+                    'remark' => ''
                 ],
             ];
 
