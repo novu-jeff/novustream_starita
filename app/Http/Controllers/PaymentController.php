@@ -333,8 +333,8 @@ class PaymentController extends Controller
     public function datatable($query) {
         return DataTables::of($query)
             ->addIndexColumn()
-            ->editColumn('meter_no', function($row) {
-                return $row->reading->meter_no ?? 'N/A';
+            ->editColumn('account_no', function($row) {
+                return $row->reading->account_no ?? 'N/A';
             })
             ->editColumn('billing_period', function ($row) {
                 return ($row->bill_period_from && $row->bill_period_to) 

@@ -21,7 +21,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Meter No</th>
+                            <th>Account No</th>
                             <th>Billing Period</th>
                             <th>Bill Date</th>
                             <th>Amount</th>
@@ -60,7 +60,7 @@
             ajax: url,
             columns: [
                 { data: 'id', name: 'id' }, 
-                { data: 'meter_no', name: 'meter_no' }, 
+                { data: 'account_no', name: 'account_no' }, 
                 { data: 'billing_period', name: 'billing_period' }, 
                 { data: 'bill_date', name: 'bill_date' },
                 { data: 'amount', name: 'amount' },
