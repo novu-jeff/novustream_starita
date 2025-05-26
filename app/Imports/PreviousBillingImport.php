@@ -25,7 +25,7 @@ class PreviousBillingImport implements
     public function model(array $row)
     {
         $reading = Reading::create([
-            'meter_no' => trim($row['meter_no']),
+            'account_no' => trim($row['account_no']),
             'previous_reading' => trim($row['previous_reading']),
             'present_reading' => trim($row['present_reading']),
             'consumption' => trim($row['consumption']),
