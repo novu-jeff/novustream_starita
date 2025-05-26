@@ -380,7 +380,6 @@ class MeterService {
             }
         }
         
-    
         // Process Service Fees
         foreach ($service_fees as $fee) {
             if ($fee->property_id == $payload['property_type_id']) {

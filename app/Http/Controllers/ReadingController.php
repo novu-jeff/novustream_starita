@@ -63,7 +63,15 @@ class ReadingController extends Controller
 
         $data = $this->meterService::getBill($reference_no);
 
-        if(is_null($data)) {
+        if(isset($data['status']) && $data['status'] == 'error') {
+
+            if(empty($data['client']['account_no'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'No concessionaire found'
+                ]);
+            }
+
             return redirect()->route('reading.index')->with('alert', [
                 'status' => 'error',
                 'message' => 'Bill Not Found'
@@ -219,38 +227,24 @@ class ReadingController extends Controller
         curl_close($ch);
         
         $decodedResponse = json_decode($response, true);
-        
-        if ($curlError) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Curl Error: ' . $curlError
-            ]);
-        }
-        
-        if (!is_array($decodedResponse)) {
-            $decodedResponse = ['error' => 'Invalid API response', 'raw' => $response];
+
+        if(is_null($decodedResponse)) {
+            Log::error('error: ' . $decodedResponse);
+            throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
         }
 
         if ($httpCode == 200) {
            
             if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-
                 return true;
-
             } else {
-                return [
-                    'status' => 'error',
-                    'payment_request' => false,
-                    'message' => 'Invalid response from the payment gateway.'
-                ];
+                Log::error('error: ' . $decodedResponse);
+                throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
             }
 
         } else {
-            return [
-                'status' => 'error',
-                'message' => 'Failed to process online payment. Please try again.',
-                'details' => $decodedResponse
-            ];
+            Log::error('error: ' . $decodedResponse);
+            throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
         }
 
     }
@@ -260,13 +254,16 @@ class ReadingController extends Controller
     {
         return DataTables::of($query)
             ->addIndexColumn()
+            ->editColumn('account_no', function ($row) {
+                return $row->account_no;
+            })
             ->editColumn('created_at', function ($row) {
                 return Carbon::parse($row->created_at)->format('F d, Y');
             })
             ->addColumn('actions', function ($row) {
                 return 
                     '<div class="d-flex align-items-center gap-2">
-                        <a target="_blank" href="' . route('reading.show', $row->bill->reference_no) . '" 
+                        <a href="' . route('reading.show', $row->bill->reference_no) . '" 
                             class="btn btn-primary text-white text-uppercase fw-bold" 
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>

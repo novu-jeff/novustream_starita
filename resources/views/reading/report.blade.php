@@ -9,12 +9,12 @@
                     Add New
                 </a> --}}
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5">
                 <table class="w-100 table table-bordered table-hover">
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Meter No.</th>
+                            <th>Account No</th>
                             <th>Previous Reading</th>
                             <th>Present Reading</th>
                             <th>Consumption</th>
@@ -48,14 +48,14 @@
             ajax: url,
             columns: [
                 { data: 'id', name: 'id' },
-                { data: 'meter_no', name: 'meter_no' },
+                { data: 'account_no', name: 'account_no' },
                 { data: 'previous_reading', name: 'previous_reading' },
                 { data: 'present_reading', name: 'present_reading' },
                 { data: 'consumption', name: 'consumption', render: function(data, type, row) {
                     return data + ' m³';
                 }},
                 { data: 'created_at', name: 'created_at' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
+                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
             ],
             responsive: true,
             order: [[0, 'asc']],

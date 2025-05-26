@@ -14,7 +14,7 @@
                                     <div class="card-body">
                                         <div class="row">
                                             <div class="col-md-12 mb-5">
-                                                <label for="meter_no" class="form-label">Contract No / Meter No</label>
+                                                <label for="meter_no" class="form-label">Account No / Meter No</label>
                                                 <input type="text" class="form-control h-extend @error('meter_no') is-invalid @enderror" id="meter_no" name="meter_no" value="{{ old('meter_no') }}" placeholder="########">
                                                 @error('meter_no')
                                                     <div class="invalid-feedback">{{ $message }}</div>
