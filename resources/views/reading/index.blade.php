@@ -3,7 +3,7 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper">
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5 mb-5">
                 <form action="{{route('reading.store')}}" method="POST">
                     @csrf
                     @method('POST')             

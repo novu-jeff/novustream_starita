@@ -9,7 +9,7 @@
                     Go Back
                 </a>
             </div>
-            <div class="inner-content mt-5 pb-5">
+            <div class="inner-content mt-5 pb-5 mb-5">
                 <form action="{{route('payments.pay', ['reference_no' => $reference_no]) }}" method="POST">
                     @csrf  
                     <div class="row">

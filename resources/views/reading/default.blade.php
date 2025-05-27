@@ -58,19 +58,12 @@
                         $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                     @endphp
 
-                    <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center;">
-                        <div style="width: 120px;">
-                            <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" 
-                                alt="logo" class="web-logo">
-                            <img src="{{ $base64 }}" alt="logo" class="print-logo">
-                        </div>
-                        <div style="width: 350px;">
-                            <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Republic of the Philippines</p>
-                            <p style="font-size: 20px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Bacolor Water District</p>
-                            <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Sta. Ines, Bacolor, Pampanga</p>
-                            <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. (045) 900- 2911</p>
-
-                        </div>
+                    <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
+                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" 
+                            alt="logo" class="web-logo">
+                        <img src="{{ $base64 }}" alt="logo" class="print-logo">
+                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
+                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Permit No. SP012021-0502-0912233-00000</p>
                     </div>
                     <div style="text-align:center; text-transform: uppercase; font-size: 14px; margin: 10px 0 10px 0;">
                         <div style="font-weight: 800;">{{$data['current_bill']->reference_no}}</div>

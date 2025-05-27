@@ -169,7 +169,7 @@ class MeterService {
 
             if ($account) {
                 $query->whereHas('reading', function ($q) use ($account) {
-                    $q->where('meter_no', $account->meter_serial_no);
+                    $q->where('account_no', $account->account_no);
                 });
             }
         }
@@ -423,13 +423,23 @@ class MeterService {
     }
 
     private function generateReferenceNo() {
-        
-        $prefix = env('APP_PRODUCT');
 
-        $prefix = $prefix == 'novustream' ? 'NST' : 'NSU';
-        
-        return $prefix . '-' . time();
+        $prefix = env('REF_PREFIX');
 
+        do {
+            $time = time();
+            $combined = $prefix . '-' . $time;
+            $exists = Reading::where('reference_no', $combined)
+                ->exists();
+
+            if ($exists) {
+                sleep(1);
+            }
+            
+        } while ($exists);
+
+        return $combined;
     }
+
 
 }

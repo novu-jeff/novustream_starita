@@ -16,7 +16,7 @@
                      </a>                     
                 </div>
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5 mb-5">
                 <table class="w-100 table table-bordered table-hover">
                     <thead>
                         <tr>
