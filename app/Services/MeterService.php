@@ -8,6 +8,8 @@ use App\Models\Bill;
 use App\Models\Rates;
 use App\Models\Reading;
 use App\Models\UserAccounts;
+use App\Models\Ruling;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PDO;
@@ -51,7 +53,8 @@ class MeterService {
 
     public static function getPayments(?int $reference_no = null, bool $isPaid = false) {
         
-        $query = Bill::with('reading')->where('isPaid', $isPaid);
+        $query = Bill::with('reading')
+            ->where('isPaid', $isPaid);
     
         if (!is_null($reference_no)) {
             $query->where('reference_no', $reference_no);
@@ -273,8 +276,25 @@ class MeterService {
 
     public function create_breakdown(array $payload) {
 
+        $ruling = Ruling::first();
+        $concessionaire = UserAccounts::with('user')->where('account_no', $payload['account_no'])->first();
 
-        $latest_reading = Reading::with('bill')
+        if(is_null($ruling)) {
+            return [
+                'status' => 'error',
+                'message' => "We've noticed that there's no ruling set. Please add first."
+            ];
+        }
+
+        if(is_null($concessionaire)) {
+             return [
+                'status' => 'error',
+                'message' => "We've noticed that there's no concessionaire with this account no."
+            ];
+        }
+
+
+        $latest_reading = Reading::with('concessionaire.user', 'bill')
             ->where('account_no', $payload['account_no'])
             ->latest()
             ->first();
@@ -315,7 +335,7 @@ class MeterService {
         $total_amount = $unpaidAmount + $rate;
     
         $other_deductions = $this->paymentBreakdownService::getData();
-        $penalty_deductions = $this->paymentBreakdownService::getPenalty();
+        $discounts = $this->paymentBreakdownService::getDiscounts();
         $service_fees = $this->paymentBreakdownService::getServiceFee();
 
         $deductions = [
@@ -331,7 +351,7 @@ class MeterService {
             ],
         ];
     
-        // Process Other Deductions
+        // deductions
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
                 $base_amount = ($deduction->percentage_of == 'basic_charge') ? $rate : $total_amount;
@@ -351,36 +371,7 @@ class MeterService {
             }
         }
 
-        // Process Penalty
-
-        if(!is_null($latest_reading)) {
-            
-            $current_timestamp = Carbon::now();
-            $due_timestamp = Carbon::parse($latest_reading->bill->due_date) ?? null;
-
-            if($current_timestamp->gt($due_timestamp)) {
-
-                $due_count = $current_timestamp->diff($due_timestamp)->days;
-    
-                $amount = 0;
-    
-                foreach ($penalty_deductions as $penalty) {
-                    if ($due_count >= $penalty->due_from && $due_count <= $penalty->due_to) {
-                        $amount = $penalty->amount;
-                        break; 
-                    }
-                }
-    
-                $deductions[] = [
-                    'name' => 'Penalty',
-                    'description' => '',
-                    'amount' => $amount
-                ];
-    
-            }
-        }
-        
-        // Process Service Fees
+        // service fee
         foreach ($service_fees as $fee) {
             if ($fee->property_id == $payload['property_type_id']) {
                 $deductions[] = [
@@ -391,35 +382,99 @@ class MeterService {
             }
         }    
 
+        $isSeniorCitizen = $concessionaire->user->senior_citizen_no ?? null;
+        $isPWD = $concessionaire->user->pwd_no ?? null;
+        $total = collect($deductions)->sum('amount');
+
+        // discounts
+        $appliedDiscounts = [];
+
+        foreach ($discounts as $discount) {
+            
+            $discountAmount = 0;
+
+            $isEligible = (
+                ($discount->eligible === 'senior' && $isSeniorCitizen) ||
+                ($discount->eligible === 'pwd' && $isPWD)
+            );
+
+            if (!$isEligible) {
+                continue;
+            }
+
+            if (strtolower($discount->type) === 'percentage') {
+                $discountAmount = $total * ($discount->amount / 100);
+            } else {
+                $discountAmount = $discount->amount;
+            }
+
+            $overall_total = $total - $discountAmount;
+
+            $appliedDiscounts[] = [
+                'name' => $discount->name,
+                'amount' => $discountAmount,
+                'description' => '', 
+            ];
+        }
+
+
         $reading = [
             'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
             'present_reading' => $payload['present_reading'],
             'consumption' => $consumption,
             'rate' => $rate,
+            'reader_name' => Auth::user()->name
         ];
+
+        $days_due = $ruling->due_date;
 
         $bill_period_from = Carbon::now()->subMonth()->format('Y-m-d H:i:s');
         $bill_period_to = Carbon::now()->format('Y-m-d H:i:s');
-        $due_date = Carbon::now()->addDays(14)->format('Y-m-d H:i:s');
-        $overall_total = collect($deductions)->sum('amount');
+        $due_date = Carbon::now()->addDays($days_due)->format('Y-m-d H:i:s');
 
         $bill = [
             'reference_no' => $this->generateReferenceNo(),
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $unpaidAmount,
+            'total' => $total,
+            'discount' => $discountAmount,
             'amount' => $overall_total,
             'due_date' => $due_date,
         ];
 
+        $prev_consumption = $this->previousConsumption($payload['account_no']) ?? [];
+
         return [
             'status' => 'success',
+            'previous_consumptions' => $prev_consumption,
             'reading' => $reading,
             'deductions' => $deductions,
-            'bill' => $bill
+            'discounts' => $appliedDiscounts,
+            'bill' => $bill,
         ];
 
+    }
+
+    private function previousConsumption(string $account_no) {
+        $readings = Reading::select(
+                DB::raw('MONTH(created_at) as month_number'),
+                DB::raw('MONTHNAME(created_at) as month_name'),
+                DB::raw('SUM(consumption) as total_consumption')
+            )
+            ->where('account_no', $account_no) 
+            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->groupBy('month_number', 'month_name')
+            ->orderBy('month_number')
+            ->get();
+
+        $prev_consumption = $readings->map(function ($reading) {
+            return [
+                'month' => $reading->month_name,
+                'value' => (int) $reading->total_consumption
+            ];
+        })->values()->toArray();
     }
 
     private function generateReferenceNo() {
@@ -429,7 +484,7 @@ class MeterService {
         do {
             $time = time();
             $combined = $prefix . '-' . $time;
-            $exists = Reading::where('reference_no', $combined)
+            $exists = Bill::where('reference_no', $combined)
                 ->exists();
 
             if ($exists) {

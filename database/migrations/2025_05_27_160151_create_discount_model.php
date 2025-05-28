@@ -11,9 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payment_breakdowns', function (Blueprint $table) {
+        Schema::create('payment_discount', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->enum('eligible', [
+                'pwd',
+                'senior'
+            ]);
             $table->enum('type', [
                 'percentage',
                 'fixed'
@@ -24,19 +28,7 @@ return new class extends Migration
             ])->nullable();
             $table->float('amount');
             $table->timestamps();
-        });
-
-        Schema::create('payment_breakdown_penalty', function(Blueprint $table) {
-            $table->id();
-            $table->string('due_from');
-            $table->string('due_to');
-            $table->enum('amount_type', [
-                'fixed',
-                'percentage'
-            ]);
-            $table->float('amount');
-            $table->timestamps();
-        });
+        }); 
     }
 
     /**
@@ -44,7 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payment_breakdown_penalty');
-        Schema::dropIfExists('payment_breakdowns');
+        Schema::dropIfExists('payment_discount');
     }
 };

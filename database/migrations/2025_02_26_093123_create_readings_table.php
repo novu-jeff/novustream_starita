@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('previous_reading');
             $table->string('present_reading');
             $table->string('consumption');
+            $table->string('reader_name');
             $table->timestamps();
         });
 
@@ -39,6 +40,12 @@ return new class extends Migration
                 ->nullable();
             $table->boolean('isPaid')
                 ->default(false);
+            $table->boolean('hasPenalty')
+                ->default(false);
+            $table->boolean('hasDisconnection')
+                ->default(false);
+            $table->boolean('hasDisconnected')
+                ->default(false);
             $table->string('date_paid')
                 ->nullable();
             $table->string('due_date');
@@ -60,6 +67,18 @@ return new class extends Migration
             $table->string('amount');
             $table->timestamps();
         });
+
+        Schema::create('bill_discount', function(Blueprint $table) {
+            $table->id();
+            $table->foreignId('bill_id')
+                ->constrained('bill')
+                ->onCascade('delete');
+            $table->string('name');
+            $table->string('description')
+                ->nullable();
+            $table->string('amount');
+            $table->timestamps();
+        });
     }
 
     /**
@@ -67,6 +86,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('bill_discount');
         Schema::dropIfExists('bill_breakdown');
         Schema::dropIfExists('bill');
         Schema::dropIfExists('readings');

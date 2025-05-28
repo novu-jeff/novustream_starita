@@ -22,7 +22,6 @@ return new class extends Migration
                 ->nullable();
             $table->integer('rate_code');
             $table->string('status');
-            
             $table->string('meter_brand')
                 ->nullable();
             $table->string('meter_serial_no')

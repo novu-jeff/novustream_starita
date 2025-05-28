@@ -28,6 +28,26 @@
                                   >
                             <small v-if="errors.contact_no" class="text-danger px-1">{{ errors.contact_no[0] }}</small>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="senior_citizen_no" class="form-label">Senior Citizen No. <small class="text-danger"> ( required )</small></label>
+                            <input type="text" 
+                                  class="form-control" 
+                                  id="senior_citizen_no" 
+                                  v-model="concessioner.senior_citizen_no"
+                                  :class="{ 'is-invalid': errors && errors.senior_citizen_no }" 
+                                  >
+                            <small v-if="errors.senior_citizen_no" class="text-danger px-1">{{ errors.senior_citizen_no[0] }}</small>
+                        </div>
+                         <div class="col-md-6 mb-3">
+                            <label for="pwd_no" class="form-label">PWD No. <small class="text-danger"> ( required )</small></label>
+                            <input type="text" 
+                                  class="form-control" 
+                                  id="pwd_no" 
+                                  v-model="concessioner.pwd_no"
+                                  :class="{ 'is-invalid': errors && errors.pwd_no }" 
+                                  >
+                            <small v-if="errors.pwd_no" class="text-danger px-1">{{ errors.pwd_no[0] }}</small>
+                        </div>
                     </div>
 
                     <div class="text-uppercase fw-bold py-4">Login Information</div>
@@ -363,6 +383,8 @@ export default {
       loading: false,
       concessioner: {
         name: '',
+        senior_citizen_no: '',
+        pwd_no: '',
         contact_no: '',
         email: '',
         password: '',
@@ -526,6 +548,8 @@ export default {
     resetForm() {
       this.concessioner = {
         name: '',
+        senior_citizen_no: '',
+        pwd_no: '',
         contact_no: '',
         email: '',
         password: '',

@@ -15,6 +15,8 @@ class User extends Authenticatable
         'contact_no',
         'name',
         'email',
+        'senior_citizen_no',
+        'pwd_no',
         'password',
     ];
 

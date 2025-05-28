@@ -19,6 +19,10 @@ return new class extends Migration
             $table->string('email')
                 ->unique()
                 ->nullable();
+            $table->string('senior_citizen_no')
+                ->nullable();
+            $table->string('pwd_no')
+                ->nullable();
             $table->timestamp('email_verified_at')
                 ->nullable();
             $table->string('password')

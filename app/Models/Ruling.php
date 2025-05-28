@@ -5,16 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PaymentBreakdownPenalty extends Model
+class Ruling extends Model
 {
     use HasFactory;
 
-    protected $table = 'payment_breakdown_penalty';
+    protected $table = 'global_ruling';
     protected $fillable = [
-        'due_from',
-        'due_to',
-        'amount',
-        'amount_type'
+        'due_date',
+        'disconnection_date',
+        'disconnection_rule'
     ];
 
 }

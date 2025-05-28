@@ -25,6 +25,8 @@ class UpdateClientRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'email' => 'required|unique:users,email,' . $id,
+            'senior_citizen_no' => 'nullable|numeric',
+            'pwd_no' => 'nullable|numeric',
             'password' => 'nullable|min:8',
             'confirm_password' => 'nullable|same:password',
             'contact_no' => 'required',

@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\PaymentBreakdown;
 use App\Models\PaymentBreakdownPenalty;
+use App\Models\PaymentDiscount;
 use App\Models\PaymentServiceFee;
+use App\Models\Ruling;
 use Illuminate\Support\Facades\DB;
 
 class PaymentBreakdownService {
@@ -42,92 +44,144 @@ class PaymentBreakdownService {
 
     }
 
+     public static function getDiscounts(?int $id = null) {
+
+        if(!is_null($id)) {
+            return PaymentDiscount::where('id', $id)
+                ->first() ?? null;
+        }
+
+        return PaymentDiscount::all();
+
+    }
 
     public static function create(array $payload) {
-
         DB::beginTransaction();
 
         try {
-
-            if($payload['action'] == 'regular') {
-                PaymentBreakdown::create([
-                    'name' => $payload['name'],
-                    'type' => $payload['type'],
-                    'percentage_of' => $payload['percentage_of'],
-                    'amount' => $payload['amount'],                
-                ]);
-            }
-
-            if ($payload['action'] === 'penalty') {
-                $penalty = array_map(
-                    fn($from, $to, $amount) => compact('from', 'to', 'amount'),
-                    $payload['penalty']['from'] ?? [],
-                    $payload['penalty']['to'] ?? [],
-                    $payload['penalty']['amount'] ?? []
-                );
+            $message = '';
             
-                // Properly delete all existing records
-                PaymentBreakdownPenalty::query()->delete();
-            
-                foreach ($penalty as $item) {
-                    PaymentBreakdownPenalty::updateOrCreate(
-                        [
-                            'due_from' => $item['from'],
-                            'due_to' => $item['to'],
-                        ],
-                        [
-                            'amount' => $item['amount'],
-                        ]
+            switch ($payload['action']) {
+                case 'regular':
+                    $model = PaymentBreakdown::create([
+                        'name' => $payload['name'],
+                        'type' => $payload['type'],
+                        'percentage_of' => $payload['percentage_of'],
+                        'amount' => $payload['amount'],
+                    ]);
+                    $message = 'Payment breakdown added';
+                    break;
+
+                case 'penalty':
+                    $penalties = array_map(
+                        fn($from, $to, $amount_type, $amount) => compact('from', 'to', 'amount_type', 'amount'),
+                        $payload['penalty']['from'] ?? [],
+                        $payload['penalty']['to'] ?? [],
+                        $payload['penalty']['amount_type'] ?? [],
+                        $payload['penalty']['amount'] ?? []
                     );
-                }
-            }
 
-            if ($payload['action'] === 'service-fee') {
-                
-                $service_fee = array_map(
-                    fn($property_type, $amount) => compact('property_type', 'amount'),
-                    $payload['service_fee']['property_type'] ?? [],
-                    $payload['service_fee']['amount'] ?? []
-                );
-                            
-                PaymentServiceFee::query()->delete();
-            
-                foreach ($service_fee as $item) {
-                    PaymentServiceFee::updateOrCreate(
-                        [
-                            'property_id' => $item['property_type'],
-                            'amount' => $item['amount'],
-                        ],
-                        [
-                            'property_id' => $item['property_type'],
-                        ]
+                    PaymentBreakdownPenalty::query()->delete();
+
+                    foreach ($penalties as $item) {
+                        $model = PaymentBreakdownPenalty::updateOrCreate(
+                            [
+                                'due_from' => $item['from'],
+                                'due_to' => $item['to'],
+                            ],
+                            [
+                                'amount_type' => $item['amount_type'],
+                                'amount' => $item['amount'],
+                            ]
+                        );
+
+                        if ($model->wasRecentlyCreated) {
+                            $message = 'Payment penalty added';
+                        } else {
+                            $message = 'Payment penalty updated';
+                        }
+                    }
+                    break;
+
+                case 'service-fee':
+                    $serviceFees = array_map(
+                        fn($property_type, $amount) => compact('property_type', 'amount'),
+                        $payload['service_fee']['property_type'] ?? [],
+                        $payload['service_fee']['amount'] ?? []
                     );
-                }
+
+                    PaymentServiceFee::query()->delete();
+
+                    foreach ($serviceFees as $item) {
+                        $model = PaymentServiceFee::updateOrCreate(
+                            [
+                                'property_id' => $item['property_type'],
+                            ],
+                            [
+                                'amount' => $item['amount'],
+                            ]
+                        );
+
+                        if ($model->wasRecentlyCreated) {
+                            $message = 'Service fee added';
+                        } else {
+                            $message = 'Service fee updated';
+                        }
+                    }
+                    break;
+
+                case 'discount':
+                    $model = PaymentDiscount::create([
+                        'eligible' => $payload['eligible'],
+                        'name' => $payload['name'],
+                        'type' => $payload['type'],
+                        'percentage_of' => $payload['percentage_of'],
+                        'amount' => $payload['amount'],
+                    ]);
+                    $message = 'Payment discount added';
+                    break;
+
+                case 'ruling':
+                    $firstRow = Ruling::first();
+
+                    if ($firstRow) {
+                        $firstRow->update([
+                            'due_date' => $payload['due_date'],
+                            'disconnection_date' => $payload['disconnection_date'],
+                            'disconnection_rule' => $payload['disconnection_rule'],
+                        ]);
+                        $message = 'Ruling updated';
+                    } else {
+                        Ruling::create([
+                            'due_date' => $payload['due_date'],
+                            'disconnection_date' => $payload['disconnection_date'],
+                            'disconnection_rule' => $payload['disconnection_rule'],
+                        ]);
+                        $message = 'Ruling added';
+                    }
+                    break;
+
+                default:
+                    throw new \Exception('Invalid action provided.');
             }
 
             DB::commit();
 
             return [
                 'status' => 'success',
-                'message' => (($payload['action'] == 'service-fee'))
-                    ? 'Service fee updated' 
-                    : (($payload['action'] == 'regular') 
-                        ? 'Payment breakdown added' 
-                        : 'Payment penalty updated'),
-
+                'message' => $message ?: 'Operation completed successfully',
             ];
 
         } catch (\Exception $e) {
-            
             DB::rollBack();
 
             return [
                 'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
+                'message' => 'Error occurred: ' . $e->getMessage(),
             ];
         }
-
     }
+
 
     public static function update(?int $id, array $payload) {
 
@@ -162,21 +216,32 @@ class PaymentBreakdownService {
 
     }
 
-    public static function delete(?int $id) {
+    public static function delete(string $action, ?int $id) {
 
         DB::beginTransaction();
 
         try {
-            
-            $data = PaymentBreakdown::where('id', $id)->first();
-                
-            $data->delete();
+
+            if($action == 'regular') {
+                $data = PaymentBreakdown::where('id', $id)->first();
+                $data->delete();
+            }
+
+            if($action == 'discount') {
+                $data = PaymentDiscount::where('id', $id)->first();
+                $data->delete();
+            }
 
             DB::commit();
 
+            $message = [
+                'regular' => 'Payment breakdown removed.',
+                'discount' => 'Payment discount removed.'
+            ];
+
             return [
                 'status' => 'success',
-                'message' => 'Payment breakdown deleted.'
+                'message' => $message[$action] ?? 'An error occured'
             ];
 
         } catch (\Exception $e) {

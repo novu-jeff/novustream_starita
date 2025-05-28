@@ -15,10 +15,11 @@ class Reading extends Model
         'previous_reading',
         'present_reading',
         'consumption',
+        'reader_name'
     ];
 
-    public function user() {
-        return $this->hasOne(User::class, 'account_no', 'account_no');
+    public function concessionaire() {
+        return $this->hasOne(UserAccounts::class, 'account_no', 'account_no');
     }
 
     public function bill() {

@@ -19,7 +19,6 @@
                 @else
                     <add-concessioner :property_types="{{ json_encode($property_types) }}"></add-concessioner>
                 @endif
-
             </div>
         </div>
     </main>

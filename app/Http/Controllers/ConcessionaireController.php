@@ -184,7 +184,6 @@ class ConcessionaireController extends Controller
         }
     }
 
-
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);

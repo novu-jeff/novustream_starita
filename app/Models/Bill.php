@@ -21,6 +21,9 @@ class Bill extends Model
         'amount_paid',
         'change',
         'isPaid',
+        'hasPenalty',
+        'hasDisconnection',
+        'hasDisconnected',
         'date_paid',
         'due_date',
         'payor_name',
@@ -33,6 +36,10 @@ class Bill extends Model
 
     public function breakdown() {
         return $this->hasMany(BillBreakdown::class, 'bill_id', 'id');
+    }
+
+    public function discount() {
+        return $this->hasMany(BillDiscount::class, 'bill_id', 'id');
     }
 
 }

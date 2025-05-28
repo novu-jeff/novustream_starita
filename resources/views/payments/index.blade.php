@@ -69,7 +69,7 @@
                 { data: 'actions', name: 'actions', orderable: false, searchable: false } 
             ],
             responsive: true,
-            order: [[0, 'asc']],
+            order: [[0, 'desc']],
             scrollX: true
         });
 
