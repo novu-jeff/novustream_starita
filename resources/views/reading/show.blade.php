@@ -25,7 +25,7 @@
         <button 
             class="download-js" 
             data-target="#bill" 
-            data-filename="{{$data['current_bill']->reference_no}}" 
+            data-filename="{{$data['current_bill']['reference_no']}}" 
             style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 15px;" class='bx bxs-download'></i> Download
         </button>
@@ -36,7 +36,7 @@
             <i style="font-size: 15px;" class='bx bxs-printer'></i> Print
         </button>
 
-        <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}" 
+        <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']['reference_no']])}}" 
             style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
             <i style="font-size: 15px;" class='bx bx-wallet'></i> Pay Now
         </a>
@@ -45,7 +45,7 @@
         <div id="bill" style="margin-top: 30px">
             <div class="bill-container">
                 <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-                    @if($data['current_bill']->isPaid == true)
+                    @if($data['current_bill']['isPaid'] == true)
                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                             PAID
                         </div>
@@ -99,19 +99,19 @@
                         <div style="text-align: center; font-size: 10px; text-transform: uppercase;">
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Bill Date</div>
-                                <div>{{$data['current_bill']->created_at->format('m/d/Y')}}</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
                             </div>
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Period</div>
-                                <div>{{\Carbon\Carbon::parse($data['current_bill']->bill_period_from)->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']->bill_period_to)->format('m/d/Y')}}</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                             </div>
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Due Date</div>
-                                <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('m/d/Y')}}</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                             </div>
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Disconnection Date</div>
-                                <div>{{\Carbon\Carbon::parse($data['current_bill']->due_date)->format('m/d/Y')}}</div>
+                                <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                             </div>
                         </div>
                     </div>
@@ -119,27 +119,47 @@
                     <div>
                         <div style="display: flex; justify-content: space-between;">
                             <div style="text-transform: uppercase">Previous Reading</div>
-                            <div style="text-transform: uppercase">{{$data['current_bill']->reading->previous_reading ?? 'N/A'}}</div>
+                            <div style="text-transform: uppercase">{{$data['current_bill']['reading']['previous_reading'] ?? 'N/A'}}</div>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <div style="text-transform: uppercase">Present Reading</div>
-                            <div style="text-transform: uppercase">{{$data['current_bill']->reading->present_reading ?? 'N/A'}}</div>
+                            <div style="text-transform: uppercase">{{$data['current_bill']['reading']['present_reading'] ?? '0'}}</div>
                         </div>
                         <div style="display: flex; justify-content: space-between;">
                             <div style="font-size: 16px;">Cub. M Used</div>
-                            <div style="font-size: 16px;">{{$data['current_bill']->reading->consumption ?? 'N/A'}}</div>
+                            <div style="font-size: 16px;">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                         </div>
                     </div>
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <div style="text-transform: uppercase">Basic Charge:</div>
-                            <div style="text-transform: uppercase">0</div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <div style="text-transform: uppercase">SC Discount:</div>
-                            <div style="text-transform: uppercase">0</div>
-                        </div>
+
+                        @php
+                            $breakdown = collect($data['current_bill']['breakdown']);
+                            $arrears = optional($breakdown->firstWhere('name', 'Previous Balance'))->amount ?? 0;
+                            $deductions = $breakdown->where('name', '!=', 'Previous Balance')->values();
+                        @endphp
+
+                        @forelse($deductions as $deduction)
+                            <div style="display: flex; justify-content: space-between;">
+                                <div style="text-transform: uppercase">{{$deduction['name']}}</div>
+                                <div style="text-transform: uppercase">{{$deduction['amount']}}</div>
+                            </div>
+                        @empty
+
+                        @endforelse
+
+                        @php
+                            $discounts = $data['current_bill']['discount'];
+                        @endphp
+
+                        @forelse($discounts as $discount)
+                            <div style="display: flex; justify-content: space-between;">
+                                <div style="text-transform: uppercase">{{$discount['name']}}</div>
+                                <div style="text-transform: uppercase">{{$discount['amount']}}</div>
+                            </div>
+                        @empty
+
+                        @endforelse
                         <div style="display: flex; justify-content: space-between;">
                             <div style="text-transform: uppercase;">2% Franchise Tax:</div>
                             <div style="text-transform: uppercase;">0</div>
@@ -148,12 +168,18 @@
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="display: flex; justify-content: space-between;">
                         <div style="text-transform: uppercase">Current Billing:</div>
-                        <div style="text-transform: uppercase">1,292</div>
+                        <div style="text-transform: uppercase">{{$data['current_bill']['total']}}</div>
                     </div>
+                    @if($arrears != 0)
+                        <div style="display: flex; justify-content: space-between;">
+                            <div style="text-transform: uppercase;">Arrears:</div>
+                            <div style="text-transform: uppercase;">{{$arrears}}</div>
+                        </div>
+                    @endif
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount Due:</div>
-                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">1,292</div>
+                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">{{$data['current_bill']['amount']}}</div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -161,79 +187,53 @@
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Penalty Date: </div>
-                        <div style="text-transform: uppercase;"></div>
+                        <div style="text-transform: uppercase;">
+                            @if($data['current_bill']['hasPenalty'])
+                                {{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}
+                            @endif
+                        </div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Penalty Amt: </div>
-                        <div style="text-transform: uppercase;"></div>
+                        <div style="text-transform: uppercase;">
+                            @if($data['current_bill']['hasPenalty'])
+                                {{$data['current_bill']['penalty']}}
+                            @endif
+                        </div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount After Due:</div>
-                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">1,292</div>
+                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">
+                            @if($data['current_bill']['hasPenalty'])
+                                {{$data['current_bill']['amount_after_due']}}
+                            @endif
+                        </div>
                     </div>
                     <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">6 months Consumption History</h6>
                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; text-transform: uppercase;">
-                        <div style="text-align: center;">
-                            <div>
-                                Feb
+                        @foreach($data['previousConsumption'] as $prevConsump)
+                            <div style="text-align: center;">
+                                <div>
+                                    {{$prevConsump['month']}}
+                                </div>
+                                <div>
+                                    {{$prevConsump['value']}}
+                                </div>
                             </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div>
-                                Jan
-                            </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div>
-                                Dec
-                            </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div>
-                                Nov
-                            </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div>
-                                Oct
-                            </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div>
-                                Sep
-                            </div>
-                            <div>
-                                26
-                            </div>
-                        </div>
+                        @endforeach
                     </div>
                     <div style="margin: 10px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                     <h6 style="font-weight: bold; text-align: center; margin-top: 10px; margin-bottom: 10px;">Two (2) months of non-payment of bills mean AUTOMATIC DISCONNECTION</h6>
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Bill No:</div>
-                        <div style="text-transform: uppercase;">{{$data['previous_payment']->reference_no ?? ''}}</div>
+                        <div style="text-transform: uppercase;">{{$data['current_bill']['reference_no']}}</div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Meter Reader</div>
-                        <div style="text-transform: uppercase;"></div>
+                        <div style="text-transform: uppercase;">{{$data['current_bill']['reading']['reader_name']}}</div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Time Stamp: </div>

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BaseRate;
 use App\Models\User;
 use App\Models\Bill;
+use App\Models\BillBreakdown;
 use App\Models\Rates;
 use App\Models\Reading;
 use App\Models\UserAccounts;
@@ -88,7 +89,9 @@ class MeterService {
     public static function getBill(string $reference_no) {
 
         // Fetch the current bill with reading details
-        $current_bill = Bill::with('reading', 'breakdown')->where('reference_no', $reference_no)->first();    
+        $current_bill = Bill::with('reading', 'breakdown', 'discount')
+            ->where('reference_no', $reference_no)
+            ->first();    
 
         if (!$current_bill) {
             return [
@@ -149,15 +152,20 @@ class MeterService {
 
         $filteredAccountArray = optional($filteredAccounts->first())->toArray() ?? [];
         $client = array_merge($filteredAccountArray, $client->toArray());
+        
+        $bill_period_from = $current_bill->bill_period_from;
 
+        $previousConsumption = self::previousConsumption($account_no, $bill_period_from);
+        
         unset($client['accounts']);
         
         return [
             'client' => $client,
-            'current_bill' => $current_bill,
-            'previous_payment' => $previous_payment,
-            'active_payment' => $active_payment,
-            'unpaid_bills' => $unpaid_bills,
+            'current_bill' => $current_bill->toArray() ?? [],
+            'previous_payment' => $previous_payment ? $previous_payment->toArray() : null,
+            'active_payment' => $active_payment ? $active_payment->toArray() : null,
+            'unpaid_bills' => $unpaid_bills->toArray() ?? [],
+            'previousConsumption' => $previousConsumption
         ];
     }    
 
@@ -293,7 +301,6 @@ class MeterService {
             ];
         }
 
-
         $latest_reading = Reading::with('concessionaire.user', 'bill')
             ->where('account_no', $payload['account_no'])
             ->latest()
@@ -388,11 +395,10 @@ class MeterService {
 
         // discounts
         $appliedDiscounts = [];
+        $discountAmount = 0;
 
         foreach ($discounts as $discount) {
             
-            $discountAmount = 0;
-
             $isEligible = (
                 ($discount->eligible === 'senior' && $isSeniorCitizen) ||
                 ($discount->eligible === 'pwd' && $isPWD)
@@ -417,21 +423,25 @@ class MeterService {
             ];
         }
 
+        $overall_total = $discountAmount == 0 ? $total : $overall_total;
+
+        $date = $payload['date'];
+
+        $days_due = $ruling->due_date;
+
+        $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
+        $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
+        $due_date = $date->copy()->addDays($days_due)->format('Y-m-d H:i:s');
 
         $reading = [
             'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
             'present_reading' => $payload['present_reading'],
             'consumption' => $consumption,
-            'rate' => $rate,
-            'reader_name' => Auth::user()->name
+            'reader_name' => Auth::user()->name,
+            'created_at' => $bill_period_to,
+            'updated_at' => $bill_period_to,
         ];
-
-        $days_due = $ruling->due_date;
-
-        $bill_period_from = Carbon::now()->subMonth()->format('Y-m-d H:i:s');
-        $bill_period_to = Carbon::now()->format('Y-m-d H:i:s');
-        $due_date = Carbon::now()->addDays($days_due)->format('Y-m-d H:i:s');
 
         $bill = [
             'reference_no' => $this->generateReferenceNo(),
@@ -442,40 +452,87 @@ class MeterService {
             'discount' => $discountAmount,
             'amount' => $overall_total,
             'due_date' => $due_date,
+            'created_at' => $bill_period_to,
+            'updated_at' => $bill_period_to,
         ];
 
-        $prev_consumption = $this->previousConsumption($payload['account_no']) ?? [];
+        try {
+            
+            $readingID = Reading::insertGetId($reading);
+
+            $bill['reading_id'] = $readingID;
+
+            $billID = Bill::insertGetId($bill);
+
+            foreach($deductions as $deduction) {
+                BillBreakdown::insert([
+                    'bill_id' => $billID,
+                    'name' => $deduction['name'],
+                    'description' => $deduction['description'],
+                    'amount' => $deduction['amount'],
+                    'created_at' => $bill_period_to,
+                    'updated_at' => $bill_period_to,
+                ]);
+            }
+
+        } catch (\Exeception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage
+            ];
+        }
 
         return [
             'status' => 'success',
-            'previous_consumptions' => $prev_consumption,
-            'reading' => $reading,
-            'deductions' => $deductions,
-            'discounts' => $appliedDiscounts,
             'bill' => $bill,
         ];
 
     }
 
-    private function previousConsumption(string $account_no) {
+    private static function previousConsumption(string $account_no, string $bill_period_from)
+    {
+        $billDate = Carbon::parse($bill_period_from);
+
+        $targetMonths = collect();
+        for ($i = 1; $i <= 6; $i++) {
+            $date = $billDate->copy()->subMonths($i);
+            $targetMonths->push([
+                'month' => $date->format('M'),
+                'month_number' => $date->month,
+                'year' => $date->year,
+                'value' => 0
+            ]);
+        }
+
+        $start = $billDate->copy()->subMonths(6)->startOfMonth();
+        $end = $billDate->copy()->subMonth()->endOfMonth();
+
         $readings = Reading::select(
                 DB::raw('MONTH(created_at) as month_number'),
-                DB::raw('MONTHNAME(created_at) as month_name'),
-                DB::raw('SUM(consumption) as total_consumption')
+                DB::raw('YEAR(created_at) as year_number'),
+                'consumption'
             )
-            ->where('account_no', $account_no) 
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
-            ->groupBy('month_number', 'month_name')
-            ->orderBy('month_number')
-            ->get();
+            ->where('account_no', $account_no)
+            ->whereBetween('created_at', [$start, $end])
+            ->get()
+            ->unique(fn($item) => $item->year_number . '-' . $item->month_number);
 
-        $prev_consumption = $readings->map(function ($reading) {
+        $result = $targetMonths->map(function ($month) use ($readings) {
+            $reading = $readings->first(function ($r) use ($month) {
+                return $r->month_number == $month['month_number'] &&
+                    $r->year_number == $month['year'];
+            });
+
             return [
-                'month' => $reading->month_name,
-                'value' => (int) $reading->total_consumption
+                'month' => $month['month'],
+                'year' => $month['year'],
+                'value' => $reading ? (int) $reading->consumption : 0
             ];
-        })->values()->toArray();
+        });
+
+        return $result->toArray();
     }
+
 
     private function generateReferenceNo() {
 

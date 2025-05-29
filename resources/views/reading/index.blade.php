@@ -6,13 +6,22 @@
             <div class="inner-content mt-5 pb-5 mb-5">
                 <form action="{{route('reading.store')}}" method="POST">
                     @csrf
-                    @method('POST')             
+                    @method('POST')     
                     <div class="row d-flex justify-content-center pb-5">
                         <div class="col-12 col-md-7">
                             <div class="col-12 col-md-12 mb-3">
                                 <div class="card shadow border-0 p-2 pb-0 pt-4">
                                     <div class="card-body">
                                         <div class="row">
+                                            @if(env('IS_TEST_READING')) 
+                                                <div class="col-md-12 mb-5">
+                                                    <label for="reading_month" class="form-label">Testing Month</label>
+                                                    <input type="date" class="form-control h-extend @error('reading_month') is-invalid @enderror" id="reading_month" name="reading_month" value="{{ old('reading_month') }}" placeholder="########">
+                                                    @error('reading_month')
+                                                        <div class="invalid-feedback">{{ $message }}</div>
+                                                    @enderror
+                                                </div>
+                                            @endif
                                             <div class="col-md-12 mb-5">
                                                 <label for="meter_no" class="form-label">Account No / Meter No</label>
                                                 <input type="text" class="form-control h-extend @error('meter_no') is-invalid @enderror" id="meter_no" name="meter_no" value="{{ old('meter_no') }}" placeholder="########">

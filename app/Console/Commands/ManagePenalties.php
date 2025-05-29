@@ -95,14 +95,9 @@ class ManagePenalties extends Command
         $totalAmount = $amountPayable + $penaltyAmount;
 
         $bill->update([
-            'amount' => $totalAmount,
+            'amount_after_due' => $totalAmount,
+            'penalty' => $penaltyAmount,
             'hasPenalty' => true,
-        ]);
-
-        BillBreakdown::create([
-            'bill_id' => $bill->id,
-            'name' => 'Penalty',
-            'amount' => $penaltyAmount,
         ]);
     }
 

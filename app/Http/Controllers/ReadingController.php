@@ -101,8 +101,16 @@ class ReadingController extends Controller
     public function store(Request $request) {
 
         $payload = $request->all();
+        $isTesting = env('IS_TEST_READING');
 
         $validator = Validator::make($payload, [
+            'reading_month' => [
+                function ($attribute, $value, $fail) use ($isTesting) {
+                    if ($isTesting && empty($value)) {
+                        return $fail('Reading month is required.');
+                    }
+                }
+            ],
             'meter_no' => [
                 'required',
                 function ($attribute, $value, $fail) {
@@ -118,11 +126,37 @@ class ReadingController extends Controller
             'present_reading' => 'required|integer|gt:previous_reading',
         ]);
 
-        if($validator->fails()) {
+        if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
                 ->withInput();
         }
+
+        try {
+            if ($isTesting) {
+                $date = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
+            } else {
+                $date = Carbon::now();
+            }
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withErrors(['reading_month' => 'Invalid reading month format. Use "Month YYYY" (e.g., January 2025).'])
+                ->withInput();
+        }
+
+        $month = $date->month;
+        $year = $date->year;
+
+        $exists = Reading::whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()
+                ->withErrors(['reading_month' => "Reading already exists for {$date->format('F Y')}"])
+                ->withInput();
+        }
+
 
         DB::beginTransaction();
 
@@ -138,28 +172,14 @@ class ReadingController extends Controller
             $computed = $this->meterService->create_breakdown([
                 'account_no' => $account_no,
                 'property_type_id' => $property_type_id,
-                'present_reading' => $present_reading
+                'present_reading' => $present_reading,
+                'date' => $date,
             ]);
 
             if($computed['status'] == 'error') {
                 return redirect()->back()->withInput($payload)->with('alert', [
                     'status' => 'error',
                     'message' => $computed['message']
-                ]);
-            }
-
-            $reading = Reading::create($computed['reading']);
-
-            $computed['bill']['reading_id'] = $reading->id;
-
-            $bill = Bill::create($computed['bill']);
-
-            foreach($computed['deductions'] as $deductions) {
-                BillBreakdown::create([
-                    'bill_id' => $bill->id,
-                    'name' => $deductions['name'],
-                    'description' => $deductions['description'],
-                    'amount' => $deductions['amount']
                 ]);
             }
 
@@ -176,11 +196,11 @@ class ReadingController extends Controller
                 ],
             ];
 
-            $this->generatePaymentQR($bill['reference_no'], $payload);
+            $this->generatePaymentQR($computed['bill']['reference_no'], $payload);
 
             DB::commit();
 
-            return redirect()->route('reading.show', ['reference_no' => $bill->reference_no])->with('alert', [
+            return redirect()->route('reading.show', ['reference_no' => $computed['bill']['reference_no']])->with('alert', [
                 'status' => 'success',
                 'message' => 'Bill has been created'
             ]);

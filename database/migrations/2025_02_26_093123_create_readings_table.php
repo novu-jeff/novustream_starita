@@ -33,7 +33,14 @@ return new class extends Migration
             $table->string('bill_period_to');
             $table->string('previous_unpaid')
                 ->nullable();
+            $table->string('total');
+            $table->string('discount')
+                ->default(0);
+            $table->string('penalty')
+                ->default(0);
             $table->string('amount');
+            $table->string('amount_after_due')
+                ->default(0);
             $table->string('amount_paid')
                 ->nullable();
             $table->string('change')
