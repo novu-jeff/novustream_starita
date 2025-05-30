@@ -170,7 +170,7 @@
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="display: flex; justify-content: space-between;">
                         <div style="text-transform: uppercase">Current Billing:</div>
-                        <div style="text-transform: uppercase">{{$data['current_bill']['total'] - $arrears - $totalDiscount}}</div>
+                        <div style="text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
                     </div>
                     @if($arrears != 0)
                         <div style="display: flex; justify-content: space-between;">
@@ -181,7 +181,7 @@
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount Due:</div>
-                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">{{$data['current_bill']['amount']}}</div>
+                        <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">{{number_format($data['current_bill']['amount'], 2)}} </div>
                     </div>
                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -199,7 +199,7 @@
                         <div style="text-transform: uppercase;">Penalty Amt: </div>
                         <div style="text-transform: uppercase;">
                             @if($data['current_bill']['hasPenalty'])
-                                {{$data['current_bill']['penalty']}}
+                                {{number_format($data['current_bill']['penalty'], 2)}}
                             @endif
                         </div>
                     </div>
@@ -207,7 +207,7 @@
                         <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount After Due:</div>
                         <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">
                             @if($data['current_bill']['hasPenalty'])
-                                {{$data['current_bill']['amount_after_due']}}
+                                {{number_format($data['current_bill']['amount_after_due'], 2)}}
                             @endif
                         </div>
                     </div>

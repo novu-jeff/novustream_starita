@@ -16,7 +16,7 @@
                         <div class="col-12 col-md-6">
                             <div id="bill">
                                 <div class="bill-container">
-                                    <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                                    <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                         @if($data['current_bill']['isPaid'] == true)
                                             <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                                                 PAID
@@ -35,7 +35,7 @@
                                                 <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. (045) 900- 2911</p>
                                                 <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
                                             </div>
-                                        </div>
+                                        </div> 
                                         <div style="text-align:center; text-transform: uppercase; font-size: 16px; margin: 10px 0 10px 0;">
                                             <p style="font-size: 18px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Statement of Account</p>
                                         </div>
@@ -105,6 +105,7 @@
                                                 $deductions = $breakdown->reject(fn($item) => $item['name'] === 'Previous Balance')->values();
                                             @endphp
 
+
                                             @forelse($deductions as $deduction)
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div style="text-transform: uppercase">{{$deduction['name']}}</div>
@@ -135,7 +136,7 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                                         <div style="display: flex; justify-content: space-between;">
                                             <div style="text-transform: uppercase">Current Billing:</div>
-                                            <div style="text-transform: uppercase">{{$data['current_bill']['total'] - $arrears - $totalDiscount}}</div>
+                                            <div style="text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
                                         </div>
                                         @if($arrears != 0)
                                             <div style="display: flex; justify-content: space-between;">
@@ -146,7 +147,7 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                                         <div style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">{{$data['current_bill']['amount']}}</div>
+                                            <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">{{number_format($data['current_bill']['amount'], 2)}} </div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -164,7 +165,7 @@
                                             <div style="text-transform: uppercase;">Penalty Amt: </div>
                                             <div style="text-transform: uppercase;">
                                                 @if($data['current_bill']['hasPenalty'])
-                                                    {{$data['current_bill']['penalty']}}
+                                                    {{number_format($data['current_bill']['penalty'], 2)}}
                                                 @endif
                                             </div>
                                         </div>
@@ -172,7 +173,7 @@
                                             <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 16px; font-weight: 600;">
                                                 @if($data['current_bill']['hasPenalty'])
-                                                    {{$data['current_bill']['amount_after_due']}}
+                                                    {{number_format($data['current_bill']['amount_after_due'], 2)}}
                                                 @endif
                                             </div>
                                         </div>
@@ -233,7 +234,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due: 
                                     <h3 class="ms-2">
-                                        PHP {{number_format($data['current_bill']['amount'] ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -263,7 +264,7 @@
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
                                                 <label for="total_charges" class="form-label">Total Amount</label>
-                                                <h1 class="fw-bold text-danger">PHP {{number_format($data['current_bill']['amount'] + $data['current_bill']['penalty'] ?? 0, 2)}}</h1>
+                                                <h1 class="fw-bold text-danger">PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}</h1>
                                             </div>
                                         </div>
                                         <div class="d-flex justify-content-end w-100">
@@ -361,7 +362,7 @@
                 checkPaymentStatus();
             }
 
-            const total = '{{$data['current_bill']['amount'] + $data['current_bill']['penalty']}}';
+            const total = '{{(float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty']}}';
             let changeAmount = '';
 
             $('#payment_amount').on('keyup click', function() {

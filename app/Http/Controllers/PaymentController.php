@@ -207,7 +207,7 @@ class PaymentController extends Controller
             return ['error' => 'Bill not found'];
         }
     
-        $total = $data['current_bill']['amount'] + $data['current_bill']['penalty'];
+        $total = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
     
         if($strictAmount) {
             $validator = Validator::make($payload, [

@@ -124,6 +124,7 @@ class MeterService {
             ->whereHas('reading', function ($query) use ($account_no) {
                 $query->where('account_no', $account_no);
             });    
+            
         // Fetch the latest unpaid payment (active payment)
         $active_payment = (clone $unpaidQuery)
             ->latest()
@@ -358,12 +359,12 @@ class MeterService {
                 'description' => '',
             ],
         ];
-    
+
         // deductions
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
                 $base_amount = ($deduction->percentage_of == 'basic_charge') ? $rate : $total_amount;
-                $amount = $base_amount * ($deduction->amount / 100); 
+                $amount = $base_amount * ($deduction->amount); 
     
                 $deductions[] = [
                     'name' => $deduction->name,
@@ -428,6 +429,8 @@ class MeterService {
         }
 
         $overall_total = $discountAmount == 0 ? $total : $overall_total;
+        $arrears = collect($deductions)
+            ->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
         // penalty
         $penaltyAmount = 0;
@@ -437,20 +440,19 @@ class MeterService {
         if($unpaidAmount != 0) {
 
             $penalties = $this->paymentBreakdownService::getPenalty();
+            $amountPayable = $total - $arrears - $discountAmount;
 
             foreach ($penalties as $penalty) {
 
-                $amountPayable = $overall_total;
                 if (strtolower($penalty->amount_type) === 'percentage') {
                     $penaltyAmount = $amountPayable * ($penalty->amount);
                 } else {
                     $penaltyAmount = $penalty->amount;
                 }
 
-                $amount_after_due = $amountPayable + $penaltyAmount;
+                $amount_after_due = $overall_total + $penaltyAmount;
                 $hasPenalty = true;
             }
-
         }
 
         $date = $payload['date'];
@@ -475,18 +477,17 @@ class MeterService {
             'reference_no' => $this->generateReferenceNo(),
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
-            'previous_unpaid' => number_format($unpaidAmount, 2),
-            'total' => number_format($total),
-            'discount' => number_format($discountAmount, 2),
-            'penalty' => number_format($penaltyAmount, 2),
+            'previous_unpaid' => $unpaidAmount,
+            'total' => $total,
+            'discount' => $discountAmount,
+            'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
-            'amount' => number_format($overall_total, 2),
-            'amount_after_due' => number_format($amount_after_due, 2),
+            'amount' => $overall_total,
+            'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
-
 
         try {
             
@@ -529,7 +530,6 @@ class MeterService {
             'status' => 'success',
             'bill' => $bill,
         ];
-
     }
 
     private static function previousConsumption(string $account_no, string $bill_period_from)
