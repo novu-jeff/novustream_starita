@@ -77,20 +77,27 @@ class CallbackController extends Controller {
         $data = $records['data']; 
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        $data['current_bill']->update([
-            'isPaid' => true,
-            'payor_name' => $payload['payor'] ?? null,
-            'date_paid' => $now,
-        ]);
+        $currentBill = Bill::find($data['current_bill']['id']);
+
+        if ($currentBill) {
+            $currentBill->update([
+                'isPaid' => true,
+                'payor_name' => $payload['payor'] ?? null,
+                'date_paid' => $now,
+            ]);
+        }
 
         if (!empty($data['unpaid_bills'])) {
             foreach ($data['unpaid_bills'] as $unpaid_bill) {
-                $unpaid_bill->update([
-                    'payor_name' => $payload['payor'] ?? null,
-                    'date_paid' => $now,
-                    'isPaid' => true,
-                    'paid_by_reference_no' => $reference_no
-                ]);
+                $unpaidBill = Bill::find($unpaid_bill['id']);
+                if ($unpaidBill) {
+                    $unpaidBill->update([
+                        'payor_name' => $payload['payor'] ?? null,
+                        'date_paid' => $now,
+                        'isPaid' => true,
+                        'paid_by_reference_no' => $reference_no
+                    ]);
+                }
             }
         }
 

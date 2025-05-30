@@ -6,6 +6,7 @@ use App\Models\BaseRate;
 use App\Models\User;
 use App\Models\Bill;
 use App\Models\BillBreakdown;
+use App\Models\BillDiscount;
 use App\Models\Rates;
 use App\Models\Reading;
 use App\Models\UserAccounts;
@@ -162,7 +163,7 @@ class MeterService {
         return [
             'client' => $client,
             'current_bill' => $current_bill->toArray() ?? [],
-            'previous_payment' => $previous_payment ? $previous_payment->toArray() : null,
+            'previous_payment' => $previous_payment,
             'active_payment' => $active_payment ? $active_payment->toArray() : null,
             'unpaid_bills' => $unpaid_bills->toArray() ?? [],
             'previousConsumption' => $previousConsumption
@@ -392,7 +393,10 @@ class MeterService {
         $isSeniorCitizen = $concessionaire->user->senior_citizen_no ?? null;
         $isPWD = $concessionaire->user->pwd_no ?? null;
         $total = collect($deductions)->sum('amount');
-
+        $basic_charge = collect($deductions)
+            ->where('name', 'Basic Charge')
+            ->sum('amount');
+            
         // discounts
         $appliedDiscounts = [];
         $discountAmount = 0;
@@ -409,7 +413,7 @@ class MeterService {
             }
 
             if (strtolower($discount->type) === 'percentage') {
-                $discountAmount = $total * ($discount->amount / 100);
+                $discountAmount = $basic_charge * ($discount->amount);
             } else {
                 $discountAmount = $discount->amount;
             }
@@ -424,6 +428,30 @@ class MeterService {
         }
 
         $overall_total = $discountAmount == 0 ? $total : $overall_total;
+
+        // penalty
+        $penaltyAmount = 0;
+        $amount_after_due = 0;
+        $hasPenalty = false;
+
+        if($unpaidAmount != 0) {
+
+            $penalties = $this->paymentBreakdownService::getPenalty();
+
+            foreach ($penalties as $penalty) {
+
+                $amountPayable = $overall_total;
+                if (strtolower($penalty->amount_type) === 'percentage') {
+                    $penaltyAmount = $amountPayable * ($penalty->amount);
+                } else {
+                    $penaltyAmount = $penalty->amount;
+                }
+
+                $amount_after_due = $amountPayable + $penaltyAmount;
+                $hasPenalty = true;
+            }
+
+        }
 
         $date = $payload['date'];
 
@@ -447,14 +475,18 @@ class MeterService {
             'reference_no' => $this->generateReferenceNo(),
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
-            'previous_unpaid' => $unpaidAmount,
-            'total' => $total,
-            'discount' => $discountAmount,
-            'amount' => $overall_total,
+            'previous_unpaid' => number_format($unpaidAmount, 2),
+            'total' => number_format($total),
+            'discount' => number_format($discountAmount, 2),
+            'penalty' => number_format($penaltyAmount, 2),
+            'hasPenalty' => $hasPenalty,
+            'amount' => number_format($overall_total, 2),
+            'amount_after_due' => number_format($amount_after_due, 2),
             'due_date' => $due_date,
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
+
 
         try {
             
@@ -470,6 +502,17 @@ class MeterService {
                     'name' => $deduction['name'],
                     'description' => $deduction['description'],
                     'amount' => $deduction['amount'],
+                    'created_at' => $bill_period_to,
+                    'updated_at' => $bill_period_to,
+                ]);
+            }
+
+            foreach($appliedDiscounts as $discount) {
+                BillDiscount::insert([
+                    'bill_id' => $billID,
+                    'name' => $discount['name'],
+                    'description' => $discount['description'],
+                    'amount' => $discount['amount'],
                     'created_at' => $bill_period_to,
                     'updated_at' => $bill_period_to,
                 ]);

@@ -86,8 +86,8 @@ class ManagePenalties extends Command
         $amountPayable = $bill->amount;
         $penaltyAmount = 0;
 
-        if (strtolower($penalty->type) === 'percentage') {
-            $penaltyAmount = $amountPayable * ($penalty->amount / 100);
+        if (strtolower($penalty->amount_type) === 'percentage') {
+            $penaltyAmount = $amountPayable * ($penalty->amount);
         } else {
             $penaltyAmount = $penalty->amount;
         }

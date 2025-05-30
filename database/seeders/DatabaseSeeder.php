@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             TicketsCategorySeeder::class,
             BaseRateSeeder::class,
             RateSeeder::class,
+            PaymentBreakdownSeeder::class,
         ]);
 
     }

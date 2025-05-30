@@ -405,7 +405,11 @@ class PaymentBreakdownController extends Controller
             return DataTables::of($query)
                 ->addIndexColumn()
                 ->editColumn('amount', function($row) {
-                    return '₱' .  number_format($row->amount ?? 0, 2);
+                    if($row->amount_type == 'percentage') {
+                        return $row->amount . '%';
+                    } else {
+                        return '₱' .  number_format($row->amount ?? 0, 2);
+                    }
                 })
                 ->editColumn('amount_type', function($row) {
                     $type = [

@@ -83,6 +83,7 @@ class ReadingController extends Controller
 
         $qr_code = $this->generateService::qr_code($url, 80);
 
+
         return view('reading.show', compact('data', 'reference_no', 'qr_code'));
     }
 
@@ -183,8 +184,10 @@ class ReadingController extends Controller
                 ]);
             }
 
+            $amount = $computed['bill']['amount'] + $computed['bill']['penalty'];
+
             $payload = [
-                'amount' => round($this->convertAmount((float) $computed['bill']['amount']), 2),
+                'amount' => round($this->convertAmount((float) $amount), 2),
                 'reference_no' => $computed['bill']['reference_no'],
                 'customer' => [
                     'account_number' => $account->account_no ?? '',

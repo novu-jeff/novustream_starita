@@ -188,7 +188,7 @@ class PaymentController extends Controller
         }
 
         if(!is_null($data['active_payment'])) {
-            return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']->reference_no]);
+            return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']['reference_no']]);
         }
 
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
@@ -207,7 +207,7 @@ class PaymentController extends Controller
             return ['error' => 'Bill not found'];
         }
     
-        $total = $data['current_bill']->amount;
+        $total = $data['current_bill']['amount'] + $data['current_bill']['penalty'];
     
         if($strictAmount) {
             $validator = Validator::make($payload, [
@@ -239,29 +239,38 @@ class PaymentController extends Controller
     
         $now = Carbon::now()->format('Y-m-d H:i:s');
         
-        $amount = $data['current_bill']->amount;
+        $amount = $data['current_bill']['amount'] + $data['current_bill']['penalty'];
         $change = $payload['payment_amount'] - $amount;
-    
-        $data['current_bill']->update([
-            'isPaid' => true,
-            'amount_paid' => $payload['payment_amount'],
-            'change' => $change,
-            'payor_name' => $payload['payor'],
-            'date_paid' => $now,
-        ]);
-    
+            
+        $currentBill = Bill::find($data['current_bill']['id']);
+
+        if ($currentBill) {
+            $currentBill->update([
+                'isPaid' => true,
+                'amount_paid' => $payload['payment_amount'],
+                'change' => $change,
+                'payor_name' => $payload['payor'],
+                'date_paid' => $now,
+            ]);
+        }
+
         if (!empty($data['unpaid_bills'])) {
             foreach ($data['unpaid_bills'] as $unpaid_bill) {
-                $unpaid_bill->update([
-                    'payor_name' => $payload['payor'],
-                    'date_paid' => $now,
-                    'isPaid' => true,
-                    'amount_paid' => $payload['payment_amount'],
-                    'change' => $change,
-                    'paid_by_reference_no' => $reference_no
-                ]);
+                $unpaidBill = Bill::find($unpaid_bill['id']);
+
+                if ($unpaidBill) {
+                    $unpaidBill->update([
+                        'payor_name' => $payload['payor'],
+                        'date_paid' => $now,
+                        'isPaid' => true,
+                        'amount_paid' => $payload['payment_amount'],
+                        'change' => $change,
+                        'paid_by_reference_no' => $reference_no
+                    ]);
+                }
             }
         }
+
     
         return redirect()->back()->with('alert', [
             'status' => 'success',

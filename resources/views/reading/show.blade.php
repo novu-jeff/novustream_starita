@@ -135,9 +135,10 @@
 
                         @php
                             $breakdown = collect($data['current_bill']['breakdown']);
-                            $arrears = optional($breakdown->firstWhere('name', 'Previous Balance'))->amount ?? 0;
-                            $deductions = $breakdown->where('name', '!=', 'Previous Balance')->values();
+                            $arrears = $breakdown->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
+                            $deductions = $breakdown->reject(fn($item) => $item['name'] === 'Previous Balance')->values();
                         @endphp
+
 
                         @forelse($deductions as $deduction)
                             <div style="display: flex; justify-content: space-between;">
@@ -150,12 +151,13 @@
 
                         @php
                             $discounts = $data['current_bill']['discount'];
+                            $totalDiscount = collect($discounts)->sum('amount');
                         @endphp
 
                         @forelse($discounts as $discount)
                             <div style="display: flex; justify-content: space-between;">
                                 <div style="text-transform: uppercase">{{$discount['name']}}</div>
-                                <div style="text-transform: uppercase">{{$discount['amount']}}</div>
+                                <div style="text-transform: uppercase">({{$discount['amount']}})</div>
                             </div>
                         @empty
 
@@ -168,7 +170,7 @@
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                     <div style="display: flex; justify-content: space-between;">
                         <div style="text-transform: uppercase">Current Billing:</div>
-                        <div style="text-transform: uppercase">{{$data['current_bill']['total']}}</div>
+                        <div style="text-transform: uppercase">{{$data['current_bill']['total'] - $arrears - $totalDiscount}}</div>
                     </div>
                     @if($arrears != 0)
                         <div style="display: flex; justify-content: space-between;">
