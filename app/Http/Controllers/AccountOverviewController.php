@@ -94,16 +94,12 @@ class AccountOverviewController extends Controller
 
         $statement = [];
 
-        $statement = [];
-
         foreach ($accounts as $account) {
-            $bill = $this->meterService::getBills($account->account_no);
-            if (!empty($bill) && $bill['isPaid'] == 0) {
-                $bill['account_no'] = $account->account_no;
-                $statement[] = $bill;
+            $bill = $this->meterService::getBills($account->account_no, true);
+            if (!empty($bill)) {
+                $statement = $bill;
             }
         }
-
 
         if(request()->ajax()) {
             return $this->datatable($statement);

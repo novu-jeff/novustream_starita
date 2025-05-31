@@ -56,7 +56,7 @@
                         $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                     @endphp
 
-                    <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                    <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
                         <div>
                             <img src="{{ asset('images/client.png')}}" 
                                 alt="logo" class="web-logo">

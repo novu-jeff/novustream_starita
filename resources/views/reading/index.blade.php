@@ -102,6 +102,7 @@
         const $meterNo = $('#meter_no');
         const $presentReading = $('#present_reading');
         const $previousReading = $('#previous_reading');
+        const $testingMonth = $('#reading_month');
         const $consumption = $('#consumption');
         const $clientInfo = $('#client-info');
         const $action = $('#action');
@@ -114,7 +115,7 @@
 
         // Initialize values from old inputs
         if (oldMeterNo) {
-            getWaterData(oldMeterNo, true);
+            getData(oldMeterNo, true);
         } else {
             calculateConsumption(oldPresentReading, oldPreviousReading, oldConsumption);
         }
@@ -122,7 +123,7 @@
         $meterNo.on('input', function () {
             const meterNo = $(this).val().trim();
             if (meterNo != '') {
-                getWaterData(meterNo);
+                getData(meterNo);
             } else {
                 resetForm();
                 showWaitingForReading();
@@ -145,7 +146,7 @@
             $consumption.val(computedConsumption);
         }
 
-        function getWaterData(meterNo, isOldLoad = false) {
+        function getData(meterNo, isOldLoad = false) {
 
             globalSearch = meterNo;
 
@@ -153,11 +154,14 @@
                 url: '{{ route(Route::currentRouteName()) }}',
                 type: 'GET',
                 data: { meter_no: meterNo },
+
                 success: function (response) {
                     if (response.status !== 'success' || !response.account) {
                         showWaitingForReading();
                         return;
                     }
+
+                    console.log(response)
 
                     const { account_no, meter_serial_no, address, date_connected } = response.account;
                     
@@ -185,7 +189,8 @@
                     $previousReading.val(presReading);
                     globalPreviousReading = presReading;
 
-                    // If loading from old values, prioritize them
+                    $testingMonth.val(reading.suggestedNextMonth);
+
                     if (isOldLoad) {
                         calculateConsumption(oldPresentReading, oldPreviousReading, oldConsumption);
                     }

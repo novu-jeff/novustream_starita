@@ -22,7 +22,7 @@
                                                 PAID
                                             </div>
                                         @endif
-                                        <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                                        <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
                                             <div>
                                                 <img src="{{ asset('images/client.png')}}"
                                                     style="width: 90px; margin: 0 auto 10px auto" 
@@ -365,16 +365,41 @@
             const total = '{{(float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty']}}';
             let changeAmount = '';
 
-            $('#payment_amount').on('keyup click', function() {
-                let value = parseFloat($(this).val()) || 0; 
-                let change = (value - total).toFixed(2);
+            $('#payment_amount')
+                .val('0') 
+                .on('focus', function () {
+                    if ($(this).val() === '0') {
+                        $(this).val('');
+                    }
+                })
+                .on('blur', function () {
+                    if ($(this).val().trim() === '') {
+                        $(this).val('0');
+                    }
+                })
+                .on('input', function () {
+                    let input = $(this).val();
 
-                if (value < total) {
-                    $('#changeAmount').text('PHP 0.00');
-                } else {
-                    $('#changeAmount').text('PHP ' + change);
-                }
-            });
+                    // Allow only digits and decimal point
+                    input = input.replace(/[^0-9.]/g, '');
+
+                    // Ensure only one decimal point
+                    if ((input.match(/\./g) || []).length > 1) {
+                        input = input.substring(0, input.length - 1);
+                    }
+
+                    $(this).val(input);
+
+                    let value = parseFloat(input) || 0;
+                    let change = (value - total).toFixed(2);
+
+                    if (value < total) {
+                        $('#changeAmount').text('PHP 0.00');
+                    } else {
+                        $('#changeAmount').text('PHP ' + change);
+                    }
+                });
+
 
 
 

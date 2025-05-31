@@ -25,6 +25,7 @@ class ReadingController extends Controller
     public $paymentBreakdownService;
     public $paymentServiceFee;
     public $generateService;
+    public $isTesting = false;
 
     public function __construct(MeterService $meterService, 
         PaymentBreakdown $paymentBreakdownService, 
@@ -48,6 +49,8 @@ class ReadingController extends Controller
         $this->paymentBreakdownService = $paymentBreakdownService;
         $this->paymentServiceFee = $paymentServiceFee;
         $this->generateService = $generateService;
+
+        $this->isTesting = env('IS_TEST_READING');
     }
 
     public function index(Request $request) {
@@ -101,12 +104,11 @@ class ReadingController extends Controller
     public function store(Request $request) {
 
         $payload = $request->all();
-        $isTesting = env('IS_TEST_READING');
 
         $validator = Validator::make($payload, [
             'reading_month' => [
-                function ($attribute, $value, $fail) use ($isTesting) {
-                    if ($isTesting && empty($value)) {
+                function ($attribute, $value, $fail) {
+                    if ($this->isTesting && empty($value)) {
                         return $fail('Reading month is required.');
                     }
                 }
@@ -133,7 +135,7 @@ class ReadingController extends Controller
         }
 
         try {
-            if ($isTesting) {
+            if ($this->isTesting) {
                 $date = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
             } else {
                 $date = Carbon::now();

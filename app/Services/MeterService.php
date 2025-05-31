@@ -76,9 +76,20 @@ class MeterService {
             ];
         }
     
-        $previous_reading = Reading::where('account_no', $account->account_no)
+        $previous_reading = Reading::with('bill')
+            ->where('account_no', $account->account_no)
             ->latest()
-            ->first() ?? [];
+            ->first();
+
+
+        $suggestNextMonth = optional($previous_reading->bill)
+            ->bill_period_to;
+        
+        $suggestNextMonth = Carbon::parse($suggestNextMonth)
+            ->addMonth(1)
+            ->format('Y-m-d');
+
+        $previous_reading->suggestedNextMonth = $suggestNextMonth;
     
         return [
             'status' => 'success',
@@ -456,11 +467,18 @@ class MeterService {
         }
 
         $date = $payload['date'];
-
         $days_due = $ruling->due_date;
 
-        $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
-        $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
+        if($latest_reading) {
+            $lastReading = Carbon::parse($latest_reading->bill->bill_period_to);
+            $nextReading = $lastReading->addDays(1);
+            $bill_period_from = $nextReading->format('Y-m-d H:i:s');
+            $bill_period_to = $nextReading->addDays($days_due)->format('Y-m-d H:i:s');
+        } else {
+            $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
+            $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
+        }
+       
         $due_date = $date->copy()->addDays($days_due)->format('Y-m-d H:i:s');
 
         $reading = [

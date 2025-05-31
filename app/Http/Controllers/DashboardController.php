@@ -32,17 +32,19 @@ class DashboardController extends Controller
 
     public function index()
     {
-        $users = $this->dashboardService->getAllUsers()->toArray() ?? [];
-        $water_readings = $this->meterService->getReport() ?? collect([]);
+        $users = $this->dashboardService->getAllUsers() ?? [];
+        $readings = $this->meterService->getReport() ?? collect([]);
 
-        $total_transactions = $water_readings->sum(fn($reading) => $reading['bill']['amount'] ?? 0);
-        $total_unpaid = $water_readings->where('bill.isPaid', false)->sum('bill.amount');
-        $total_paid = $water_readings->where('bill.isPaid', true)->sum('bill.amount');
-        $total_payments = $water_readings->sum('bill.amount');
+        $total_transactions = $readings->sum(fn($reading) => $reading['bill']['amount'] ?? 0);
+        $total_unpaid = $readings->where('bill.isPaid', false)->sum('bill.amount');
+        $total_paid = $readings->where('bill.isPaid', true)->sum('bill.amount');
+        $total_payments = $readings->sum('bill.amount');
 
         $data = [
-            'users' => $users,
-            'total_readings' => $water_readings->count(),
+            'admins' => $users['admins'],
+            'concessionaires' => $users['concessionaires'],
+            'technicians' => $users['technicians'],
+            'total_readings' => $readings->count(),
             'total_transactions' => $total_transactions,
             'total_unpaid' => $total_unpaid,
             'total_paid' => $total_paid,
