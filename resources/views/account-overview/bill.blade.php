@@ -4,10 +4,110 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>{{ !$isViewBill ? 'Bills & Payments' : "Billing & Payments | $reference_no" }}</h1>
+                <h1>
+                     @php
+                        $title = [
+                            'accounts' => 'Account Properties',
+                            'bills' => "Billing and Payments <br> | " . ($account_no ?? ''),
+                            'receipt' => ($reference_no ?? ''),
+                        ];
+                    @endphp
+
+                    {!! $title[$viewer] ?? '' !!}
+                </h1>
+
+                 @if($viewer == 'bills')
+                    <a href="{{ route('account-overview.bills') }}" 
+                        class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                        Go Back
+                    </a>
+                @endif
+
+                @if($viewer == 'receipt')
+                    <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
+                        @php
+                            $backUrl = route('account-overview.bills', ['account_no' => $data['client']['account_no'], 'view' => 'unpaid']);
+                        @endphp
+                
+                        <a href="{{ $backUrl }}" 
+                            style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;"
+                            class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                            <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
+                        </a>
+                
+                        <button 
+                            class="download-js btn btn-primary px-5 py-3 text-uppercase" 
+                            data-target="#bill" 
+                            data-filename="{{$data['current_bill']['reference_no']}}" 
+                            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
+                        </button>
+    
+                    </div>
+                @endif
             </div>
-            @if(!$isViewBill)
+            @if($viewer == 'accounts')
                 <div class="inner-content mt-5 pb-5">
+                    <table class="w-100 table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Account No.</th>
+                                <th>Meter No</th>
+                                <th>Address</th>
+                                <th>Property Type</th>
+                                <th>Date Connected</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+
+                @section('script')
+                    <script>
+                        $(function() {
+                            const url = '{{ route(Route::currentRouteName()) }}';
+                    
+                            let table = $('table').DataTable({
+                                processing: true,
+                                serverSide: true,
+                                ajax: url,
+                                columns: [
+                                    { data: 'id', name: 'id' }, 
+                                    { data: 'account_no', name: 'account_no' }, 
+                                    { data: 'meter_no', name: 'meter_no' },
+                                    { data: 'address', name: 'address' },
+                                    { data: 'property_type', name: 'property_type' },
+                                    { data: 'date_connected', name: 'date_connected' },
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                                ],
+                                responsive: true,
+                                order: [[0, 'desc']],
+                                scrollX: true
+                            });
+                    
+                        });
+                    </script>
+                @endsection
+            @endif
+
+            @if($viewer == 'bills')
+                <div class="inner-content mt-5 pb-5">
+                    <ul class="nav nav-pills mb-5" id="pills-tab" role="tablist">
+                        @foreach(['unpaid' => 'Unpaid', 'paid' => 'Paid'] as $key => $label)
+                            <li class="nav-item" role="presentation">
+                                <a
+                                    class="nav-link text-uppercase  {{ $view == $key ? 'active' : '' }}" 
+                                    id="pills-{{ $key }}-tab" 
+                                    href="{{ route('account-overview.bills', ['account_no' => $account_no, 'view' => $key]) }}"
+                                >
+                                    {{ $label }}
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
                     <table class="w-100 table table-bordered table-hover">
                         <thead>
                             <tr>
@@ -25,60 +125,43 @@
                     </table>
                 </div>
                 @section('script')
-                <script>
-                    $(function() {
-                        const url = '{{ route(Route::currentRouteName()) }}';
-                
-                        let table = $('table').DataTable({
-                            processing: true,
-                            serverSide: true,
-                            ajax: url,
-                            columns: [
-                                { data: 'id', name: 'id' }, 
-                                { data: 'billing_period', name: 'billing_period' }, 
-                                { data: 'bill_date', name: 'bill_date' },
-                                { data: 'amount', name: 'amount' },
-                                { data: 'due_date', name: 'due_date' },
-                                { data: 'status', name: 'status' },
-                                { data: 'actions', name: 'actions', orderable: false, searchable: false } // Fix: Explicitly set actions as non-sortable
-                            ],
-                            responsive: true,
-                            order: [[0, 'asc']],
-                            scrollX: true
+                    <script>
+                        $(function() {
+                            const url = '{{ route(Route::currentRouteName()) }}';
+                    
+                            let table = $('table').DataTable({
+                                processing: true,
+                                serverSide: true,
+                                ajax: {
+                                    url: url,
+                                    data: {
+                                        account_no: '{{ $account_no }}',
+                                        view: '{{ $view }}'
+                                    }
+                                },
+                                columns: [
+                                    { data: 'id', name: 'id' }, 
+                                    { data: 'billing_period', name: 'billing_period' }, 
+                                    { data: 'bill_date', name: 'bill_date' },
+                                    { data: 'amount', name: 'amount' },
+                                    { data: 'due_date', name: 'due_date' },
+                                    { data: 'status', name: 'status' },
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                                ],
+                                responsive: true,
+                                order: [[0, 'desc']],
+                                scrollX: true
+                            });
                         });
-                
-                    });
-                </script>
+                    </script>
                 @endsection
-            @else
+            @endif
 
-                <div class="d-flex justify-content-center align-items-center text-center m-auto ">
-                    <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
-
-                        @php
-                            $backUrl = route('account-overview.bills');
-                        @endphp
-                
-                        <a href="{{ $backUrl }}" 
-                            style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;"
-                            class=" btn btn-primary my-2 ">
-                            <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
-                        </a>
-                
-                        <button 
-                            class="download-js btn btn-primary my-2" 
-                            data-target="#bill" 
-                            data-filename="{{$data['current_bill']['reference_no']}}" 
-                            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-                            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
-                        </button>
-    
-                    </div>
-                </div>
-                <div style="padding-bottom: 50px">
+            @if($viewer == 'receipt')
+                <div style="padding-bottom: 50px; margin-top: 50px">
                     <div id="bill">
                         <div class="bill-container">
-                            <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                            <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                 @if($data['current_bill']['isPaid'] == true)
                                     <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                                         PAID

@@ -182,13 +182,15 @@ class MeterService {
         ];
     }    
 
-    public static function getBills(?string $number = null, bool $isAll = false) {
+    public static function getBills(?string $number = null, bool $isAll = false, bool $isPaid = false)
+    {
 
-        $query = Bill::with(['reading', 'breakdown'])->orderBy('created_at', 'desc');
-
-        if (!is_null($number)) {
-            $account = UserAccounts::where('meter_serial_no', $number)
-                ->orWhere('account_no', $number)
+        $query = Bill::with(['reading', 'breakdown'])
+            ->where('isPaid', $isPaid);
+            
+        if ($number) {
+            
+            $account = UserAccounts::where('account_no', $number)
                 ->first();
 
             if ($account) {
@@ -200,7 +202,7 @@ class MeterService {
 
         return $isAll ? $query->get()->toArray() : optional($query->first())->toArray();
     }
-    
+
     public static function create(array $payload) {
 
         DB::beginTransaction();
