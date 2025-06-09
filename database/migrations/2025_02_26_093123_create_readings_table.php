@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('previous_reading');
             $table->string('present_reading');
             $table->string('consumption');
-            $table->string('reader_name');
+            $table->string('reader_name')
+                ->nullable();
             $table->timestamps();
         });
 
@@ -33,7 +34,8 @@ return new class extends Migration
             $table->string('bill_period_to');
             $table->string('previous_unpaid')
                 ->nullable();
-            $table->string('total');
+            $table->string('total')
+                ->default(0);
             $table->string('discount')
                 ->default(0);
             $table->string('penalty')

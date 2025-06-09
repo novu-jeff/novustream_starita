@@ -82,9 +82,23 @@ class ConcessionaireController extends Controller
         return view('concessionaires.import');
     }
 
+    private function getUploadErrorMessage($errorCode)
+    {
+        return match ($errorCode) {
+            UPLOAD_ERR_INI_SIZE   => 'The uploaded file exceeds the upload_max_filesize directive in php.ini.',
+            UPLOAD_ERR_FORM_SIZE  => 'The uploaded file exceeds the MAX_FILE_SIZE directive in the HTML form.',
+            UPLOAD_ERR_PARTIAL    => 'The uploaded file was only partially uploaded.',
+            UPLOAD_ERR_NO_FILE    => 'No file was uploaded.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Missing a temporary folder.',
+            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload.',
+            default               => 'Unknown upload error.',
+        };
+    }
+
     public function import_action(Request $request)
     {
-
+    
         if (!$request->hasFile('file')) {
             return response([
                 'status' => 'error',
@@ -106,7 +120,7 @@ class ConcessionaireController extends Controller
         $expected = [
             'account_no', 'name', 'address', 'rate_code', 'status',
             'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
-            'contact_no', 'sequence_no'
+            'contact_no', 'sequence_no', 'senior_citizen_no'
         ];
 
         $missing = array_diff($expected, array_values($headings));
@@ -122,9 +136,6 @@ class ConcessionaireController extends Controller
         try {
 
             $import = new ConcessionaireImport;
-
-            ini_set('max_execution_time', 300);
-            ini_set('memory_limit', '512M');
 
             Excel::import($import, $file, null, null, [
                 'readOnly' => true,

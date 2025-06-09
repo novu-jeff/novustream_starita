@@ -25,6 +25,100 @@ class MeterService {
         $this->paymentBreakdownService = $paymentBreakdownService;
     }
 
+    public function getZones()
+    {
+        $zones = UserAccounts::select('account_no')->distinct()->pluck('account_no');
+
+        $grouped = $zones->map(function ($accountNo) {
+            $zone = explode('-', $accountNo)[0] ?? 'unknown';
+            return [
+                'zone' => $zone,
+                'account_no' => $accountNo,
+            ];
+        })->groupBy('zone');
+
+        return array_keys($grouped->toArray()) ?? [];
+    }
+
+
+    public function filterAccount(array $filter)
+    {
+        // Start query with eager loading 'user' relationship
+        $query = UserAccounts::with('user');
+
+        // Apply zone filter if provided and not 'all'
+        if (!empty($filter['zone']) && strtolower($filter['zone']) !== 'all') {
+            $query->where('account_no', 'like', $filter['zone'] . '%');
+        }
+
+        // Apply search filters if 'search' and 'search_by' are provided
+        if (!empty($filter['search']) && !empty($filter['search_by'])) {
+            switch ($filter['search_by']) {
+                case 'all':
+                    $query->where(function ($q) use ($filter) {
+                        $q->where('account_no', 'like', '%' . $filter['search'] . '%')
+                        ->orWhere('meter_serial_no', 'like', '%' . $filter['search'] . '%')
+                        ->orWhereHas('user', function ($uq) use ($filter) {
+                            $uq->where('name', 'like', '%' . $filter['search'] . '%');
+                        });
+                    });
+                    break;
+
+                case 'account_no':
+                    $query->where('account_no', $filter['search']);
+                    break;
+
+                case 'meter_serial_no':
+                    $query->where('meter_serial_no', $filter['search']);
+                    break;
+
+                case 'name':
+                    $query->whereHas('user', function ($q) use ($filter) {
+                        $q->where('name', $filter['search']);
+                    });
+                break;
+            }
+        }
+
+        // Determine limit from 'filter' param (defaults to 50 if invalid)
+        $limit = (isset($filter['filter']) && is_numeric($filter['filter'])) 
+            ? (int) $filter['filter'] 
+            : 50;
+
+        // Get results limited by $limit
+        return $query->limit($limit)->get()->toArray();
+    }
+
+    public function getPreviousReading($account_no)
+    {
+        $previous_reading = Reading::with('bill')
+            ->where('account_no', $account_no)
+            ->latest()
+            ->first();
+
+        if ($previous_reading) {
+            $suggestNextMonth = optional($previous_reading->bill)->bill_period_to;
+
+            if ($suggestNextMonth) {
+                $suggestNextMonth = Carbon::parse($suggestNextMonth)
+                    ->addMonth(1)
+                    ->format('Y-m-d');
+            } else {
+                $suggestNextMonth = null;
+            }
+
+            return [
+                'previous_reading' => $previous_reading->present_reading ?? null,
+                'suggestedNextMonth' => $suggestNextMonth,
+            ];
+        }
+
+        return [
+            'previous_reading' => null,
+            'suggestedNextMonth' => null,
+        ];
+    }
+
     public function getAccount($meter_no)
     {
         return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
@@ -76,20 +170,8 @@ class MeterService {
             ];
         }
     
-        $previous_reading = Reading::with('bill')
-            ->where('account_no', $account->account_no)
-            ->latest()
-            ->first();
-
-
-        $suggestNextMonth = optional($previous_reading->bill)
-            ->bill_period_to;
         
-        $suggestNextMonth = Carbon::parse($suggestNextMonth)
-            ->addMonth(1)
-            ->format('Y-m-d');
 
-        $previous_reading->suggestedNextMonth = $suggestNextMonth;
     
         return [
             'status' => 'success',
@@ -334,7 +416,7 @@ class MeterService {
                 ->value('amount') ?? 0;
         } else {
             # novusurge
-           $base_rate = BaseRate::where('property_type_id', $payload['property_type_id'])
+            $base_rate = BaseRate::where('property_type_id', $payload['property_type_id'])
                 ->value('rate') ?? 0;
             $rate = $base_rate  *  $consumption;
         }
@@ -595,7 +677,6 @@ class MeterService {
 
         return $result->toArray();
     }
-
 
     private function generateReferenceNo() {
 

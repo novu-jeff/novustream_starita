@@ -29,13 +29,21 @@ class ConcessionaireImport implements
     {
         try {
             $user = User::create([
-                'name'       => trim($row['name']),
-                'contact_no' => trim($row['contact_no']),
+                'name'              => trim($row['name']),
+                'contact_no'        => trim($row['contact_no']),
+                'senior_citizen_no' => trim($row['senior_citizen_no']),
             ]);
 
             if ($user) {
                 $property_type = $this->getPropertyType(trim($row['rate_code']));
-                $date_connected = Carbon::parse(trim($row['date_connected']))->format('Y-m-d');
+                $dateStr = trim($row['date_connected']);
+                $timestamp = strtotime($dateStr);
+
+                if ($timestamp !== false) {
+                    $date_connected = Carbon::createFromTimestamp($timestamp)->format('Y-m-d');
+                } else {
+                    $date_connected = '';
+                }
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
@@ -55,23 +63,38 @@ class ConcessionaireImport implements
             Log::error('Import error in ConcessionaireImport', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Override validateRow to skip validation on empty rows.
+     */
+    public function validateRow(array $row, $index)
+    {
+        if ($this->isRowEmpty($row)) {
+            return true;
+        }
+
+        return null;
     }
 
     public function rules(): array
     {
         return [
             'account_no' => [
-                'required',
-                'string',
                 function ($attribute, $value, $fail) {
+                    if (empty($value)) {
+                        $fail("The account no is required.");
+                        return;
+                    }
+
                     if (DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
                         $fail("account no `{$value}` has already been taken");
                     }
@@ -81,6 +104,15 @@ class ConcessionaireImport implements
         ];
     }
 
+    private function isRowEmpty(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (!is_null($value) && trim($value) !== '') {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public function getPropertyType($rate_code)
     {
@@ -96,6 +128,6 @@ class ConcessionaireImport implements
 
     public function chunkSize(): int
     {
-        return 1000; 
+        return 1000;
     }
 }

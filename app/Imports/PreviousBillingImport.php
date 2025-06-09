@@ -37,6 +37,7 @@ class PreviousBillingImport implements
             'bill_period_from' => trim($row['billing_from']),
             'bill_period_to' => trim($row['billing_to']),
             'previous_unpaid' => trim($row['unpaid']),
+            'penalty' => trim($row['penalty']),
             'amount' => trim($row['amount']),
             'amount_paid' => trim($row['amount_paid']),
             'change' => trim($row['change']),

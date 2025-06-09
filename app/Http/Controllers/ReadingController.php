@@ -56,11 +56,20 @@ class ReadingController extends Controller
     public function index(Request $request) {
 
         if($request->ajax()) {
-            $response = $this->meterService->locate($request->all());
+            $payload = $request->all();
+
+            if(isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+                $response = $this->meterService->getPreviousReading($payload['account_no']);
+                return response()->json($response);
+            }
+
+            $response = $this->meterService->filterAccount($request->all());
             return response()->json($response);
         }
 
-        return view('reading.index');
+        $zones = $this->meterService->getZones();
+
+        return view('reading.index', compact('zones'));
     }
 
     public function show(string $reference_no) {
@@ -101,8 +110,8 @@ class ReadingController extends Controller
 
     }
 
-    public function store(Request $request) {
-
+    public function store(Request $request)
+    {
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
@@ -113,12 +122,11 @@ class ReadingController extends Controller
                     }
                 }
             ],
-            'meter_no' => [
+            'account_no' => [
                 'required',
                 function ($attribute, $value, $fail) {
                     if (!DB::table('concessioner_accounts')
-                        ->where('meter_serial_no', $value)
-                        ->orWhere('account_no', $value)
+                        ->where('account_no', $value)
                         ->exists()) {
                         $fail('The meter no. or account no. does not exist.');
                     }
@@ -129,9 +137,11 @@ class ReadingController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
         try {
@@ -141,30 +151,33 @@ class ReadingController extends Controller
                 $date = Carbon::now();
             }
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->withErrors(['reading_month' => 'Invalid reading month format. Use "Month YYYY" (e.g., January 2025).'])
-                ->withInput();
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid reading month format. Use "Month YYYY" (e.g., January 2025).'
+            ], 400);
         }
 
         $month = $date->month;
         $year = $date->year;
+        $account_no = $payload['account_no'];
 
         $exists = Reading::whereMonth('created_at', $month)
             ->whereYear('created_at', $year)
+            ->where('account_no', $account_no)
             ->exists();
 
         if ($exists) {
-            return redirect()->back()
-                ->withErrors(['reading_month' => "Reading already exists for {$date->format('F Y')}"])
-                ->withInput();
+            return response()->json([
+                'status' => 'error',
+                'message' => "Reading already exists for {$date->format('F Y')}."
+            ], 409);
         }
-
 
         DB::beginTransaction();
 
         try {
-            
-            $account = $this->meterService->getAccount($payload['meter_no']);
+
+            $account = $this->meterService->getAccount($payload['account_no']);
 
             $account_no = $account->account_no;
             $property_type_id = $account->property_type;
@@ -178,11 +191,11 @@ class ReadingController extends Controller
                 'date' => $date,
             ]);
 
-            if($computed['status'] == 'error') {
-                return redirect()->back()->withInput($payload)->with('alert', [
+            if ($computed['status'] == 'error') {
+                return response()->json([
                     'status' => 'error',
                     'message' => $computed['message']
-                ]);
+                ], 400);
             }
 
             $amount = (float) $computed['bill']['amount'] + (float) $computed['bill']['penalty'];
@@ -200,23 +213,34 @@ class ReadingController extends Controller
                 ],
             ];
 
-            $this->generatePaymentQR($computed['bill']['reference_no'], $payload);
+            $reference_no = $computed['bill']['reference_no'];
+
+            $this->generatePaymentQR($reference_no, $payload);
 
             DB::commit();
 
-            return redirect()->route('reading.show', ['reference_no' => $computed['bill']['reference_no']])->with('alert', [
+            return response()->json([
                 'status' => 'success',
-                'message' => 'Bill has been created'
-            ]);
+                'message' => 'Bill has been created, redirecting...',
+                'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
+                'data' => [
+                    'reference_no' => $reference_no,
+                    'amount' => $payload['amount'],
+                    'customer' => $payload['customer']
+                ]
+            ], 201);
 
         } catch (\Exception $e) {
-            Log::info($e);
-            return redirect()->back()->with('alert', [
+            DB::rollBack();
+            Log::error('Reading Store Error:', ['exception' => $e]);
+
+            return response()->json([
                 'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
-            ]);
+                'message' => 'Error occurred: ' . $e->getMessage()
+            ], 500);
         }
     }
+
 
     private function convertAmount(float $amount): string
     {
