@@ -25,8 +25,7 @@ class MeterService {
         $this->paymentBreakdownService = $paymentBreakdownService;
     }
 
-    public function getZones()
-    {
+    public function getZones() {
         $zones = UserAccounts::select('account_no')->distinct()->pluck('account_no');
 
         $grouped = $zones->map(function ($accountNo) {
@@ -40,9 +39,7 @@ class MeterService {
         return array_keys($grouped->toArray()) ?? [];
     }
 
-
-    public function filterAccount(array $filter)
-    {
+    public function filterAccount(array $filter) {
         // Start query with eager loading 'user' relationship
         $query = UserAccounts::with('user');
 
@@ -89,14 +86,14 @@ class MeterService {
         return $query->limit($limit)->get()->toArray();
     }
 
-    public function getPreviousReading($account_no)
-    {
+    public function getPreviousReading($account_no) {
         $previous_reading = Reading::with('bill')
             ->where('account_no', $account_no)
             ->latest()
             ->first();
 
         if ($previous_reading) {
+        
             $suggestNextMonth = optional($previous_reading->bill)->bill_period_to;
 
             if ($suggestNextMonth) {
@@ -119,8 +116,55 @@ class MeterService {
         ];
     }
 
-    public function getAccount($meter_no)
+    public function checkConsumption($account_no, $current_reading)
     {
+        $previousReading = Reading::with('bill')
+            ->where('account_no', $account_no)
+            ->latest()
+            ->first();
+
+        if (!$previousReading) {
+            return [
+                'status' => false,
+                'message' => 'No previous reading found.'
+            ];
+        }
+
+        $previousReadingDate = Carbon::parse($previousReading->created_at)->format('Y-m-d');
+        
+        $previousConsumptions = self::previousConsumption($account_no, $previousReadingDate);
+        $previousValues = collect($previousConsumptions)->pluck('value')->filter(fn($v) => $v > 0)->values();
+
+        if ($previousValues->isEmpty()) {
+            return [
+                'status' => false,
+                'message' => 'Insufficient non-zero consumption data.'
+            ];
+        }
+
+        $averageConsumption = $previousValues->avg();
+
+        $multiplier = env('AVR_CONSUMP_PERCENTAGE') / 100;
+        $threshold = $averageConsumption * (1 + $multiplier);
+
+        $previousReadingValue = $previousReading->present_reading ?? 0;
+        $currentConsumption = $current_reading - $previousReadingValue;
+
+        $isHighConsumption = $currentConsumption > $threshold;
+
+        return [
+            'status' => true,
+            'high_consumption' => $isHighConsumption,
+            'current_consumption' => $currentConsumption,
+            'average' => $averageConsumption,
+            'threshold' => $threshold,
+            'percentage_increase' => $multiplier * 100,
+            'data_points_used' => $previousValues->count(),
+        ];
+    }
+
+
+    public function getAccount($meter_no) {
         return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
         ->orWhere('meter_serial_no', $meter_no ?? '')
         ->first();
@@ -159,8 +203,8 @@ class MeterService {
         return $query->get();
     }
 
-    public function locate(array $payload)
-    {    
+    public function locate(array $payload) {    
+
         $account = $this->getAccount($payload['meter_no']);
 
         if (!$account) {
@@ -169,9 +213,6 @@ class MeterService {
                 'message' => 'No client found'
             ];
         }
-    
-        
-
     
         return [
             'status' => 'success',
@@ -264,8 +305,7 @@ class MeterService {
         ];
     }    
 
-    public static function getBills(?string $number = null, bool $isAll = false, bool $isPaid = false)
-    {
+    public static function getBills(?string $number = null, bool $isAll = false, bool $isPaid = false) {
 
         $query = Bill::with(['reading', 'breakdown'])
             ->where('isPaid', $isPaid);
@@ -634,8 +674,8 @@ class MeterService {
         ];
     }
 
-    private static function previousConsumption(string $account_no, string $bill_period_from)
-    {
+    private static function previousConsumption(string $account_no, string $bill_period_from) {
+        
         $billDate = Carbon::parse($bill_period_from);
 
         $targetMonths = collect();
@@ -696,6 +736,4 @@ class MeterService {
 
         return $combined;
     }
-
-
 }

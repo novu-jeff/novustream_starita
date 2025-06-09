@@ -63,6 +63,11 @@ class ReadingController extends Controller
                 return response()->json($response);
             }
 
+            if(isset($payload['isCheckConsumption']) && $payload['isCheckConsumption'] == true) {
+                $response = $this->meterService->checkConsumption($payload['account_no'], $payload['current_reading']);
+                return response()->json($response);
+            }
+
             $response = $this->meterService->filterAccount($request->all());
             return response()->json($response);
         }
@@ -241,7 +246,6 @@ class ReadingController extends Controller
         }
     }
 
-
     private function convertAmount(float $amount): string
     {
         $amountFloat = floatval(str_replace(',', '', $amount));
@@ -254,7 +258,6 @@ class ReadingController extends Controller
             return $amountNoDot;
         }
     }
-    
 
     private function generatePaymentQR(string $reference_no, array $payload) {
 
@@ -297,7 +300,6 @@ class ReadingController extends Controller
         }
 
     }
-
 
     public function datatable($query)
     {

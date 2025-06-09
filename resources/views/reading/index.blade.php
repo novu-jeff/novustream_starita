@@ -7,10 +7,10 @@
                 <form action="{{route('reading.store')}}" method="POST">
                     @csrf
                     @method('POST')     
-                    <div class="row d-flex justify-content-center pb-5">
-                        <div class="col-12 col-md-7">
+                    <div class="d-flex justify-content-center pb-5 gap-5">
+                        <div class="mb-4">
                             <div class="col-12 col-md-12 mb-3">
-                                <div class="card shadow border-0 p-2 pb-0 pt-4">
+                                <div class="card shadow border-0 p-2 pb-0 py-5" style="border-radius: 20px;">
                                     <div class="card-body">
                                         <div class="row">
                                             <div class="col-md-4 mb-3">
@@ -62,7 +62,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-12 col-md-5 mb-3">
+                        <div class="mb-4">
                             <div class="concessionaire-result">
                                 
                             </div>
@@ -74,7 +74,6 @@
                 </form>
             </div>
         </div>
-        <!-- Modal -->
         <div class="modal fade" id="accountModal" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -82,12 +81,17 @@
                         <h5 class="modal-title text-uppercase" id="accountModalLabel">Proceed Reading</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body p-4" id="accountModalBody">
+                    <div class="modal-body p-4">
+                        <div id="accountAlert">
+
+                        </div>
+                        <div id="accountModalBody">
+
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </main>
     <style>
         .h-extend {
@@ -174,7 +178,7 @@
                             <div class="card-body">
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
-                                <h5 class="fw-normal">Meter Serial No: ${account.meter_serial_no}</h5>
+                                <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
                                 <h4>${account.user ? account.user.name : 'N/A'}</h4>
                                 <h5 class="fw-normal text-capitalize">${account.address ?? 'N/A'}</h5>
                             </div>
@@ -244,7 +248,24 @@
             const present = parseFloat($(this).val()) || 0;
             const previous = parseFloat($('#previous_reading').val()) || 0;
             const consumption = Math.max(present - previous, 0);
+            
             $('#consumption').val(consumption);
+
+            $.get('{{ route(Route::currentRouteName()) }}', {
+                account_no: selectedAccountNo,
+                current_reading: present,
+                isCheckConsumption: true,
+            }, function (response) {
+                if(response.high_consumption == true) {
+                    $('#accountAlert').html(`
+                        <div class="shadow p-3 mb-4 alert alert-danger text-uppercase fw-bold text-center">
+                            High Consumption
+                        </div>
+                    `);
+                } else {
+                    $('#accountAlert').empty();
+                }
+            });
 
             if (present > 0 && present > previous) {
                 $('#proceedButton').removeClass('d-none');
@@ -291,7 +312,6 @@
                             window.location.href = response.redirect_url;
                         }, 2000);
                     } else {
-                        // Reset and reload fresh data after update
                         offset = 0;
                         hasMoreData = true;
                         fetchAccountData();
@@ -307,14 +327,12 @@
             });
         });
 
-        // On filters change reset and reload data
         $('#zone_no, #filter, #search_by').on('change', function () {
             offset = 0;
             hasMoreData = true;
             fetchAccountData();
         });
 
-        // Search with debounce
         $('#search').on('keyup', function () {
             clearTimeout($.data(this, 'timer'));
             const wait = setTimeout(() => {
@@ -325,7 +343,6 @@
             $(this).data('timer', wait);
         });
 
-        // Infinite scroll for accounts list container
         $('.concessionaire-list').on('scroll', function () {
             const $list = $(this);
             if ($list.scrollTop() + $list.innerHeight() >= $list[0].scrollHeight - 20) {
@@ -333,7 +350,6 @@
             }
         });
 
-        // Initial data load
         fetchAccountData();
     });
 </script>
