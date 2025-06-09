@@ -52,7 +52,7 @@
                                             </div>
                                             <div class="col-md-12 mb-3">
                                                 <label for="search" class="form-label">Search</label>
-                                                <input type="text" name="search" id="search" class="form-control" placeholder="Tap to search...">
+                                                <input type="text" name="search" id="search" class="form-control text-uppercase" placeholder="Tap to search...">
                                                 @error('search')
                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                 @enderror
