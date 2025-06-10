@@ -125,7 +125,7 @@
                         @method('POST')
                         @csrf
                         <div class="row">
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="card shadow" style="min-height: 280px">
                                     <div class="card-header">
                                         <h5 class="card-title mb-0 text-uppercase fw-bold">Due Date</h5>
@@ -147,7 +147,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="card shadow" style="min-height: 280px">
                                     <div class="card-header">
                                         <h5 class="card-title mb-0 text-uppercase fw-bold">Disconnection Date</h5>
@@ -169,7 +169,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-4 mb-3">
                                 <div class="card shadow" style="min-height: 280px">
                                     <div class="card-header">
                                         <h5 class="card-title mb-0 text-uppercase fw-bold">Disconnection Rule</h5>
@@ -188,6 +188,28 @@
                                                 @endfor
                                             </select>
                                             @error('disconnection_rule')
+                                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4 mb-3">
+                                <div class="card shadow" style="min-height: 280px">
+                                    <div class="card-header">
+                                        <h5 class="card-title mb-0 text-uppercase fw-bold">Senior Discount</h5>
+                                    </div>
+                                    <div class="card-body position-relative mb-2">
+                                        <p class="card-text text-uppercase">Implement the senior discount and determine the maximum cubic meter allowed to qualify</p>
+                                        <div style="position: absolute; left: 0; bottom: 20px; width: 100%; padding: 0 20px 0 20px;">
+                                            <label class="mb-2">Maximum Consumption</label>
+                                            <input 
+                                                type="number" 
+                                                name="snr_dc_rule" 
+                                                id="snr_dc_rule" 
+                                                class="w-100 form-control" 
+                                                value="{{ old('snr_dc_rule', $ruling->snr_dc_rule ?? '') }}">
+                                            @error('snr_dc_rule')
                                                 <div class="invalid-feedback d-block">{{ $message }}</div>
                                             @enderror
                                         </div>

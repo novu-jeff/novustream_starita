@@ -5,16 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Ruling extends Model
+class SeniorDiscount extends Model
 {
     use HasFactory;
 
-    protected $table = 'global_ruling';
+    protected $table = 'senior_discount';
     protected $fillable = [
-        'due_date',
-        'disconnection_date',
-        'disconnection_rule',
-        'snr_dc_rule',
+        'account_no',
+        'id_no',
+        'effective_date',
+        'expired_date'
     ];
 
 }

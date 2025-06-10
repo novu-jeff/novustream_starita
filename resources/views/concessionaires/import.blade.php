@@ -14,7 +14,7 @@
                     @csrf
                     <div class="row">
                         <div class="col-md-12 mb-3">
-                            <label for="file" class="form-label">Client's CSV File</label>
+                            <label for="file" class="form-label">{{$label}}</label>
                             <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file">
                             <div class="warning">
 
@@ -45,7 +45,10 @@
 
                 showLoader();
 
+                const toProcess = '{{$toProcess}}';
                 let formData = new FormData(this);
+
+                formData.append('toProcess', toProcess);
 
                 $(".warning").html(""); 
 

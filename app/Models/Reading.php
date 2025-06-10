@@ -26,4 +26,8 @@ class Reading extends Model
         return $this->hasOne(Bill::class, 'reading_id', 'id');
     }
 
+    public function sc_discount() {
+        return $this->hasOne(SeniorDiscount::class, 'account_no', 'account_no');
+    }
+
 }

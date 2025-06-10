@@ -105,10 +105,17 @@
                                 <div>Period</div>
                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                             </div>
+                            @php
+                                $due_date = \Carbon\Carbon::parse($data['current_bill']['due_date']);
+                                $isWeekEnd = $due_date->isWeekend();
+                            @endphp
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Due Date</div>
                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                             </div>
+                            @if ($isWeekEnd)
+                                <div style="margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">On-site payment is unavailable by the due date; please pay online.</div>
+                            @endif
                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                 <div>Disconnection Date</div>
                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
@@ -256,6 +263,28 @@
                             </ol>                            
                         </div>
                     </div>
+                   
+                    @php
+                        $bill = $data['current_bill']['created_at'] ?? null;
+                        $start = $data['client']['sc_discount']['effective_date'] ?? null;
+                        $end = $data['client']['sc_discount']['expired_date'] ?? null;
+                    @endphp
+
+                    @if ($bill && $start && $end)
+                        @php
+                            $billDate = \Carbon\Carbon::parse($bill);
+                            $startDate = \Carbon\Carbon::parse($start);
+                            $endDate = \Carbon\Carbon::parse($end);
+                        @endphp
+
+                        @if ($billDate->between($startDate, $endDate) && $billDate->diffInMonths($endDate, false) <= 1)
+                            <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
+                                <div style="text-transform: uppercase; text-align: center; font-style: italic; font-weight: 500; color: rgb(91, 91, 91)">
+                                    REMARKS: Senior citizen discount will be expired on {{\Carbon\Carbon::parse($end)->format('F, d Y')}}, renew now!
+                                </div>
+                            </div>
+                        @endif
+                    @endif
                     <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
                         <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>
                     </div>

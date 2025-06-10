@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Imports\ConcessionaireImport;
+use App\Imports\SCDiscountImport;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use Illuminate\Http\Request;
@@ -79,7 +80,19 @@ class ConcessionaireController extends Controller
     }
 
     public function import_view() {
-        return view('concessionaires.import');
+        return view('concessionaires.import', [
+            'label' => "Client's CSV File",
+            'toProcess' => 'concessionaire',
+        ]);
+    }
+
+    public function import_senior(Request $request) {
+        
+       return view('concessionaires.import', [
+            'label' => 'Senior Discount File',
+            'toProcess' => 'sc_discount',
+        ]);
+
     }
 
     private function getUploadErrorMessage($errorCode)
@@ -98,53 +111,71 @@ class ConcessionaireController extends Controller
 
     public function import_action(Request $request)
     {
-    
         if (!$request->hasFile('file')) {
-            return response([
-                'status' => 'error',
-                'message' => 'No file uploaded.'
-            ]);
+            return $this->errorResponse('No file uploaded.');
         }
 
         $file = $request->file('file');
+        $toProcess = $request->toProcess;
 
-        if (!$file->isValid() || $file->getClientOriginalExtension() !== 'csv' || !in_array($file->getMimeType(), ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Only CSV files are allowed.',
-            ]);
-        }
-
-        $headings = (new HeadingRowImport())->toArray($file)[0][0];
-
-        $expected = [
-            'account_no', 'name', 'address', 'rate_code', 'status',
-            'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
-            'contact_no', 'sequence_no', 'senior_citizen_no'
+        $allowedProcesses = [
+            'concessionaire' => [
+                'expected_headers' => [
+                    'account_no', 'name', 'address', 'rate_code', 'status',
+                    'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
+                    'contact_no', 'sequence_no'
+                ],
+                'extensions' => ['csv'],
+                'mime_types' => ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'],
+                'import_class' => ConcessionaireImport::class,
+                'success_message' => 'Concessionaires imported successfully.'
+            ],
+            'sc_discount' => [
+                'expected_headers' => [
+                    'account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'
+                ],
+                'extensions' => ['xls', 'xlsx'],
+                'mime_types' => [
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                ],
+                'import_class' => SCDiscountImport::class,
+                'success_message' => 'Senior Citizen Discount imported successfully.'
+            ]
         ];
 
-        $missing = array_diff($expected, array_values($headings));
+        if (!isset($allowedProcesses[$toProcess])) {
+            return $this->errorResponse("Process '{$toProcess}' unavailable");
+        }
+
+        $processConfig = $allowedProcesses[$toProcess];
+
+        // Validate file
+        if (
+            !$file->isValid() ||
+            !in_array($file->getClientOriginalExtension(), $processConfig['extensions']) ||
+            !in_array($file->getMimeType(), $processConfig['mime_types'])
+        ) {
+            return $this->errorResponse("Only " . implode(', ', $processConfig['extensions']) . " files are allowed.");
+        }
+
+        // Check headers
+        $headings = (new HeadingRowImport())->toArray($file)[0][0] ?? [];
+        $missing = array_diff($processConfig['expected_headers'], array_values($headings));
 
         if (count($missing)) {
-            return response([
-                'status' => 'error',
-                'message' => 'Invalid file. Please make sure to upload the correct template.',
-                'missing_headers' => array_values($missing),
+            return $this->errorResponse('Invalid file. Please make sure to upload the correct template.', [
+                'missing_headers' => array_values($missing)
             ]);
         }
-        
+
         try {
+            $import = new $processConfig['import_class'];
 
-            $import = new ConcessionaireImport;
-
-            Excel::import($import, $file, null, null, [
-                'readOnly' => true,
-            ]);
+            Excel::import($import, $file, null, null, ['readOnly' => true]);
 
             $failures = $import->failures();
-
             if ($failures->isNotEmpty()) {
-
                 $messages = [];
 
                 foreach ($failures as $failure) {
@@ -163,43 +194,47 @@ class ConcessionaireController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Concessionaires imported successfully.',
+                'message' => $processConfig['success_message'],
             ]);
         } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            
-            $failures = $e->failures();
-            $messages = [];
-
-            foreach ($failures as $failure) {
-                $row = $failure->row();
-                foreach ($failure->errors() as $error) {
-                    $messages[] = "Row [$row]: $error";
-                }
-            }
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation errors found during import.',
-                'errors' => $messages,
-            ]);
-
+            return $this->handleValidationException($e);
         } catch (\Exception $e) {
-            Log::error('Import error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'An error occurred during import: ' . $e->getMessage(),
-            ], 500);
+            Log::error('Import error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return $this->errorResponse('An error occurred during import: ' . $e->getMessage(), [], 500);
         }
+    }
+
+    private function errorResponse($message, array $extra = [], int $status = 400)
+    {
+        return response()->json(array_merge([
+            'status' => 'error',
+            'message' => $message,
+        ], $extra), $status);
+    }
+
+    private function handleValidationException($e)
+    {
+        $messages = [];
+
+        foreach ($e->failures() as $failure) {
+            $row = $failure->row();
+            foreach ($failure->errors() as $error) {
+                $messages[] = "Row [$row]: $error";
+            }
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Validation errors found during import.',
+            'errors' => $messages,
+        ]);
     }
 
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);
         $property_types = $this->propertyTypesService::getData();
-        
+
         return view('concessionaires.form', compact('data', 'property_types'));
     }
 

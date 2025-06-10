@@ -149,6 +149,7 @@ class PaymentBreakdownService {
                             'due_date' => $payload['due_date'],
                             'disconnection_date' => $payload['disconnection_date'],
                             'disconnection_rule' => $payload['disconnection_rule'],
+                            'snr_dc_rule' => $payload['snr_dc_rule']
                         ]);
                         $message = 'Ruling updated';
                     } else {
@@ -156,6 +157,7 @@ class PaymentBreakdownService {
                             'due_date' => $payload['due_date'],
                             'disconnection_date' => $payload['disconnection_date'],
                             'disconnection_rule' => $payload['disconnection_rule'],
+                            'snr_dc_rule' => $payload['snr_dc_rule']
                         ]);
                         $message = 'Ruling added';
                     }

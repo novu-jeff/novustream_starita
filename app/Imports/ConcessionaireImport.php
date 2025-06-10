@@ -31,7 +31,6 @@ class ConcessionaireImport implements
             $user = User::create([
                 'name'              => trim($row['name']),
                 'contact_no'        => trim($row['contact_no']),
-                'senior_citizen_no' => trim($row['senior_citizen_no']),
             ]);
 
             if ($user) {

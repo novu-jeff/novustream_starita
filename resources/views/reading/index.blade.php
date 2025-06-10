@@ -8,61 +8,59 @@
                     @csrf
                     @method('POST')     
                     <div class="d-flex justify-content-center pb-5 gap-5">
-                        <div class="mb-4">
-                            <div class="col-12 col-md-12 mb-3">
-                                <div class="card shadow border-0 p-2 pb-0 py-5" style="border-radius: 20px;">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-4 mb-3">
-                                                <label for="zone_no" class="form-label">Zone</label>
-                                                <select name="zone_no" id="zone_no" class="form-select dropdown-toggle">
-                                                    <option value="all"> All </option>
-                                                    @foreach($zones as $zone)
-                                                        <option value="{{$zone}}"> {{$zone}} </option>
-                                                    @endforeach
-                                                </select>
-                                                @error('zone_no')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-4 mb-3">
-                                                <label for="filter" class="form-label">Filter</label>
-                                                <select name="filter" id="filter" class="form-select dropdown-toggle">
-                                                    <option value="50"> 50 </option>
-                                                    <option value="100"> 100 </option>
-                                                    <option value="300"> 300 </option>
-                                                    <option value="500"> 500 </option>
-                                                    <option value="700"> 700 </option>
-                                                    <option value="1000"> 1000 </option>
-                                                </select>
-                                                @error('filter')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-4 mb-3">
-                                                <label for="search_by" class="form-label">Search By</label>
-                                                <select name="search_by" id="search_by" class="form-select dropdown-toggle">
-                                                    <option value="name"> Name </option>
-                                                    <option value="account_no">Account No</option>
-                                                    <option value="meter_serial_no">Meter No</option>
-                                                </select>
-                                                @error('search_by')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                            <div class="col-md-12 mb-3">
-                                                <label for="search" class="form-label">Search</label>
-                                                <input type="text" name="search" id="search" class="form-control text-uppercase" placeholder="Tap to search...">
-                                                @error('search')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
+                        <div class="mb-4" style="width: 100%">
+                            <div class="card shadow border-0 p-2 pb-0 py-5" style="border-radius: 20px;">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="zone_no" class="form-label">Zone</label>
+                                            <select name="zone_no" id="zone_no" class="form-select dropdown-toggle">
+                                                <option value="all"> All </option>
+                                                @foreach($zones as $zone)
+                                                    <option value="{{$zone}}"> {{$zone}} </option>
+                                                @endforeach
+                                            </select>
+                                            @error('zone_no')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="filter" class="form-label">Filter</label>
+                                            <select name="filter" id="filter" class="form-select dropdown-toggle">
+                                                <option value="50"> 50 </option>
+                                                <option value="100"> 100 </option>
+                                                <option value="300"> 300 </option>
+                                                <option value="500"> 500 </option>
+                                                <option value="700"> 700 </option>
+                                                <option value="1000"> 1000 </option>
+                                            </select>
+                                            @error('filter')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="search_by" class="form-label">Search By</label>
+                                            <select name="search_by" id="search_by" class="form-select dropdown-toggle">
+                                                <option value="name"> Name </option>
+                                                <option value="account_no">Account No</option>
+                                                <option value="meter_serial_no">Meter No</option>
+                                            </select>
+                                            @error('search_by')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-12 mb-3">
+                                            <label for="search" class="form-label">Search</label>
+                                            <input type="text" name="search" id="search" class="form-control text-uppercase" placeholder="Tap to search...">
+                                            @error('search')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-4">
+                        <div class="mb-4" style="width: 100%">
                             <div class="concessionaire-result">
                                 
                             </div>
@@ -74,8 +72,8 @@
                 </form>
             </div>
         </div>
-        <div class="modal fade" id="accountModal" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
+        <div class="modal fade" id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" da>
                 <div class="modal-content">
                     <div class="modal-header px-4">
                         <h5 class="modal-title text-uppercase" id="accountModalLabel">Proceed Reading</h5>
@@ -173,9 +171,22 @@
                 }
 
                 data.forEach((account, index) => {
+
+                    const status = account.status;
+
+                    const statusCode = {
+                        'AB': '399918',
+                        'BL': '000',
+                        'ID': 'FF7601',
+                        'IV': 'DC2525',
+                    };
+
                     const html = `
                         <div class="card shadow mb-3 account-card" data-index="${offset + index}" style="cursor: pointer; border: 2px solid #32667e" data-account='${JSON.stringify(account)}'>
                             <div class="card-body">
+                                <div class="overlay-status">
+                                    <div class="point" style="background-color: #${statusCode[status] ?? ''}"></div>
+                                </div>
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
                                 <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
@@ -203,17 +214,26 @@
             const account = $(this).data('account');
             selectedAccountNo = account.account_no;
 
+            $('#accountAlert').empty();
+
             $.get('{{ route(Route::currentRouteName()) }}', {
                 account_no: account.account_no,
                 isGetPrevious: true,
             }, function (response) {
+                console.log(response);
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
-
-                const modalContent = `
+                const sc_expired_date = response.sc_expired_date;
+                
+                let modalContent = `
                     <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
                     <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
                     <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
+                    `
+                    if(sc_expired_date != '') {
+                        modalContent += `<div class="text-uppercase fw-bold mt-3  text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div`
+                    }
+                modalContent+=`
                     <hr>
                     <div class="row mt-3">
                         @if(env('IS_TEST_READING')) 

@@ -253,6 +253,7 @@ class PaymentBreakdownController extends Controller
                 'due_date' => 'required|integer',
                 'disconnection_date' => 'required|integer',
                 'disconnection_rule' => 'required|integer',
+                'snr_dc_rule' => 'required|integer'
             ]);
 
             if($validator->fails()) {

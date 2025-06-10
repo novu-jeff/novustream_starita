@@ -11,12 +11,9 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'account_no',
         'contact_no',
         'name',
         'email',
-        'senior_citizen_no',
-        'pwd_no',
         'password',
     ];
 
@@ -37,4 +34,5 @@ class User extends Authenticatable
     public function accounts() {
         return $this->hasMany(UserAccounts::class);
     }
+
 }

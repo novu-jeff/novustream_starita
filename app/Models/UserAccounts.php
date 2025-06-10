@@ -25,5 +25,9 @@ class UserAccounts extends Model
     public function property_types() {
         return $this->hasOne(PropertyTypes::class, 'id', 'property_type');
     }
+
+    public function sc_discount() {
+        return $this->hasOne(SeniorDiscount::class, 'account_no', 'account_no');
+    }
 }
     

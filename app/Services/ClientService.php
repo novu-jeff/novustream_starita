@@ -14,11 +14,15 @@ class ClientService {
     public static function getData(?int $id = null) {
 
         if(!is_null($id)) {
-            return User::where('id', $id)->with('accounts.property_types')
+            return User::where('id', $id)
+                ->with('accounts.sc_discount', 'accounts.property_types')
                 ->first() ?? null;
         }
 
-        return User::with('accounts.property_types')->withCount('accounts')->where('isActive', true)->get();
+        return User::with('accounts.property_types')
+            ->withCount('accounts')
+            ->where('isActive', true)
+            ->get();
     }
 
     public static function create(array $payload) {
@@ -27,7 +31,6 @@ class ClientService {
 
         $user = User::create([
             'name' => $payload['name'],
-            'senior_citizen_no' => $payload['senior_citizen_no'],
             'pwd_no' => $payload['pwd_no'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],
@@ -75,7 +78,6 @@ class ClientService {
 
         $updateData = [
             'name' => $payload['name'],
-            'senior_citizen_no' => $payload['senior_citizen_no'],
             'pwd_no' => $payload['pwd_no'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],

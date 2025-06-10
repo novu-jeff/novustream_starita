@@ -23,8 +23,6 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'senior_citizen_no' => 'nullable|numeric',
-            'pwd_no' => 'nullable|numeric',
             'email' => 'required|unique:users,email',
             'password' => 'required|min:8',
             'contact_no' => 'required',

@@ -15,7 +15,7 @@
                     <div class="row">
                         <div class="col-12 col-md-6">
                             <div class="bill-container">
-                                <div style="position: relative; width: 100%; max-width: 480px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                                <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                     @if($data['current_bill']['isPaid'] == true)
                                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                                             PAID
@@ -76,10 +76,17 @@
                                                 <div>Period</div>
                                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                                             </div>
+                                            @php
+                                                $due_date = \Carbon\Carbon::parse($data['current_bill']['due_date']);
+                                                $isWeekEnd = $due_date->isWeekend();
+                                            @endphp
                                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                 <div>Due Date</div>
                                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                             </div>
+                                            @if ($isWeekEnd)
+                                                <div style="margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">On-site payment is unavailable by the due date; please pay online.</div>
+                                            @endif
                                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                 <div>Disconnection Date</div>
                                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
@@ -97,8 +104,8 @@
                                             <div style="text-transform: uppercase">{{$data['current_bill']['reading']['present_reading'] ?? '0'}}</div>
                                         </div>
                                         <div style="display: flex; justify-content: space-between; margin-top: 5px">
-                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase;">Cub. M Used</div>
-                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase;">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
+                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Cub. M Used</div>
+                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                                         </div>
                                     </div>
                                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
@@ -227,6 +234,28 @@
                                             </ol>                            
                                         </div>
                                     </div>
+                                
+                                    @php
+                                        $bill = $data['current_bill']['created_at'] ?? null;
+                                        $start = $data['client']['sc_discount']['effective_date'] ?? null;
+                                        $end = $data['client']['sc_discount']['expired_date'] ?? null;
+                                    @endphp
+
+                                    @if ($bill && $start && $end)
+                                        @php
+                                            $billDate = \Carbon\Carbon::parse($bill);
+                                            $startDate = \Carbon\Carbon::parse($start);
+                                            $endDate = \Carbon\Carbon::parse($end);
+                                        @endphp
+
+                                        @if ($billDate->between($startDate, $endDate) && $billDate->diffInMonths($endDate, false) <= 1)
+                                            <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
+                                                <div style="text-transform: uppercase; text-align: center; font-style: italic; font-weight: 500; color: rgb(91, 91, 91)">
+                                                    REMARKS: Senior citizen discount will be expired on {{\Carbon\Carbon::parse($end)->format('F, d Y')}}, renew now!
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @endif
                                     <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
                                         <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>
                                     </div>

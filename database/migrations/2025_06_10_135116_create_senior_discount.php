@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('global_ruling', function (Blueprint $table) {
+        Schema::create('senior_discount', function (Blueprint $table) {
             $table->id();
-            $table->integer('due_date');
-            $table->integer('disconnection_date');
-            $table->integer('disconnection_rule');
-            $table->integer('snr_dc_rule');
+            $table->string('account_no');
+            $table->string('id_no');
+            $table->string('effective_date');
+            $table->string('expired_date');
             $table->timestamps();
         });
     }
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('global_ruling');
+        Schema::dropIfExists('senior_discount');
     }
 };

@@ -6,10 +6,24 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>Our Concessionaires</h1>
                 <div class="d-flex align-items-center gap-3">
-                    <a href="{{route('concessionaires.import.view')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
-                        Import
-                    </a>
-                    <a href="{{route('concessionaires.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary px-5 py-3 text-uppercase dropdown-toggle" type="button" id="importDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            Import
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="importDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ route('concessionaires.import.view') }}">
+                                    Concessionaire
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('concessionaires.import.senior') }}">
+                                    Senior Citizen Discount
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="{{ route('concessionaires.create') }}" class="btn btn-primary px-5 py-3 text-uppercase">
                         Add New
                     </a>
                 </div>

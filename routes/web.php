@@ -75,8 +75,13 @@ Route::middleware('admin')->prefix('admin')->group(function () {
 
         Route::get('concessionaires/import', [ConcessionaireController::class, 'import_view'])
             ->name('concessionaires.import.view');
+
+        Route::get('concessionaires/senior/import', [ConcessionaireController::class, 'import_senior'])
+            ->name('concessionaires.import.senior');
+    
         Route::post('concessionaires/import', [ConcessionaireController::class, 'import_action'])
             ->name('concessionaires.import.action');
+
 
         Route::resource('personnel', AdminController::class)
             ->names('admins');

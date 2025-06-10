@@ -10,6 +10,7 @@ use App\Models\BillDiscount;
 use App\Models\Rates;
 use App\Models\Reading;
 use App\Models\UserAccounts;
+use App\Models\SeniorDiscount;
 use App\Models\Ruling;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -71,9 +72,9 @@ class MeterService {
 
                 case 'name':
                     $query->whereHas('user', function ($q) use ($filter) {
-                        $q->where('name', $filter['search']);
+                        $q->where('name', 'like', '%' . $filter['search'] . '%');
                     });
-                break;
+                    break;
             }
         }
 
@@ -87,7 +88,8 @@ class MeterService {
     }
 
     public function getPreviousReading($account_no) {
-        $previous_reading = Reading::with('bill')
+        
+        $previous_reading = Reading::with('sc_discount', 'bill')
             ->where('account_no', $account_no)
             ->latest()
             ->first();
@@ -104,15 +106,35 @@ class MeterService {
                 $suggestNextMonth = null;
             }
 
+            $expired_date = '';
+
+            $sc_discount_start = $previous_reading->sc_discount->effective_date ?? null;
+            $sc_discount_end = $previous_reading->sc_discount->expired_date ?? null;
+
+
+            if ($sc_discount_start && $sc_discount_end) {
+                $billDate = Carbon::parse($suggestNextMonth);
+                $scStartDate = Carbon::parse($sc_discount_start);
+                $scEndDate = Carbon::parse($sc_discount_end);
+
+                if($billDate->between($scStartDate, $scEndDate) && $billDate->diffInMonths($scEndDate, false) <= 1) {
+                    $expired_date = $scEndDate;
+                }
+
+
+            }
+
             return [
                 'previous_reading' => $previous_reading->present_reading ?? null,
                 'suggestedNextMonth' => $suggestNextMonth,
+                'sc_expired_date' => $expired_date
             ];
         }
 
         return [
             'previous_reading' => null,
             'suggestedNextMonth' => null,
+            'sc_expired_date' => null
         ];
     }
 
@@ -238,7 +260,7 @@ class MeterService {
         // Get meter number from current bill
         $account_no = optional($current_bill->reading)->account_no;
     
-        $client = User::with(['accounts.property_types'])
+        $client = User::with(['accounts.sc_discount', 'accounts.property_types'])
                 ->whereHas('accounts', function ($query) use ($account_no) {
                     $query->where('account_no', $account_no);
                 })
@@ -526,25 +548,34 @@ class MeterService {
             }
         }    
 
-        $isSeniorCitizen = $concessionaire->user->senior_citizen_no ?? null;
-        $isPWD = $concessionaire->user->pwd_no ?? null;
+        $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])
+            ->first();
+
+        $isSeniorCitizen = !is_null($sc_discount) ? true : false;
+        $sc_discount_start = $sc_discount->effective_date ?? null;
+        $sc_discount_end = $sc_discount->expired_date ?? null;
+
         $total = collect($deductions)->sum('amount');
         $basic_charge = collect($deductions)
             ->where('name', 'Basic Charge')
             ->sum('amount');
             
-        // discounts
         $appliedDiscounts = [];
         $discountAmount = 0;
 
         foreach ($discounts as $discount) {
-            
-            $isEligible = (
-                ($discount->eligible === 'senior' && $isSeniorCitizen) ||
-                ($discount->eligible === 'pwd' && $isPWD)
-            );
 
-            if (!$isEligible) {
+            $isEligible = false;
+
+            if ($discount->eligible === 'senior' && $isSeniorCitizen && $sc_discount_start && $sc_discount_end) {
+                $billDate = Carbon::parse($payload['date']);
+                $scStartDate = Carbon::parse($sc_discount_start);
+                $scEndDate = Carbon::parse($sc_discount_end);
+
+                $isEligible = $billDate->between($scStartDate, $scEndDate);
+            }
+
+            if (!$isEligible || $consumption > $ruling->snr_dc_rule) {
                 continue;
             }
 
