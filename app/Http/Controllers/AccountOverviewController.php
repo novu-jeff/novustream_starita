@@ -63,8 +63,6 @@ class AccountOverviewController extends Controller
 
         $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
 
-        dd($data->toArray());
-
         return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
     }
 
