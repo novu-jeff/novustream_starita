@@ -220,17 +220,16 @@
                 account_no: account.account_no,
                 isGetPrevious: true,
             }, function (response) {
-                console.log(response);
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
                 const sc_expired_date = response.sc_expired_date;
-                
+
                 let modalContent = `
                     <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
                     <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
                     <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
                     `
-                    if(sc_expired_date != '') {
+                    if(sc_expired_date != null) {
                         modalContent += `<div class="text-uppercase fw-bold mt-3  text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div`
                     }
                 modalContent+=`

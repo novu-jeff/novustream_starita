@@ -7,6 +7,27 @@
                 <h1>Account Overview</h1>
             </div>
             <div class="inner-content mt-5 pb-5">
+
+                @php
+
+                    $currentDate = \Carbon\Carbon::parse();
+
+                    foreach ($sc_discounts as $discount) {
+
+                        $startDate = $discount['effective_date'] ?? null;
+                        $endDate = $discount['expired_date'] ?? null;
+
+                        if ($startDate && $endDate) {
+                            $account_no = $discount['account_no'];
+                            $startDate = \Carbon\Carbon::parse($startDate);
+                            $endDate = \Carbon\Carbon::parse($endDate);
+                            if($currentDate->between($startDate, $endDate) && $currentDate->diffInMonths($endDate, false) <= 1) {
+                                echo '<div class="alert alert-danger">Senior citizen discount for ' . $account_no . ' will be expiring on ' . $endDate->format('F d, Y') . '</div>';
+                            }
+                        }
+                    }
+                @endphp
+
                 @if($data->accounts) 
                     <div class="row pb-5">
                         <div class="col-12 col-md-6 mb-3">
@@ -50,6 +71,9 @@
                                         <small class="text-uppercase fw-bold text-muted">[+] Properties</small>
                                     </div>
                                     <div>
+                                            @php
+                                            $product = env('APP_PRODUCT');
+                                        @endphp
                                         <div class="accordion accordion-flush" id="accordionAccountConnection">
                                             @forelse($accounts as $key => $account)
                                                 <div class="accordion-item">
@@ -70,26 +94,28 @@
                                                                         <th class="text-uppercase fw-bold text-muted">Meter No:</th>
                                                                         <th class="text-uppercase fw-bold text-muted">{{$account->meter_serial_no}}</th>
                                                                     </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Meter Brand: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_brand}}</th>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Meter Type: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_type}}</th>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Meter Wire: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_wire}}</th>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Meter Form: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_form}}</th>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Meter Class: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->meter_class}}</th>
-                                                                    </tr>
+                                                                   @if($product == 'novusurge')
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Meter Brand: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->meter_brand}}</th>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Meter Type: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->meter_type}}</th>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Meter Wire: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->meter_wire}}</th>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Meter Form: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->meter_form}}</th>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Meter Class: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->meter_class}}</th>
+                                                                        </tr>
+                                                                   @endif
                                                                     <tr>
                                                                         <th class="text-uppercase fw-bold text-muted">Property Type: </th>
                                                                         <th class="text-uppercase fw-bold text-muted">{{$account->property_types->name}}</th>
@@ -114,14 +140,16 @@
                                                                         <th class="text-uppercase fw-bold text-muted">SC No: </th>
                                                                         <th class="text-uppercase fw-bold text-muted">{{$account->sc_no}}</th>
                                                                     </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">Location: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->lat_long}}</th>
-                                                                    </tr>
-                                                                    <tr>
-                                                                        <th class="text-uppercase fw-bold text-muted">ERC Sea;: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->isErcSealed ? 'Yes' : 'No'}}</th>
-                                                                    </tr>
+                                                                    @if($product == 'novsurge')
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">Location: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->lat_long}}</th>
+                                                                        </tr>
+                                                                        <tr>
+                                                                            <th class="text-uppercase fw-bold text-muted">ERC Seal: </th>
+                                                                            <th class="text-uppercase fw-bold text-muted">{{$account->isErcSealed ? 'Yes' : 'No'}}</th>
+                                                                        </tr>
+                                                                    @endif
                                                                     <tr>
                                                                         <th class="text-uppercase fw-bold text-muted">Date Connected: </th>
                                                                         <th class="text-uppercase fw-bold text-muted">{{\Carbon\Carbon::parse($account->date_connected)->format('M d, Y')}}</th>
@@ -148,9 +176,9 @@
                                     <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due: 
                                         <h3 class="ms-2">
                                             @if($statement['total'] != 0)
-                                                ₱{{number_format($statement['total'] ?? 0, 2)}}
+                                                PHP {{number_format($statement['total'] ?? 0, 2)}}
                                             @else
-                                                ₱0.00
+                                                PHP 0.00
                                             @endif
                                         </h3>
                                     </div>
@@ -160,23 +188,14 @@
                                                 <div class="d-flex justify-content-between pb-3 {{$key == 0 ? 'pt-3' : ''}} mb-3" style="{{$key == 0 ? 'border-top: 3px dotted rgba(0, 0, 0, 0.521);' : ''}} border-bottom: 3px dotted rgba(0, 0, 0, 0.521); cursor: pointer;">
                                                     <div>
                                                         <div>
-                                                            {{$transactions['reference_no']}} ⦁ {{$transactions['account_no']}}
+                                                            {{$transactions['reference_no']}} | {{$transactions['account_no']}}
                                                         </div>
-                                                        <div>
+                                                        <div class="text-uppercase">
                                                             {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}} 
                                                         </div>
                                                     </div>
                                                     <div class="text-end">
-                                                        <div>
-                                                            @php
-                                                                $nonZeroBreakdown = collect($transactions['breakdown'])->filter(fn($item) => $item['amount'] != 0);
-                                                            @endphp
-                                                            @if($nonZeroBreakdown->count() > 1)
-                                                                <div class="text-muted fw-bold">{{ 'PHP ' . $nonZeroBreakdown->pluck('amount')->implode(' + PHP ') }}</div>
-                                                            @else
-                                                                <span></span>
-                                                            @endif
-                                                        </div>
+                                                        
                                                         
                                                         <div class="fw-bold">
                                                             PHP {{number_format($transactions['amount'], 2)}}

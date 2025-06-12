@@ -31,7 +31,6 @@ class ClientService {
 
         $user = User::create([
             'name' => $payload['name'],
-            'pwd_no' => $payload['pwd_no'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],
             'password' => Hash::make($payload['password'])
@@ -78,7 +77,6 @@ class ClientService {
 
         $updateData = [
             'name' => $payload['name'],
-            'pwd_no' => $payload['pwd_no'],
             'email' => $payload['email'],
             'contact_no' => $payload['contact_no'],
         ];

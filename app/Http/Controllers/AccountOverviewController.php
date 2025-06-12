@@ -26,8 +26,8 @@ class AccountOverviewController extends Controller
 
     public function index()
     {
-
-        $my = Auth::user()->load('property_types');
+        
+        $my = Auth::user()->load('property_types', 'accounts.sc_discount');
 
         $id = $my->id;
 
@@ -61,7 +61,11 @@ class AccountOverviewController extends Controller
 
         $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
-        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement'));
+        $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
+
+        dd($data->toArray());
+
+        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
     }
 
             public function bills(Request $request, ?string $reference_no = null)
