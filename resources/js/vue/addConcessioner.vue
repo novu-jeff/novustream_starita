@@ -28,14 +28,6 @@
                                   >
                             <small v-if="errors.contact_no" class="text-danger px-1">{{ errors.contact_no[0] }}</small>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="senior_citizen_no" class="form-label">Senior Citizen No. <small class="text-danger"> ( required )</small></label>
-                            <input type="text" 
-                                  class="form-control" 
-                                  id="senior_citizen_no" 
-                                  v-model="concessioner.accounts[0].sc_discount.id_no" 
-                                  readonly>
-                        </div>
                     </div>
 
                     <div class="text-uppercase fw-bold py-4">Login Information</div>
@@ -140,6 +132,22 @@
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
                               >
                         <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
+                    </div>
+                    <div class="col-md-12 mb-3">
+                      <label :for="'senior_citizen_no_' + index" class="form-label">
+                        Senior Citizen Discount <small class="text-danger"></small>
+                      </label>
+                      <input 
+                        type="text" 
+                        class="form-control" 
+                        :id="'senior_citizen_no_' + index" 
+                        :value="getScDiscountIdNo(index)"
+                        required
+                        :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
+                      >
+                      <small v-if="errors && errors['accounts.' + index + '.sc_discount.id_no']" class="text-danger px-1">
+                        {{ errors['accounts.' + index + '.sc_discount.id_no'][0] }}
+                      </small>
                     </div>
                     <div class="col-md-12 mb-3">
                         <label :for="'address_' + index" class="form-label">
@@ -371,7 +379,6 @@ export default {
       loading: false,
       concessioner: {
         name: '',
-        senior_citizen_no: '',
         contact_no: '',
         email: '',
         password: '',
@@ -379,6 +386,9 @@ export default {
         accounts: [
           {
             account_no: '',
+            sc_discount: {
+              id_no: ''
+            },
             property_type: null,
             address: '',
             rate_code: '',
@@ -419,6 +429,11 @@ export default {
     }
   },
   methods: {
+    getScDiscountIdNo(index) {
+      // Check if the account exists and the sc_discount exists
+      const account = this.concessioner.accounts[index];
+      return account && account.sc_discount ? account.sc_discount.id_no : ''; // Return empty string if null or undefined
+    },
     lightGallery() {
       nextTick(() => {
         document.querySelectorAll('.lightgallery').forEach((gallery) => {

@@ -23,5 +23,21 @@
         height: 12px;
         border-radius: 50%;
     }
+}
 
+.blinking {
+    animation: blink 45s infinite;
+}
+
+.blinking {
+    animation: blink 3s infinite;
+}
+
+@keyframes blink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
 }

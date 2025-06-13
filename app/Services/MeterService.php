@@ -106,11 +106,10 @@ class MeterService {
                 $suggestNextMonth = null;
             }
 
-            $expired_date = '';
+            $expired_date = null;
 
             $sc_discount_start = $previous_reading->sc_discount->effective_date ?? null;
             $sc_discount_end = $previous_reading->sc_discount->expired_date ?? null;
-
 
             if ($sc_discount_start && $sc_discount_end) {
                 $billDate = Carbon::parse($suggestNextMonth);
@@ -127,13 +126,13 @@ class MeterService {
             return [
                 'previous_reading' => $previous_reading->present_reading ?? null,
                 'suggestedNextMonth' => $suggestNextMonth,
-                'sc_expired_date' => $expired_date
+                'sc_expired_date' => $expired_date ?? null
             ];
         }
 
         return [
             'previous_reading' => null,
-            'suggestedNextMonth' => null,
+            'suggestedNextMonth' => Carbon::now()->format('Y-m-d'),
             'sc_expired_date' => null
         ];
     }

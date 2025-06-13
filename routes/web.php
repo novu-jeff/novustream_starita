@@ -152,7 +152,6 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills.reference_no');
-        
     });
 
     Route::prefix('/support')->group(function() {

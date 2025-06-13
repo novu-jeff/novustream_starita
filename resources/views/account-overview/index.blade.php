@@ -10,7 +10,7 @@
 
                 @php
 
-                    $currentDate = \Carbon\Carbon::parse();
+                    $currentDate = \Carbon\Carbon::now();
 
                     foreach ($sc_discounts as $discount) {
 
@@ -22,7 +22,7 @@
                             $startDate = \Carbon\Carbon::parse($startDate);
                             $endDate = \Carbon\Carbon::parse($endDate);
                             if($currentDate->between($startDate, $endDate) && $currentDate->diffInMonths($endDate, false) <= 1) {
-                                echo '<div class="alert alert-danger">Senior citizen discount for ' . $account_no . ' will be expiring on ' . $endDate->format('F d, Y') . '</div>';
+                                echo '<div class="blinking alert alert-danger text-uppercase text-center mb-3 fw-medium" style="word-spacing: 4px; letter-spacing: 0.1em;">Senior citizen discount for account <span class="fst-italic fw-bold text-decoration-underline" style="text-underline-offset: 5px;">' . $account_no . '</span> will be expiring on ' . $endDate->format('F d, Y') . '</div>';
                             }
                         }
                     }
@@ -71,7 +71,7 @@
                                         <small class="text-uppercase fw-bold text-muted">[+] Properties</small>
                                     </div>
                                     <div>
-                                            @php
+                                        @php
                                             $product = env('APP_PRODUCT');
                                         @endphp
                                         <div class="accordion accordion-flush" id="accordionAccountConnection">
@@ -185,23 +185,23 @@
                                     <div class="mt-4 pt-2" style="font-size: 14px;">
                                         <div style="display:none;" id="statement-content">
                                             @forelse($statement['transactions'] as $key => $transactions)
-                                                <div class="d-flex justify-content-between pb-3 {{$key == 0 ? 'pt-3' : ''}} mb-3" style="{{$key == 0 ? 'border-top: 3px dotted rgba(0, 0, 0, 0.521);' : ''}} border-bottom: 3px dotted rgba(0, 0, 0, 0.521); cursor: pointer;">
-                                                    <div>
+                                                <a target="_blank" href="{{route('account-overview.bills.reference_no', ['reference_no' => $transactions['reference_no']])}}">
+                                                    <div class="d-flex justify-content-between pb-3 {{$key == 0 ? 'pt-3' : ''}} mb-3" style="{{$key == 0 ? 'border-top: 3px dotted rgba(0, 0, 0, 0.521);' : ''}} border-bottom: 3px dotted rgba(0, 0, 0, 0.521); cursor: pointer;">
                                                         <div>
-                                                            {{$transactions['reference_no']}} | {{$transactions['account_no']}}
+                                                            <div>
+                                                                {{$transactions['reference_no']}} | {{$transactions['account_no']}}
+                                                            </div>
+                                                            <div class="text-uppercase">
+                                                                {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}} 
+                                                            </div>
                                                         </div>
-                                                        <div class="text-uppercase">
-                                                            {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}} 
+                                                        <div class="text-end">
+                                                            <div class="fw-bold">
+                                                                PHP {{number_format($transactions['amount'], 2)}}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <div class="text-end">
-                                                        
-                                                        
-                                                        <div class="fw-bold">
-                                                            PHP {{number_format($transactions['amount'], 2)}}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                    </a>
                                             @empty
                                                 <div class="alert alert-danger text-uppercase text-center text-muted fw-bold" style="font-size: 12px">No Statement Found</div>
                                             @endforelse

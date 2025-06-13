@@ -223,7 +223,8 @@
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
                 const sc_expired_date = response.sc_expired_date;
-
+                console.log(sc_expired_date);
+                
                 let modalContent = `
                     <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
                     <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
