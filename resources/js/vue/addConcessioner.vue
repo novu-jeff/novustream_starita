@@ -430,7 +430,6 @@ export default {
   },
   methods: {
     getScDiscountIdNo(index) {
-      // Check if the account exists and the sc_discount exists
       const account = this.concessioner.accounts[index];
       return account && account.sc_discount ? account.sc_discount.id_no : ''; // Return empty string if null or undefined
     },
