@@ -117,16 +117,14 @@ class MeterService {
                 $scEndDate = Carbon::parse($sc_discount_end);
 
                 if($billDate->between($scStartDate, $scEndDate) && $billDate->diffInMonths($scEndDate, false) <= 1) {
-                    $expired_date = $scEndDate;
+                    $expired_date = Carbon::parse($scEndDate)->format('F d, Y');
                 }
-
-
             }
 
             return [
                 'previous_reading' => $previous_reading->present_reading ?? null,
                 'suggestedNextMonth' => $suggestNextMonth,
-                'sc_expired_date' => $expired_date ?? null
+                'sc_expired_date' => $expired_date
             ];
         }
 

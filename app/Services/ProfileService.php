@@ -35,12 +35,11 @@ class ProfileService {
                 'email' => $payload['email'],
             ];
                 
-            
             if(isset($payload['password'])) {
                 $updateData['password'] = Hash::make($payload['password']);
             }
 
-            if($payload['user_type'] == 'client') {
+            if($payload['user_type'] == 'concessionaire') {
                 User::where('id', $id)->update($updateData);
             } else {
                 Admin::where('id', $id)->update($updateData);

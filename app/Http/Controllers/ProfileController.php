@@ -37,11 +37,7 @@ class ProfileController extends Controller
 
         $data = $this->profileService::getData($id);
 
-        if($data->user_type == 'concessionaire') {
-            $payload['user_type'] = 'concessionaire';
-        } else {
-            $payload['user_type'] = 'admin';
-        }
+        $payload['user_type'] = $user_type;
 
         $validator = Validator::make($payload, [
             'name' => 'required',

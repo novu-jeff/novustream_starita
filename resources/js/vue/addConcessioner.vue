@@ -101,7 +101,7 @@
                         </label>
                         <input type="text" class="form-control" 
                                 :id="'account_no_' + index" 
-                                v-model="account.account_no" required
+                                v-model="account.account_no"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }" 
                                 >
                         <small v-if="errors['accounts.' + index + '.account_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
@@ -112,7 +112,7 @@
                         </label>
                         <select class="form-control" 
                                 :id="'property_type_' + index" 
-                                v-model="account.property_type" required
+                                v-model="account.property_type"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }" 
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
@@ -128,7 +128,7 @@
                         </label>
                         <input type="number" class="form-control" 
                               :id="'rate_code_' + index" 
-                              v-model="account.rate_code" required
+                              v-model="account.rate_code"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
                               >
                         <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
@@ -140,9 +140,8 @@
                       <input 
                         type="text" 
                         class="form-control" 
-                        :id="'senior_citizen_no_' + index" 
+                        :id="'senior_citizen_no_' + index" readonly
                         :value="getScDiscountIdNo(index)"
-                        required
                         :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
                       >
                       <small v-if="errors && errors['accounts.' + index + '.sc_discount.id_no']" class="text-danger px-1">
@@ -155,7 +154,7 @@
                         </label>
                         <input type="text" class="form-control" 
                                 :id="'address_' + index" 
-                                v-model="account.address" required
+                                v-model="account.address"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" 
                                 >
                         <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
@@ -166,7 +165,7 @@
                         </label>
                         <select class="form-control" 
                                 :id="'status_' + index" 
-                                v-model="account.status" required
+                                v-model="account.status"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.status'] }" 
                                 >
                           <option :value="null">-- SELECT --</option>
@@ -182,7 +181,7 @@
                         </label>
                         <input type="text" class="form-control" 
                               :id="'meter_serial_no_' + index" 
-                              v-model="account.meter_serial_no" required
+                              v-model="account.meter_serial_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_serial_no'] }"
                               >
                         <small v-if="errors['accounts.' + index + '.meter_serial_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_serial_no'][0] }}</small>
@@ -193,7 +192,7 @@
                         </label>
                         <input type="text" class="form-control" 
                               :id="'sc_no_' + index" 
-                              v-model="account.sc_no" required
+                              v-model="account.sc_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_no'] }"
                               >
                         <small v-if="errors['accounts.' + index + '.sc_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sc_no'][0] }}</small>
@@ -204,7 +203,7 @@
                         </label>
                         <input type="date" class="form-control" 
                               :id="'date_connected_' + index" 
-                              v-model="account.date_connected" required
+                              v-model="account.date_connected"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.date_connected'] }"
                               >
                         <small v-if="errors['accounts.' + index + '.date_connected']" class="text-danger px-1">{{ errors['accounts.' + index + '.date_connected'][0] }}</small>
@@ -215,7 +214,7 @@
                         </label>
                         <input type="text" class="form-control" 
                               :id="'sequence_no_' + index" 
-                              v-model="account.sequence_no" required
+                              v-model="account.sequence_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sequence_no'] }"
                               >
                         <small v-if="errors['accounts.' + index + '.sequence_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.sequence_no'][0] }}</small>
