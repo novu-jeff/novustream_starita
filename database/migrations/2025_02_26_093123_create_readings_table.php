@@ -51,6 +51,8 @@ return new class extends Migration
                 ->default(false);
             $table->boolean('hasPenalty')
                 ->default(false);
+            $table->string('advances')
+                ->nullable();
             $table->boolean('hasDisconnection')
                 ->default(false);
             $table->boolean('hasDisconnected')
@@ -62,6 +64,10 @@ return new class extends Migration
                 ->nullable();
             $table->string('paid_by_reference_no')
                 ->nullable();
+            $table->boolean('isChangeForAdvancePayment')
+                ->default(false);
+            $table->boolean('isHighConsumption')
+                ->default(false);
             $table->timestamps();
         });
 

@@ -135,54 +135,6 @@ class MeterService {
         ];
     }
 
-    public function checkConsumption($account_no, $current_reading)
-    {
-        $previousReading = Reading::with('bill')
-            ->where('account_no', $account_no)
-            ->latest()
-            ->first();
-
-        if (!$previousReading) {
-            return [
-                'status' => false,
-                'message' => 'No previous reading found.'
-            ];
-        }
-
-        $previousReadingDate = Carbon::parse($previousReading->created_at)->format('Y-m-d');
-        
-        $previousConsumptions = self::previousConsumption($account_no, $previousReadingDate);
-        $previousValues = collect($previousConsumptions)->pluck('value')->filter(fn($v) => $v > 0)->values();
-
-        if ($previousValues->isEmpty()) {
-            return [
-                'status' => false,
-                'message' => 'Insufficient non-zero consumption data.'
-            ];
-        }
-
-        $averageConsumption = $previousValues->avg();
-
-        $multiplier = env('AVR_CONSUMP_PERCENTAGE') / 100;
-        $threshold = $averageConsumption * (1 + $multiplier);
-
-        $previousReadingValue = $previousReading->present_reading ?? 0;
-        $currentConsumption = $current_reading - $previousReadingValue;
-
-        $isHighConsumption = $currentConsumption > $threshold;
-
-        return [
-            'status' => true,
-            'high_consumption' => $isHighConsumption,
-            'current_consumption' => $currentConsumption,
-            'average' => $averageConsumption,
-            'threshold' => $threshold,
-            'percentage_increase' => $multiplier * 100,
-            'data_points_used' => $previousValues->count(),
-        ];
-    }
-
-
     public function getAccount($meter_no) {
         return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
         ->orWhere('meter_serial_no', $meter_no ?? '')
@@ -195,7 +147,7 @@ class MeterService {
             return Reading::whereDate('created_at', $date)->get();
         }
 
-        return Reading::with('bill')->get();
+        return Reading::with('concessionaire.user', 'bill')->get();
 
     }
 
@@ -462,7 +414,15 @@ class MeterService {
             ->latest()
             ->first();
 
+        
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
+        $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
+
+        $advances = 0;
+
+        if($isChangeSaved) {
+            $advances = (float) $latest_reading->bill->change ?? 0;
+        }
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
     
@@ -592,6 +552,8 @@ class MeterService {
         }
 
         $overall_total = $discountAmount == 0 ? $total : $overall_total;
+        $overall_total = $overall_total - $advances;
+        
         $arrears = collect($deductions)
             ->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
@@ -633,6 +595,8 @@ class MeterService {
        
         $due_date = $date->copy()->addDays($days_due)->format('Y-m-d H:i:s');
 
+        $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
+
         $reading = [
             'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
@@ -652,9 +616,11 @@ class MeterService {
             'discount' => $discountAmount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
+            'advances' => $advances,
             'amount' => $overall_total,
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
+            'isHighConsumption' => $isHighConsumption,
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];

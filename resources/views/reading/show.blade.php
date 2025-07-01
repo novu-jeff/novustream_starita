@@ -148,6 +148,11 @@
 
 
                         @forelse($deductions as $deduction)
+                            @php
+                                if (strtolower($deduction['name']) === 'system fee') {
+                                    continue;
+                                }
+                            @endphp
                             <div style="display: flex; justify-content: space-between;">
                                 <div style="text-transform: uppercase">{{$deduction['name']}}</div>
                                 <div style="text-transform: uppercase">{{$deduction['amount']}}</div>
@@ -164,11 +169,17 @@
                         @forelse($discounts as $discount)
                             <div style="display: flex; justify-content: space-between;">
                                 <div style="text-transform: uppercase">{{$discount['name']}}</div>
-                                <div style="text-transform: uppercase">({{$discount['amount']}})</div>
+                                <div style="text-transform: uppercase">- ({{$discount['amount']}})</div>
                             </div>
                         @empty
 
                         @endforelse
+                        @if(!empty($data['current_bill']['advances']))
+                            <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
+                                <div>Advances</div>
+                                <div>- ({{$data['current_bill']['advances']}})</div>
+                            </div>
+                        @endif
                         <div style="display: flex; justify-content: space-between;">
                             <div style="text-transform: uppercase;">2% Franchise Tax:</div>
                             <div style="text-transform: uppercase;">0</div>
@@ -270,20 +281,31 @@
                         $end = $data['client']['sc_discount']['expired_date'] ?? null;
                     @endphp
 
-                    @if ($bill && $start && $end)
-                        @php
+                    @php
+                        $remarks = [];
+
+                        if ($bill && $start && $end) {
                             $billDate = \Carbon\Carbon::parse($bill);
                             $startDate = \Carbon\Carbon::parse($start);
                             $endDate = \Carbon\Carbon::parse($end);
-                        @endphp
 
-                        @if ($billDate->between($startDate, $endDate) && $billDate->diffInMonths($endDate, false) <= 1)
-                            <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
-                                <div style="text-transform: uppercase; text-align: center; font-style: italic; font-weight: 500; color: rgb(91, 91, 91)">
-                                    REMARKS: Senior citizen discount will be expired on {{\Carbon\Carbon::parse($end)->format('F, d Y')}}, renew now!
-                                </div>
+                            if ($billDate->between($startDate, $endDate) && $billDate->diffInMonths($endDate, false) <= 1) {
+                                $remarks[] = 'senior citizen discount will expire on ' . $endDate->format('F d, Y') . ', renew now';
+                            }
+                        }
+
+                        if (!empty($data['current_bill']['isHighConsumption'])) {
+                            $remarks[] = 'high consumption';
+                        }
+
+                    @endphp
+
+                    @if (!empty($remarks))
+                        <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
+                            <div style="color: red; text-transform: uppercase; text-align: center; font-style: italic; font-weight: 500;">
+                                REMARKS: {{ implodeWithAnd($remarks) }}
                             </div>
-                        @endif
+                        </div>
                     @endif
                     <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
                         <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>

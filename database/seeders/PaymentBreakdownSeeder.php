@@ -18,45 +18,37 @@ class PaymentBreakdownSeeder extends Seeder
     public function run(): void
     {
 
-        // $breakdowns = [
-        //     [
-        //         'name' => '12% VAT',
-        //         'type' => 'fixed',
-        //         'amount' => 0.12
-        //     ], [
-        //         'name' => 'Environmental Fee',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Application Fee',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Customer Deposits',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Service Conn. Materials',
-        //         'type' => 'fixed',  
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Reconnection Fee',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Back Billing',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ], [
-        //         'name' => 'Miscellaneous Fee',
-        //         'type' => 'fixed',
-        //         'amount' => 0
-        //     ]
-        // ];
+        $breakdowns = [
+            [
+                'name' => 'Application Fee',
+                'type' => 'fixed',
+                'amount' => 0
+            ], [
+                'name' => 'Customer Deposits',
+                'type' => 'fixed',
+                'amount' => 0
+            ], [
+                'name' => 'Materials',
+                'type' => 'fixed',  
+                'amount' => 0
+            ], [
+                'name' => 'Reconnection Fee',
+                'type' => 'fixed',
+                'amount' => 0
+            ], [
+                'name' => 'Back Billing',
+                'type' => 'fixed',
+                'amount' => 0
+            ], [
+                'name' => 'Others',
+                'type' => 'fixed',
+                'amount' => 0
+            ]
+        ];
 
-        // foreach ($breakdowns as $breakdown) {
-        //     PaymentBreakdown::create($breakdown);
-        // }
+        foreach ($breakdowns as $breakdown) {
+            PaymentBreakdown::create($breakdown);
+        }
 
         PaymentBreakdownPenalty::create([
             'due_from' => '1',

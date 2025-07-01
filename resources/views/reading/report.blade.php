@@ -14,6 +14,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Name</th>
                             <th>Account No</th>
                             <th>Previous Reading</th>
                             <th>Present Reading</th>
@@ -48,6 +49,7 @@
             ajax: url,
             columns: [
                 { data: 'id', name: 'id' },
+                { data: 'concessionaire.user.name', name: 'concessionaire.user.name' },
                 { data: 'account_no', name: 'account_no' },
                 { data: 'previous_reading', name: 'previous_reading' },
                 { data: 'present_reading', name: 'present_reading' },

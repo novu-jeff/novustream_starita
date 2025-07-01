@@ -32,6 +32,7 @@ class Bill extends Model
         'due_date',
         'payor_name',
         'paid_by_reference_no',
+        'isChangeForAdvancePayment'
     ];
 
     public function reading() {

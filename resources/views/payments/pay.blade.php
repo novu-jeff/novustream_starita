@@ -119,6 +119,11 @@
 
 
                                         @forelse($deductions as $deduction)
+                                            @php
+                                                if (strtolower($deduction['name']) === 'system fee') {
+                                                    continue;
+                                                }
+                                            @endphp
                                             <div style="display: flex; justify-content: space-between;">
                                                 <div style="text-transform: uppercase">{{$deduction['name']}}</div>
                                                 <div style="text-transform: uppercase">{{$deduction['amount']}}</div>
@@ -312,11 +317,14 @@
                                                 @enderror
                                             </div>
                                         </div>
-                                        <div class="d-flex justify-content-end align-items-center gap-3 mb-1">
+                                        <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
                                             <div class="text-end">
                                                 <label for="changeAmount" class="form-label">Change</label>
                                                 <h2 class="text-primary fw-bold" id="changeAmount">PHP 0.00</h2>
                                             </div>
+                                        </div>
+                                        <div class="d-flex justify-content-end align-items-center gap-2 mb-1" id="isForAdvances">
+
                                         </div>
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                             <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
@@ -427,7 +435,12 @@
 
                     if (value < total) {
                         $('#changeAmount').text('PHP 0.00');
+                        $('#isForAdvances').empty();
                     } else {
+                        $('#isForAdvances').html(`
+                            <input type="checkbox" id="for_advances" name="for_advances" class="form-check-input mb-1" value="true">
+                            <label for="for_advances" class="form-label mb-0">Save Change to Advance Payment</label>
+                        `);
                         $('#changeAmount').text('PHP ' + change);
                     }
                 });

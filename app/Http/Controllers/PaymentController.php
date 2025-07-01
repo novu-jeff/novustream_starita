@@ -241,6 +241,13 @@ class PaymentController extends Controller
         
         $amount = $data['current_bill']['amount'] + $data['current_bill']['penalty'];
         $change = $payload['payment_amount'] - $amount;
+        $forAdvancePayment = $payload['for_advances'] ?? false;
+
+        $saveChange = false;
+
+        if($change != 0 && $forAdvancePayment) {
+            $saveChange = true;
+        }
             
         $currentBill = Bill::find($data['current_bill']['id']);
 
@@ -251,6 +258,7 @@ class PaymentController extends Controller
                 'change' => $change,
                 'payor_name' => $payload['payor'],
                 'date_paid' => $now,
+                'isChangeForAdvancePayment' => $saveChange
             ]);
         }
 

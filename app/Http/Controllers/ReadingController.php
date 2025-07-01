@@ -63,11 +63,6 @@ class ReadingController extends Controller
                 return response()->json($response);
             }
 
-            if(isset($payload['isCheckConsumption']) && $payload['isCheckConsumption'] == true) {
-                $response = $this->meterService->checkConsumption($payload['account_no'], $payload['current_reading']);
-                return response()->json($response);
-            }
-
             $response = $this->meterService->filterAccount($request->all());
             return response()->json($response);
         }
@@ -139,6 +134,7 @@ class ReadingController extends Controller
             ],
             'previous_reading' => 'required|integer',
             'present_reading' => 'required|integer|gt:previous_reading',
+            'is_high_consumption' => 'required|in:yes,no'
         ]);
 
         if ($validator->fails()) {
@@ -188,12 +184,14 @@ class ReadingController extends Controller
             $property_type_id = $account->property_type;
 
             $present_reading = $payload['present_reading'];
+            $is_high_consumption = $payload['is_high_consumption'];
 
             $computed = $this->meterService->create_breakdown([
                 'account_no' => $account_no,
                 'property_type_id' => $property_type_id,
                 'present_reading' => $present_reading,
                 'date' => $date,
+                'is_high_consumption' => $is_high_consumption
             ]);
 
             if ($computed['status'] == 'error') {

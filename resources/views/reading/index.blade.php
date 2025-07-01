@@ -76,9 +76,6 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <div id="accountAlert">
-
-                        </div>
                         <div id="accountModalBody">
 
                         </div>
@@ -175,10 +172,11 @@
                         'BL': '000',
                         'ID': 'FF7601',
                         'IV': 'DC2525',
+                        'MD': '000'
                     };
 
                     const html = `
-                        <div class="card shadow mb-3 account-card" data-index="${offset + index}" style="background-color: #${statusCode[status] ?? ''}; cursor: pointer; border: 2px solid ${statusCode[status] ?? ''}" data-account='${JSON.stringify(account)}'>
+                        <div class="card shadow mb-3 account-card" data-index="${offset + index}" ${status} style="background-color: #${statusCode[status] ?? ''}; cursor: pointer; border: 2px solid ${statusCode[status] ?? ''}" data-account='${JSON.stringify(account)}'>
                             <div class="card-body" style="${status != 'AB' ? 'color: #fff' : ''}">
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
@@ -247,6 +245,17 @@
                             <label for="consumption" class="form-label">Consumption</label>
                             <input type="text" class="form-control restricted h-extend" id="consumption" value="0" readonly>
                         </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label d-block">Mark as High Consumption</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_yes" value="yes">
+                                <label class="form-check-label" for="is_high_consumption_yes">Yes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_no" value="no" checked>
+                                <label class="form-check-label" for="is_high_consumption_no">No</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="text-end mt-4">
                         <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold d-none" id="proceedButton">Proceed</button>
@@ -264,22 +273,6 @@
             
             $('#consumption').val(consumption);
 
-            $.get('{{ route(Route::currentRouteName()) }}', {
-                account_no: selectedAccountNo,
-                current_reading: present,
-                isCheckConsumption: true,
-            }, function (response) {
-                if(response.high_consumption == true) {
-                    $('#accountAlert').html(`
-                        <div class="shadow p-3 mb-4 alert alert-danger text-uppercase fw-bold text-center">
-                            High Consumption
-                        </div>
-                    `);
-                } else {
-                    $('#accountAlert').empty();
-                }
-            });
-
             if (present > 0 && present > previous) {
                 $('#proceedButton').removeClass('d-none');
             } else {
@@ -290,7 +283,8 @@
         $(document).on('click', '#proceedButton', function () {
             const presentReading = $('#present_reading').val();
             const previousReading = $('#previous_reading').val();
-            const readingMonth = $('#reading_month').val() ?? null;
+            const readingMonth = $('#reading_month').val();
+            const is_high_consumption = $('input[name="is_high_consumption"]:checked').val();
 
             if (!selectedAccountNo) {
                 alert('error', 'Account number is missing.');
@@ -307,6 +301,7 @@
                 account_no: selectedAccountNo,
                 previous_reading: previousReading,
                 present_reading: presentReading,
+                is_high_consumption: is_high_consumption
             };
 
             $.ajax({
