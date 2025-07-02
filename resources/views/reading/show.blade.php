@@ -7,9 +7,7 @@
     <title>Print Bill {{$reference_no}}</title>
 </head>
 <body>
-    
     <div class="print-controls" style="display: grid; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
-
         @php
             $previousUrl = url()->previous();
             $currentUrl = url()->current();
@@ -132,7 +130,7 @@
                             <div style="text-transform: uppercase">Present Reading</div>
                             <div style="text-transform: uppercase">{{$data['current_bill']['reading']['present_reading'] ?? '0'}}</div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 5px">
+                        <div class="oversized" style="display: flex; justify-content: space-between; margin-top: 5px">
                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Cub. M Used</div>
                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                         </div>
@@ -186,7 +184,7 @@
                         </div>
                     </div>
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                    <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
+                    <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                         <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
                         <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
                     </div>
@@ -197,7 +195,7 @@
                         </div>
                     @endif
                     <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
                     </div>
@@ -221,7 +219,7 @@
                             @endif
                         </div>
                     </div>
-                    <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
                             @if($data['current_bill']['hasPenalty'])
@@ -336,6 +334,11 @@
             
             @page {
                 margin: 0mm 5mm 0mm 0mm;
+            }
+            
+            .oversized div {
+                font-size: 15px !important;
+                font-weight: 800 !important;
             }
     
             body * {
