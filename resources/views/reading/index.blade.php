@@ -168,6 +168,7 @@
 
                 data.forEach((account, index) => {
                     const status = account.status;
+
                     const statusCode = {
                         'AB': 'fff',
                         'BL': '000',
@@ -176,13 +177,18 @@
                         'MD': '000'
                     };
 
+                    const statusBg = {
+                        'AB': '07a72f',
+                    };
+
                     const html = `
                         <div class="card shadow mb-3 account-card" 
                             data-account-no="${account.account_no}" 
                             data-index="${offset + index}" 
-                            style="background-color: #${statusCode[status] ?? ''}; cursor: pointer; border: 2px solid ${statusCode[status] ?? ''}" 
+                            style="background-color: #${statusCode[status] ?? ''}; cursor: pointer;" 
                             data-account='${JSON.stringify(account)}'>
                             <div class="card-body" style="${status != 'AB' ? 'color: #fff' : ''}">
+                                <div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #${statusBg[status]}"></div>
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
                                 <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>

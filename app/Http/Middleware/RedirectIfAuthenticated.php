@@ -22,7 +22,7 @@ class RedirectIfAuthenticated
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
 
-                if (Auth::user()->user_type === 'admin') {
+                if (in_array(Auth::user()->user_type, ['admin', 'cashier'])) {
                     return redirect('/dashboard');
                 }
         

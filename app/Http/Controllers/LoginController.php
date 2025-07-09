@@ -26,7 +26,16 @@ class LoginController extends Controller
         try {
             
             if (Auth::guard('admins')->attempt($credentials)) {
-                return redirect()->route('dashboard');
+
+                $user = Auth::guard('admins')->user();
+                
+                if (in_array($user->user_type, ['admin', 'cashier'])) {
+                    return redirect()->route('dashboard');
+                }
+
+                if($user->user_type == 'technician') {
+                    return redirect()->route('reading.index');
+                }
             }
     
             if (Auth::guard('web')->attempt($credentials)) {

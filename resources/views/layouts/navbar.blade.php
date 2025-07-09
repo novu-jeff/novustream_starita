@@ -10,7 +10,7 @@
 				<i class='bx bx-x'></i>
 			</div>
 			<nav class="header-navigation-links d-flex gap-4">
-				@can('admin')
+				@canany(['admin', 'cashier'])
 					<a href="{{route('dashboard')}}"> Dashboard </a>
 				@endcan
 				@can('concessionaire')
