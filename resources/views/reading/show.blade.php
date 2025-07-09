@@ -80,8 +80,8 @@
                     <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                                     
                     <div>
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                            <div style="margin: 4px 0 0 0; display: flex; align-items: center;">
-                                <div style="font-size: 20px; font-weight: 600">Account No.</div>
+                            <div style="margin: 4px 0 0 0; display: flex; gap: 5px; align-items: center;">
+                                <div style="font-size: 20px; font-weight: 600">Account No. </div>
                                 <div style="font-size: 20px; font-weight: 600">{{$data['client']['account_no'] ?? ''}}</div>
                             </div>
                              <div style="margin: 4px 0 0 0; display: flex; align-items: center;">

@@ -56,22 +56,7 @@
                                 </div>
                             </div>
                         </div>
-                        @if(!is_null($recentReading))
-                            <div class="card shadow mb-3 account-card mt-4 border-3 border-primary" style="cursor: pointer">
-                                <div class="card-body">
-                                    <h5 class="card-title mb-0 fw-normal text-uppercase py-2 fw-bold">Recent Reading</h5>
-                                    <hr class="my-2 mb-2">
-                                    <h5 class="fw-normal">Account No: {{ $recentReading['account_no'] }}</h5>
-                                    <h4>{{ $recentReading['name'] }}</h4>
-                                    <h5 class="fw-normal text-capitalize">{{ $recentReading['address'] }}</h5>
-                                    <small>
-                                        {{ !empty($recentReading['timestamp']) 
-                                            ? \Carbon\Carbon::parse($recentReading['timestamp'])->format('F d, Y \a\t h:i A') 
-                                            : '' }}
-                                    </small>
-                                </div>
-                            </div>
-                        @endif
+                        <div id="recent-reading-container"></div>
                     </div>
                     <div class="mb-5" style="width: 100%">
                         <div class="concessionaire-result">
@@ -233,6 +218,49 @@
             });
         }
 
+        function fetchRecentReading() {
+            $.get('{{ route(Route::currentRouteName()) }}', {
+                isGetRecentReading: true
+            }, function(response) {
+                console.log(response);
+                if (!$.isEmptyObject(response)) {
+                    renderRecentReadingCard(response);
+                } else {
+                    $('#recent-reading-container').empty();
+                }
+            }).fail(function(xhr) {
+                console.error('Failed to fetch recent reading:', xhr);
+            });
+        }
+
+        function renderRecentReadingCard(data) {
+            if (!data) return;
+
+            const formattedDate = data.timestamp 
+                ? new Date(data.timestamp).toLocaleString('en-US', {
+                    year: 'numeric', month: 'long', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', hour12: true
+                }).replace(',', ' at') 
+                : '';
+
+            const card = $(`
+                <div class="card shadow mb-3 account-card mt-4 border-3 border-primary" style="cursor: pointer">
+                    <div class="card-body">
+                        <button class="btn btn-danger" id="clearRecent" style="position: absolute; top: 10px; right: 10px;">
+                            <i class='bx bx-trash'></i>
+                        </button>
+                        <h5 class="card-title mb-0 fw-normal text-uppercase py-2 fw-bold">Recent Reading</h5>
+                        <hr class="my-2 mb-2">
+                        <h5 class="fw-normal">Account No: ${data.account_no}</h5>
+                        <h4>${data.name}</h4>
+                        <h5 class="fw-normal text-capitalize">${data.address}</h5>
+                        <small>${formattedDate}</small>
+                    </div>
+                </div>
+            `);
+
+            $('#recent-reading-container').html(card);
+        }
 
         $(document).on('click', '.account-card', function () {
             const account = $(this).data('account');
@@ -348,6 +376,7 @@
                     alert(response.status, response.message);
                     $('#accountModal').modal('hide');
                     if (response.redirect_url) {
+                        fetchRecentReading(recentReading);
                         setTimeout(() => {
                             window.open(
                                 response.redirect_url,
@@ -368,6 +397,18 @@
                     }
                     alert('error', errorMsg);
                 }
+            });
+        });
+
+        $(document).on('click', '#clearRecent', function() {
+            $.post('{{ route(Route::currentRouteName()) }}', {
+                isClearRecent: true,
+                _token: '{{ csrf_token() }}'
+            }, function(response) {
+            }).fail(function(xhr) {
+                console.error('Failed to fetch recent reading:', xhr);
+            }).done(function() {
+                fetchRecentReading();
             });
         });
 
@@ -395,6 +436,7 @@
         });
 
         fetchAccountData();
+        fetchRecentReading();
     });
 </script>
 @endsection

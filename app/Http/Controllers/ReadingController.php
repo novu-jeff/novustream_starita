@@ -63,14 +63,18 @@ class ReadingController extends Controller
                 return response()->json($response);
             }
 
+            if(isset($payload['isGetRecentReading']) && $payload['isGetRecentReading'] == true) {
+                $response = session('recent_reading') ?? null;
+                return response()->json($response);
+            }
+
             $response = $this->meterService->filterAccount($request->all());
             return response()->json($response);
         }
 
         $zones = $this->meterService->getZones();
-        $recentReading = session('recent_reading');
 
-        return view('reading.index', compact('zones', 'recentReading'));
+        return view('reading.index', compact('zones'));
     }
 
     public function show(string $reference_no) {
@@ -114,6 +118,14 @@ class ReadingController extends Controller
     public function store(Request $request)
     {
         $payload = $request->all();
+
+        if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
+            session()->forget('recent_reading');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'recent reading cleared'
+            ]);
+        }
 
         $validator = Validator::make($payload, [
             'reading_month' => [
