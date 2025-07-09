@@ -68,8 +68,9 @@ class ReadingController extends Controller
         }
 
         $zones = $this->meterService->getZones();
+        $recentReading = session('recent_reading');
 
-        return view('reading.index', compact('zones'));
+        return view('reading.index', compact('zones', 'recentReading'));
     }
 
     public function show(string $reference_no) {
@@ -220,6 +221,13 @@ class ReadingController extends Controller
 
             $this->generatePaymentQR($reference_no, $payload);
 
+            session(['recent_reading' => [
+                'name' => $account->user->name ?? '',
+                'address' => $account->address ?? '',
+                'account_no' => $account->account_no ?? '',
+                'timestamp' => Carbon::now()
+            ]]);
+
             DB::commit();
 
             return response()->json([
@@ -277,7 +285,7 @@ class ReadingController extends Controller
         curl_close($ch);
         
         $decodedResponse = json_decode($response, true);
-
+        
         if(is_null($decodedResponse)) {
             Log::error('error: ' . $decodedResponse);
             throw new \Exception('Failed to process online payment. Unable to connect to novupay.');

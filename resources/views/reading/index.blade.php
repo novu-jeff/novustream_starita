@@ -56,6 +56,22 @@
                                 </div>
                             </div>
                         </div>
+                        @if(!is_null($recentReading))
+                            <div class="card shadow mb-3 account-card mt-4 border-3 border-primary" style="cursor: pointer">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-0 fw-normal text-uppercase py-2 fw-bold">Recent Reading</h5>
+                                    <hr class="my-2 mb-2">
+                                    <h5 class="fw-normal">Account No: {{ $recentReading['account_no'] }}</h5>
+                                    <h4>{{ $recentReading['name'] }}</h4>
+                                    <h5 class="fw-normal text-capitalize">{{ $recentReading['address'] }}</h5>
+                                    <small>
+                                        {{ !empty($recentReading['timestamp']) 
+                                            ? \Carbon\Carbon::parse($recentReading['timestamp'])->format('F d, Y \a\t h:i A') 
+                                            : '' }}
+                                    </small>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                     <div class="mb-5" style="width: 100%">
                         <div class="concessionaire-result">
@@ -98,7 +114,9 @@
     const limit = 50;
     let isLoading = false;
     let hasMoreData = true;
-
+    let didScrollToPreviousAccount = false;
+    const recentReading = @json(session('recent_reading'))
+    
     $(function () {
         @if (session('alert'))
             setTimeout(() => {
@@ -164,9 +182,7 @@
                 }
 
                 data.forEach((account, index) => {
-
                     const status = account.status;
-
                     const statusCode = {
                         'AB': 'fff',
                         'BL': '000',
@@ -176,7 +192,11 @@
                     };
 
                     const html = `
-                        <div class="card shadow mb-3 account-card" data-index="${offset + index}" ${status} style="background-color: #${statusCode[status] ?? ''}; cursor: pointer; border: 2px solid ${statusCode[status] ?? ''}" data-account='${JSON.stringify(account)}'>
+                        <div class="card shadow mb-3 account-card" 
+                            data-account-no="${account.account_no}" 
+                            data-index="${offset + index}" 
+                            style="background-color: #${statusCode[status] ?? ''}; cursor: pointer; border: 2px solid ${statusCode[status] ?? ''}" 
+                            data-account='${JSON.stringify(account)}'>
                             <div class="card-body" style="${status != 'AB' ? 'color: #fff' : ''}">
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
@@ -195,11 +215,24 @@
                     hasMoreData = false;
                 }
 
+                if (!didScrollToPreviousAccount && recentReading && !append) {
+                    setTimeout(() => {
+                        const $target = $(`.account-card[data-account-no="${recentReading.account_no}"]`);
+                        if ($target.length) {
+                            $('.concessionaire-list').animate({
+                                scrollTop: $target.offset().top - $('.concessionaire-list').offset().top + $('.concessionaire-list').scrollTop()
+                            }, 500);
+                            $target.css('box-shadow', '0 0 10px 5px #007bff');
+                        }
+                        didScrollToPreviousAccount = true;
+                    }, 300);
+                }
             }).fail((jqXHR, textStatus, errorThrown) => {
                 isLoading = false;
                 console.error('Error fetching data:', textStatus, errorThrown);
             });
         }
+
 
         $(document).on('click', '.account-card', function () {
             const account = $(this).data('account');
@@ -214,7 +247,6 @@
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
                 const sc_expired_date = response.sc_expired_date;
-                console.log(sc_expired_date);
                 
                 let modalContent = `
                     <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
@@ -317,7 +349,11 @@
                     $('#accountModal').modal('hide');
                     if (response.redirect_url) {
                         setTimeout(() => {
-                            window.location.href = response.redirect_url;
+                            window.open(
+                                response.redirect_url,
+                                'popupWindow',
+                                'width=800,height=800,resizable=no,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
+                            );
                         }, 2000);
                     } else {
                         offset = 0;

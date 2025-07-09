@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Print Bill {{$reference_no}}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    @vite(['resources/js/app.js'])
 </head>
 <body>
     <div class="print-controls" style="display: grid; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
@@ -15,7 +20,8 @@
             $backUrl = ($previousUrl !== $currentUrl) ? $previousUrl : $fallbackUrl;
         @endphp
 
-        <a href="{{ $backUrl }}" 
+        <a href="{{$backUrl}}" 
+            id="goBackButton"
             style="border: 1px solid #32667e; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
             <i style="font-size: 15px;" class='bx bx-left-arrow-alt'></i> Go Back
         </a>
@@ -375,13 +381,6 @@
             
         }
     </style>
-</body>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-@vite(['resources/js/app.js'])
-@section('script')
     <script>
         $(function () {
             @if (session('alert'))
@@ -390,7 +389,13 @@
                     alert(alertData.status, alertData.message);
                 }, 100);
             @endif
+
+            if (window.opener && window.opener !== window) {
+                $('#goBackButton').on('click', function (e) {
+                    e.preventDefault();
+                    window.close(); 
+                });
+            }
         });
     </script>
-@endsection
-</html>
+</body>

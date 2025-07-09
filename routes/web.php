@@ -42,7 +42,7 @@ Route::get('/login', [LoginController::class, 'index'])
 
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
-
+    
 Route::middleware('admin')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
