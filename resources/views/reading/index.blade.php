@@ -56,7 +56,16 @@
                                 </div>
                             </div>
                         </div>
-                        <div id="recent-reading-container"></div>
+                        <div class="mt-3 mb-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <label for="targetDate" class="form-label">View Read or Unread Accounts</label>
+                                    <input type="month" name="targetDate" id="targetDate" class="form-control">
+                                    <button class="btn btn-primary mt-3 text-uppercase float-end px-4 fw-medium" id="showReadUnread" style="font-size: 14px; !important">Show</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="recent-reading-container"></div>   
                     </div>
                     <div class="mb-5" style="width: 100%">
                         <div class="concessionaire-result">
@@ -168,27 +177,27 @@
 
                 data.forEach((account, index) => {
                     const status = account.status;
+                    const isActive = status === 'AB';
 
-                    const statusCode = {
-                        'AB': 'fff',
-                        'BL': '000',
-                        'ID': 'FF7601',
-                        'IV': 'DC2525',
-                        'MD': '000'
-                    };
+                    const cardStyle = `
+                        background-color: ${isActive ? '#fff' : '#dc3545'};
+                        cursor: pointer;
+                    `;
 
-                    const statusBg = {
-                        'AB': '07a72f',
-                    };
+                    const textColor = isActive ? '' : 'color: #fff;';
+                    
+                    const dot = isActive 
+                        ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>` 
+                        : '';
 
                     const html = `
                         <div class="card shadow mb-3 account-card" 
                             data-account-no="${account.account_no}" 
                             data-index="${offset + index}" 
-                            style="background-color: #${statusCode[status] ?? ''}; cursor: pointer;" 
+                            style="${cardStyle}" 
                             data-account='${JSON.stringify(account)}'>
-                            <div class="card-body" style="${status != 'AB' ? 'color: #fff' : ''}">
-                                <div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #${statusBg[status]}"></div>
+                            <div class="card-body" style="${textColor}">
+                                ${dot}
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
                                 <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
@@ -197,8 +206,10 @@
                             </div>
                         </div>
                     `;
+
                     $('.concessionaire-list').append(html);
                 });
+
 
                 offset += data.length;
 
@@ -228,7 +239,6 @@
             $.get('{{ route(Route::currentRouteName()) }}', {
                 isGetRecentReading: true
             }, function(response) {
-                console.log(response);
                 if (!$.isEmptyObject(response)) {
                     renderRecentReadingCard(response);
                 } else {
@@ -268,6 +278,89 @@
             $('#recent-reading-container').html(card);
         }
 
+        $(document).on('click', '#showReadUnread', function () {
+            const $btn = $(this);
+            const originalText = $btn.text();
+            const monthYear = $('#targetDate').val();
+
+            if (monthYear == '') {
+                alert('error', 'No month selected');
+                return;
+            }
+
+            // Set to "Please wait..." and disable button
+            $btn.text('Please wait...').prop('disabled', true);
+
+            const date = new Date(`${monthYear}-01`);
+            const formattedMonthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            $.get('{{ route(Route::currentRouteName()) }}', {
+                targetDate: monthYear,
+                isGetReadUnread: true
+            }, function (response) {
+                $('#readUnreadModal').remove();
+
+                const modalHtml = `
+                    <div class="modal fade" id="readUnreadModal" tabindex="-1" aria-labelledby="readUnreadModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">View Read and Unread For ${formattedMonthYear}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <ul class="nav nav-pills" id="readUnreadTabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link text-uppercase px-4 active" id="unread-tab" data-bs-toggle="tab" data-bs-target="#unread" type="button" role="tab">Unread</button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link text-uppercase px-4" id="read-tab" data-bs-toggle="tab" data-bs-target="#read" type="button" role="tab">Read</button>
+                                        </li>
+                                    </ul>
+                                    <div class="tab-content mt-3">
+                                        <div class="tab-pane fade show active" id="unread" role="tabpanel">
+                                            <div id="unread-list" style="max-height: 600px; overflow-y: auto;"></div>
+                                        </div>
+                                        <div class="tab-pane fade" id="read" role="tabpanel">
+                                            <div id="read-list" style="max-height: 600px; overflow-y: auto;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+
+                $('body').append(modalHtml);
+
+                function renderAccountCards(data) {
+                    if (!data.length) {
+                        return '<div class="text-muted text-center py-3 text-uppercase">No records found.</div>';
+                    }
+
+                    return data.map(item => `
+                        <div class="card mb-2 shadow-sm">
+                            <div class="card-body p-3">
+                                <h6 class="card-title mb-1"><strong>${item.name}</strong></h6>
+                                <p class="mb-1"><strong>Account No:</strong> ${item.account_no}</p>
+                                <p class="mb-1"><strong>Address:</strong> ${item.address}</p>
+                                <p class="mb-0"><strong>Meter No:</strong> ${item.meter_no}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                $('#unread-list').html(renderAccountCards(response.unread || []));
+                $('#read-list').html(renderAccountCards(response.read || []));
+
+                const modal = new bootstrap.Modal(document.getElementById('readUnreadModal'));
+                modal.show();
+            }).always(function () {
+                // Revert button text and re-enable
+                $btn.text(originalText).prop('disabled', false);
+            });
+        });
+
+
         $(document).on('click', '.account-card', function () {
             const account = $(this).data('account');
             selectedAccountNo = account.account_no;
@@ -295,7 +388,7 @@
                     <div class="row mt-3">
                         @if(env('IS_TEST_READING')) 
                             <div class="col-md-12 mb-3">
-                                <label for="reading_month" class="form-label">Testing Month</label>
+                                <label for="reading_month" class="form-label">Reading Month</label>
                                 <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
                             </div>
                         @endif
@@ -344,6 +437,10 @@
             } else {
                 $('#proceedButton').addClass('d-none');
             }
+        });
+
+        $(document).on('click', '#present_reading', function() {
+            $(this).val('');
         });
 
         $(document).on('click', '#proceedButton', function () {

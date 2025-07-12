@@ -26,6 +26,47 @@ class MeterService {
         $this->paymentBreakdownService = $paymentBreakdownService;
     }
 
+    public function getReadUnread(string $monthYear)
+    {
+        $date = Carbon::parse($monthYear);
+
+        $accounts = UserAccounts::with('user')->get();
+
+       $readings = Reading::with('concessionaire.user')
+            ->whereYear('created_at', $date->year)
+            ->whereMonth('created_at', $date->month)
+            ->get();
+
+        $readData = $readings->map(function ($reading) {
+            return [
+                'account_no' => $reading->account_no,
+                'name'       => $reading->concessionaire->user->name ?? 'N/A',
+                'address'    => $reading->concessionaire->address ?? 'N/A',
+                'meter_no'   => $reading->concessionaire->meter_serial_no ?? 'N/A',
+            ];
+        })->toArray();
+
+        $readAccountNos = array_column($readData, 'account_no');
+
+        $unreadData = $accounts->filter(function ($account) use ($readAccountNos) {
+            return !in_array($account->account_no, $readAccountNos);
+        })->map(function ($account) {
+            return [
+                'account_no' => $account->account_no,
+                'name'       => $account->user->name ?? 'N/A',
+                'address'    => $account->address ?? 'N/A',
+                'meter_no'   => $account->meter_serial_no ?? 'N/A',
+            ];
+        })->values()->toArray();
+
+        return [
+            'read' => array_values($readData),
+            'unread' => $unreadData,
+        ];
+    }
+
+
+
     public function getZones() {
         $zones = UserAccounts::select('account_no')->distinct()->pluck('account_no');
 
@@ -78,12 +119,10 @@ class MeterService {
             }
         }
 
-        // Determine limit from 'filter' param (defaults to 50 if invalid)
         $limit = (isset($filter['filter']) && is_numeric($filter['filter'])) 
             ? (int) $filter['filter'] 
             : 50;
 
-        // Get results limited by $limit
         return $query->limit($limit)->get()->toArray();
     }
 
@@ -459,7 +498,6 @@ class MeterService {
     
         $other_deductions = $this->paymentBreakdownService::getData();
         $discounts = $this->paymentBreakdownService::getDiscounts();
-        $service_fees = $this->paymentBreakdownService::getServiceFee();
 
         $deductions = [
             [
@@ -493,17 +531,6 @@ class MeterService {
                 ];
             }
         }
-
-        // service fee
-        foreach ($service_fees as $fee) {
-            if ($fee->property_id == $payload['property_type_id']) {
-                $deductions[] = [
-                    'name' => 'System Fee',
-                    'amount' => $fee->amount,
-                    'description' => '',
-                ];
-            }
-        }    
 
         $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])
             ->first();
@@ -587,13 +614,13 @@ class MeterService {
             $lastReading = Carbon::parse($latest_reading->bill->bill_period_to);
             $nextReading = $lastReading->addDays(1);
             $bill_period_from = $nextReading->format('Y-m-d H:i:s');
-            $bill_period_to = $nextReading->addDays($days_due)->format('Y-m-d H:i:s');
+            $bill_period_to = Carbon::parse($payload['date'])->format('Y-m-d H:i:s');
         } else {
             $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
             $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
         }
        
-        $due_date = $date->copy()->addDays($days_due)->format('Y-m-d H:i:s');
+        $due_date = Carbon::parse($payload['date'])->addDays($days_due)->format('Y-m-d H:i:s');
 
         $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
 

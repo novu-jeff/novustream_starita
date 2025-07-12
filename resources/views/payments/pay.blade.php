@@ -15,7 +15,7 @@
                     <div class="row">
                         <div class="col-12 col-md-6">
                             <div class="bill-container">
-                                <div style="position: relative; width: 100%; max-width: 400px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                                <div style="position: relative; width: 100%; max-width: 500px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                     @if($data['current_bill']['isPaid'] == true)
                                         <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
                                             PAID
@@ -38,6 +38,7 @@
                                             <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Bacolor Water District</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Sta. Ines, Bacolor, Pampanga</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. (045) 900- 2911</p>
+                                            <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 09190644815</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
                                         </div>
                                     </div> 
@@ -47,11 +48,11 @@
                                     <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                                     
                                     <div>
                                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                                            <div style="margin: 4px 0 0 0; display: flex; align-items: center;">
+                                            <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
                                                 <div style="font-size: 20px; font-weight: 600">Account No.</div>
                                                 <div style="font-size: 20px; font-weight: 600">{{$data['client']['account_no'] ?? ''}}</div>
                                             </div>
-                                            <div style="margin: 4px 0 0 0; display: flex; align-items: center;">
+                                            <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
                                                 <div style="font-size: 20px; font-weight: 600">{{$data['client']['name']}}</div>
                                             </div>
                                             <div style="margin: 4px 0 0 0; display: flex;">
@@ -85,7 +86,12 @@
                                                 <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                             </div>
                                             @if ($isWeekEnd)
-                                                <div style="margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">On-site payment is unavailable by the due date; please pay online.</div>
+                                                <div style="text-align: center; margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">
+                                                    <ul style="list-style: none !important;">
+                                                        <li>> Office - Last working day of the month</li>
+                                                        <li>> Online - Last day of the month</li>
+                                                    </ul>
+                                                </div>
                                             @endif
                                             <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                 <div>Disconnection Date</div>
@@ -173,25 +179,19 @@
                                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                         <div style="text-transform: uppercase;">Penalty Date: </div>
                                         <div style="text-transform: uppercase;">
-                                            @if($data['current_bill']['hasPenalty'])
-                                                {{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}
-                                            @endif
+                                            {{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}
                                         </div>
                                     </div>
                                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                         <div style="text-transform: uppercase;">Penalty Amt: </div>
                                         <div style="text-transform: uppercase;">
-                                            @if($data['current_bill']['hasPenalty'])
-                                                {{number_format($data['current_bill']['penalty'], 2)}}
-                                            @endif
+                                            {{number_format($data['current_bill']['assumed_penalty'], 2)}}
                                         </div>
                                     </div>
                                     <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                         <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                            @if($data['current_bill']['hasPenalty'])
-                                                {{number_format($data['current_bill']['amount_after_due'], 2)}}
-                                            @endif
+                                            {{number_format($data['current_bill']['assumed_amount_after_due'], 2)}}
                                         </div>
                                     </div>
                                     <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    

@@ -4,12 +4,18 @@ namespace App\Imports;
 
 use App\Models\Bill;
 use App\Models\Reading;
+use App\Models\SeniorDiscount;
+use App\Models\BillBreakdown;
+use App\Models\BillDiscount;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
+use App\Services\PaymentBreakdownService;
+use Carbon\Carbon;
 
 class PreviousBillingImport implements 
     ToModel, 
@@ -17,41 +23,205 @@ class PreviousBillingImport implements
     WithChunkReading,
     SkipsEmptyRows,
     SkipsOnFailure
-
 {
-    
     use SkipsFailures;
+
+    protected static $skippedRows = [];
+    protected static $rowCounter = 2;
 
     public function model(array $row)
     {
-        $reading = Reading::create([
-            'account_no' => trim($row['account_no']),
-            'previous_reading' => trim($row['previous_reading']),
-            'present_reading' => trim($row['present_reading']),
-            'consumption' => trim($row['consumption']),
+
+        $rowNum = self::$rowCounter++;
+        $row = array_map('trim', $row);
+
+        // Validation: Required fields
+        $requiredFields = ['reference_no', 'account_no', 'billing_from', 'billing_to', 'amount'];
+        foreach ($requiredFields as $field) {
+            if (empty($row[$field])) {
+                self::$skippedRows[] = "Row {$rowNum} skipped: Missing required field '{$field}'.";
+                return null;
+            }
+        }
+
+        // Validation: Numeric fields
+        $numericFields = ['previous_reading', 'present_reading', 'consumption'];
+        foreach ($numericFields as $field) {
+            if (isset($row[$field]) && $row[$field] !== '' && !is_numeric($row[$field])) {
+                self::$skippedRows[] = "Row {$rowNum} skipped: '{$field}' must be numeric.";
+                return null;
+            }
+        }
+        
+        $billing_from = $this->transformDate($row['billing_from']);
+        $billing_to = $this->transformDate($row['billing_to']);
+
+        $reading_id = Reading::insertGetId([
+            'account_no' => $row['account_no'],
+            'previous_reading' => $row['previous_reading'] ?? null,
+            'present_reading' => $row['present_reading'] ?? null,
+            'consumption' => $row['consumption'] ?? null,
+            'created_at' => $billing_from,
+            'updated_at' => $billing_from
         ]);
 
-        Bill::create([
-            'reading_id' => $reading->id,
-            'reference_no' => trim($row['reference_no']),
-            'bill_period_from' => trim($row['billing_from']),
-            'bill_period_to' => trim($row['billing_to']),
-            'previous_unpaid' => trim($row['unpaid']),
-            'penalty' => trim($row['penalty']),
-            'amount' => trim($row['amount']),
-            'amount_paid' => trim($row['amount_paid']),
-            'change' => trim($row['change']),
-            'isPaid' => !empty($row['isPaid']) ? 1 : 0,
-            'date_paid' => trim($row['date_paid']),
-            'due_date' => trim($row['due_date']),
-            'payor_name' => trim($row['payor_name']),
+        $bill = Bill::create([
+            'reading_id' => $reading_id,
+            'reference_no' => $row['reference_no'],
+            'bill_period_from' => $billing_from,
+            'bill_period_to' => $billing_to,
+            'previous_unpaid' => $this->cleanAmount($row['unpaid'] ?? 0),
+            'penalty' => $this->cleanAmount($row['penalty'] ?? 0),
+            'amount' => $this->cleanAmount($row['amount']),
+            'amount_paid' => $this->cleanAmount($row['amount_paid'] ?? 0),
+            'change' => $this->cleanAmount($row['change'] ?? 0),
+            'isPaid' => !empty($row['amount_paid']) ? 1 : 0,
+            'date_paid' => $this->transformDate($row['date_paid'] ?? null),
+            'due_date' => $this->transformDate($row['due_date'] ?? null),
+            'payor_name' => $row['payor_name'] ?? null,
         ]);
 
+        $payload = [
+            'account_no' => $row['account_no'],
+            'previous_unpaid' => $this->cleanAmount($row['amount_paid'] ?? 0),
+            'basic_charge' => $this->cleanAmount($row['amount']),
+            'date' => $billing_from,
+        ];
+
+        $breakdowns = $this->create_breakdown($payload);
+        $deductions = $breakdowns['deductions'];
+        $discounts = $breakdowns['discounts'];
+
+        foreach ($deductions as $deduction) {
+            BillBreakdown::insert([
+                'bill_id' => $bill->id,
+                'name' => $deduction['name'],
+                'description' => $deduction['description'],
+                'amount' => $deduction['amount'],
+                'created_at' => $billing_from,
+                'updated_at' => $billing_from,
+            ]);
+        }
+
+        foreach ($discounts as $discount) {
+            BillDiscount::insert([
+                'bill_id' => $bill->id,
+                'name' => $discount['name'],
+                'description' => $discount['description'],
+                'amount' => $discount['amount'],
+                'created_at' => $billing_from,
+                'updated_at' => $billing_from,
+            ]);
+        }
     }
 
+    protected function create_breakdown($payload)
+    {
+        $paymentBreakdownService = new PaymentBreakdownService;
+
+        $other_deductions = $paymentBreakdownService::getData();
+        $discounts = $paymentBreakdownService::getDiscounts();
+
+        $deductions = [
+            [
+                'name' => 'Previous Balance',
+                'amount' => $payload['previous_unpaid'],
+                'description' => ''
+            ],
+            [
+                'name' => 'Basic Charge',
+                'amount' => $payload['basic_charge'],
+                'description' => '',
+            ],
+        ];
+
+        foreach ($other_deductions as $deduction) {
+            if ($deduction->type === 'percentage') {
+                $base = $payload['basic_charge'];
+                $amount = $base * $deduction->amount;
+                $deductions[] = [
+                    'name' => $deduction->name,
+                    'description' => $deduction->amount . '%',
+                    'amount' => $amount,
+                ];
+            } else {
+                $deductions[] = [
+                    'name' => $deduction->name,
+                    'description' => '',
+                    'amount' => $deduction->amount,
+                ];
+            }
+        }
+
+        $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])->first();
+
+        $appliedDiscounts = [];
+        $discountAmount = 0;
+
+        if ($sc_discount) {
+            $scStartDate = Carbon::parse($sc_discount->effective_date);
+            $scEndDate = Carbon::parse($sc_discount->expired_date);
+            $billDate = Carbon::parse($payload['date']);
+
+            $isEligible = $billDate->between($scStartDate, $scEndDate);
+
+            foreach ($discounts as $discount) {
+                if ($discount->eligible === 'senior' && $isEligible) {
+                    if (strtolower($discount->type) === 'percentage') {
+                        $discountAmount = $payload['basic_charge'] * $discount->amount;
+                    } else {
+                        $discountAmount = $discount->amount;
+                    }
+
+                    $appliedDiscounts[] = [
+                        'name' => $discount->name,
+                        'amount' => $discountAmount,
+                        'description' => '',
+                    ];
+                }
+            }
+        }
+
+        return [
+            'deductions' => $deductions,
+            'discounts' => $appliedDiscounts
+        ];
+    }
+
+    protected function transformDate($value)
+    {
+        if (is_numeric($value)) {
+            return Date::excelToDateTimeObject($value)->format('Y-m-d');
+        }
+
+        if (is_string($value) && preg_match('/=DATE\((\d+),(\d+),(\d+)\)/i', $value, $matches)) {
+            [$_, $year, $month, $day] = $matches;
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+
+        $timestamp = strtotime($value);
+        return $timestamp ? date('Y-m-d', $timestamp) : null;
+    }
+
+    protected function cleanAmount($value)
+    {
+        $clean = str_replace(',', '', trim($value));
+
+        if (is_numeric($clean)) {
+            $float = floatval($clean);
+            return fmod($float, 1.0) === 0.0 ? (int)$float : $float;
+        }
+
+        return $clean;
+    }
 
     public function chunkSize(): int
     {
-        return 1000; 
+        return 1000;
+    }
+
+    public static function getSkippedRows()
+    {
+        return self::$skippedRows;
     }
 }

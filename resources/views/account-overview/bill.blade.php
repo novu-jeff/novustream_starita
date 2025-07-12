@@ -184,6 +184,7 @@
                                         <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Bacolor Water District</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Sta. Ines, Bacolor, Pampanga</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. (045) 900- 2911</p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 09190644815</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
                                     </div>
                                 </div> 
@@ -193,11 +194,11 @@
                                 <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                                     
                                 <div>
                                     <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                                        <div style="margin: 4px 0 0 0; display: flex; align-items: center;">
+                                        <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
                                             <div style="font-size: 20px; font-weight: 600">Account No.</div>
                                             <div style="font-size: 20px; font-weight: 600">{{$data['client']['account_no'] ?? ''}}</div>
                                         </div>
-                                        <div style="margin: 4px 0 0 0; display: flex; align-items: center;">
+                                        <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
                                             <div style="font-size: 20px; font-weight: 600">{{$data['client']['name']}}</div>
                                         </div>
                                         <div style="margin: 4px 0 0 0; display: flex;">
@@ -231,7 +232,12 @@
                                             <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                         </div>
                                         @if ($isWeekEnd)
-                                            <div style="margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">On-site payment is unavailable by the due date; please pay online.</div>
+                                            <div style="text-align: center; margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">
+                                                <ul style="list-style: none !important;">
+                                                    <li>> Office - Last working day of the month</li>
+                                                    <li>> Online - Last day of the month</li>
+                                                </ul>
+                                            </div>
                                         @endif
                                         <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                             <div>Disconnection Date</div>

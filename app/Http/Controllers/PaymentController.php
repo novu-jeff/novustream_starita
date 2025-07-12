@@ -79,31 +79,22 @@ class PaymentController extends Controller
             try {
 
                 $import = new PreviousBillingImport;
-    
-                ini_set('max_execution_time', 300);
-                ini_set('memory_limit', '512M');
 
                 Excel::import($import, $file, null, null, [
                     'readOnly' => true,
                 ]);
 
-                $failures = $import->failures();
     
-                if ($failures->isNotEmpty()) {
+                $skipped = PreviousBillingImport::getSkippedRows();
 
-                    $messages = [];
 
-                    foreach ($failures as $failure) {
-                        $row = $failure->row();
-                        foreach ($failure->errors() as $error) {
-                            $messages[] = "Row [$row]: $error";
-                        }
-                    }
+                $skipped = PreviousBillingImport::getSkippedRows();
 
+                if (!empty($skipped)) {
                     return response()->json([
                         'status' => 'warning',
                         'message' => 'Some rows were skipped due to validation errors.',
-                        'errors' => $messages,
+                        'errors' => $skipped,
                     ]);
                 }
 
@@ -195,6 +186,13 @@ class PaymentController extends Controller
 
         $qr_code = $this->generateService::qr_code($url, 80);
 
+        $amount = $data['current_bill']['amount' ?? 0];
+        $assumed_penalty = $amount * 0.15;
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
         return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
 
     }
@@ -238,10 +236,10 @@ class PaymentController extends Controller
         $data = $result['data']; 
     
         $now = Carbon::now()->format('Y-m-d H:i:s');
-        
-        $amount = $data['current_bill']['amount'] + $data['current_bill']['penalty'];
-        $change = $payload['payment_amount'] - $amount;
-        $forAdvancePayment = $payload['for_advances'] ?? false;
+
+        $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
+        $change = (float) $payload['payment_amount'] - $amount;
+        $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'] ? true : false;
 
         $saveChange = false;
 

@@ -68,6 +68,11 @@ class ReadingController extends Controller
                 return response()->json($response);
             }
 
+            if(isset($payload['isGetReadUnread']) && $payload['isGetReadUnread'] == true) {
+                $response = $this->meterService->getReadUnread($payload['targetDate']);
+                return response()->json($response);
+            }
+
             $response = $this->meterService->filterAccount($request->all());
             return response()->json($response);
         }
@@ -100,6 +105,13 @@ class ReadingController extends Controller
 
         $qr_code = $this->generateService::qr_code($url, 80);
 
+        $amount = $data['current_bill']['amount' ?? 0];
+        $assumed_penalty = $amount * 0.15;
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+        
         return view('reading.show', compact('data', 'reference_no', 'qr_code'));
     }
 
