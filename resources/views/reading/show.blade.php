@@ -313,9 +313,10 @@
                             </div>
                         </div>
                     @endif
-                    <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center; padding-bottom: 50px;">
-                        <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>
+                    <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
+                        <div class="emp">This is NOT valid as Official Receipt</div>
                     </div>
+                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
                 </div>                    
             </div>
         </div>
@@ -338,6 +339,16 @@
             display: none !important;
         }
 
+        .emp {
+            background-color: #000;
+            padding: 8px 10px 8px 10px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 20px !important;
+        }
+
         @media print {
             
             @page {
@@ -352,6 +363,16 @@
             .oversized-2 ul li {
                 font-size: 10px !important;
                 font-weight: 800 !important;
+            }
+
+            .emp {
+                background-color: #000;
+                padding: 8px 10px 8px 10px;
+                margin-bottom: 100px;
+                color: #000;
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
             }
     
             body * {
