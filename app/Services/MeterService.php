@@ -619,7 +619,7 @@ class MeterService {
             $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
             $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
         }
-       
+        
         $due_date = Carbon::parse($payload['date'])->addDays($days_due)->format('Y-m-d H:i:s');
 
         $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
