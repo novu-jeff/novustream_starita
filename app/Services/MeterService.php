@@ -174,6 +174,46 @@ class MeterService {
         ];
     }
 
+    public function getReRead(string $reference_no) {
+                
+        $data = $this->getBill($reference_no);
+
+        $client = $data['client'];
+        $reading = $data['current_bill']['reading'];
+
+        $expired_date = null;
+
+        $sc_discount_start = $data->sc_discount->effective_date ?? null;
+        $sc_discount_end = $data->sc_discount->expired_date ?? null;
+
+        if ($sc_discount_start && $sc_discount_end) {
+            $billDate = Carbon::parse($suggestNextMonth);
+            $scStartDate = Carbon::parse($sc_discount_start);
+            $scEndDate = Carbon::parse($sc_discount_end);
+
+            if($billDate->between($scStartDate, $scEndDate) && $billDate->diffInMonths($scEndDate, false) <= 1) {
+                $expired_date = Carbon::parse($scEndDate)->format('F d, Y');
+            }
+        }
+
+        $suggestedNextMonth = Carbon::parse($reading['created_at'])
+            ->timezone('Asia/Manila')
+            ->format('Y-m-d');
+
+        $data = [
+            'account_no' => $client['account_no'],
+            'address' => $client['address'],
+            'name' => $client['name'],
+            'isHighConsumption' => $data['current_bill']['isHighConsumption'],
+            'suggestedNextMonth' => $suggestedNextMonth,
+            'sc_expired_date' => $expired_date
+        ];
+
+        $data = array_merge($data, $reading);
+
+        return $data;
+    }
+
     public function getAccount($meter_no) {
         return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
         ->orWhere('meter_serial_no', $meter_no ?? '')
@@ -183,10 +223,14 @@ class MeterService {
     public static function getReport(?string $date = null) {
 
         if(!is_null($date)) {
-            return Reading::whereDate('created_at', $date)->get();
+            return Reading::where('isReRead', false)
+                ->whereDate('created_at', $date)
+                ->get();
         }
 
-        return Reading::with('concessionaire.user', 'bill')->get();
+        return Reading::with('concessionaire.user', 'bill')
+            ->where('isReRead', false)
+            ->get();
 
     }
 
@@ -204,6 +248,9 @@ class MeterService {
     public static function getPayments(?int $reference_no = null, bool $isPaid = false) {
         
         $query = Bill::with('reading')
+            ->whereHas('reading', function($query) {
+                $query->where('isReRead', false);
+            })
             ->where('isPaid', $isPaid);
     
         if (!is_null($reference_no)) {
@@ -234,7 +281,7 @@ class MeterService {
     public static function getBill(string $reference_no) {
 
         // Fetch the current bill with reading details
-        $current_bill = Bill::with('reading', 'breakdown', 'discount')
+        $current_bill = Bill::with('reading.sc_discount', 'breakdown', 'discount')
             ->where('reference_no', $reference_no)
             ->first();    
 
@@ -448,7 +495,17 @@ class MeterService {
             ];
         }
 
+        $reference_no = $payload['reference_no'];
+        $reread_bill = Bill::with('reading')->where('reference_no', $reference_no)->first();
+        if (!empty($payload['isReRead'])) {
+            if ($reread_bill && $reread_bill->reading) {
+                $reread_bill->reading->isReRead = true;
+                $reread_bill->reading->save();
+            }
+        }
+
         $latest_reading = Reading::with('concessionaire.user', 'bill')
+            ->where('isReRead', false)
             ->where('account_no', $payload['account_no'])
             ->latest()
             ->first();
@@ -490,7 +547,8 @@ class MeterService {
             ->where('isPaid', false)
             ->whereNotNull('amount')
             ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no']);
+                $query->where('account_no', $payload['account_no'])
+                    ->where('isReRead', false);
             })->whereNotNull('amount')
             ->sum('amount') ?? 0;
 
@@ -634,8 +692,10 @@ class MeterService {
             'updated_at' => $bill_period_to,
         ];
 
+        $generatedReferenceNo = $this->generateReferenceNo();
+
         $bill = [
-            'reference_no' => $this->generateReferenceNo(),
+            'reference_no' => $generatedReferenceNo,
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $unpaidAmount,
@@ -644,6 +704,7 @@ class MeterService {
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
+            'isChangeForAdvancePayment' => $isChangeSaved,
             'amount' => $overall_total,
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
@@ -680,6 +741,14 @@ class MeterService {
                     'created_at' => $bill_period_to,
                     'updated_at' => $bill_period_to,
                 ]);
+            }
+
+            if (!empty($payload['isReRead'])) {
+                $reference_no = $payload['reference_no'];
+                if ($reread_bill && $reread_bill->reading) {
+                    $reread_bill->reading->reread_reference_no = $generatedReferenceNo; 
+                    $reread_bill->reading->save();
+                }
             }
 
         } catch (\Exeception $e) {

@@ -19,6 +19,10 @@ return new class extends Migration
             $table->string('consumption');
             $table->string('reader_name')
                 ->nullable();
+            $table->boolean('isReRead')
+                ->default(false);
+           $table->string('reread_reference_no')
+                ->nullable();
             $table->timestamps();
         });
 

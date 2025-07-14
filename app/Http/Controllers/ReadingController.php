@@ -56,10 +56,16 @@ class ReadingController extends Controller
     public function index(Request $request) {
 
         if($request->ajax()) {
+            
             $payload = $request->all();
 
             if(isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
                 $response = $this->meterService->getPreviousReading($payload['account_no']);
+                return response()->json($response);
+            }
+
+            if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
+                $response = $this->meterService->getReRead($payload['reference_no']);
                 return response()->json($response);
             }
 
@@ -77,9 +83,19 @@ class ReadingController extends Controller
             return response()->json($response);
         }
 
+        $isReRead = !empty($request->input('re-read')) && !empty($request->input('reference_no')) ? true : false;
+        $reference_no = $request->input('reference_no') ?? null;
+
+        if($isReRead) {
+            $bill = $this->meterService->getBill($reference_no);
+            if(isset($bill['status']) && $bill['status'] == 'error') {
+                return redirect()->route('reading.index');
+            }
+        }
+
         $zones = $this->meterService->getZones();
 
-        return view('reading.index', compact('zones'));
+        return view('reading.index', compact('isReRead', 'reference_no', 'zones'));
     }
 
     public function show(string $reference_no) {
@@ -112,7 +128,12 @@ class ReadingController extends Controller
         $data['current_bill']['assumed_penalty'] = $assumed_penalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
         
-        return view('reading.show', compact('data', 'reference_no', 'qr_code'));
+        $isReRead = [
+            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no']
+        ];
+
+        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
     public function report(?string $date = null) {
@@ -159,7 +180,9 @@ class ReadingController extends Controller
             ],
             'previous_reading' => 'required|integer',
             'present_reading' => 'required|integer|gt:previous_reading',
-            'is_high_consumption' => 'required|in:yes,no'
+            'is_high_consumption' => 'required|in:yes,no',
+            'isReRead' => 'required|in:true,false',
+            'reference_no' => 'nullable|exists:bill,reference_no'
         ]);
 
         if ($validator->fails()) {
@@ -187,16 +210,20 @@ class ReadingController extends Controller
         $year = $date->year;
         $account_no = $payload['account_no'];
 
-        $exists = Reading::whereMonth('created_at', $month)
-            ->whereYear('created_at', $year)
-            ->where('account_no', $account_no)
-            ->exists();
+        $isReRead = $payload['isReRead'];
 
-        if ($exists) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Reading already exists for {$date->format('F Y')}."
-            ], 409);
+        if(!$isReRead) {
+            $exists = Reading::whereMonth('created_at', $month)
+                ->whereYear('created_at', $year)
+                ->where('account_no', $account_no)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Reading already exists for {$date->format('F Y')}."
+                ], 409);
+            }
         }
 
         DB::beginTransaction();
@@ -210,13 +237,16 @@ class ReadingController extends Controller
 
             $present_reading = $payload['present_reading'];
             $is_high_consumption = $payload['is_high_consumption'];
+            $reference_no = $payload['reference_no'] ?? null;
 
             $computed = $this->meterService->create_breakdown([
                 'account_no' => $account_no,
                 'property_type_id' => $property_type_id,
                 'present_reading' => $present_reading,
                 'date' => $date,
-                'is_high_consumption' => $is_high_consumption
+                'is_high_consumption' => $is_high_consumption,
+                'isReRead' => $isReRead,
+                'reference_no' => $reference_no
             ]);
 
             if ($computed['status'] == 'error') {

@@ -31,11 +31,9 @@ class PreviousBillingImport implements
 
     public function model(array $row)
     {
-
         $rowNum = self::$rowCounter++;
         $row = array_map('trim', $row);
 
-        // Validation: Required fields
         $requiredFields = ['reference_no', 'account_no', 'billing_from', 'billing_to', 'amount'];
         foreach ($requiredFields as $field) {
             if (empty($row[$field])) {
@@ -44,7 +42,6 @@ class PreviousBillingImport implements
             }
         }
 
-        // Validation: Numeric fields
         $numericFields = ['previous_reading', 'present_reading', 'consumption'];
         foreach ($numericFields as $field) {
             if (isset($row[$field]) && $row[$field] !== '' && !is_numeric($row[$field])) {
@@ -52,7 +49,7 @@ class PreviousBillingImport implements
                 return null;
             }
         }
-        
+
         $billing_from = $this->transformDate($row['billing_from']);
         $billing_to = $this->transformDate($row['billing_to']);
 
@@ -89,10 +86,7 @@ class PreviousBillingImport implements
         ];
 
         $breakdowns = $this->create_breakdown($payload);
-        $deductions = $breakdowns['deductions'];
-        $discounts = $breakdowns['discounts'];
-
-        foreach ($deductions as $deduction) {
+        foreach ($breakdowns['deductions'] as $deduction) {
             BillBreakdown::insert([
                 'bill_id' => $bill->id,
                 'name' => $deduction['name'],
@@ -103,7 +97,7 @@ class PreviousBillingImport implements
             ]);
         }
 
-        foreach ($discounts as $discount) {
+        foreach ($breakdowns['discounts'] as $discount) {
             BillDiscount::insert([
                 'bill_id' => $bill->id,
                 'name' => $discount['name'],
@@ -118,7 +112,6 @@ class PreviousBillingImport implements
     protected function create_breakdown($payload)
     {
         $paymentBreakdownService = new PaymentBreakdownService;
-
         $other_deductions = $paymentBreakdownService::getData();
         $discounts = $paymentBreakdownService::getDiscounts();
 
@@ -136,42 +129,31 @@ class PreviousBillingImport implements
         ];
 
         foreach ($other_deductions as $deduction) {
-            if ($deduction->type === 'percentage') {
-                $base = $payload['basic_charge'];
-                $amount = $base * $deduction->amount;
-                $deductions[] = [
-                    'name' => $deduction->name,
-                    'description' => $deduction->amount . '%',
-                    'amount' => $amount,
-                ];
-            } else {
-                $deductions[] = [
-                    'name' => $deduction->name,
-                    'description' => '',
-                    'amount' => $deduction->amount,
-                ];
-            }
+            $amount = $deduction->type === 'percentage'
+                ? $payload['basic_charge'] * $deduction->amount
+                : $deduction->amount;
+
+            $deductions[] = [
+                'name' => $deduction->name,
+                'description' => $deduction->type === 'percentage' ? $deduction->amount . '%' : '',
+                'amount' => $amount,
+            ];
         }
 
         $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])->first();
 
         $appliedDiscounts = [];
-        $discountAmount = 0;
-
         if ($sc_discount) {
             $scStartDate = Carbon::parse($sc_discount->effective_date);
             $scEndDate = Carbon::parse($sc_discount->expired_date);
             $billDate = Carbon::parse($payload['date']);
 
             $isEligible = $billDate->between($scStartDate, $scEndDate);
-
             foreach ($discounts as $discount) {
                 if ($discount->eligible === 'senior' && $isEligible) {
-                    if (strtolower($discount->type) === 'percentage') {
-                        $discountAmount = $payload['basic_charge'] * $discount->amount;
-                    } else {
-                        $discountAmount = $discount->amount;
-                    }
+                    $discountAmount = strtolower($discount->type) === 'percentage'
+                        ? $payload['basic_charge'] * $discount->amount
+                        : $discount->amount;
 
                     $appliedDiscounts[] = [
                         'name' => $discount->name,
@@ -206,13 +188,9 @@ class PreviousBillingImport implements
     protected function cleanAmount($value)
     {
         $clean = str_replace(',', '', trim($value));
-
-        if (is_numeric($clean)) {
-            $float = floatval($clean);
-            return fmod($float, 1.0) === 0.0 ? (int)$float : $float;
-        }
-
-        return $clean;
+        return is_numeric($clean)
+            ? (fmod(floatval($clean), 1.0) === 0.0 ? (int)$clean : floatval($clean))
+            : $clean;
     }
 
     public function chunkSize(): int

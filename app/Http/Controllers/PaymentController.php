@@ -150,12 +150,12 @@ class PaymentController extends Controller
         if (request()->ajax()) {
             return $this->datatable($data);
         }
+
     
         return view('payments.index', compact('data', 'filter'));
     }
 
     public function pay(Request $request, string $reference_no) {
-
 
         if($request->getMethod() == 'POST') {
             $payload = $request->all();

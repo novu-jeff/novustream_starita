@@ -82,7 +82,7 @@
             <div class="modal-dialog modal-dialog-centered" da>
                 <div class="modal-content">
                     <div class="modal-header px-4">
-                        <h5 class="modal-title text-uppercase" id="accountModalLabel">Proceed Reading</h5>
+                        <h5 class="modal-title text-uppercase" id="accountModalLabel"></h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4">
@@ -109,15 +109,104 @@
     let isLoading = false;
     let hasMoreData = true;
     let didScrollToPreviousAccount = false;
+    const isReRead = '{{$isReRead ? 'true' : 'false'}}';
+    const reference_no = '{{$reference_no}}';
     const recentReading = @json(session('recent_reading'))
     
     $(function () {
+
+
         @if (session('alert'))
             setTimeout(() => {
                 const { status, message } = @json(session('alert'));
                 alert(status, message);
             }, 100);
         @endif
+
+        checkIsReRead();            
+
+        function checkIsReRead() {
+
+            if(isReRead == 'true') {
+                $.get('{{ route(Route::currentRouteName()) }}', {
+                    reference_no: reference_no,
+                    isReRead: isReRead,
+                }, function (response) {
+                    selectedAccountNo = response.account_no;
+                    const previousReading = parseFloat(response.previous_reading ?? 0);
+                    const presentReading = parseFloat(response.present_reading ?? 0);
+                    const consumption = parseFloat(response.consumption ?? 0);
+                    const suggestedNextMonth = response.suggestedNextMonth;
+                    const sc_expired_date = response.sc_expired_date;
+                    const isHighConsumption = response.isHighConsumption ? true : false;
+
+                    $('#accountModal .modal-title').html('Proceed Re-Reading');
+
+                    let modalContent = `
+                        <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${response.account_no}</p>
+                        <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${response.name ?? 'N/A'}</p>
+                        <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${response.address ?? 'N/A'}</p>
+                        `
+                        if(sc_expired_date != null) {
+                            modalContent += `<div class="text-uppercase fw-bold mt-3  text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div`
+                        }
+                    modalContent+=`
+                        <hr>
+                        <div class="row mt-3">
+                            @if(env('IS_TEST_READING')) 
+                                <div class="col-md-12 mb-3">
+                                    <label for="reading_month" class="form-label">Reading Month</label>
+                                    <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
+                                </div>
+                            @endif
+                            <div class="col-md-12 mb-3">
+                                <label for="present_reading" class="form-label">Present Reading</label>
+                                <input type="number" class="form-control h-extend" id="present_reading" value="${presentReading}" placeholder="########">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="previous_reading" class="form-label">Previous Reading</label>
+                                <input type="text" class="form-control restricted h-extend" id="previous_reading" value="${previousReading}" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="consumption" class="form-label">Consumption</label>
+                                <input type="text" class="form-control restricted h-extend" id="consumption" value="${consumption}" readonly>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label d-block">Mark as High Consumption</label>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_yes" value="yes">
+                                    <label class="form-check-label" for="is_high_consumption_yes">Yes</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_no" value="no" checked>
+                                    <label class="form-check-label" for="is_high_consumption_no">No</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end mt-4">
+                            <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold" id="proceedButton">Proceed</button>
+                        </div>
+                    `;
+                    $('#accountModalBody').html(modalContent);
+                    $('.btn-close').remove();
+                    const modal = new bootstrap.Modal(document.getElementById('accountModal'), {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+
+                   modal.show();
+
+                    if (isHighConsumption) {
+                        $('input[name="is_high_consumption"][value="yes"]').prop('checked', true);
+                        $('input[name="is_high_consumption"][value="no"]').prop('checked', false);
+                    } else {
+                        $('input[name="is_high_consumption"][value="no"]').prop('checked', true);
+                        $('input[name="is_high_consumption"][value="yes"]').prop('checked', false);
+                    }
+                });
+            }
+
+        }
 
         function fetchAccountData(append = false) {
             if (isLoading || !hasMoreData) return;
@@ -288,7 +377,6 @@
                 return;
             }
 
-            // Set to "Please wait..." and disable button
             $btn.text('Please wait...').prop('disabled', true);
 
             const date = new Date(`${monthYear}-01`);
@@ -355,13 +443,12 @@
                 const modal = new bootstrap.Modal(document.getElementById('readUnreadModal'));
                 modal.show();
             }).always(function () {
-                // Revert button text and re-enable
                 $btn.text(originalText).prop('disabled', false);
             });
         });
 
-
         $(document).on('click', '.account-card', function () {
+
             const account = $(this).data('account');
             selectedAccountNo = account.account_no;
 
@@ -374,7 +461,9 @@
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
                 const sc_expired_date = response.sc_expired_date;
-                
+            
+                $('#accountModal .modal-title').html('Proceed Reading');
+
                 let modalContent = `
                     <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
                     <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
@@ -464,7 +553,9 @@
                 account_no: selectedAccountNo,
                 previous_reading: previousReading,
                 present_reading: presentReading,
-                is_high_consumption: is_high_consumption
+                is_high_consumption: is_high_consumption,
+                isReRead: isReRead,
+                reference_no: reference_no,
             };
 
             $.ajax({

@@ -15,7 +15,9 @@ class Reading extends Model
         'previous_reading',
         'present_reading',
         'consumption',
-        'reader_name'
+        'reader_name',
+        'isReRead',
+        'reread_reference_no'
     ];
 
     public function concessionaire() {
