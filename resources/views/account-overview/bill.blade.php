@@ -467,6 +467,16 @@
             display: none !important;
         }
 
+        .emp {
+            background-color: #000;
+            padding: 8px 10px 8px 10px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 20px !important;
+        }
+
         @media print {
             
             @page {
