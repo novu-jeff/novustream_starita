@@ -43,10 +43,7 @@ class ConcessionaireController extends Controller
     public function index(Request $request) {
 
         $zones = $this->meterService->getZones();
-        $zone = $request->zone ?? '';
-        if (empty($zone) && count($zones) > 0) {
-            $zone = $zones[0];
-        }
+        $zone = $request->zone ?? 'all';
 
         $entries = $request->entries ?? 10;
         $toSearch = $request->search ?? '';
@@ -80,8 +77,9 @@ class ConcessionaireController extends Controller
     public function create() {
 
         $property_types = $this->propertyTypesService::getData();
+        $status_code = $this->clientService::getStatusCode();
 
-        return view('concessionaires.form', compact('property_types'));
+        return view('concessionaires.form', compact('property_types', 'status_code',));
     }
 
     public function store(StoreClientRequest $request) {
@@ -149,9 +147,11 @@ class ConcessionaireController extends Controller
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);
-        $property_types = $this->propertyTypesService::getData();
 
-        return view('concessionaires.form', compact('data', 'property_types'));
+        $property_types = $this->propertyTypesService::getData();
+        $status_code = $this->clientService::getStatusCode();
+
+        return view('concessionaires.form', compact('data', 'status_code', 'property_types'));
     }
 
     public function update(int $id, UpdateClientRequest $request) {

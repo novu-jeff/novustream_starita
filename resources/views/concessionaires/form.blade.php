@@ -15,9 +15,20 @@
             </div>
             <div class="inner-content mt-5">
                 @if (isset($data))
-                    <add-concessioner :property_types="{{ json_encode($property_types) }}" :data="{{ json_encode($data) }}"></add-concessioner>
+                    <add-concessioner 
+                        client="{{ config('app.client') }}"
+                        :status_code="{{ json_encode($status_code) }}" 
+                        :property_types="{{ json_encode($property_types) }}" 
+                        :data="{{ json_encode($data) }}"
+                        >
+                    </add-concessioner>
                 @else
-                    <add-concessioner :property_types="{{ json_encode($property_types) }}"></add-concessioner>
+                    <add-concessioner
+                        client="{{ config('app.client') }}"
+                        :status_code="{{ json_encode($status_code) }}" 
+                        :property_types="{{ json_encode($property_types) }}"
+                        >
+                    </add-concessioner>
                 @endif
             </div>
         </div>

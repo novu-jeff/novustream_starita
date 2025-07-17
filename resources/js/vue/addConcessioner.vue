@@ -110,7 +110,7 @@
                         <label :for="'property_type_' + index" class="form-label">
                           Property Type <small class="text-danger">( required )</small>
                         </label>
-                        <select class="form-control" 
+                        <select class="form-select" 
                                 :id="'property_type_' + index" 
                                 v-model="account.property_type"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }" 
@@ -163,14 +163,14 @@
                         <label :for="'status_' + index" class="form-label">
                           Status <small class="text-danger">( required )</small>
                         </label>
-                        <select class="form-control" 
+                        <select class="form-select" 
                                 :id="'status_' + index" 
                                 v-model="account.status"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.status'] }" 
                                 >
                           <option :value="null">-- SELECT --</option>
-                          <option v-for="(label, key) in statusOptions" :key="key" :value="key">
-                            {{ label }}
+                          <option v-for="(status, key) in status_code" :key="key" :value="status.code">
+                            {{ status.code + ' - ' +  status.name }}
                           </option>
                         </select>
                         <small v-if="errors['accounts.' + index + '.status']" class="text-danger px-1">{{ errors['accounts.' + index + '.status'][0] }}</small>
@@ -290,7 +290,7 @@
                         <label :for="'isErcSealed_' + index" class="form-label">
                           ERC Sealed
                         </label>
-                        <select class="form-control" 
+                        <select class="form-select" 
                                 :id="'isErcSealed_' + index" 
                                 v-model="account.isErcSealed"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.isErcSealed'] }"
@@ -363,7 +363,15 @@ export default {
     this.lightGallery();
   },
   props: {
+    client: {
+      type: String,
+      required: true
+    },
     property_types: {
+      type: Array,
+      required: true,
+    },
+    status_code: {
       type: Array,
       required: true,
     },
@@ -408,12 +416,6 @@ export default {
         ],
       },
       errors: [],
-      statusOptions: {
-        AB: 'AB - Active Billed',
-        BL: 'BL - Black Listed',
-        ID: 'ID - Inactive Delinquent',
-        IV: 'IV - Inactive Discon',
-      },
     };
   },
   created() {
@@ -430,7 +432,7 @@ export default {
   methods: {
     getScDiscountIdNo(index) {
       const account = this.concessioner.accounts[index];
-      return account && account.sc_discount ? account.sc_discount.id_no : ''; // Return empty string if null or undefined
+      return account && account.sc_discount ? account.sc_discount.id_no : ''; 
     },
     lightGallery() {
       nextTick(() => {
@@ -444,7 +446,6 @@ export default {
     },
     getImageSrc(account) {
       if (typeof account.inspection_image === 'string') {
-        // If it's a string (filename), return the full URL path
         return '/storage/inspection_images/' + account.account_no + '/' + account.inspection_image;
       }
     },
@@ -479,11 +480,11 @@ export default {
       this.loading = true;
       this.errors = [];
 
-      let endpoint = '/admin/users/concessionaires';
+      let endpoint = `/${this.client}/admin/users/concessionaires`;
       let method = 'post';
 
       if (this.concessioner.id != null) {
-        endpoint = `/admin/users/concessionaires/${this.concessioner.id}`;
+        endpoint = `/${this.client}/admin/users/concessionaires/${this.concessioner.id}`;
         method = 'post'; // Use POST with `_method` override since PUT doesn't handle FormData well
       }
 

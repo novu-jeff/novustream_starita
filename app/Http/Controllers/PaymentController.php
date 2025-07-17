@@ -40,10 +40,7 @@ class PaymentController extends Controller
         }
 
         $zones = $this->meterService->getZones();
-        $zone = $request->zone ?? '';
-        if (empty($zone) && count($zones) > 0) {
-            $zone = $zones[0];
-        }
+        $zone = $request->zone ?? 'all';
 
         $entries = $request->entries ?? 10;
         $toSearch = $request->search ?? '';

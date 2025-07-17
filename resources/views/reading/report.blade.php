@@ -21,6 +21,7 @@
                     <div class="col-12 col-md-2 mb-3">
                         <label class="mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
+                            <option value="all">All</option>
                             @forelse($zones as $targetedZone)
                                 <option value="{{$targetedZone}}" {{$targetedZone == $zone ? 'selected' : ''}}> {{$targetedZone}} </option>
                             @empty

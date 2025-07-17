@@ -219,6 +219,8 @@ class MeterService {
 
     public static function getReport(string $zone = null, string $date = null, string $search = null)
     {
+        $isAll = $zone === 'all';
+
         if (empty($zone) && empty($date) && empty($search)) {
             return Reading::with(['concessionaire.user', 'bill'])
                 ->where('isReRead', false)
@@ -227,7 +229,7 @@ class MeterService {
 
         $readings = Reading::with(['concessionaire.user', 'bill'])
             ->where('isReRead', false)
-            ->when(!empty($zone), fn($q) =>
+            ->when(!empty($zone) && !$isAll, fn($q) =>
                 $q->where('zone', 'like', "%$zone%")
             )
             ->when(!empty($date), function ($q) use ($date) {
@@ -247,11 +249,16 @@ class MeterService {
             })
             ->get();
 
+        if ($isAll) {
+            return $readings->values();
+        }
+
         $grouped = $readings->groupBy(fn($r) => $r->zone ?? 'Unknown')
-            ->map(fn($zoneGroup) => $zoneGroup->values());
+                            ->map(fn($zoneGroup) => $zoneGroup->values());
 
         return $grouped->values()->all();
     }
+
 
 
     public static function getData(?int $id = null) {
@@ -273,7 +280,7 @@ class MeterService {
             ->whereHas('reading', function ($query) use ($zone, $date, $search) {
                 $query->where('isReRead', false);
 
-                if (!empty($zone)) {
+                if (!empty($zone) && $zone !== 'all') {
                     $query->where('zone', 'like', "%$zone%");
                 }
 
@@ -290,24 +297,35 @@ class MeterService {
             ->where('isPaid', $isPaid)
             ->get();
 
-        $grouped = $bills->groupBy(function ($bill) {
-            return $bill->reading->zone ?? 'Unknown';
-        })->map(function ($groupedByZone) use ($date) {
+        if ($zone === 'all') {
             if (!empty($date)) {
-                return array_values(
-                    $groupedByZone
-                        ->groupBy(fn($bill) => $bill->created_at->toDateString())
-                        ->map(fn($groupedByDate) => $groupedByDate->values())
-                        ->values()
-                        ->all()
-                );
+                return $bills->groupBy(fn($bill) => $bill->created_at->toDateString())
+                            ->map(fn($group) => $group->values())
+                            ->values()
+                            ->all();
             }
 
-            return $groupedByZone->values();
-        })->values()->all();
+            return $bills->values();
+        }
+
+        $grouped = $bills->groupBy(fn($bill) => $bill->reading->zone ?? 'Unknown')
+            ->map(function ($groupedByZone) use ($date) {
+                if (!empty($date)) {
+                    return array_values(
+                        $groupedByZone
+                            ->groupBy(fn($bill) => $bill->created_at->toDateString())
+                            ->map(fn($groupedByDate) => $groupedByDate->values())
+                            ->values()
+                            ->all()
+                    );
+                }
+
+                return $groupedByZone->values();
+            })->values()->all();
 
         return $grouped[0] ?? [];
     }
+
 
 
     public function locate(array $payload) {    

@@ -31,6 +31,7 @@
                     <div class="col-12 col-md-3 mb-3">
                         <label class="mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
+                            <option value="all">All</option>
                             @forelse($zones as $targetedZone)
                                 <option value="{{$targetedZone}}" {{$targetedZone == $zone ? 'selected' : ''}}> {{$targetedZone}} </option>
                             @empty
@@ -83,10 +84,10 @@
                                 <td>{{ $user->accounts->pluck('address')->implode(', ') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <a href="{{ route('reading.show', $user->bill->reference_no ?? '') }}" 
+                                        <a href="{{ route('concessionaires.edit', ['concessionaire' => $user->id]) }}" 
                                             class="btn btn-primary text-white text-uppercase fw-bold"
-                                            id="show-btn" data-id="{{ $user->id }}">
-                                            <i class="bx bx-receipt"></i>
+                                            data-id="{{ $user->id }}">
+                                            <i class="bx bx-edit"></i>
                                         </a>
 
                                         <button type="button" class="btn btn-danger btn-delete" data-id="{{ $user->id }}">

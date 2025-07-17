@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\UserAccounts;
+use App\Models\StatusCode;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +20,12 @@ class ClientService {
                 ->first();
         }
 
+        $isAllZone = $zone === 'all';
+
         return User::with(['accounts.property_types'])
             ->withCount('accounts')
             ->where('isActive', true)
-            ->when(!empty($zone), function ($query) use ($zone) {
+            ->when(!empty($zone) && !$isAllZone, function ($query) use ($zone) {
                 $query->whereHas('accounts', function ($subQuery) use ($zone) {
                     $subQuery->where('zone', 'like', '%' . $zone . '%');
                 });
@@ -43,6 +46,10 @@ class ClientService {
             ->get();
     }
 
+    public static function getStatusCode()
+    {
+        return StatusCode::select('name', 'code')->get();
+    }
 
     public static function create(array $payload) {
 
