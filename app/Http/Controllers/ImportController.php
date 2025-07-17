@@ -10,6 +10,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Imports\ConcessionaireImport;
 use App\Imports\SCDiscountImport;
+use App\Imports\RateCodesImport;
+use App\Imports\StatusCodeImport;
 
 class ImportController extends Controller
 {
@@ -30,6 +32,8 @@ class ImportController extends Controller
         $sheetToProcessMap = [
             'concessionaires informations' => 'concessionaire',
             'senior citizen discount'      => 'sc_discount',
+            'rates code' => 'rates_code',
+            'status code' => 'status_code',
         ];
 
         $allowedProcesses = [
@@ -48,6 +52,18 @@ class ImportController extends Controller
                 ],
                 'import_class' => \App\Imports\SCDiscountImport::class,
                 'success_message' => 'Senior Citizen Discount imported successfully.',
+            ],
+            'rates_code' => [
+                'expected_headers' => [
+                    'rate_code', 'name', 'rate', '0_10', '11_20', '21_30', '31_40', '41_50', '51_60'
+                ],
+                'import_class' => \App\Imports\RateCodesImport::class,
+            ],
+            'status_code' => [
+                'expected_headers' => [
+                    'code', 'name'
+                ],
+                'import_class' => \App\Imports\StatusCodeImport::class,
             ]
         ];
 
@@ -56,6 +72,7 @@ class ImportController extends Controller
         $headingData = (new HeadingRowImport(2))->toArray($file);
 
         foreach ($sheetNames as $index => $sheetName) {
+
             $sheetKey = strtolower($sheetName);
 
             if (!isset($sheetToProcessMap[$sheetKey])) {
@@ -90,7 +107,8 @@ class ImportController extends Controller
             }
 
             try {
-                $importInstance = new $config['import_class'];
+
+                $importInstance = new $config['import_class']($sheetName);
 
                 Excel::import(new class($importInstance, $sheetName) implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
                     private $importInstance;
@@ -138,14 +156,14 @@ class ImportController extends Controller
                     $allMessages[] = [
                         'sheet' => $sheetName,
                         'status' => 'warning',
-                        'message' => "Total of <b>".number_format($totalImported, 0)."</b> records partially imported. <br>" . implode(', ', $message),
+                        'message' => "Total of <b>(".number_format($totalImported, 0).")</b> records partially imported. <br>" . implode(', ', $message),
                         'errors' => array_merge($failureErrors, $skippedRows),
                     ];
                 } else {
                     $allMessages[] = [
                         'sheet'   => $sheetName,
                         'status'  => 'success',
-                        'message' => "Total of <b>".number_format($totalImported, 0)."</b> records imported successfully.",
+                        'message' => "Total of <b>(".number_format($totalImported, 0).")</b> records imported successfully.",
                     ];
                 }
 

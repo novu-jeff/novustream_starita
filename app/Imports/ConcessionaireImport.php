@@ -28,16 +28,38 @@ class ConcessionaireImport implements
     protected $skippedRows = [];
     protected $rowCounter = 3;
 
+    public function rules(): array
+    {
+        return [
+            'account_no' => [
+                function ($attribute, $value, $fail) {
+                    if (empty($value)) {
+                        $fail("Missing required field: account_no");
+                        return;
+                    }
+
+                    if (DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
+                        $fail("account no `{$value}` has already been taken");
+                    }
+                }
+            ],
+            'name' => 'required',
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'name.required' => 'Missing required field: name',
+        ];
+    }
+
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
         $row = array_map('trim', $row);
 
         try {
-            if (empty($row['name']) || empty($row['account_no'])) {
-                $this->skippedRows[] = "Row $rowNum skipped: Missing required 'name' or 'account_no'.";
-                return null;
-            }
 
             $user = User::create([
                 'name'       => $row['name'],
@@ -76,24 +98,6 @@ class ConcessionaireImport implements
         }
     }
 
-    public function rules(): array
-    {
-        return [
-            'account_no' => [
-                function ($attribute, $value, $fail) {
-                    if (empty($value)) {
-                        $fail("The account no is required.");
-                        return;
-                    }
-
-                    if (DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
-                        $fail("account no `{$value}` has already been taken");
-                    }
-                }
-            ],
-            'name' => 'required|string',
-        ];
-    }
 
     public function getZone($account_no)
     {
@@ -106,16 +110,6 @@ class ConcessionaireImport implements
             return true; 
         }
         return null;
-    }
-
-    private function isRowEmpty(array $row): bool
-    {
-        foreach ($row as $value) {
-            if (!is_null($value) && trim($value) !== '') {
-                return false;
-            }
-        }
-        return true;
     }
 
     public function getPropertyType($rate_code)

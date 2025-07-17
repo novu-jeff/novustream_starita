@@ -20,6 +20,7 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
     'product' => env('APP_PRODUCT', 'novustream'),
+    'client' => env('CLIENT'),
 
     /*
     |--------------------------------------------------------------------------

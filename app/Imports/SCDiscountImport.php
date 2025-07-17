@@ -26,6 +26,31 @@ class SCDiscountImport implements
     protected $skippedRows = [];
     protected $rowCounter = 3;
 
+    public function rules(): array
+    {
+        return [
+            'account_no' => [
+                function ($attribute, $value, $fail) {
+                    if (empty($value)) {
+                        $fail("Missing required field: account_no");
+                    }
+                }
+            ],
+            'id_no'            => ['required'],
+            'effectivity_date' => ['required'],
+            'expired_date'     => ['required'],
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'id_no.required'            => 'Missing required field: id_no',
+            'effectivity_date.required' => 'Missing required field: effectivity_date',
+            'expired_date.required'     => 'Missing required field: expired_date',
+        ];
+    }
+
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
@@ -36,11 +61,6 @@ class SCDiscountImport implements
             $idNo = $row['id_no'] ?? null;
             $effectiveDate = $this->parseDate($row['effectivity_date'] ?? null);
             $expiredDate = $this->parseDate($row['expired_date'] ?? null);
-
-            if (!$accountNo || !$idNo || !$effectiveDate || !$expiredDate) {
-                $this->skippedRows[] = "Row $rowNum skipped: Missing required fields.";
-                return null;
-            }
 
             $existing = SeniorDiscount::where('account_no', $accountNo)->first();
 
@@ -83,32 +103,6 @@ class SCDiscountImport implements
 
         $timestamp = strtotime($value);
         return $timestamp ? date('Y-m-d', $timestamp) : null;
-    }
-
-    public function rules(): array
-    {
-        return [
-            'account_no' => [
-                function ($attribute, $value, $fail) {
-                    if (empty($value)) {
-                        $fail("The account no is required.");
-                    }
-                }
-            ],
-            'id_no' => 'required',
-            'effectivity_date' => 'required',
-            'expired_date' => 'required',
-        ];
-    }
-
-    private function isRowEmpty(array $row): bool
-    {
-        foreach ($row as $value) {
-            if (!is_null($value) && trim($value) !== '') {
-                return false;
-            }
-        }
-        return true;
     }
 
     public function headingRow(): int

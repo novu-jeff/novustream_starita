@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('property_types', function (Blueprint $table) {
+        Schema::create('status_code', function (Blueprint $table) {
             $table->id();
-            $table->string('rate_code')
-                ->unique();
-            $table->string('name');
-            $table->tinyText('description')
+            $table->string('code')
+                ->nullable();
+            $table->string('name')
                 ->nullable();
             $table->timestamps();
         });
@@ -27,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('property_types');
+        Schema::dropIfExists('status_code');
     }
 };

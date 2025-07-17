@@ -36,26 +36,40 @@ class PreviousBillingImport implements
         $this->sheetName = $sheetName;
     }
 
+    public function rules(): array
+    {
+        return [
+            'reference_no'      => ['required'],
+            'account_no'        => ['required'],
+            'billing_from'      => ['required'],
+            'billing_to'        => ['required'],
+            'amount'            => ['required'],
+
+            'previous_reading'  => ['nullable', 'numeric'],
+            'present_reading'   => ['nullable', 'numeric'],
+            'consumption'       => ['nullable', 'numeric'],
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'reference_no.required'     => 'Missing required field: reference_no',
+            'account_no.required'       => 'Missing required field: account_no',
+            'billing_from.required'     => 'Missing required field: billing_from',
+            'billing_to.required'       => 'Missing required field: billing_to',
+            'amount.required'           => 'Missing required field: amount',
+
+            'previous_reading.numeric'  => 'previous_reading must be numeric',
+            'present_reading.numeric'   => 'present_reading must be numeric',
+            'consumption.numeric'       => 'consumption must be numeric',
+        ];
+    }
+
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
         $row = array_map('trim', $row);
-
-        $requiredFields = ['reference_no', 'account_no', 'billing_from', 'billing_to', 'amount'];
-        foreach ($requiredFields as $field) {
-            if (empty($row[$field])) {
-                $this->skippedRows[] = "Sheet: {$this->sheetName} | Row {$rowNum} skipped: Missing required field '{$field}'.";
-                return null;
-            }
-        }
-
-        $numericFields = ['previous_reading', 'present_reading', 'consumption'];
-        foreach ($numericFields as $field) {
-            if (isset($row[$field]) && $row[$field] !== '' && !is_numeric($row[$field])) {
-                $this->skippedRows[] = "Sheet: {$this->sheetName} | Row {$rowNum} skipped: '{$field}' must be numeric.";
-                return null;
-            }
-        }
 
         $billing_from = $this->transformDate($row['billing_from']);
         $billing_to = $this->transformDate($row['billing_to']);

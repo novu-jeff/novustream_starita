@@ -732,6 +732,7 @@ class MeterService {
         $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
 
         $reading = [
+            'zone' => explode('-', $payload['account_no'])[0] ?? null,
             'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
             'present_reading' => $payload['present_reading'],

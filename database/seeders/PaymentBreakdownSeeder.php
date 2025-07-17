@@ -57,11 +57,6 @@ class PaymentBreakdownSeeder extends Seeder
             'amount' => 0.15
         ]);
 
-        PaymentServiceFee::create([
-            'property_id' => 1,
-            'amount' => 50,
-        ]);
-
         PaymentDiscount::create([
             'name' => 'SC Discount',
             'eligible' => 'senior',

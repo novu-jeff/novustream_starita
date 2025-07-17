@@ -5,16 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PropertyTypes extends Model
+class StatusCode extends Model
 {
     use HasFactory;
 
-    protected $table = 'property_types';
+    protected $table = 'status_code';
 
     protected $fillable = [
-        'rate_code',
+        'code',
         'name',
-        'description'
     ];
-
 }
