@@ -11,19 +11,38 @@ use Illuminate\Support\Facades\Hash;
 
 class ClientService {
 
-    public static function getData(?int $id = null) {
-
-        if(!is_null($id)) {
-            return User::where('id', $id)
-                ->with('accounts.sc_discount', 'accounts.property_types')
-                ->first() ?? null;
+    public static function getData($id = null, $zone = null, $search = null)
+    {
+        if (!is_null($id)) {
+            return User::with(['accounts.sc_discount', 'accounts.property_types'])
+                ->where('id', $id)
+                ->first();
         }
 
-        return User::with('accounts.property_types')
+        return User::with(['accounts.property_types'])
             ->withCount('accounts')
             ->where('isActive', true)
+            ->when(!empty($zone), function ($query) use ($zone) {
+                $query->whereHas('accounts', function ($subQuery) use ($zone) {
+                    $subQuery->where('zone', 'like', '%' . $zone . '%');
+                });
+            })
+            ->when(!empty($search['value']) && !empty($search['parameter']), function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    foreach ($search['parameter'] as $param) {
+                        if (in_array($param, ['name'])) {
+                            $q->orWhere($param, 'like', '%' . $search['value'] . '%');
+                        } elseif (in_array($param, ['account_no', 'address'])) {
+                            $q->orWhereHas('accounts', function ($subQ) use ($param, $search) {
+                                $subQ->where($param, 'like', '%' . $search['value'] . '%');
+                            });
+                        }
+                    }
+                });
+            })
             ->get();
     }
+
 
     public static function create(array $payload) {
 

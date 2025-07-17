@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')
                 ->constrained();
+            $table->string('zone')
+                ->nullable();
             $table->string('account_no');
             $table->tinyText('address')
                 ->nullable();

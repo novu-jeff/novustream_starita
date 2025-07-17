@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Maatwebsite\Excel\Excel as ExcelFormat;
 
 class PaymentController extends Controller
 {
@@ -27,132 +30,192 @@ class PaymentController extends Controller
         $this->generateService = $generateService;
     }
 
-    public function index() {
-        return redirect()->route('payments.show', ['payment' => 'unpaid']);
+    public function index(Request $request)
+    {
+
+        $filter = $request->filter ?? '';
+
+        if (!in_array($filter, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.index', ['filter' => 'unpaid']);
+        }
+
+        $zones = $this->meterService->getZones();
+        $zone = $request->zone ?? '';
+        if (empty($zone) && count($zones) > 0) {
+            $zone = $zones[0];
+        }
+
+        $entries = $request->entries ?? 10;
+        $toSearch = $request->search ?? '';
+        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+
+        $collection = collect($this->meterService::getPayments($filter, $zone, $date, $toSearch))
+            ->flatten(2); 
+
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+
+        $data = new LengthAwarePaginator(
+            $currentItems,
+            $collection->count(),
+            $entries,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('payments.index', compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch'));
     }
 
-    public function upload(Request $request) {
-        
-        if($request->getMethod() == 'POST') {
-
-            
-            if (!$request->hasFile('file')) {
-                return response([
-                    'status' => 'error',
-                    'message' => 'No file uploaded.'
-                ]);
-            }
-
-            $file = $request->file('file');
-
-            if (
-                !$file->isValid() ||
-                $file->getClientOriginalExtension() !== 'xlsx' ||
-                $file->getMimeType() !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            ) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Only excel files are allowed.',
-                ]);
-            }
-
-            $headings = (new HeadingRowImport())->toArray($file)[0][0];
-
-
-            $expected = [
-                'reference_no', 'account_no', 'billing_from', 'billing_to', 'previous_reading',
-                'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
-                'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
-                'payment_reference_no',
-            ];
-
-            $missing = array_diff($expected, array_values($headings));
-
-            if (count($missing)) {
-                return response([
-                    'status' => 'error',
-                    'message' => 'Invalid file. Please make sure to upload the correct template.',
-                    'missing_headers' => array_values($missing),
-                ]);
-            }
-
-            try {
-
-                $import = new PreviousBillingImport;
-
-                Excel::import($import, $file, null, null, [
-                    'readOnly' => true,
-                ]);
-
-    
-                $skipped = PreviousBillingImport::getSkippedRows();
-
-
-                $skipped = PreviousBillingImport::getSkippedRows();
-
-                if (!empty($skipped)) {
-                    return response()->json([
-                        'status' => 'warning',
-                        'message' => 'Some rows were skipped due to validation errors.',
-                        'errors' => $skipped,
-                    ]);
-                }
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Previous billings are imported successfully.',
-                ]);
-                    
-            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-                
-                  $failures = $e->failures();
-                    $messages = [];
-
-                    foreach ($failures as $failure) {
-                        $row = $failure->row();
-                        foreach ($failure->errors() as $error) {
-                            $messages[] = "Row [$row]: $error";
-                        }
-                    }
-
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Validation errors found during import.',
-                        'errors' => $messages,
-                    ]);
-
-            } catch (\Exception $e) {
-                Log::error('Import error: ' . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString(),
-                ]);
-
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'An error occurred during import: ' . $e->getMessage(),
-                ], 500);
-            }
-
-        } else {
+    public function upload(Request $request)
+    {
+        if ($request->getMethod() !== 'POST') {
             return view('payments.upload');
         }
 
-    }
-
-    public function show(string $filter) {
-        if (!in_array($filter, ['unpaid', 'paid'], true)) {
-            return redirect()->route('payments.index');
-        }
-    
-        $fil = $filter === 'paid';
-    
-        $data = $this->meterService::getPayments(null, $fil);
-    
-        if (request()->ajax()) {
-            return $this->datatable($data);
+        if (!$request->hasFile('file')) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No file uploaded.',
+            ]);
         }
 
-    
-        return view('payments.index', compact('data', 'filter'));
+        $file = $request->file('file');
+
+        if (
+            !$file->isValid() ||
+            $file->getClientOriginalExtension() !== 'xlsx' ||
+            $file->getMimeType() !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Only Excel (.xlsx) files are allowed.',
+            ]);
+        }
+
+        $spreadsheet = IOFactory::load($file->getRealPath());
+        $sheetNames = $spreadsheet->getSheetNames();
+
+        $expectedHeaders = [
+            'reference_no', 'account_no', 'billing_from', 'billing_to', 'previous_reading',
+            'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
+            'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
+            'payment_reference_no',
+        ];
+
+        $allMessages = [];
+        $importedSheets = [];
+
+        $headingData = (new HeadingRowImport(2))->toArray($file);
+
+        foreach ($sheetNames as $index => $sheetName) {
+            $actualHeaders = array_map('strtolower', array_map('trim', $headingData[$index][0] ?? []));
+            $missing = array_diff($expectedHeaders, $actualHeaders);
+
+            if (!empty($missing)) {
+                $allMessages[] = [
+                    'sheet' => $sheetName,
+                    'status' => 'error',
+                    'message' => 'Missing headers in sheet.',
+                    'missing_headers' => array_values($missing),
+                ];
+                continue;
+            }
+
+            try {
+                $importInstance = new PreviousBillingImport($sheetName);
+
+                Excel::import(new class($importInstance, $sheetName) implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
+                    private $importInstance;
+                    private $sheetName;
+
+                    public function __construct($importInstance, $sheetName)
+                    {
+                        $this->importInstance = $importInstance;
+                        $this->sheetName = $sheetName;
+                    }
+
+                    public function sheets(): array
+                    {
+                        return [$this->sheetName => $this->importInstance];
+                    }
+                }, $file);
+
+                $importedSheets[] = $sheetName;
+
+                $failures = $importInstance->failures();
+                $failureErrors = [];
+
+                if ($failures->isNotEmpty()) {
+                    foreach ($failures as $failure) {
+                        $row = $failure->row();
+                        foreach ($failure->errors() as $error) {
+                            $failureErrors[] = "Row [$row]: $error";
+                        }
+                    }
+                }
+
+                $skippedRows = $importInstance->getSkippedRows();
+                $rowCount = $importInstance->getRowCounter();
+                $totalImported = max($rowCount - 2 - count($failureErrors) - count($skippedRows), 0);
+
+                if (!empty($failureErrors) || !empty($skippedRows)) {
+                    $message = [];
+                    if (!empty($failureErrors)) {
+                        $message[] = count($failureErrors) . ' skipped due to logic checks';
+                    }
+                    if (!empty($skippedRows)) {
+                        $message[] = count($skippedRows) . ' skipped due to logic checks';
+                    }
+
+                    $allMessages[] = [
+                        'sheet' => $sheetName,
+                        'status' => 'warning',
+                        'message' => "Total of <b>(".number_format($totalImported, 0).")</b> records partially imported. <br>" . implode(', ', $message),
+                        'errors' => array_merge($failureErrors, $skippedRows),
+                    ];
+                } else {
+                    $allMessages[] = [
+                        'sheet' => $sheetName,
+                        'status' => 'success',
+                        'message' => "Total of <b>(".number_format($totalImported, 0).")</b> records imported successfully.",
+                    ];
+                }
+
+            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+                $failures = $e->failures();
+                $messages = [];
+
+                foreach ($failures as $failure) {
+                    $row = $failure->row();
+                    foreach ($failure->errors() as $error) {
+                        $messages[] = "Row [$row]: $error";
+                    }
+                }
+
+                $allMessages[] = [
+                    'sheet' => $sheetName,
+                    'status' => 'error',
+                    'message' => 'Validation errors found during import.',
+                    'errors' => $messages,
+                ];
+            } catch (\Exception $e) {
+                \Log::error("Import error on sheet '$sheetName': " . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
+
+                $allMessages[] = [
+                    'sheet' => $sheetName,
+                    'status' => 'error',
+                    'message' => 'An error occurred: ' . $e->getMessage(),
+                ];
+            }
+        }
+
+        return response()->json([
+            'status' => 'completed',
+            'imported' => $importedSheets,
+            'messages' => $allMessages,
+        ]);
     }
 
     public function pay(Request $request, string $reference_no) {

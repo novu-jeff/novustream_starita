@@ -26,18 +26,25 @@ class PreviousBillingImport implements
 {
     use SkipsFailures;
 
-    protected static $skippedRows = [];
-    protected static $rowCounter = 2;
+    protected $skippedRows = [];
+    protected $rowCounter = 3;
+
+    protected $sheetName;
+
+    public function __construct($sheetName)
+    {
+        $this->sheetName = $sheetName;
+    }
 
     public function model(array $row)
     {
-        $rowNum = self::$rowCounter++;
+        $rowNum = $this->rowCounter++;
         $row = array_map('trim', $row);
 
         $requiredFields = ['reference_no', 'account_no', 'billing_from', 'billing_to', 'amount'];
         foreach ($requiredFields as $field) {
             if (empty($row[$field])) {
-                self::$skippedRows[] = "Row {$rowNum} skipped: Missing required field '{$field}'.";
+                $this->skippedRows[] = "Sheet: {$this->sheetName} | Row {$rowNum} skipped: Missing required field '{$field}'.";
                 return null;
             }
         }
@@ -45,21 +52,23 @@ class PreviousBillingImport implements
         $numericFields = ['previous_reading', 'present_reading', 'consumption'];
         foreach ($numericFields as $field) {
             if (isset($row[$field]) && $row[$field] !== '' && !is_numeric($row[$field])) {
-                self::$skippedRows[] = "Row {$rowNum} skipped: '{$field}' must be numeric.";
+                $this->skippedRows[] = "Sheet: {$this->sheetName} | Row {$rowNum} skipped: '{$field}' must be numeric.";
                 return null;
             }
         }
 
         $billing_from = $this->transformDate($row['billing_from']);
         $billing_to = $this->transformDate($row['billing_to']);
+        $zone = $this->sheetName;
 
         $reading_id = Reading::insertGetId([
+            'zone' => $zone ?? null,
             'account_no' => $row['account_no'],
             'previous_reading' => $row['previous_reading'] ?? null,
             'present_reading' => $row['present_reading'] ?? null,
             'consumption' => $row['consumption'] ?? null,
             'created_at' => $billing_from,
-            'updated_at' => $billing_from
+            'updated_at' => $billing_from,
         ]);
 
         $bill = Bill::create([
@@ -198,8 +207,19 @@ class PreviousBillingImport implements
         return 1000;
     }
 
-    public static function getSkippedRows()
+    public function getSkippedRows()
     {
-        return self::$skippedRows;
+        return $this->skippedRows;
     }
+
+    public function headingRow(): int
+    {
+        return 2;
+    }
+
+    public function getRowCounter()
+    {
+        return $this->rowCounter;
+    }
+
 }

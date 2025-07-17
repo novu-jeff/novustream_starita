@@ -23,49 +23,66 @@ class SCDiscountImport implements
 {
     use SkipsFailures;
 
+    protected $skippedRows = [];
+    protected $rowCounter = 3;
+
     public function model(array $row)
     {
-        try {
-            $accountNo = trim($row['account_no']);
+        $rowNum = $this->rowCounter++;
+        $row = array_map('trim', $row);
 
-            $effectiveDate = $this->parseDate($row['effectivity_date']);
-            $expiredDate = $this->parseDate($row['expired_date']);
+        try {
+            $accountNo = $row['account_no'] ?? null;
+            $idNo = $row['id_no'] ?? null;
+            $effectiveDate = $this->parseDate($row['effectivity_date'] ?? null);
+            $expiredDate = $this->parseDate($row['expired_date'] ?? null);
+
+            if (!$accountNo || !$idNo || !$effectiveDate || !$expiredDate) {
+                $this->skippedRows[] = "Row $rowNum skipped: Missing required fields.";
+                return null;
+            }
 
             $existing = SeniorDiscount::where('account_no', $accountNo)->first();
 
             if ($existing) {
                 $existing->update([
-                    'id_no'          => trim($row['id_no']),
+                    'id_no'          => $idNo,
                     'effective_date' => $effectiveDate,
                     'expired_date'   => $expiredDate,
                 ]);
+
+                $this->skippedRows[] = "Row $rowNum skipped: Existing record updated.";
                 return null;
-            } else {
-                return new SeniorDiscount([
-                    'account_no'     => $accountNo,
-                    'id_no'          => trim($row['id_no']),
-                    'effective_date' => $effectiveDate,
-                    'expired_date'   => $expiredDate,
-                ]);
             }
+
+            return new SeniorDiscount([
+                'account_no'     => $accountNo,
+                'id_no'          => $idNo,
+                'effective_date' => $effectiveDate,
+                'expired_date'   => $expiredDate,
+            ]);
+
         } catch (\Exception $e) {
+            $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
+
             Log::error('Import error in SCDiscountImport', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            return null;
         }
     }
 
     private function parseDate($value)
     {
-        // If the value is numeric, it's likely an Excel serial date
         if (is_numeric($value)) {
             return Date::excelToDateTimeObject($value)->format('Y-m-d');
         }
 
-        // Otherwise, attempt to parse it as a string date
-        return date('Y-m-d', strtotime($value));
+        $timestamp = strtotime($value);
+        return $timestamp ? date('Y-m-d', $timestamp) : null;
     }
 
     public function rules(): array
@@ -94,8 +111,23 @@ class SCDiscountImport implements
         return true;
     }
 
+    public function headingRow(): int
+    {
+        return 2;
+    }
+
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    public function getSkippedRows()
+    {
+        return $this->skippedRows;
+    }
+
+    public function getRowCounter()
+    {
+        return $this->rowCounter;
     }
 }

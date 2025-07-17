@@ -15,21 +15,31 @@ const notyf = new Notyf({
             background: '#6c4abf',
             duration: 5000,
             dismissible: true
+        },
+        {
+            type: 'warning', 
+            background: '#f4b400', 
+            color: '#fff',
+            icon: {
+                className: 'text-light bx bx-error-circle',
+                tagName: 'i',
+                text: ''
+            },
+            duration: 5000,
+            dismissible: true
         }
     ]
 });
 
 
 export function alert(status, message) {
-
-    if(status == 'success') {
-        notyf.success(message);
+    if (status === 'success') {
+        notyf.open({ type: 'success', message });
+    } else if (status === 'error') {
+        notyf.open({ type: 'error', message });
+    } else if (status === 'warning') {
+        notyf.open({ type: 'warning', message });
     }
-
-    if(status == 'error') {
-        notyf.error(message);
-    }
-
 }
 
 export function remove(table, url, token) {

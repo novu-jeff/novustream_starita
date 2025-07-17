@@ -4,44 +4,57 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Import Previous Billing</h1>
+                <div>
+                    <h1>Import Files</h1>
+                </div>
             </div>
-            <div class="inner-content mt-5">
+            <div class="inner-content mt-5 pb-5">
                 <form method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="row">
                         <div class="col-md-12 mb-3">
-                            <label for="file" class="form-label">Csv or Excel File</label>
+                            <label for="file" class="form-label">CSV or Excel File</label>
                             <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file">
-                           <div class="warning">
-
-                            </div>
                         </div> 
+                        <div class="col-12 mt-3 text-muted">
+                            <small class="text-uppercase fw-bold">What can you import?</small>
+                            <ul class="mt-2 text-uppercase fw-bold" style="font-size: 12px;">
+                                <li>Concessionaires Informations</li>
+                                <li>Senior Citizen Discounts</li>
+                            </ul>
+                        </div>
+                        <div class="warning">
+
+                        </div>
                     </div>
                     <div class="d-flex justify-content-end my-5">
                         <button type="submit" class="showBtn btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
                     </div>
                 </form>                
             </div>
-            </div>
         </div>
     </main>
 @endsection
-@section('script')
-<script>
-    $(function () {
-        @if (session('alert'))
-            setTimeout(() => {
-                let alertData = @json(session('alert'));
-                alert(alertData.status, alertData.message);
-            }, 100);
-        @endif
 
+@section('script')
+    <script>
+        $(function () {
+            @if (session('alert'))
+                setTimeout(() => {
+                    let alertData = @json(session('alert'));
+                    alert(alertData.status, alertData.message);
+                }, 100);
+            @endif
+
+                
         $("form").on("submit", function (e) {
+
             e.preventDefault();
+
             showLoader();
 
             let formData = new FormData(this);
+
             $(".warning").html("");
 
             axios.post("{{ route(Route::currentRouteName()) }}", formData, {
@@ -58,15 +71,15 @@
                 let delay = 0;
 
                 messages.forEach(({ sheet, status, message, errors = [] }) => {
-                    // Delayed alert popup for each sheet
-                    setTimeout(() => {
-                        alert(status, `${sheet}: ${message}`);
+                   
+                     setTimeout(() => {
+                        alert(status, `${message}`);
                     }, delay);
+
                     delay += 800;
 
-                    // Assign border/text color based on status
-                    const borderColor = status === 'success' ? 'success' : (status === 'warning' ? 'warning' : 'danger');
-                    const textColor = status === 'success' ? 'text-success' : (status === 'warning' ? 'text-warning' : 'text-danger');
+                    let borderColor = status === 'success' ? 'success' : (status === 'warning' ? 'warning' : 'danger');
+                    let textColor = status === 'success' ? 'text-success' : (status === 'warning' ? 'text-warning' : 'text-danger');
 
                     displayHTML += `
                         <hr class="mb-4">
@@ -77,10 +90,10 @@
                                 ${errors.length ? `
                                     <div style="max-height: 200px; overflow-y: auto">
                                         <ul class="list-unstyled small ${textColor}">
-                                            ${errors.map(err => `<li>${typeof err === 'string' ? err : `Row ${err.row} - ${err.reason}`}</li>`).join('')}
+                                            ${errors.map(err => `<li>${err}</li>`).join('')}
                                         </ul>
-                                    </div>
-                                ` : ''}
+                                    </div>` : ''
+                                }
                             </div>
                         </div>
                     `;
@@ -98,13 +111,16 @@
             });
         });
 
-        function showLoader() {
-            $('.showBtn').html("<i class='bx bx-loader-alt bx-spin'></i>");
-        }
 
-        function hideLoader() {
-            $('.showBtn').html("Submit");
-        }
-    });
-</script>
+            function showLoader() {
+                $('.showBtn').html("<i class='bx bx-loader-alt bx-spin' ></i>");
+            }
+
+            function hideLoader() {
+                $('.showBtn').html("Submit");
+            }
+
+        });
+    </script>
 @endsection
+

@@ -5,7 +5,7 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Bill Payment</h1>
-                <a href="{{route('payments.show', ['payment' => $reference_no])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                <a href="{{route('payments.index', ['filter' => 'unpaid'])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                     Go Back
                 </a>
             </div>

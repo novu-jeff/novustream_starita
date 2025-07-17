@@ -11,6 +11,7 @@ use App\Models\Reading;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -136,15 +137,34 @@ class ReadingController extends Controller
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
-    public function report(?string $date = null) {
+    public function report(Request $request) {
 
-        $data = $this->meterService::getReport($date);
-
-        if(request()->ajax()) {
-            return $this->datatable($data);
+        $zones = $this->meterService->getZones();
+        $zone = $request->zone ?? '';
+        if (empty($zone) && count($zones) > 0) {
+            $zone = $zones[0];
         }
 
-        return view('reading.report', compact('data'));
+        $entries = $request->entries ?? 10;
+        $toSearch = $request->search ?? '';
+        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+
+
+        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
+            ->flatten(2); 
+
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+
+        $data = new LengthAwarePaginator(
+            $currentItems,
+            $collection->count(),
+            $entries,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
 
     }
 

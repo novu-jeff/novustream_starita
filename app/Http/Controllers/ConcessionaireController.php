@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
-use App\Imports\ConcessionaireImport;
-use App\Imports\SCDiscountImport;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
+use App\Services\MeterService;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -15,16 +15,16 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
-use Maatwebsite\Excel\Facades\Excel;
-use Maatwebsite\Excel\HeadingRowImport;
+
 
 class ConcessionaireController extends Controller
 {
 
     public $clientService;
     public $propertyTypesService;
+    public $meterService;
 
-    public function __construct(ClientService $clientService, PropertyTypesService $propertyTypesService) {
+    public function __construct(MeterService $meterService, ClientService $clientService, PropertyTypesService $propertyTypesService) {
         
         $this->middleware(function ($request, $next) {
     
@@ -37,17 +37,44 @@ class ConcessionaireController extends Controller
 
         $this->clientService = $clientService;
         $this->propertyTypesService = $propertyTypesService;
+        $this->meterService = $meterService;
     }
 
-    public function index() {
+    public function index(Request $request) {
 
-        $data = $this->clientService::getData();
-
-        if(request()->ajax()) {
-            return $this->datatable($data);
+        $zones = $this->meterService->getZones();
+        $zone = $request->zone ?? '';
+        if (empty($zone) && count($zones) > 0) {
+            $zone = $zones[0];
         }
 
-        return view('concessionaires.index', compact('data'));
+        $entries = $request->entries ?? 10;
+        $toSearch = $request->search ?? '';
+
+        $search = [
+            'parameter' => [
+                'name',
+                'account_no',
+                'address',
+            ],
+            'value' => $toSearch
+        ];
+
+        $collection = collect($this->clientService::getData(null, $zone, $search))
+            ->flatten(2); 
+
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+
+        $data = new LengthAwarePaginator(
+            $currentItems,
+            $collection->count(),
+            $entries,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('concessionaires.index', compact('data', 'entries', 'zone', 'zones', 'toSearch'));
     }
 
     public function create() {
@@ -79,22 +106,6 @@ class ConcessionaireController extends Controller
         }
     }
 
-    public function import_view() {
-        return view('concessionaires.import', [
-            'label' => "Client's CSV File",
-            'toProcess' => 'concessionaire',
-        ]);
-    }
-
-    public function import_senior(Request $request) {
-        
-       return view('concessionaires.import', [
-            'label' => 'Senior Discount File',
-            'toProcess' => 'sc_discount',
-        ]);
-
-    }
-
     private function getUploadErrorMessage($errorCode)
     {
         return match ($errorCode) {
@@ -107,101 +118,6 @@ class ConcessionaireController extends Controller
             UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload.',
             default               => 'Unknown upload error.',
         };
-    }
-
-    public function import_action(Request $request)
-    {
-        if (!$request->hasFile('file')) {
-            return $this->errorResponse('No file uploaded.');
-        }
-
-        $file = $request->file('file');
-        $toProcess = $request->toProcess;
-
-        $allowedProcesses = [
-            'concessionaire' => [
-                'expected_headers' => [
-                    'account_no', 'name', 'address', 'rate_code', 'status',
-                    'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
-                    'contact_no', 'sequence_no'
-                ],
-                'extensions' => ['csv'],
-                'mime_types' => ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel'],
-                'import_class' => ConcessionaireImport::class,
-                'success_message' => 'Concessionaires imported successfully.'
-            ],
-            'sc_discount' => [
-                'expected_headers' => [
-                    'account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'
-                ],
-                'extensions' => ['xls', 'xlsx'],
-                'mime_types' => [
-                    'application/vnd.ms-excel',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                ],
-                'import_class' => SCDiscountImport::class,
-                'success_message' => 'Senior Citizen Discount imported successfully.'
-            ]
-        ];
-
-        if (!isset($allowedProcesses[$toProcess])) {
-            return $this->errorResponse("Process '{$toProcess}' unavailable");
-        }
-
-        $processConfig = $allowedProcesses[$toProcess];
-
-        // Validate file
-        if (
-            !$file->isValid() ||
-            !in_array($file->getClientOriginalExtension(), $processConfig['extensions']) ||
-            !in_array($file->getMimeType(), $processConfig['mime_types'])
-        ) {
-            return $this->errorResponse("Only " . implode(', ', $processConfig['extensions']) . " files are allowed.");
-        }
-
-        // Check headers
-        $headings = (new HeadingRowImport())->toArray($file)[0][0] ?? [];
-        $missing = array_diff($processConfig['expected_headers'], array_values($headings));
-
-        if (count($missing)) {
-            return $this->errorResponse('Invalid file. Please make sure to upload the correct template.', [
-                'missing_headers' => array_values($missing)
-            ]);
-        }
-
-        try {
-            $import = new $processConfig['import_class'];
-
-            Excel::import($import, $file, null, null, ['readOnly' => true]);
-
-            $failures = $import->failures();
-            if ($failures->isNotEmpty()) {
-                $messages = [];
-
-                foreach ($failures as $failure) {
-                    $row = $failure->row();
-                    foreach ($failure->errors() as $error) {
-                        $messages[] = "Row [$row]: $error";
-                    }
-                }
-
-                return response()->json([
-                    'status' => 'warning',
-                    'message' => 'Some rows were skipped due to validation errors.',
-                    'errors' => $messages,
-                ]);
-            }
-
-            return response()->json([
-                'status' => 'success',
-                'message' => $processConfig['success_message'],
-            ]);
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            return $this->handleValidationException($e);
-        } catch (\Exception $e) {
-            Log::error('Import error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return $this->errorResponse('An error occurred during import: ' . $e->getMessage(), [], 500);
-        }
     }
 
     private function errorResponse($message, array $extra = [], int $status = 400)
@@ -281,27 +197,4 @@ class ConcessionaireController extends Controller
 
     }
 
-    public function datatable($query)
-    {
-        return DataTables::of($query)
-            ->addIndexColumn()
-            ->addColumn('accounts', function ($user) {
-                return $user->accounts->pluck('account_no')->implode(', '); 
-            })
-            ->addColumn('actions', function ($row) {
-                return '
-                <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('concessionaires.edit', $row->id) . '" 
-                        class="btn btn-secondary text-white text-uppercase fw-bold" 
-                        id="update-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-edit-alt"></i>
-                    </a>
-                    <button class="btn btn-danger text-white text-uppercase fw-bold btn-delete" id="delete-btn" data-id="' . e($row->id) . '">
-                        <i class="bx bx-trash"></i>
-                    </button>
-                </div>';
-            })
-            ->rawColumns(['actions', 'accounts'])
-            ->make(true);
-    }
 }

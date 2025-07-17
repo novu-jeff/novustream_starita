@@ -25,37 +25,43 @@ class ConcessionaireImport implements
 {
     use SkipsFailures;
 
+    protected $skippedRows = [];
+    protected $rowCounter = 3;
+
     public function model(array $row)
     {
+        $rowNum = $this->rowCounter++;
+        $row = array_map('trim', $row);
+
         try {
+            if (empty($row['name']) || empty($row['account_no'])) {
+                $this->skippedRows[] = "Row $rowNum skipped: Missing required 'name' or 'account_no'.";
+                return null;
+            }
+
             $user = User::create([
-                'name'              => trim($row['name']),
-                'contact_no'        => trim($row['contact_no']),
+                'name'       => $row['name'],
+                'contact_no' => $row['contact_no'] ?? null,
             ]);
 
             if ($user) {
-                $property_type = $this->getPropertyType(trim($row['rate_code']));
-                $dateStr = trim($row['date_connected']);
-                $timestamp = strtotime($dateStr);
-
-                if ($timestamp !== false) {
-                    $date_connected = Carbon::createFromTimestamp($timestamp)->format('Y-m-d');
-                } else {
-                    $date_connected = '';
-                }
+                $property_type = $this->getPropertyType($row['rate_code']);
+                $timestamp = strtotime($row['date_connected']);
+                $date_connected = $timestamp !== false ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d') : '';
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
-                    'account_no'      => trim($row['account_no'] ?? null),
-                    'address'         => trim($row['address'] ?? null),
+                    'zone' => $this->getZone($row['account_no']),
+                    'account_no'      => $row['account_no'] ?? null,
+                    'address'         => $row['address'] ?? null,
                     'property_type'   => $property_type,
-                    'rate_code'       => trim($row['rate_code'] ?? null),
-                    'status'          => trim($row['status'] ?? null),
-                    'meter_brand'     => trim($row['meter_brand'] ?? null),
-                    'meter_serial_no' => trim($row['meter_serial_no'] ?? null),
-                    'sc_no'           => trim($row['sc_no'] ?? null),
+                    'rate_code'       => $row['rate_code'] ?? null,
+                    'status'          => $row['status'] ?? null,
+                    'meter_brand'     => $row['meter_brand'] ?? null,
+                    'meter_serial_no' => $row['meter_serial_no'] ?? null,
+                    'sc_no'           => $row['sc_no'] ?? null,
                     'date_connected'  => $date_connected,
-                    'sequence_no'     => trim($row['sequence_no'] ?? null),
+                    'sequence_no'     => $row['sequence_no'] ?? null,
                 ]);
             }
         } catch (\Exception $e) {
@@ -65,23 +71,9 @@ class ConcessionaireImport implements
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return [
-                'status'  => 'error',
-                'message' => $e->getMessage(),
-            ];
+            $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
+            return null;
         }
-    }
-
-    /**
-     * Override validateRow to skip validation on empty rows.
-     */
-    public function validateRow(array $row, $index)
-    {
-        if ($this->isRowEmpty($row)) {
-            return true;
-        }
-
-        return null;
     }
 
     public function rules(): array
@@ -101,6 +93,19 @@ class ConcessionaireImport implements
             ],
             'name' => 'required|string',
         ];
+    }
+
+    public function getZone($account_no)
+    {
+        return explode('-', $account_no)[0] ?? null;
+    }
+
+    public function validateRow(array $row, $index)
+    {
+        if ($this->isRowEmpty($row)) {
+            return true; 
+        }
+        return null;
     }
 
     private function isRowEmpty(array $row): bool
@@ -125,8 +130,23 @@ class ConcessionaireImport implements
         };
     }
 
+    public function headingRow(): int
+    {
+        return 2;
+    }
+
     public function chunkSize(): int
     {
         return 1000;
+    }
+
+    public function getSkippedRows()
+    {
+        return $this->skippedRows;
+    }
+
+    public function getRowCounter()
+    {
+        return $this->rowCounter;
     }
 }

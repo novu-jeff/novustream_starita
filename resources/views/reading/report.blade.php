@@ -5,27 +5,100 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>All Meter Readings</h1>
-                {{-- <a href="{{route('roles.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
-                    Add New
-                </a> --}}
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
-                <table class="w-100 table table-bordered table-hover">
+                <div class="row mb-4">
+                    <div class="col-12 col-md-1">
+                        <label class="mb-1">Show Entries</label>
+                        <select name="entries" id="entries" class="form-select text-uppercase dropdown-toggle">
+                            @foreach([10, 25, 50, 100, 200, 250, 350, 400, 450, 500] as $entry)
+                                <option value="{{ $entry }}" {{ $entries == $entry ? 'selected' : '' }}>
+                                    {{ $entry }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-2 mb-3">
+                        <label class="mb-1">Zone</label>
+                        <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
+                            @forelse($zones as $targetedZone)
+                                <option value="{{$targetedZone}}" {{$targetedZone == $zone ? 'selected' : ''}}> {{$targetedZone}} </option>
+                            @empty
+                                <option value="">No Zones Available</option>
+                            @endforelse
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3 mb-3">
+                        <label class="mb-1">Reading Month</label>
+                        <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
+                        <div class="position-relative">
+                            <input 
+                                type="text" 
+                                name="search" 
+                                id="search" 
+                                class="form-control pe-5" 
+                                value="{{ $toSearch }}" 
+                                placeholder=""
+                            >
+
+                            @if(!empty($toSearch))
+                                <button 
+                                    type="button" 
+                                    id="clear-search" 
+                                    class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
+                                    style="border: none; background: none; font-size: 1.2rem;"
+                                    aria-label="Clear search"
+                                >
+                                    &times;
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <table class="w-100 table table-bordered table-hover mt-4">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Name</th>
                             <th>Account No</th>
+                            <th>Name</th>
                             <th>Previous Reading</th>
                             <th>Present Reading</th>
                             <th>Consumption</th>
-                            <th>Date</th>
+                            <th>Reading Date</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
+                        @forelse ($data as $index => $row)
+                             <tr>
+                                <td>{{ $row->account_no }}</td>
+                                <td>{{ $row->concessionaire->user->name ?? 'N/A' }}</td>
+                                <td>{{ $row->previous_reading }}</td>
+                                <td>{{ $row->present_reading }}</td>
+                                <td>{{ $row->consumption }} m³</td>
+                                <td>{{ \Carbon\Carbon::parse($row->created_at)->format('F d, Y') }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <a href="{{ route('reading.show', $row->bill->reference_no) }}"
+                                        class="btn btn-primary text-white text-uppercase fw-bold"
+                                        id="show-btn" data-id="{{ $row->id }}">
+                                            <i class="bx bx-receipt"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="12" class="text-center text-muted">No records found.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
+                <div class="w-100 mt-4">
+                    {{ $data->links() }}
+                </div>
             </div>
         </div>
     </main>
@@ -34,36 +107,25 @@
 @section('script')
 <script>
     $(function () {
-        @if (session('alert'))
-            setTimeout(() => {
-                let { status, message } = @json(session('alert'));
-                alert(status, message);
-            }, 100);
-        @endif
+        function updateUrl() {
+            const params = new URLSearchParams(window.location.search);
 
-        const url = '{{ route(Route::currentRouteName()) }}';
+            ['search', 'entries', 'zone_no', 'date'].forEach(id => {
+                const val = $('#' + id).val();
+                const key = id === 'zone_no' ? 'zone' : id;
 
-        let table = $('table').DataTable({
-            processing: true,
-            serverSide: true,
-            ajax: url,
-            columns: [
-                { data: 'id', name: 'id' },
-                { data: 'concessionaire.user.name', name: 'concessionaire.user.name' },
-                { data: 'account_no', name: 'account_no' },
-                { data: 'previous_reading', name: 'previous_reading' },
-                { data: 'present_reading', name: 'present_reading' },
-                { data: 'consumption', name: 'consumption', render: function(data, type, row) {
-                    return data + ' m³';
-                }},
-                { data: 'created_at', name: 'created_at' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
-            ],
-            responsive: true,
-            order: [[0, 'desc']],
-            scrollX: true
+                val ? params.set(key, val) : params.delete(key);
+            });
+
+            window.location.href = window.location.pathname + '?' + params.toString();
+        }
+
+        $('#search, #entries, #zone_no, #date').on('change', updateUrl);
+
+        $('#clear-search').on('click', function () {
+            $('#search').val('');
+            updateUrl();
         });
-
     });
 </script>
 @endsection

@@ -34,6 +34,18 @@
 				@can('admin')
 					<div class="dropdown px-0 mx-0">
 						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+							Import
+						</button>
+						<ul class="dropdown-menu mt-3">
+							<li><a class="dropdown-item" href="{{route('import')}}">Concessionaire</a></li>
+							<li><a class="dropdown-item" href="{{route('import')}}">Senior Citizen Discount</a></li>
+							<li><a class="dropdown-item" href="{{route('previous-billing.upload')}}">Previous Billing</a></li>
+						</ul>
+					</div>
+				@endcan
+				@can('admin')
+					<div class="dropdown px-0 mx-0">
+						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
 							Users
 						</button>
 						<ul class="dropdown-menu mt-3">

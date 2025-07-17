@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::create('readings', function (Blueprint $table) {
             $table->id();
+            $table->string('zone')
+                ->nullable();
             $table->string('account_no');
             $table->string('previous_reading');
             $table->string('present_reading');

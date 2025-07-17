@@ -65,11 +65,8 @@ class MeterService {
         ];
     }
 
-
-
     public function getZones() {
         $zones = UserAccounts::select('account_no')->distinct()->pluck('account_no');
-
         $grouped = $zones->map(function ($accountNo) {
             $zone = explode('-', $accountNo)[0] ?? 'unknown';
             return [
@@ -220,19 +217,42 @@ class MeterService {
         ->first();
     }
 
-    public static function getReport(?string $date = null) {
-
-        if(!is_null($date)) {
-            return Reading::where('isReRead', false)
-                ->whereDate('created_at', $date)
+    public static function getReport(string $zone = null, string $date = null, string $search = null)
+    {
+        if (empty($zone) && empty($date) && empty($search)) {
+            return Reading::with(['concessionaire.user', 'bill'])
+                ->where('isReRead', false)
                 ->get();
         }
 
-        return Reading::with('concessionaire.user', 'bill')
+        $readings = Reading::with(['concessionaire.user', 'bill'])
             ->where('isReRead', false)
+            ->when(!empty($zone), fn($q) =>
+                $q->where('zone', 'like', "%$zone%")
+            )
+            ->when(!empty($date), function ($q) use ($date) {
+                if (preg_match('/^\d{4}-\d{2}$/', $date)) {
+                    [$year, $month] = explode('-', $date);
+                    $q->whereYear('created_at', $year)
+                    ->whereMonth('created_at', $month);
+                }
+            })
+            ->when(!empty($search), function ($q) use ($search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('account_no', 'like', "%$search%")
+                    ->orWhereHas('concessionaire.user', fn($cq) =>
+                        $cq->where('name', 'like', "%$search%")
+                    );
+                });
+            })
             ->get();
 
+        $grouped = $readings->groupBy(fn($r) => $r->zone ?? 'Unknown')
+            ->map(fn($zoneGroup) => $zoneGroup->values());
+
+        return $grouped->values()->all();
     }
+
 
     public static function getData(?int $id = null) {
 
@@ -245,20 +265,50 @@ class MeterService {
 
     }
 
-    public static function getPayments(?int $reference_no = null, bool $isPaid = false) {
-        
-        $query = Bill::with('reading')
-            ->whereHas('reading', function($query) {
+    public static function getPayments(string $filter, string $zone = null, string $date = null, string $search = null)
+    {
+        $isPaid = $filter === 'paid';
+
+        $bills = Bill::with('reading')
+            ->whereHas('reading', function ($query) use ($zone, $date, $search) {
                 $query->where('isReRead', false);
+
+                if (!empty($zone)) {
+                    $query->where('zone', 'like', "%$zone%");
+                }
+
+                if (!empty($date)) {
+                    [$year, $month] = explode('-', $date);
+                    $query->whereYear('created_at', $year)
+                        ->whereMonth('created_at', $month);
+                }
+
+                if (!empty($search)) {
+                    $query->where('account_no', 'like', "%$search%");
+                }
             })
-            ->where('isPaid', $isPaid);
-    
-        if (!is_null($reference_no)) {
-            $query->where('reference_no', $reference_no);
-        }
-    
-        return $query->get();
+            ->where('isPaid', $isPaid)
+            ->get();
+
+        $grouped = $bills->groupBy(function ($bill) {
+            return $bill->reading->zone ?? 'Unknown';
+        })->map(function ($groupedByZone) use ($date) {
+            if (!empty($date)) {
+                return array_values(
+                    $groupedByZone
+                        ->groupBy(fn($bill) => $bill->created_at->toDateString())
+                        ->map(fn($groupedByDate) => $groupedByDate->values())
+                        ->values()
+                        ->all()
+                );
+            }
+
+            return $groupedByZone->values();
+        })->values()->all();
+
+        return $grouped[0] ?? [];
     }
+
 
     public function locate(array $payload) {    
 
@@ -280,7 +330,6 @@ class MeterService {
 
     public static function getBill(string $reference_no) {
 
-        // Fetch the current bill with reading details
         $current_bill = Bill::with('reading.sc_discount', 'breakdown', 'discount')
             ->where('reference_no', $reference_no)
             ->first();    
@@ -826,4 +875,12 @@ class MeterService {
 
         return $combined;
     }
+
+    public function getLatestReadingMonth()
+    {
+        return Reading::where('isReRead', false)
+            ->latest('created_at')
+            ->value('created_at')?->format('Y-m');
+    }
+
 }

@@ -11,6 +11,7 @@ class Reading extends Model
 
     protected $table = 'readings';
     protected $fillable = [
+        'zone',
         'account_no',
         'previous_reading',
         'present_reading',

@@ -14,6 +14,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\BaseRateController;
 use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
+use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -60,7 +61,7 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::get('reading/bill/{reference_no}', [ReadingController::class, 'show'])
         ->name('reading.show');
 
-    Route::get('reading/reports/{date?}', [ReadingController::class, 'report'])
+    Route::get('reading/reports', [ReadingController::class, 'report'])
         ->name('reading.report');
 
     Route::prefix('users')->group(function() {
@@ -73,29 +74,18 @@ Route::middleware('admin')->prefix('admin')->group(function () {
             ->names('concessionaires')
             ->except('show');
 
-        Route::get('concessionaires/import', [ConcessionaireController::class, 'import_view'])
-            ->name('concessionaires.import.view');
-
-        Route::get('concessionaires/senior/import', [ConcessionaireController::class, 'import_senior'])
-            ->name('concessionaires.import.senior');
-    
-        Route::post('concessionaires/import', [ConcessionaireController::class, 'import_action'])
-            ->name('concessionaires.import.action');
-
-
         Route::resource('personnel', AdminController::class)
             ->names('admins');
     });
 
+    Route::any('import', [ImportController::class, 'index'])
+        ->name('import');
+
     Route::prefix('payments')->group(function() {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
-        Route::get('previous/billing', [PaymentController::class, 'upload'])
-            ->name('payments.upload'); 
-        Route::post('previous/billing', [PaymentController::class, 'upload'])
-            ->name('payments.upload'); 
-        Route::get('{payment}', [PaymentController::class, 'show'])
-            ->name('payments.show');
+        Route::any('previous-billing', [PaymentController::class, 'upload'])
+            ->name('previous-billing.upload'); 
         Route::get('process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
         Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
