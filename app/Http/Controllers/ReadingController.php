@@ -196,7 +196,7 @@ class ReadingController extends Controller
                 },
             ],
             'previous_reading' => 'required|integer',
-            'present_reading' => 'required|integer|gt:previous_reading',
+            'present_reading' => 'required|integer',
             'is_high_consumption' => 'required|in:yes,no',
             'isReRead' => 'required|in:true,false',
             'reference_no' => 'nullable|exists:bill,reference_no'
@@ -276,7 +276,7 @@ class ReadingController extends Controller
             $amount = (float) $computed['bill']['amount'] + (float) $computed['bill']['penalty'];
 
             $payload = [
-                'amount' => round($this->convertAmount((float) $amount), 2),
+                'amount' => (float) $amount,
                 'reference_no' => $computed['bill']['reference_no'],
                 'customer' => [
                     'account_number' => $account->account_no ?? '',
@@ -290,7 +290,14 @@ class ReadingController extends Controller
 
             $reference_no = $computed['bill']['reference_no'];
 
-            $this->generatePaymentQR($reference_no, $payload);
+            $response = $this->generatePaymentQR($reference_no, $payload);
+
+            if(!$response) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to save this transaction. Please try again later.'
+                ], 500);
+            }   
 
             session(['recent_reading' => [
                 'name' => $account->user->name ?? '',
@@ -359,7 +366,7 @@ class ReadingController extends Controller
         
         if(is_null($decodedResponse)) {
             Log::error('error: ' . $decodedResponse);
-            throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
+            return false;
         }
 
         if ($httpCode == 200) {
@@ -368,12 +375,12 @@ class ReadingController extends Controller
                 return true;
             } else {
                 Log::error('error: ' . $decodedResponse);
-                throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
+                return false;
             }
 
         } else {
             Log::error('error: ' . $decodedResponse);
-            throw new \Exception('Failed to process online payment. Unable to connect to novupay.');
+            return false;
         }
 
     }

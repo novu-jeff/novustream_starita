@@ -85,7 +85,7 @@ class SCDiscountImport implements
         } catch (\Exception $e) {
             $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
 
-            Log::error('Import error in SCDiscountImport', [
+            Log::error('Import error in Senior Citizen Discount Sheet', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
                 'trace' => $e->getTraceAsString(),

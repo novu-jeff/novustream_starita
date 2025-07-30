@@ -128,22 +128,16 @@
                                     <div>Period</div>
                                     <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                                 </div>
-                                @php
-                                    $due_date = \Carbon\Carbon::parse($data['current_bill']['due_date']);
-                                    $isWeekEnd = $due_date->isWeekend();
-                                @endphp
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Due Date</div>
                                     <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                 </div>
-                                @if ($isWeekEnd)
-                                    <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
-                                        <ul style="list-style: none !important">
-                                            <li>> Office - Last working day of the month</li>
-                                            <li>> Online - Last day of the month</li>
-                                        </ul>
-                                    </div>
-                                @endif
+                                <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
+                                    <ul style="list-style: none !important">
+                                        <li>> Office - Last working day of the month</li>
+                                        <li>> Online - Last day of the month</li>
+                                    </ul>
+                                </div>
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Disconnection Date</div>
                                     <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>

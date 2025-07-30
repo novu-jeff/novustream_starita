@@ -42,7 +42,7 @@ export function alert(status, message) {
     }
 }
 
-export function remove(table, url, token) {
+export function remove(table = null, url, token) {
     Swal.fire({
         icon: "info",
         title: "Are your sure to delete?",
@@ -51,7 +51,6 @@ export function remove(table, url, token) {
         confirmButtonText: "Yes, I Know",
         denyButtonText: `Don't save`,
     }).then((result) => {
-        /* Read more about isConfirmed, isDenied below */
         if (result.isConfirmed) {
             $.ajax({
                 url: url,
@@ -60,8 +59,13 @@ export function remove(table, url, token) {
                     _token: token,
                 },
                 success: function (result) {
-                    alert(result.status, result.message);
-                    table.ajax.reload();
+                    if(!table) {
+                        window.location.reload();
+                    }
+                    else {
+                        alert(result.status, result.message);
+                        table.ajax.reload();
+                    }
                 },
                 error: function (xhr) {
                     alert(

@@ -64,12 +64,5 @@ class PaymentBreakdownSeeder extends Seeder
             'percentage_of' => 'basic_charge',
             'amount' => 0.05
         ]);
-
-        Ruling::create([
-            'due_date' => 30,
-            'disconnection_date' => 27,
-            'disconnection_rule' => 2,
-            'snr_dc_rule' => 30,
-        ]);
     }
 }

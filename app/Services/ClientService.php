@@ -14,6 +14,7 @@ class ClientService {
 
     public static function getData($id = null, $zone = null, $search = null)
     {
+
         if (!is_null($id)) {
             return User::with(['accounts.sc_discount', 'accounts.property_types'])
                 ->where('id', $id)

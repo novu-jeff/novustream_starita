@@ -12,6 +12,8 @@ use App\Imports\ConcessionaireImport;
 use App\Imports\SCDiscountImport;
 use App\Imports\RateCodesImport;
 use App\Imports\StatusCodeImport;
+use App\Imports\ClientInformationImport;
+use App\Imports\SettingsImport;
 
 class ImportController extends Controller
 {
@@ -30,13 +32,23 @@ class ImportController extends Controller
         $sheetNames = $spreadsheet->getSheetNames();
 
         $sheetToProcessMap = [
-            'concessionaires informations' => 'concessionaire',
+            'client informations' => 'client_informations',
+            'concessionaire informations' => 'concessionaire',
             'senior citizen discount'      => 'sc_discount',
             'rates code' => 'rates_code',
             'status code' => 'status_code',
+            'zones' => 'zones',
+            'settings' => 'settings',
         ];
 
         $allowedProcesses = [
+            'client_informations' => [
+                'expected_headers' => [
+                    'name', 'value', 'description'
+                ],
+                'import_class' => \App\Imports\ClientInformationImport::class,
+                'success_message' => 'Client Informations imported successfully.',
+            ],
             'concessionaire' => [
                 'expected_headers' => [
                     'account_no', 'name', 'address', 'rate_code', 'status',
@@ -51,20 +63,36 @@ class ImportController extends Controller
                     'account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'
                 ],
                 'import_class' => \App\Imports\SCDiscountImport::class,
-                'success_message' => 'Senior Citizen Discount imported successfully.',
+                'success_message' => 'Senior Citizen Discounts imported successfully.',
             ],
             'rates_code' => [
                 'expected_headers' => [
                     'rate_code', 'name', 'rate', '0_10', '11_20', '21_30', '31_40', '41_50', '51_60'
                 ],
                 'import_class' => \App\Imports\RateCodesImport::class,
+                'success_message' => 'Rate Codes imported successfully.',
             ],
             'status_code' => [
                 'expected_headers' => [
                     'code', 'name'
                 ],
                 'import_class' => \App\Imports\StatusCodeImport::class,
-            ]
+                'success_message' => 'Status Codes imported successfully.',
+            ],
+            'zones' => [
+                'expected_headers' => [
+                    'zone', 'area'
+                ],
+                'import_class' => \App\Imports\ZoneImport::class,
+                'success_message' => 'Zones imported successfully.',
+            ],
+            'settings' => [
+                'expected_headers' => [
+                    'name', 'value', 'description'
+                ],
+                'import_class' => \App\Imports\SettingsImport::class,
+                'success_message' => 'Settings imported successfully.',
+            ],
         ];
 
         $allMessages = [];
@@ -72,6 +100,8 @@ class ImportController extends Controller
         $headingData = (new HeadingRowImport(2))->toArray($file);
 
         foreach ($sheetNames as $index => $sheetName) {
+
+            // if($sheetName !== 'Settings') continue;
 
             $sheetKey = strtolower($sheetName);
 
@@ -142,7 +172,12 @@ class ImportController extends Controller
 
                 $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
                 $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 2;
-                $totalImported = max($rowCount - 2 - count($failureErrors) - count($skippedRows), 0);
+                
+                if(in_array($sheetKey, ['client informations', 'settings'])) {
+                    $totalImported = $rowCount;
+                } else {
+                    $totalImported = max($rowCount - 2 - count($failureErrors) - count($skippedRows), 0);
+                }
 
                 if (!empty($failureErrors) || !empty($skippedRows)) {
                     $message = [];

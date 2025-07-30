@@ -35,6 +35,36 @@ class RateCodesImport implements
         $this->sheetName = $sheetName; 
     }
 
+     public function rules(): array
+    {
+        return [
+            'rate_code' => ['required'],
+            'name'      => ['required'],
+            'rate'      => ['required', 'numeric'],
+            '0_10'      => ['required', 'numeric'],
+            '11_20'     => ['required', 'numeric'],
+            '21_30'     => ['required', 'numeric'],
+            '31_40'     => ['required', 'numeric'],
+            '41_50'     => ['required', 'numeric'],
+            '51_60'     => ['required', 'numeric'],
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'rate_code.required' => 'Missing required field: rate_code',
+            'name.required'      => 'Missing required field: name',
+            'rate.required'      => 'Missing required field: rate',
+            '0_10.required'      => 'Missing required field: 0-10',
+            '11_20.required'     => 'Missing required field: 11-20',
+            '21_30.required'     => 'Missing required field: 21-30',
+            '31_40.required'     => 'Missing required field: 31-40',
+            '41_50.required'     => 'Missing required field: 41-50',
+            '51_60.required'     => 'Missing required field: 51-60',
+        ];
+    }
+
     public function model(array $row)
     {
 
@@ -72,37 +102,6 @@ class RateCodesImport implements
             $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
             return null;
         }
-    }
-
-
-    public function rules(): array
-    {
-        return [
-            'rate_code' => ['required'],
-            'name'      => ['required'],
-            'rate'      => ['required', 'numeric'],
-            '0_10'      => ['required', 'numeric'],
-            '11_20'     => ['required', 'numeric'],
-            '21_30'     => ['required', 'numeric'],
-            '31_40'     => ['required', 'numeric'],
-            '41_50'     => ['required', 'numeric'],
-            '51_60'     => ['required', 'numeric'],
-        ];
-    }
-
-    public function customValidationMessages(): array
-    {
-        return [
-            'rate_code.required' => 'Missing required field: rate_code',
-            'name.required'      => 'Missing required field: name',
-            'rate.required'      => 'Missing required field: rate',
-            '0_10.required'      => 'Missing required field: 0-10',
-            '11_20.required'     => 'Missing required field: 11-20',
-            '21_30.required'     => 'Missing required field: 21-30',
-            '31_40.required'     => 'Missing required field: 31-40',
-            '41_50.required'     => 'Missing required field: 41-50',
-            '51_60.required'     => 'Missing required field: 51-60',
-        ];
     }
 
     public function compute($property, $base_rate, $range, $cum_charge)

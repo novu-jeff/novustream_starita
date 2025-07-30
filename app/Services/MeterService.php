@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Zones;
 use App\Models\BaseRate;
 use App\Models\User;
 use App\Models\Bill;
@@ -66,16 +67,9 @@ class MeterService {
     }
 
     public function getZones() {
-        $zones = UserAccounts::select('account_no')->distinct()->pluck('account_no');
-        $grouped = $zones->map(function ($accountNo) {
-            $zone = explode('-', $accountNo)[0] ?? 'unknown';
-            return [
-                'zone' => $zone,
-                'account_no' => $accountNo,
-            ];
-        })->groupBy('zone');
-
-        return array_keys($grouped->toArray()) ?? [];
+        $zones = Zones::select('zone', 'area')
+            ->get();
+        return $zones;
     }
 
     public function filterAccount(array $filter) {

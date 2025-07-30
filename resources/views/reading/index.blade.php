@@ -9,19 +9,19 @@
                         <div class="card shadow border-0 p-2 pb-0 px-3" style="border-radius: 20px;">
                             <div class="card-body">
                                 <div class="row">
-                                    <div class="col-md-4 mb-3">
+                                    <div class="col-md-12 mb-3">
                                         <label for="zone_no" class="form-label">Zone</label>
-                                        <select name="zone_no" id="zone_no" class="form-select dropdown-toggle">
-                                            <option value="all"> All </option>
-                                            @foreach($zones as $zone)
-                                                <option value="{{$zone}}"> {{$zone}} </option>
+                                        <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
+                                            <option value="all"> All Zones </option>
+                                            @foreach($zones as $item)
+                                                <option value="{{$item->zone}}"> {{$item->zone . ' - ' . $item->area}} </option>
                                             @endforeach
                                         </select>
                                         @error('zone_no')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
-                                    <div class="col-md-4 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label for="filter" class="form-label">Filter</label>
                                         <select name="filter" id="filter" class="form-select dropdown-toggle">
                                             <option value="50"> 50 </option>
@@ -35,7 +35,7 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
-                                    <div class="col-md-4 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label for="search_by" class="form-label">Search By</label>
                                         <select name="search_by" id="search_by" class="form-select dropdown-toggle">
                                             <option value="name"> Name </option>
@@ -521,11 +521,14 @@
             
             $('#consumption').val(consumption);
 
-            if (present > 0 && present > previous) {
-                $('#proceedButton').removeClass('d-none');
-            } else {
-                $('#proceedButton').addClass('d-none');
-            }
+            $('#proceedButton').removeClass('d-none');
+
+
+            // if (present > 0 && present > previous) {
+            //     $('#proceedButton').removeClass('d-none');
+            // } else {
+            //     $('#proceedButton').addClass('d-none');
+            // }
         });
 
         $(document).on('click', '#present_reading', function() {
@@ -543,10 +546,10 @@
                 return;
             }
 
-            if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
-                alert('error', 'Present reading must be greater than previous reading.');
-                return;
-            }
+            // if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
+            //     alert('error', 'Present reading must be greater than previous reading.');
+            //     return;
+            // }
 
             const postData = {
                 reading_month: readingMonth,

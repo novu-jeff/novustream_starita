@@ -35,15 +35,23 @@ class DashboardController extends Controller
         $users = $this->dashboardService->getAllUsers() ?? [];
         $readings = $this->meterService->getReport() ?? collect([]);
 
-        $total_transactions = $readings->sum(fn($reading) => $reading['bill']['amount'] ?? 0);
-        $total_unpaid = $readings->where('bill.isPaid', false)->sum('bill.amount');
-        $total_paid = $readings->where('bill.isPaid', true)->sum('bill.amount');
-        $total_payments = $readings->sum('bill.amount');
+        // Safely calculate totals with casting to float
+        $total_transactions = $readings->sum(fn($reading) => (float) ($reading['bill']['amount'] ?? 0));
+        
+        $total_unpaid = $readings
+            ->where('bill.isPaid', false)
+            ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
+        
+        $total_paid = $readings
+            ->where('bill.isPaid', true)
+            ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
+        
+        $total_payments = $readings->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
 
         $data = [
-            'admins' => $users['admins'],
-            'concessionaires' => $users['concessionaires'],
-            'technicians' => $users['technicians'],
+            'admins' => $users['admins'] ?? [],
+            'concessionaires' => $users['concessionaires'] ?? [],
+            'technicians' => $users['technicians'] ?? [],
             'total_readings' => $readings->count(),
             'total_transactions' => $total_transactions,
             'total_unpaid' => $total_unpaid,
@@ -53,4 +61,5 @@ class DashboardController extends Controller
 
         return view('dashboard', compact('data'));
     }
+
 }

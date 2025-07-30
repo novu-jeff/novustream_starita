@@ -32,11 +32,11 @@
                         <label class="mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
                             <option value="all">All</option>
-                            @forelse($zones as $targetedZone)
-                                <option value="{{$targetedZone}}" {{$targetedZone == $zone ? 'selected' : ''}}> {{$targetedZone}} </option>
-                            @empty
-                                <option value="">No Zones Available</option>
-                            @endforelse
+                            @foreach($zones as $targetedZone)
+                               <option value="{{ $targetedZone->zone }}" {{ $targetedZone->zone == $zone ? 'selected' : '' }}>
+                                    {{ $targetedZone->zone }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-12 col-md-4 mb-3">
@@ -98,7 +98,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center">No records found.</td>
+                                <td colspan="12" class="text-center">No records found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -132,6 +132,13 @@
         $('#clear-search').on('click', function () {
             $('#search').val('');
             updateUrl();
+        });
+
+        $(document).on('click', '.btn-delete', function() {
+            const id = $(this).data('id');
+            const token = '{{csrf_token()}}';
+            const url = '{{route("concessionaires.destroy", ["concessionaire" => "__ID__"])}}'.replace('__ID__', id);
+            remove(null, url, token)
         });
     });
 </script>

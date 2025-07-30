@@ -21,7 +21,8 @@
                             <ul class="mt-2 text-uppercase fw-bold" style="font-size: 12px;">
                                 <li>Concessionaires Informations</li>
                                 <li>Senior Citizen Discounts</li>
-                                <li>Utility Rates</li>
+                                <li>Rates / Rate Codes</li>
+                                <li>Zones</li>
                                 <li>Status Codes</li>
                             </ul>
                         </div>

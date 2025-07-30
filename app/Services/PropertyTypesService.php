@@ -52,6 +52,7 @@ class PropertyTypesService {
         try {
             
             PropertyTypes::where('id', $id)->update([
+                'rate_code' => $payload['rate_code'],
                 'name' => $payload['name'],
                 'description' => $payload['description']
             ]);

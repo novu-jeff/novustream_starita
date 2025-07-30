@@ -2,7 +2,7 @@
 
 namespace App\Imports;
 
-use App\Models\StatusCode;
+use App\Models\Zones;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +14,7 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class StatusCodeImport implements 
+class ZoneImport implements 
     ToModel, 
     WithHeadingRow, 
     WithValidation, 
@@ -30,16 +30,16 @@ class StatusCodeImport implements
     public function rules(): array
     {
         return [
-            'code' => ['required'],
-            'name' => ['required'],
+            'zone' => ['required'],
+            'area' => ['required'],
         ];
     }
 
     public function customValidationMessages(): array
     {
         return [
-            'code.required' => 'Missing required field: code',
-            'name.required' => 'Missing required field: name',
+            'zone.required' => 'Missing required field: zone',
+            'area.required' => 'Missing required field: area',
         ];
     }
 
@@ -50,16 +50,16 @@ class StatusCodeImport implements
 
         try {
 
-            StatusCode::updateOrCreate(
-                ['code' => $row['code']], 
+            Zones::updateOrCreate(
+                ['zone' => $row['zone']], 
                 [
-                    'code' => $row['code'],
-                    'name' => $row['name']
+                    'zone' => $row['zone'],
+                    'area' => $row['area']
                 ]
             );
             
         } catch (\Exception $e) {
-            Log::error('Import error in Status Codes Sheet', [
+            Log::error('Import error in Zones Sheet', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
                 'trace' => $e->getTraceAsString(),
@@ -89,6 +89,4 @@ class StatusCodeImport implements
     {
         return $this->rowCounter;
     }
-    
-
 }

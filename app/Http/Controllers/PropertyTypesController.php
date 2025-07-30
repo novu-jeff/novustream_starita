@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
+use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -49,7 +50,8 @@ class PropertyTypesController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'name' => 'required|unique:property_types,name',
+            'rate_code' => 'required|unique:property_types,name',
+            'name' => 'required',
             'description' => 'nullable'
         ]);
 
@@ -86,7 +88,11 @@ class PropertyTypesController extends Controller
         $payload = $request->all();
 
         $validator = Validator::make($payload, [
-            'name' => 'required|unique:property_types,name,' . $id,
+            'rate_code' => [
+                'required',
+                Rule::unique('property_types', 'rate_code')->ignore($id)
+            ],
+            'name' => 'required',
             'description' => 'nullable'
         ]);
 
@@ -136,6 +142,20 @@ class PropertyTypesController extends Controller
     {
         return DataTables::of($query)
             ->addIndexColumn()
+            ->addColumn('actions', function ($row) {
+                return '
+                    <div class="d-flex align-items-center gap-3">
+                        <a href="' . route('property-types.edit', ['property_type' => $row->id]) . '" 
+                            class="btn btn-primary text-white text-uppercase fw-bold">
+                            <i class="bx bx-edit" ></i>
+                        </a>
+                        <button data-id="' . $row->id . '"
+                            class="btn-delete btn btn-danger text-white text-uppercase fw-bold">
+                            <i class="bx bx-trash" ></i>
+                        </button>
+                    </div>';
+            })
+            ->rawColumns(['status', 'actions'])
             ->make(true);
     }
     

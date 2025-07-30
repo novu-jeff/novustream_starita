@@ -31,10 +31,11 @@ class ConcessionaireImport implements
     public function rules(): array
     {
         return [
+            'zone' => ['required'],
             'account_no' => [
                 function ($attribute, $value, $fail) {
                     if (empty($value)) {
-                        $fail("Missing required field: account_no");
+                        $fail("Missing required field: account no");
                         return;
                     }
 
@@ -51,6 +52,7 @@ class ConcessionaireImport implements
     {
         return [
             'name.required' => 'Missing required field: name',
+            'zone.required' => 'Missing required field: zone',
         ];
     }
 
@@ -73,7 +75,7 @@ class ConcessionaireImport implements
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
-                    'zone' => $this->getZone($row['account_no']),
+                    'zone'            => $row['zone'] ?? null,
                     'account_no'      => $row['account_no'] ?? null,
                     'address'         => $row['address'] ?? null,
                     'property_type'   => $property_type,
@@ -87,7 +89,7 @@ class ConcessionaireImport implements
                 ]);
             }
         } catch (\Exception $e) {
-            Log::error('Import error in ConcessionaireImport', [
+            Log::error('Import error in Concessionaire Informations Sheet', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
                 'trace' => $e->getTraceAsString(),
@@ -96,12 +98,6 @@ class ConcessionaireImport implements
             $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
             return null;
         }
-    }
-
-
-    public function getZone($account_no)
-    {
-        return explode('-', $account_no)[0] ?? null;
     }
 
     public function validateRow(array $row, $index)

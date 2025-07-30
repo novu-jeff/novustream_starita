@@ -28,6 +28,13 @@
                                 <div class="card-body">
                                     <div class="row mb-3">
                                         <div class="col-md-12 mb-3">
+                                            <label for="rate_code" class="form-label">Rate Code</label>
+                                            <input type="text" class="form-control @error('rate_code') is-invalid @enderror" id="rate_code" name="rate_code" value="{{ old('rate_code', $data->rate_code ?? '') }}">
+                                            @error('rate_code')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                        <div class="col-md-12 mb-3">
                                             <label for="name" class="form-label">Name</label>
                                             <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $data->name ?? '') }}">
                                             @error('name')

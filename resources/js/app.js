@@ -8,7 +8,6 @@ window.alert = alert;
 window.remove = remove;
 window.convertDateToWords = convertDateToWords;
 
-// Authentication layout
 const authApp = createApp({
     components: {
         addConcessioner,
