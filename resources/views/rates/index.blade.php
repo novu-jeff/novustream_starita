@@ -20,7 +20,7 @@
                                 <form action="{{ route('bulk-rates.update') }}" method="POST">
                                     @csrf
                                     @method('PUT')
-                                    
+
                                     <div class="row g-3">
                                         <div class="col-md-12">
                                             <div class="property_type_dropdown">
@@ -115,9 +115,9 @@
                     }
                 },
                 columns: [
-                    { data: 'cu_m', name: 'cu_m' }, 
-                    { data: 'charge', name: 'charge' }, 
-                    { data: 'amount', name: 'amount' }, 
+                    { data: 'cu_m', name: 'cu_m' },
+                    { data: 'charge', name: 'charge' },
+                    { data: 'amount', name: 'amount' },
                 ],
                 pageLength: 11,
                 responsive: true,

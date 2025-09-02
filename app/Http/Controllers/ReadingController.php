@@ -18,31 +18,33 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Log;
+use App\Models\Zone; // make sure this is at the top
+
 
 class ReadingController extends Controller
 {
-    
+
     public $meterService;
     public $paymentBreakdownService;
     public $paymentServiceFee;
     public $generateService;
     public $isTesting = false;
 
-    public function __construct(MeterService $meterService, 
-        PaymentBreakdown $paymentBreakdownService, 
+    public function __construct(MeterService $meterService,
+        PaymentBreakdown $paymentBreakdownService,
         PaymentServiceFee $paymentServiceFee,
         GenerateService $generateService)
     {
 
         $this->middleware(function ($request, $next) {
-            $method = $request->route()->getActionMethod(); 
-    
+            $method = $request->route()->getActionMethod();
+
             if (!in_array($method, ['show'])) {
                 if (!Gate::any(['admin', 'technician'])) {
                     abort(403, 'Unauthorized');
                 }
             }
-    
+
             return $next($request);
         });
 
@@ -57,13 +59,22 @@ class ReadingController extends Controller
     public function index(Request $request) {
 
         if($request->ajax()) {
-            
+
             $payload = $request->all();
 
-            if(isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
-                $response = $this->meterService->getPreviousReading($payload['account_no']);
-                return response()->json($response);
-            }
+            if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+    try {
+        $response = $this->meterService->getPreviousReading($payload['account_no']);
+        return response()->json($response);
+    } catch (\Exception $e) {
+        Log::error('getPreviousReading failed: ' . $e->getMessage());
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unable to get previous reading.'
+        ], 500);
+    }
+}
+
 
             if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
                 $response = $this->meterService->getReRead($payload['reference_no']);
@@ -99,6 +110,8 @@ class ReadingController extends Controller
         return view('reading.index', compact('isReRead', 'reference_no', 'zones'));
     }
 
+
+
     public function show(string $reference_no) {
 
         $data = $this->meterService::getBill($reference_no);
@@ -128,7 +141,7 @@ class ReadingController extends Controller
 
         $data['current_bill']['assumed_penalty'] = $assumed_penalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-        
+
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
             'reference_no' => $data['current_bill']['reading']['reread_reference_no']
@@ -137,33 +150,56 @@ class ReadingController extends Controller
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
-    public function report(Request $request) {
+    public function report(Request $request)
+{
+    $month = $request->input('date', now()->month);
+    $year = $request->input('year', now()->year); // Optional, for year-specific filtering
 
-        $zones = $this->meterService->getZones();
-        $zone = $request->zone ?? 'all';
+    $zone = $request->zone ?? 'all';
+    $entries = $request->entries ?? 10;
+    $toSearch = $request->search ?? '';
+    $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
-        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+    // Step 1: Get all zones with total accounts and meter readings for selected month
+    $zonesRaw = DB::table('concessioner_accounts')
+        ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
+        ->groupBy('zone', 'address')
+        ->get();
+
+    // Step 2: Get meter readings count per zone for selected month
+    $readingsPerZone = DB::table('readings')
+        ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+        ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
+        ->whereMonth('readings.created_at', Carbon::parse($date)->month)
+        ->whereYear('readings.created_at', Carbon::parse($date)->year)
+        ->groupBy('concessioner_accounts.zone')
+        ->pluck('read_count', 'zone'); // returns associative array: [ '101' => 50, '102' => 40, ...]
+
+    // Step 3: Merge read count into zonesRaw
+    $zones = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
+        $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
+        return $zone;
+    });
+
+    // Step 4: Get report data
+    $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
+        ->flatten(2);
+
+    $currentPage = LengthAwarePaginator::resolveCurrentPage();
+    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+
+    $data = new LengthAwarePaginator(
+        $currentItems,
+        $collection->count(),
+        $entries,
+        $currentPage,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
+
+    return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
+}
 
 
-        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
-            ->flatten(2); 
-
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
-
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
-
-    }
 
     public function store(Request $request)
     {
@@ -297,7 +333,7 @@ class ReadingController extends Controller
                     'status' => 'error',
                     'message' => 'Failed to save this transaction. Please try again later.'
                 ], 500);
-            }   
+            }
 
             session(['recent_reading' => [
                 'name' => $account->user->name ?? '',
@@ -335,9 +371,9 @@ class ReadingController extends Controller
         $amountFloat = floatval(str_replace(',', '', $amount));
 
         if (fmod($amountFloat, 1) === 0.0) {
-            return number_format($amountFloat, 2, '', ''); 
+            return number_format($amountFloat, 2, '', '');
         } else {
-        
+
             $amountNoDot = str_replace('.', '', number_format($amountFloat, 2, '.', ''));
             return $amountNoDot;
         }
@@ -355,22 +391,22 @@ class ReadingController extends Controller
             'Content-Type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload)); 
-        
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_errno($ch) ? curl_error($ch) : null;
         curl_close($ch);
-        
+
         $decodedResponse = json_decode($response, true);
-        
+
         if(is_null($decodedResponse)) {
             Log::error('error: ' . $decodedResponse);
             return false;
         }
 
         if ($httpCode == 200) {
-           
+
             if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
                 return true;
             } else {
@@ -396,10 +432,10 @@ class ReadingController extends Controller
                 return Carbon::parse($row->created_at)->format('F d, Y');
             })
             ->addColumn('actions', function ($row) {
-                return 
+                return
                     '<div class="d-flex align-items-center gap-2">
-                        <a href="' . route('reading.show', $row->bill->reference_no) . '" 
-                            class="btn btn-primary text-white text-uppercase fw-bold" 
+                        <a href="' . route('reading.show', $row->bill->reference_no) . '"
+                            class="btn btn-primary text-white text-uppercase fw-bold"
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>
                         </a>

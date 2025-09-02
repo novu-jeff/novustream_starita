@@ -74,39 +74,51 @@ class PropertyTypeSeeder extends Seeder
                 ],
             ];
 
-            foreach ($propertyTypes as $type) {
-                $property = PropertyTypes::updateOrCreate(['name' => $type['name']], [
-                    'name' => $type['name']
-                ]);
+            foreach ($propertyTypes as $index => $type) {
+    $property = PropertyTypes::updateOrCreate(['name' => $type['name']], [
+        'name' => $type['name'],
+        // Auto-generate unique rate_code starting at 201
+        'rate_code' => $type['rate_code'] ?? (200 + $index + 1),
+    ]);
 
-                $base_rate = BaseRate::updateOrCreate(
-                    ['property_type_id' => $property->id],
-                    ['rate' => $type['rate']]
-                );
+    $base_rate = BaseRate::updateOrCreate(
+        ['property_type_id' => $property->id],
+        ['rate' => $type['rate']]
+    );
 
-                foreach ($type as $key => $value) {
-                    if (str_contains($key, '-')) {
-                        $this->compute($property, $base_rate, $key, $value);
-                    }
-                }
-            }
+    foreach ($type as $key => $value) {
+        if (str_contains($key, '-')) {
+            $this->compute($property, $base_rate, $key, $value);
+        }
+    }
+}
+
         } else {
             $propertyTypes = [
-                ['name' => 'residential', 'rate' => 10.3454],
-                ['name' => 'semi-commercial', 'rate' => 9.3713],
-                ['name' => 'commercial', 'rate' => 7.7647],
+                ['name' => 'residential', 'rate_code' => 101, 'rate' => 10.3454],
+                ['name' => 'semi-commercial', 'rate_code' => 102, 'rate' => 9.3713],
+                ['name' => 'commercial', 'rate_code' => 103, 'rate' => 7.7647],
             ];
 
-            foreach ($propertyTypes as $type) {
-                $property = PropertyTypes::updateOrCreate(['name' => $type['name']], [
-                    'name' => $type['name']
-                ]);
+            foreach ($propertyTypes as $index => $type) {
+    $property = PropertyTypes::updateOrCreate(['name' => $type['name']], [
+        'name' => $type['name'],
+        // Auto-generate unique rate_code starting at 201
+        'rate_code' => $type['rate_code'] ?? (200 + $index + 1),
+    ]);
 
-                $base_rate = BaseRate::updateOrCreate(
-                    ['property_type_id' => $property->id],
-                    ['rate' => $type['rate']]
-                );
-            }
+    $base_rate = BaseRate::updateOrCreate(
+        ['property_type_id' => $property->id],
+        ['rate' => $type['rate']]
+    );
+
+    foreach ($type as $key => $value) {
+        if (str_contains($key, '-')) {
+            $this->compute($property, $base_rate, $key, $value);
+        }
+    }
+}
+
         }
     }
 

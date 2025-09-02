@@ -16,9 +16,17 @@ class RatesService {
     }
 
     public function getActiveBaseRate($property_type_id) {
-        $baseRateQuery = BaseRate::where('property_type_id', $property_type_id)->latest()->first();
-        $baseRate = $baseRateQuery->rate;
-        return $baseRate;
+        $baseRateQuery = BaseRate::where('property_type_id', $property_type_id)
+        ->latest()
+        ->first();
+
+    if (!$baseRateQuery) {
+        // return default value, throw exception, or handle gracefully
+        return 0;
+        // or return null if you want to explicitly handle it elsewhere
+    }
+
+    return $baseRateQuery->rate;
     }
 
     public function getData($property_type = 1, ?int $id = null) {
@@ -30,9 +38,9 @@ class RatesService {
 
         return Rates::where('property_types_id', $property_type)->with('property_type')->get();
     }
-    
+
     public function create(array $payload) {
-      
+
         $rates =  $this->getData($payload['property_type']);
         $highestCuM = $rates->isEmpty() ? 0 : $rates->max('cu_m');
 
@@ -74,7 +82,7 @@ class RatesService {
 
         $rates = Rates::where('isActive', true)->get();
         foreach ($rates as $rate) {
-                    
+
         }
     }
 
@@ -83,7 +91,7 @@ class RatesService {
         DB::beginTransaction();
 
         try {
-            
+
             $updateData = [
                 'property_types_id' => $payload['property_type'],
                 'cubic_from' => $payload['cubic_from'],
@@ -101,7 +109,7 @@ class RatesService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -117,9 +125,9 @@ class RatesService {
         DB::beginTransaction();
 
         try {
-            
+
             $data = Rates::where('id', $id)->first();
-                
+
             $data->delete();
 
             DB::commit();
@@ -130,7 +138,7 @@ class RatesService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -150,12 +158,12 @@ class RatesService {
             ->whereBetween('cu_m', [$from, $to])
             ->orWhereBetween('cu_m', [$from, $to])
             ->get();
-        
+
         foreach ($rates as $rate) {
             $rate->charge = $payload['charge'];
             $rate->save();
         }
-        
+
         return $rates;
     }
 
@@ -163,13 +171,13 @@ class RatesService {
 
         $rates = Rates::where('property_types_id', $property_type)->get();
         $baseRate = $this->getActiveBaseRate($property_type);
-       
+
         $totalAmount = $baseRate;
-    
+
         foreach ($rates as $rate) {
             $charge = $rate->charge;
             $totalAmount += $charge;
-    
+
             $rate->amount = $totalAmount;
             $rate->save();
         }
@@ -186,7 +194,7 @@ class RatesService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [

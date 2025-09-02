@@ -66,7 +66,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        
+
                                     </tbody>
                                 </table>
                             </div>
@@ -101,10 +101,10 @@
                     }
                 },
                 columns: [
-                    { data: 'rate', name: 'rate' }, 
-                    { data: 'status', name: 'status' }, 
-                    { data: 'month_day', name: 'month_day' }, 
-                    { data: 'year', name: 'year' }, 
+                    { data: 'rate', name: 'rate' },
+                    { data: 'status', name: 'status' },
+                    { data: 'month_day', name: 'month_day' },
+                    { data: 'year', name: 'year' },
                 ],
                 responsive: true,
                 order: [[2, 'desc'], [1, 'desc']],

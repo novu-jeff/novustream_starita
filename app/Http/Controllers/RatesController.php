@@ -17,19 +17,20 @@ class RatesController extends Controller
     public $propertyTypeService;
 
     public function __construct(RatesService $RatesService, PropertyTypesService $propertyTypeService) {
-        
+
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
-        
+
         $this->RatesService = $RatesService;
         $this->propertyTypeService = $propertyTypeService;
     }
+
 
     public function index(Request $request) {
         $propertyTypeId = $request->get('property_type') ?? 1;
@@ -90,7 +91,7 @@ class RatesController extends Controller
         try {
 
             $data = $this->RatesService->create($payload);
-            
+
             DB::commit();
             return redirect()->back()->with('alert', [
                 'data' => $data,
@@ -120,7 +121,7 @@ class RatesController extends Controller
             'cubic_to' => 'required|integer|gt:cubic_from',
             'charge' => 'required|numeric'
         ]);
-        
+
         if ($validator->fails()) {
             return redirect()->back()
                 ->withErrors($validator)
@@ -142,7 +143,7 @@ class RatesController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return redirect()->back()->withInput()->with('alert', [
@@ -150,7 +151,7 @@ class RatesController extends Controller
                 'message' => 'Error occured: ' . $e->getMessage()
             ]);
         }
-        
+
     }
 
     public function datatable($query)
@@ -160,5 +161,5 @@ class RatesController extends Controller
             ->rawColumns(['actions'])
             ->make(true);
     }
-    
+
 }

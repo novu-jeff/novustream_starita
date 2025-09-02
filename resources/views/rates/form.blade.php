@@ -18,7 +18,7 @@
                     @csrf
                     @if(isset($data))
                         @method('PUT')
-                    @endif       
+                    @endif
                     <div class="row d-flex justify-content-center">
                         <div class="col-12 col-md-7 mb-3">
                             <div class="card shadow border-0 p-2">
@@ -65,15 +65,15 @@
                                 <h3 class="mb-3">💧 Add Water Rate – Instructions</h3>
                                 <ol class="mb-3">
                                     <li>
-                                        <strong>Select the Property Type</strong> – Choose which type of property the new rates will apply to 
+                                        <strong>Select the Property Type</strong> – Choose which type of property the new rates will apply to
                                         (e.g., Residential, Commercial).
                                     </li>
                                     <li>
-                                        <strong>Enter the Maximum Cubic Meter</strong> – Type the maximum <code>cu.m</code> (cubic meter) value 
+                                        <strong>Enter the Maximum Cubic Meter</strong> – Type the maximum <code>cu.m</code> (cubic meter) value
                                         you want to add rates up to.
                                         <ul>
                                             <li>The system will check the <em>last existing rate</em> for that property type.</li>
-                                            <li>It will then automatically <strong>add new rows</strong> for the missing cubic meter values 
+                                            <li>It will then automatically <strong>add new rows</strong> for the missing cubic meter values
                                                 starting from the next <code>cu.m</code> after the highest one, up to the number you input.</li>
                                         </ul>
                                     </li>
@@ -96,7 +96,7 @@
                                         ✅ <strong>Success Message</strong> – You’ll see a confirmation that new water rates have been added successfully.
                                     </li>
                                 </ol>
-                            </div>                            
+                            </div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-end my-5">

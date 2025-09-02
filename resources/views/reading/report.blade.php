@@ -2,6 +2,28 @@
 
 @section('content')
     <main class="main">
+      <div class="container-fluid my-4">
+        <div class="row row-cols-2 row-cols-md-6 row-cols-lg-8 g-2 justify-content-center">
+            @foreach($zones as $zone)
+                <div class="col">
+                    <div class="card h-100 shadow-sm text-center">
+                    <div class="card-body d-flex flex-column justify-content-center">
+                        <div class="fw-bold text-primary">
+                        {{ $zone->read_count ?? 0 }} / {{ $zone->total_accounts }}
+                        </div>
+                        <div class="text-uppercase text-muted mt-2">
+                        {{ $zone->zone }} - {{ $zone->address }}
+                        </div>
+                    </div>
+                    </div>
+                </div>
+            @endforeach
+            </div>
+        </div>
+
+
+
+
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>All Meter Readings</h1>
@@ -23,7 +45,7 @@
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
                             <option value="all">All Zones</option>
                             @forelse($zones as $targetedZone)
-                                <option value="{{$targetedZone->zone}}" {{$targetedZone->zone == $zone ? 'selected' : ''}}> {{$targetedZone->zone . ' - ' . $targetedZone->area}} </option>
+                                <option value="{{$targetedZone->zone}}" {{$targetedZone->zone == $zone ? 'selected' : ''}}> {{$targetedZone->zone . ' - ' . $targetedZone->address}} </option>
                             @empty
                                 <option value="">No Zones Available</option>
                             @endforelse
@@ -36,19 +58,19 @@
                     <div class="col-12 col-md-4">
                         <label class="mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
                         <div class="position-relative">
-                            <input 
-                                type="text" 
-                                name="search" 
-                                id="search" 
-                                class="form-control pe-5" 
-                                value="{{ $toSearch }}" 
+                            <input
+                                type="text"
+                                name="search"
+                                id="search"
+                                class="form-control pe-5"
+                                value="{{ $toSearch }}"
                                 placeholder=""
                             >
 
                             @if(!empty($toSearch))
-                                <button 
-                                    type="button" 
-                                    id="clear-search" 
+                                <button
+                                    type="button"
+                                    id="clear-search"
                                     class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
                                     style="border: none; background: none; font-size: 1.2rem;"
                                     aria-label="Clear search"

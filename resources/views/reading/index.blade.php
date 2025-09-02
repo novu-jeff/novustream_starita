@@ -56,20 +56,10 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-3 mb-3">
-                            <div class="card">
-                                <div class="card-body">
-                                    <label for="targetDate" class="form-label">View Read or Unread Accounts</label>
-                                    <input type="month" name="targetDate" id="targetDate" class="form-control">
-                                    <button class="btn btn-primary mt-3 text-uppercase float-end px-4 fw-medium" id="showReadUnread" style="font-size: 14px; !important">Show</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="recent-reading-container"></div>   
                     </div>
                     <div class="mb-5" style="width: 100%">
                         <div class="concessionaire-result">
-                            
+
                         </div>
                         <div class="concessionaire-list">
 
@@ -112,7 +102,7 @@
     const isReRead = '{{$isReRead ? 'true' : 'false'}}';
     const reference_no = '{{$reference_no}}';
     const recentReading = @json(session('recent_reading'))
-    
+
     $(function () {
 
 
@@ -123,7 +113,7 @@
             }, 100);
         @endif
 
-        checkIsReRead();            
+        checkIsReRead();
 
         function checkIsReRead() {
 
@@ -153,7 +143,7 @@
                     modalContent+=`
                         <hr>
                         <div class="row mt-3">
-                            @if(env('IS_TEST_READING')) 
+                            @if(env('IS_TEST_READING'))
                                 <div class="col-md-12 mb-3">
                                     <label for="reading_month" class="form-label">Reading Month</label>
                                     <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
@@ -269,21 +259,21 @@
                     const isActive = status === 'AB';
 
                     const cardStyle = `
-                        background-color: ${isActive ? '#fff' : '#dc3545'};
+                        background-color: ${isActive ? '#fff' : '#ffffffff'};
                         cursor: pointer;
                     `;
 
-                    const textColor = isActive ? '' : 'color: #fff;';
-                    
-                    const dot = isActive 
-                        ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>` 
+                    const textColor = isActive ? '' : 'color: #000000ff;';
+
+                    const dot = isActive
+                        ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>`
                         : '';
 
                     const html = `
-                        <div class="card shadow mb-3 account-card" 
-                            data-account-no="${account.account_no}" 
-                            data-index="${offset + index}" 
-                            style="${cardStyle}" 
+                        <div class="card shadow mb-3 account-card"
+                            data-account-no="${account.account_no}"
+                            data-index="${offset + index}"
+                            style="${cardStyle}"
                             data-account='${JSON.stringify(account)}'>
                             <div class="card-body" style="${textColor}">
                                 ${dot}
@@ -341,11 +331,11 @@
         function renderRecentReadingCard(data) {
             if (!data) return;
 
-            const formattedDate = data.timestamp 
+            const formattedDate = data.timestamp
                 ? new Date(data.timestamp).toLocaleString('en-US', {
                     year: 'numeric', month: 'long', day: '2-digit',
                     hour: '2-digit', minute: '2-digit', hour12: true
-                }).replace(',', ' at') 
+                }).replace(',', ' at')
                 : '';
 
             const card = $(`
@@ -461,7 +451,7 @@
                 const previousReading = parseFloat(response.previous_reading ?? 0);
                 const suggestedNextMonth = response.suggestedNextMonth;
                 const sc_expired_date = response.sc_expired_date;
-            
+
                 $('#accountModal .modal-title').html('Proceed Reading');
 
                 let modalContent = `
@@ -475,7 +465,7 @@
                 modalContent+=`
                     <hr>
                     <div class="row mt-3">
-                        @if(env('IS_TEST_READING')) 
+                        @if(env('IS_TEST_READING'))
                             <div class="col-md-12 mb-3">
                                 <label for="reading_month" class="form-label">Reading Month</label>
                                 <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
@@ -518,7 +508,7 @@
             const present = parseFloat($(this).val()) || 0;
             const previous = parseFloat($('#previous_reading').val()) || 0;
             const consumption = Math.max(present - previous, 0);
-            
+
             $('#consumption').val(consumption);
 
             $('#proceedButton').removeClass('d-none');
