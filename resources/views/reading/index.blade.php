@@ -256,7 +256,7 @@
 
                 data.forEach((account, index) => {
                     const status = account.status;
-                    const isActive = status === 'AB';
+                    const isActive = account.user?.isActive == 1;
 
                     const cardStyle = `
                         background-color: ${isActive ? '#fff' : '#ffffffff'};
@@ -267,7 +267,7 @@
 
                     const dot = isActive
                         ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>`
-                        : '';
+                        : `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #ff1a1aff;"></div>`;
 
                     const html = `
                         <div class="card shadow mb-3 account-card"

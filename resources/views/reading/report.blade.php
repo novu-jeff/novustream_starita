@@ -3,23 +3,23 @@
 @section('content')
     <main class="main">
       <div class="container-fluid my-4">
-        <div class="row row-cols-2 row-cols-md-6 row-cols-lg-8 g-2 justify-content-center">
+        <div class="row row-cols-3 row-cols-md-3 row-cols-lg-auto g-3 justify-content-center">
             @foreach($zones as $zone)
                 <div class="col">
-                    <div class="card h-100 shadow-sm text-center">
-                    <div class="card-body d-flex flex-column justify-content-center">
-                        <div class="fw-bold text-primary">
-                        {{ $zone->read_count ?? 0 }} / {{ $zone->total_accounts }}
+                    <div class="card h-100 shadow-sm text-center border border-primary-subtle">
+                        <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
+                            <div class="fw-bold text-primary fs-6">
+                                {{ $zone->read_count ?? 0 }} / {{ $zone->total_accounts }}
+                            </div>
+                            <div class="text-uppercase text-muted mt-1 small">
+                                {{ $zone->zone }} - {{ $zone->address }}
+                            </div>
                         </div>
-                        <div class="text-uppercase text-muted mt-2">
-                        {{ $zone->zone }} - {{ $zone->address }}
-                        </div>
-                    </div>
                     </div>
                 </div>
             @endforeach
-            </div>
         </div>
+
 
 
 
@@ -84,6 +84,7 @@
                 <table class="w-100 table table-bordered table-hover mt-4">
                     <thead>
                         <tr>
+                            <th>Reference No</th>
                             <th>Account No</th>
                             <th>Name</th>
                             <th>Previous Reading</th>
@@ -96,6 +97,7 @@
                     <tbody>
                         @forelse ($data as $index => $row)
                              <tr>
+                                <td>{{ $row->reference_no }}</td>
                                 <td>{{ $row->account_no }}</td>
                                 <td>{{ $row->concessionaire->user->name ?? 'N/A' }}</td>
                                 <td>{{ $row->previous_reading }}</td>

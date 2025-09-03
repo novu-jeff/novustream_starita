@@ -15,15 +15,21 @@
                         <div class="col-md-12 mb-3">
                             <label for="file" class="form-label">CSV or Excel File</label>
                             <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file">
-                        </div> 
+                        </div>
                         <div class="col-12 mt-3 text-muted">
                             <small class="text-uppercase fw-bold">What can you import?</small>
                             <ul class="mt-2 text-uppercase fw-bold" style="font-size: 12px;">
+                                <li>Client Informations</li>
+                                <li>Admin Accounts</li>
+                                <li>Technician Accounts</li>
                                 <li>Concessionaires Informations</li>
+                                <li>Advances</li>
+                                <li>Outstanding Balance</li>
                                 <li>Senior Citizen Discounts</li>
                                 <li>Rates / Rate Codes</li>
-                                <li>Zones</li>
                                 <li>Status Codes</li>
+                                <li>Zones</li>
+                                <li>Settings</li>
                             </ul>
                         </div>
                         <div class="warning">
@@ -33,7 +39,7 @@
                     <div class="d-flex justify-content-end my-5">
                         <button type="submit" class="showBtn btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
                     </div>
-                </form>                
+                </form>
             </div>
         </div>
     </main>
@@ -49,7 +55,7 @@
                 }, 100);
             @endif
 
-                
+
         $("form").on("submit", function (e) {
 
             e.preventDefault();
@@ -74,7 +80,7 @@
                 let delay = 0;
 
                 messages.forEach(({ sheet, status, message, errors = [] }) => {
-                   
+
                      setTimeout(() => {
                         alert(status, `${message}`);
                     }, delay);

@@ -105,9 +105,15 @@ class ReadingController extends Controller
             }
         }
 
-        $zones = $this->meterService->getZones();
+        // $zones = $this->meterService->getZones();
+        $zones = Zone::all();
 
-        return view('reading.index', compact('isReRead', 'reference_no', 'zones'));
+
+return view('reading.index', [
+    'isReRead' => $isReRead,
+    'reference_no' => $reference_no,
+    'zones' => $zones,
+]);
     }
 
 
@@ -153,14 +159,14 @@ class ReadingController extends Controller
     public function report(Request $request)
 {
     $month = $request->input('date', now()->month);
-    $year = $request->input('year', now()->year); // Optional, for year-specific filtering
+    $year = $request->input('year', now()->year);
 
     $zone = $request->zone ?? 'all';
     $entries = $request->entries ?? 10;
     $toSearch = $request->search ?? '';
     $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-    // Step 1: Get all zones with total accounts and meter readings for selected month
+    // Step 1: Get all zones with total accounts
     $zonesRaw = DB::table('concessioner_accounts')
         ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
         ->groupBy('zone', 'address')
@@ -173,15 +179,32 @@ class ReadingController extends Controller
         ->whereMonth('readings.created_at', Carbon::parse($date)->month)
         ->whereYear('readings.created_at', Carbon::parse($date)->year)
         ->groupBy('concessioner_accounts.zone')
-        ->pluck('read_count', 'zone'); // returns associative array: [ '101' => 50, '102' => 40, ...]
+        ->pluck('read_count', 'zone');
 
     // Step 3: Merge read count into zonesRaw
-    $zones = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
+    $zonesMerged = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
         $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
         return $zone;
     });
 
-    // Step 4: Get report data
+    // Step 4: Apply custom order for zones (to match the visual layout you want)
+    $preferredOrder = [
+        // First row
+        '101', '201', '301', '302', '303', '401', '501',
+        // Second row
+        '601', '602', '701', '702', '801', '802', '803',
+        // Third row
+        '804', '805', '806',
+    ];
+
+    // Reorder the zones
+    $zonesByCode = $zonesMerged->keyBy('zone');
+    $zones = collect($preferredOrder)
+        ->map(fn($code) => $zonesByCode[$code] ?? null)
+        ->filter()
+        ->values();
+
+    // Step 5: Get report data
     $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
         ->flatten(2);
 
@@ -201,170 +224,171 @@ class ReadingController extends Controller
 
 
 
-    public function store(Request $request)
-    {
-        $payload = $request->all();
 
-        if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
-            session()->forget('recent_reading');
+    public function store(Request $request)
+{
+    $payload = $request->all();
+
+    Log::info('Reading Store Request', $request->all());
+
+
+    if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
+        session()->forget('recent_reading');
+        return response()->json([
+            'status' => 'success',
+            'message' => 'recent reading cleared'
+        ]);
+    }
+
+    $validator = Validator::make($payload, [
+        'reading_month' => [
+            function ($attribute, $value, $fail) {
+                if ($this->isTesting && empty($value)) {
+                    return $fail('Reading month is required.');
+                }
+            }
+        ],
+        'account_no' => [
+            'required',
+            function ($attribute, $value, $fail) {
+                if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
+                    $fail('The meter no. or account no. does not exist.');
+                }
+            },
+        ],
+        'previous_reading' => 'required|integer|min:0',
+        'present_reading' => 'required|integer|min:0',
+        'is_high_consumption' => 'required|in:yes,no',
+        'isReRead' => 'required|in:true,false',
+        'reference_no' => 'nullable|exists:bill,reference_no'
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Validation failed.',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    try {
+        $date = $this->isTesting
+            ? Carbon::createFromFormat('Y-m-d', $payload['reading_month'])
+            : Carbon::now();
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid reading month format.'
+        ], 400);
+    }
+
+    $month = $date->month;
+    $year = $date->year;
+    $account_no = $payload['account_no'];
+    $isReRead = $payload['isReRead'] === 'true' ? true : false;
+
+    if (!$isReRead) {
+        $exists = Reading::whereMonth('created_at', $month)
+            ->whereYear('created_at', $year)
+            ->where('account_no', $account_no)
+            ->exists();
+
+        if ($exists) {
             return response()->json([
-                'status' => 'success',
-                'message' => 'recent reading cleared'
-            ]);
+                'status' => 'error',
+                'message' => "Reading already exists for {$date->format('F Y')}."
+            ], 409);
+        }
+    }
+
+    DB::beginTransaction();
+
+    try {
+        $account = $this->meterService->getAccount($account_no);
+
+        $present_reading = $payload['present_reading'];
+        $previous_reading = $payload['previous_reading'];
+        $consumption = $present_reading - $previous_reading;
+
+        if ($consumption < 0) {
+            throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
-        $validator = Validator::make($payload, [
-            'reading_month' => [
-                function ($attribute, $value, $fail) {
-                    if ($this->isTesting && empty($value)) {
-                        return $fail('Reading month is required.');
-                    }
-                }
-            ],
-            'account_no' => [
-                'required',
-                function ($attribute, $value, $fail) {
-                    if (!DB::table('concessioner_accounts')
-                        ->where('account_no', $value)
-                        ->exists()) {
-                        $fail('The meter no. or account no. does not exist.');
-                    }
-                },
-            ],
-            'previous_reading' => 'required|integer',
-            'present_reading' => 'required|integer',
-            'is_high_consumption' => 'required|in:yes,no',
-            'isReRead' => 'required|in:true,false',
-            'reference_no' => 'nullable|exists:bill,reference_no'
+        $computed = $this->meterService->create_breakdown([
+            'account_no' => $account_no,
+            'property_type_id' => $account->property_type,
+            'present_reading' => $present_reading,
+            'previous_reading' => $previous_reading,
+            'consumption' => $consumption,
+            'date' => $date,
+            'is_high_consumption' => $payload['is_high_consumption'],
+            'isReRead' => $isReRead,
+            'reference_no' => $payload['reference_no'] ?? null
         ]);
 
-        if ($validator->fails()) {
+        if ($computed['status'] === 'error') {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            if ($this->isTesting) {
-                $date = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
-            } else {
-                $date = Carbon::now();
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid reading month format. Use "Month YYYY" (e.g., January 2025).'
+                'message' => $computed['message']
             ], 400);
         }
 
-        $month = $date->month;
-        $year = $date->year;
-        $account_no = $payload['account_no'];
+        $amount = (float) $computed['bill']['amount'] + (float) $computed['bill']['penalty'];
+        $reference_no = $computed['bill']['reference_no'];
 
-        $isReRead = $payload['isReRead'];
-
-        if(!$isReRead) {
-            $exists = Reading::whereMonth('created_at', $month)
-                ->whereYear('created_at', $year)
-                ->where('account_no', $account_no)
-                ->exists();
-
-            if ($exists) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "Reading already exists for {$date->format('F Y')}."
-                ], 409);
-            }
-        }
-
-        DB::beginTransaction();
-
-        try {
-
-            $account = $this->meterService->getAccount($payload['account_no']);
-
-            $account_no = $account->account_no;
-            $property_type_id = $account->property_type;
-
-            $present_reading = $payload['present_reading'];
-            $is_high_consumption = $payload['is_high_consumption'];
-            $reference_no = $payload['reference_no'] ?? null;
-
-            $computed = $this->meterService->create_breakdown([
-                'account_no' => $account_no,
-                'property_type_id' => $property_type_id,
-                'present_reading' => $present_reading,
-                'date' => $date,
-                'is_high_consumption' => $is_high_consumption,
-                'isReRead' => $isReRead,
-                'reference_no' => $reference_no
-            ]);
-
-            if ($computed['status'] == 'error') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => $computed['message']
-                ], 400);
-            }
-
-            $amount = (float) $computed['bill']['amount'] + (float) $computed['bill']['penalty'];
-
-            $payload = [
-                'amount' => (float) $amount,
-                'reference_no' => $computed['bill']['reference_no'],
-                'customer' => [
-                    'account_number' => $account->account_no ?? '',
-                    'address' => $account->address ?? '',
-                    'email' => $account->user->email ?? '',
-                    'name' => $account->user->name ?? '',
-                    'phone_number' => $account->user->contact_no ?? '',
-                    'remark' => ''
-                ],
-            ];
-
-            $reference_no = $computed['bill']['reference_no'];
-
-            $response = $this->generatePaymentQR($reference_no, $payload);
-
-            if(!$response) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Failed to save this transaction. Please try again later.'
-                ], 500);
-            }
-
-            session(['recent_reading' => [
+        $paymentPayload = [
+            'amount' => $amount,
+            'reference_no' => $reference_no,
+            'customer' => [
+                'account_number' => $account->account_no,
+                'address' => $account->address,
+                'email' => $account->user->email ?? '',
                 'name' => $account->user->name ?? '',
-                'address' => $account->address ?? '',
-                'account_no' => $account->account_no ?? '',
-                'timestamp' => Carbon::now()
-            ]]);
+                'phone_number' => $account->user->contact_no ?? '',
+                'remark' => ''
+            ],
+        ];
 
-            DB::commit();
+        $qrResponse = $this->generatePaymentQR($reference_no, $paymentPayload);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Bill has been created, redirecting...',
-                'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
-                'data' => [
-                    'reference_no' => $reference_no,
-                    'amount' => $payload['amount'],
-                    'customer' => $payload['customer']
-                ]
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Reading Store Error:', ['exception' => $e]);
-
+        if (!$qrResponse) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Error occurred: ' . $e->getMessage()
+                'message' => 'Failed to save this transaction. Please try again later.'
             ], 500);
         }
+
+        session(['recent_reading' => [
+            'name' => $account->user->name ?? '',
+            'address' => $account->address ?? '',
+            'account_no' => $account->account_no ?? '',
+            'timestamp' => Carbon::now()
+        ]]);
+
+        DB::commit();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Bill has been created, redirecting...',
+            'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
+            'data' => [
+                'reference_no' => $reference_no,
+                'amount' => $amount,
+                'customer' => $paymentPayload['customer']
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Reading Store Error:', ['exception' => $e]);
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Error occurred: ' . $e->getMessage()
+        ], 500);
     }
+}
+
 
     private function convertAmount(float $amount): string
     {
@@ -444,5 +468,45 @@ class ReadingController extends Controller
             ->rawColumns(['actions'])
             ->make(true);
     }
+
+    public function create_breakdown(array $data)
+{
+    try {
+        // Log inputs for debugging
+        Log::info('Creating breakdown with data:', $data);
+
+        $rate = \App\Models\Rates::where('property_types_id', $data['property_type_id'])
+            ->where('cu_m', '<=', $data['consumption'])
+            ->orderBy('cu_m', 'desc')
+            ->first();
+
+        if (!$rate) {
+            Log::warning("No rate found for property type {$data['property_type_id']} and consumption {$data['consumption']}");
+
+            return [
+                'status' => 'error',
+                'message' => "We've noticed that there's no rate for this consumption"
+            ];
+        }
+
+        // Simulate your actual billing breakdown logic here
+        return [
+            'status' => 'success',
+            'bill' => [
+                'reference_no' => 'REF' . now()->timestamp,
+                'amount' => $rate->amount,
+                'penalty' => 0
+            ]
+        ];
+    } catch (\Exception $e) {
+        Log::error('create_breakdown failed', ['error' => $e->getMessage()]);
+
+        return [
+            'status' => 'error',
+            'message' => 'An unexpected error occurred during billing.'
+        ];
+    }
+}
+
 
 }

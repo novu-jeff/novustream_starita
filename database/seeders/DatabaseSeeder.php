@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             BillSeeder::class,
             ConcessionerAccountSeeder::class,
             UserSeeder::class,
+            ZoneSeeder::class,
         ]);
 
     }

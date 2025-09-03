@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\ConcessionerAccount;
+use App\Models\PropertyTypes;
 
 class ConcessionerAccountSeeder extends Seeder
 {
@@ -14,6 +15,7 @@ class ConcessionerAccountSeeder extends Seeder
         ConcessionerAccount::truncate();
 
         $users = User::all();
+        $propertyTypes = PropertyTypes::pluck('name')->toArray(); // Fetch all property type names
 
         // Zones mapping
         $zones = [
@@ -47,9 +49,11 @@ class ConcessionerAccountSeeder extends Seeder
             $zoneCounters[$zoneNumber] = $lastAccount ? intval(substr($lastAccount->account_no, -5)) + 1 : 1;
         }
 
+        $propertyTypeCount = count($propertyTypes);
+        $userIndex = 0;
+
         foreach ($users as $user) {
-            // Example: Determine user zone. You can modify this logic to assign based on real registration info
-            // For testing, let's assign sequentially through the zones
+            // Cycle through zones
             $zoneNumber = array_keys($zones)[$user->id % count($zones)];
             $zoneArea = $zones[$zoneNumber];
 
@@ -57,7 +61,11 @@ class ConcessionerAccountSeeder extends Seeder
             $seq = str_pad($zoneCounters[$zoneNumber], 5, '0', STR_PAD_LEFT);
             $accountNo = "{$zoneNumber}-12-{$seq}";
 
-            // Increment counter for that zone
+            // Pick property type (even distribution)
+            $propertyType = $propertyTypes[$userIndex % $propertyTypeCount];
+            $userIndex++;
+
+            // Increment zone counter
             $zoneCounters[$zoneNumber]++;
 
             ConcessionerAccount::create([
@@ -65,20 +73,20 @@ class ConcessionerAccountSeeder extends Seeder
                 'zone' => $zoneNumber,
                 'account_no' => $accountNo,
                 'address' => $zoneArea,
-                'property_type' => 'Residential',
-                'rate_code' => rand(1,5),
+                'property_type' => $propertyType,
+                'rate_code' => rand(1, 5),
                 'status' => 'Active',
-                'meter_brand' => 'Brand ' . rand(1,3),
+                'meter_brand' => 'Brand ' . rand(1, 3),
                 'meter_serial_no' => strtoupper(fake()->bothify('SN####')),
-                'sc_no' => 'SC-' . rand(1000,9999),
-                'date_connected' => now()->subDays(rand(10,300)),
-                'sequence_no' => rand(1,100),
-                'meter_type' => 'Type-' . rand(1,3),
-                'meter_wire' => 'Wire-' . rand(1,3),
-                'meter_form' => 'Form-' . rand(1,3),
-                'meter_class' => 'Class-' . rand(1,3),
+                'sc_no' => 'SC-' . rand(1000, 9999),
+                'date_connected' => now()->subDays(rand(10, 300)),
+                'sequence_no' => rand(1, 100),
+                'meter_type' => 'Type-' . rand(1, 3),
+                'meter_wire' => 'Wire-' . rand(1, 3),
+                'meter_form' => 'Form-' . rand(1, 3),
+                'meter_class' => 'Class-' . rand(1, 3),
                 'lat_long' => fake()->latitude() . ', ' . fake()->longitude(),
-                'isErcSealed' => (bool)rand(0,1),
+                'isErcSealed' => (bool)rand(0, 1),
                 'inspection_image' => 'default.jpg',
                 'created_at' => now(),
                 'updated_at' => now(),

@@ -47,10 +47,7 @@
 							Import
 						</button>
 						<ul class="dropdown-menu mt-3">
-							<li><a class="dropdown-item" href="{{route('import')}}">Concessionaire</a></li>
-							<li><a class="dropdown-item" href="{{route('import')}}">Senior Citizen Discount</a></li>
-							<li><a class="dropdown-item" href="{{route('import')}}">Rate Codes</a></li>
-							<li><a class="dropdown-item" href="{{route('import')}}">Status Code</a></li>
+							<li><a class="dropdown-item" href="{{route('import')}}">Global Informations</a></li>
 							<li><a class="dropdown-item" href="{{route('previous-billing.upload')}}">Previous Billing</a></li>
 						</ul>
 					</div>

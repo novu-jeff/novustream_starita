@@ -32,68 +32,82 @@ class ImportController extends Controller
         $sheetNames = $spreadsheet->getSheetNames();
 
         $sheetToProcessMap = [
-            'client informations' => 'client_informations',
+            'client informations'     => 'client_informations',
+            'admin accounts'          => 'admin_accounts',
+            'technician accounts'     => 'technician_accounts',
             'concessionaire informations' => 'concessionaire',
-            'senior citizen discount'      => 'sc_discount',
-            'rates code' => 'rates_code',
-            'status code' => 'status_code',
-            'zones' => 'zones',
-            'settings' => 'settings',
+            'advances'                => 'advances',
+            'outstanding balance'     => 'outstanding_balance',
+            'senior citizen discount' => 'sc_discount',
+            'rates code'              => 'rates_code',
+            'status code'             => 'status_code',
+            'zones'                   => 'zones',
+            'settings'                => 'settings',
         ];
 
+
         $allowedProcesses = [
-            'client_informations' => [
-                'expected_headers' => [
-                    'name', 'value', 'description'
-                ],
-                'import_class' => \App\Imports\ClientInformationImport::class,
-                'success_message' => 'Client Informations imported successfully.',
+        'client_informations' => [
+            'expected_headers' => ['name', 'value', 'description'],
+            'import_class' => \App\Imports\ClientInformationImport::class,
+            'success_message' => 'Client Informations imported successfully.',
+        ],
+        'admin_accounts' => [
+            'expected_headers' => ['name', 'email', 'password'],
+            'import_class' => \App\Imports\AdminAccountsImport::class,
+            'success_message' => 'Admin Accounts imported successfully.',
+        ],
+        'technician_accounts' => [
+            'expected_headers' => ['name', 'email', 'password'],
+            'import_class' => \App\Imports\TechnicianAccountsImport::class,
+            'success_message' => 'Technician Accounts imported successfully.',
+        ],
+        'concessionaire' => [
+            'expected_headers' => [
+                'account_no', 'name', 'address', 'rate_code', 'status',
+                'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
+                'contact_no', 'sequence_no'
             ],
-            'concessionaire' => [
-                'expected_headers' => [
-                    'account_no', 'name', 'address', 'rate_code', 'status',
-                    'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
-                    'contact_no', 'sequence_no'
-                ],
-                'import_class' => \App\Imports\ConcessionaireImport::class,
-                'success_message' => 'Concessionaires imported successfully.',
-            ],
-            'sc_discount' => [
-                'expected_headers' => [
-                    'account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'
-                ],
-                'import_class' => \App\Imports\SCDiscountImport::class,
-                'success_message' => 'Senior Citizen Discounts imported successfully.',
-            ],
-            'rates_code' => [
-                'expected_headers' => [
-                    'rate_code', 'name', 'rate', '0_10', '11_20', '21_30', '31_40', '41_50', '51_60'
-                ],
-                'import_class' => \App\Imports\RateCodesImport::class,
-                'success_message' => 'Rate Codes imported successfully.',
-            ],
-            'status_code' => [
-                'expected_headers' => [
-                    'code', 'name'
-                ],
-                'import_class' => \App\Imports\StatusCodeImport::class,
-                'success_message' => 'Status Codes imported successfully.',
-            ],
-            'zones' => [
-                'expected_headers' => [
-                    'zone', 'area'
-                ],
-                'import_class' => \App\Imports\ZoneImport::class,
-                'success_message' => 'Zones imported successfully.',
-            ],
-            'settings' => [
-                'expected_headers' => [
-                    'name', 'value', 'description'
-                ],
-                'import_class' => \App\Imports\SettingsImport::class,
-                'success_message' => 'Settings imported successfully.',
-            ],
-        ];
+            'import_class' => \App\Imports\ConcessionaireImport::class,
+            'success_message' => 'Concessionaires imported successfully.',
+        ],
+        'advances' => [
+            'expected_headers' => ['account_no', 'amount', 'date_applied'],
+            'import_class' => \App\Imports\AdvancesImport::class,
+            'success_message' => 'Advances imported successfully.',
+        ],
+        'outstanding_balance' => [
+            'expected_headers' => ['account_no', 'amount'],
+            'import_class' => \App\Imports\OutstandingBalanceImport::class,
+            'success_message' => 'Outstanding Balances imported successfully.',
+        ],
+        'sc_discount' => [
+            'expected_headers' => ['account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'],
+            'import_class' => \App\Imports\SCDiscountImport::class,
+            'success_message' => 'Senior Citizen Discounts imported successfully.',
+        ],
+        'rates_code' => [
+            'expected_headers' => ['rate_code', 'name', 'rate', '0_10', '11_20', '21_30', '31_40', '41_50', '51_60'],
+            'import_class' => \App\Imports\RateCodesImport::class,
+            'success_message' => 'Rate Codes imported successfully.',
+        ],
+        'status_code' => [
+            'expected_headers' => ['code', 'name'],
+            'import_class' => \App\Imports\StatusCodeImport::class,
+            'success_message' => 'Status Codes imported successfully.',
+        ],
+        'zones' => [
+            'expected_headers' => ['zone', 'area'],
+            'import_class' => \App\Imports\ZoneImport::class,
+            'success_message' => 'Zones imported successfully.',
+        ],
+        'settings' => [
+            'expected_headers' => ['name', 'value', 'description'],
+            'import_class' => \App\Imports\SettingsImport::class,
+            'success_message' => 'Settings imported successfully.',
+        ],
+    ];
+
 
         $allMessages = [];
         $importedSheets = [];
@@ -172,7 +186,7 @@ class ImportController extends Controller
 
                 $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
                 $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 2;
-                
+
                 if(in_array($sheetKey, ['client informations', 'settings'])) {
                     $totalImported = $rowCount;
                 } else {
