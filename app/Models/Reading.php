@@ -35,8 +35,9 @@ class Reading extends Model
         return $this->hasOne(Bill::class, 'reading_id', 'id');
     }
     public function sc_discount()
-{
-    return $this->belongsTo(SCDiscount::class);
-}
+    {
+        return $this->belongsTo(SCDiscount::class);
+    }
+
 
 }

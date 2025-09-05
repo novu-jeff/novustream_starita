@@ -7,6 +7,7 @@ use App\Models\PaymentServiceFee;
 use App\Models\User;
 use App\Models\Bill;
 use App\Models\BillBreakdown;
+use App\Models\Rates;
 use App\Models\Reading;
 use App\Services\GenerateService;
 use App\Services\MeterService;
@@ -63,17 +64,17 @@ class ReadingController extends Controller
             $payload = $request->all();
 
             if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
-    try {
-        $response = $this->meterService->getPreviousReading($payload['account_no']);
-        return response()->json($response);
-    } catch (\Exception $e) {
-        Log::error('getPreviousReading failed: ' . $e->getMessage());
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Unable to get previous reading.'
-        ], 500);
-    }
-}
+                try {
+                    $response = $this->meterService->getPreviousReading($payload['account_no']);
+                    return response()->json($response);
+                } catch (\Exception $e) {
+                    Log::error('getPreviousReading failed: ' . $e->getMessage());
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Unable to get previous reading.'
+                    ], 500);
+                }
+            }
 
 
             if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
@@ -109,12 +110,12 @@ class ReadingController extends Controller
         $zones = Zone::all();
 
 
-return view('reading.index', [
-    'isReRead' => $isReRead,
-    'reference_no' => $reference_no,
-    'zones' => $zones,
-]);
-    }
+    return view('reading.index', [
+        'isReRead' => $isReRead,
+        'reference_no' => $reference_no,
+        'zones' => $zones,
+    ]);
+        }
 
 
 
@@ -156,77 +157,75 @@ return view('reading.index', [
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
-    public function report(Request $request)
-{
-    $month = $request->input('date', now()->month);
-    $year = $request->input('year', now()->year);
+    public function report(Request $request) {
+        $month = $request->input('date', now()->month);
+        $year = $request->input('year', now()->year);
 
-    $zone = $request->zone ?? 'all';
-    $entries = $request->entries ?? 10;
-    $toSearch = $request->search ?? '';
-    $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+        $zone = $request->zone ?? 'all';
+        $entries = $request->entries ?? 10;
+        $toSearch = $request->search ?? '';
+        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-    // Step 1: Get all zones with total accounts
-    $zonesRaw = DB::table('concessioner_accounts')
-        ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
-        ->groupBy('zone', 'address')
-        ->get();
+        // Step 1: Get all zones with total accounts
+        $zonesRaw = DB::table('concessioner_accounts')
+            ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
+            ->groupBy('zone', 'address')
+            ->get();
 
-    // Step 2: Get meter readings count per zone for selected month
-    $readingsPerZone = DB::table('readings')
-        ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-        ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
-        ->whereMonth('readings.created_at', Carbon::parse($date)->month)
-        ->whereYear('readings.created_at', Carbon::parse($date)->year)
-        ->groupBy('concessioner_accounts.zone')
-        ->pluck('read_count', 'zone');
+        // Step 2: Get meter readings count per zone for selected month
+        $readingsPerZone = DB::table('readings')
+            ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+            ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
+            ->whereMonth('readings.created_at', Carbon::parse($date)->month)
+            ->whereYear('readings.created_at', Carbon::parse($date)->year)
+            ->groupBy('concessioner_accounts.zone')
+            ->pluck('read_count', 'zone');
 
-    // Step 3: Merge read count into zonesRaw
-    $zonesMerged = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
-        $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
-        return $zone;
-    });
+        // Step 3: Merge read count into zonesRaw
+        $zonesMerged = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
+            $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
+            return $zone;
+        });
 
-    // Step 4: Apply custom order for zones (to match the visual layout you want)
-    $preferredOrder = [
-        // First row
-        '101', '201', '301', '302', '303', '401', '501',
-        // Second row
-        '601', '602', '701', '702', '801', '802', '803',
-        // Third row
-        '804', '805', '806',
-    ];
+        // Step 4: Apply custom order for zones (to match the visual layout you want)
+        $preferredOrder = [
+            // First row
+            '101', '201', '301', '302', '303', '401', '501',
+            // Second row
+            '601', '602', '701', '702', '801', '802', '803',
+            // Third row
+            '804', '805', '806',
+        ];
 
-    // Reorder the zones
-    $zonesByCode = $zonesMerged->keyBy('zone');
-    $zones = collect($preferredOrder)
-        ->map(fn($code) => $zonesByCode[$code] ?? null)
-        ->filter()
-        ->values();
+        // Reorder the zones
+        $zonesByCode = $zonesMerged->keyBy('zone');
+        $zones = collect($preferredOrder)
+            ->map(fn($code) => $zonesByCode[$code] ?? null)
+            ->filter()
+            ->values();
 
-    // Step 5: Get report data
-    $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
-        ->flatten(2);
+        // Step 5: Get report data
+        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
+            ->flatten(2);
 
-    $currentPage = LengthAwarePaginator::resolveCurrentPage();
-    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
 
-    $data = new LengthAwarePaginator(
-        $currentItems,
-        $collection->count(),
-        $entries,
-        $currentPage,
-        ['path' => $request->url(), 'query' => $request->query()]
-    );
+        $data = new LengthAwarePaginator(
+            $currentItems,
+            $collection->count(),
+            $entries,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
-    return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
-}
-
+        return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
+    }
 
 
 
-    public function store(Request $request)
-{
+
+    public function store(Request $request) {
     $payload = $request->all();
 
     Log::info('Reading Store Request', $request->all());
@@ -241,27 +240,28 @@ return view('reading.index', [
     }
 
     $validator = Validator::make($payload, [
-        'reading_month' => [
-            function ($attribute, $value, $fail) {
-                if ($this->isTesting && empty($value)) {
-                    return $fail('Reading month is required.');
-                }
+    'reading_month' => [
+        function ($attribute, $value, $fail) {
+            if ($this->isTesting && empty($value)) {
+                return $fail('Reading month is required.');
             }
-        ],
-        'account_no' => [
-            'required',
-            function ($attribute, $value, $fail) {
-                if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
-                    $fail('The meter no. or account no. does not exist.');
-                }
-            },
-        ],
-        'previous_reading' => 'required|integer|min:0',
-        'present_reading' => 'required|integer|min:0',
-        'is_high_consumption' => 'required|in:yes,no',
-        'isReRead' => 'required|in:true,false',
-        'reference_no' => 'nullable|exists:bill,reference_no'
-    ]);
+        }
+    ],
+    'account_no' => [
+        'required',
+        function ($attribute, $value, $fail) {
+            if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
+                $fail('The meter no. or account no. does not exist.');
+            }
+        },
+    ],
+    'previous_reading' => 'required|integer|min:0',
+    'present_reading' => 'required|integer|min:0',
+    'is_high_consumption' => 'required|in:yes,no',
+    'isReRead' => 'required|in:true,false',
+    'reference_no' => 'nullable|exists:bill,reference_no'
+]);
+
 
     if ($validator->fails()) {
         return response()->json([
@@ -305,6 +305,7 @@ return view('reading.index', [
 
     try {
         $account = $this->meterService->getAccount($account_no);
+        Log::info('Account info:', ['account' => $account]);
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];
@@ -316,7 +317,7 @@ return view('reading.index', [
 
         $computed = $this->meterService->create_breakdown([
             'account_no' => $account_no,
-            'property_type_id' => $account->property_type,
+            'property_types_id' => $account->property_types_id,
             'present_reading' => $present_reading,
             'previous_reading' => $previous_reading,
             'consumption' => $consumption,
@@ -469,27 +470,33 @@ return view('reading.index', [
             ->make(true);
     }
 
-    public function create_breakdown(array $data)
-{
-    try {
-        // Log inputs for debugging
-        Log::info('Creating breakdown with data:', $data);
+    public function create_breakdown(array $data) {
+        try {
+            // Log inputs for debugging
+            Log::info('Creating breakdown with data:', $data);
 
-        $rate = \App\Models\Rates::where('property_types_id', $data['property_type_id'])
+            $rate = Rates::where('property_types_id', $data['property_types_id'])
             ->where('cu_m', '<=', $data['consumption'])
             ->orderBy('cu_m', 'desc')
             ->first();
 
         if (!$rate) {
-            Log::warning("No rate found for property type {$data['property_type_id']} and consumption {$data['consumption']}");
+            Log::warning("No rate found for property type {$data['property_types_id']} and consumption {$data['consumption']}");
 
-            return [
-                'status' => 'error',
-                'message' => "We've noticed that there's no rate for this consumption"
-            ];
+            // Optional: fallback rate
+            $rate = Rates::where('property_types_id', $data['property_types_id'])
+                ->orderBy('cu_m', 'desc')
+                ->first();
+
+            if (!$rate) {
+                return [
+                    'status' => 'error',
+                    'message' => "No valid rates found for property type {$data['property_types_id']}. Please configure the rate table."
+                ];
+            }
         }
 
-        // Simulate your actual billing breakdown logic here
+
         return [
             'status' => 'success',
             'bill' => [
@@ -498,15 +505,16 @@ return view('reading.index', [
                 'penalty' => 0
             ]
         ];
-    } catch (\Exception $e) {
-        Log::error('create_breakdown failed', ['error' => $e->getMessage()]);
+        } catch (\Exception $e) {
+            Log::error('create_breakdown failed', ['error' => $e->getMessage()]);
 
-        return [
-            'status' => 'error',
-            'message' => 'An unexpected error occurred during billing.'
-        ];
+            return [
+                'status' => 'error',
+                'message' => 'An unexpected error occurred during billing.'
+            ];
+        }
     }
-}
+
 
 
 }

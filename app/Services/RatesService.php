@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\Hash;
 
 class RatesService {
 
-    public function getBaseRates($property_type_id) {
-        return BaseRate::where('property_type_id', $property_type_id)->orderBy('created_at', 'desc')->get();
+    public function getBaseRates($property_types_id) {
+        return BaseRate::where('property_type_id', $property_types_id)->orderBy('created_at', 'desc')->get();
     }
 
-    public function getActiveBaseRate($property_type_id) {
-        $baseRateQuery = BaseRate::where('property_type_id', $property_type_id)
+    public function getActiveBaseRate($property_types_id) {
+        $baseRateQuery = BaseRate::where('property_types_id', $property_types_id)
         ->latest()
         ->first();
 

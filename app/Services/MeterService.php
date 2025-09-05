@@ -110,22 +110,22 @@ class MeterService {
             }
         }
 
-        $limit = (isset($filter['filter']) && is_numeric($filter['filter'])) 
-            ? (int) $filter['filter'] 
+        $limit = (isset($filter['filter']) && is_numeric($filter['filter']))
+            ? (int) $filter['filter']
             : 50;
 
         return $query->limit($limit)->get()->toArray();
     }
 
     public function getPreviousReading($account_no) {
-        
+
         $previous_reading = Reading::with('sc_discount', 'bill')
             ->where('account_no', $account_no)
             ->latest()
             ->first();
 
         if ($previous_reading) {
-        
+
             $suggestNextMonth = optional($previous_reading->bill)->bill_period_to;
 
             if ($suggestNextMonth) {
@@ -166,7 +166,7 @@ class MeterService {
     }
 
     public function getReRead(string $reference_no) {
-                
+
         $data = $this->getBill($reference_no);
 
         $client = $data['client'];
@@ -178,7 +178,7 @@ class MeterService {
         $sc_discount_end = $data->sc_discount->expired_date ?? null;
 
         if ($sc_discount_start && $sc_discount_end) {
-            $billDate = Carbon::parse($suggestNextMonth);
+            $billDate = Carbon::parse($reading['created_at']);
             $scStartDate = Carbon::parse($sc_discount_start);
             $scEndDate = Carbon::parse($sc_discount_end);
 
@@ -322,7 +322,7 @@ class MeterService {
 
 
 
-    public function locate(array $payload) {    
+    public function locate(array $payload) {
 
         $account = $this->getAccount($payload['meter_no']);
 
@@ -332,7 +332,7 @@ class MeterService {
                 'message' => 'No client found'
             ];
         }
-    
+
         return [
             'status' => 'success',
             'account' => $account,
@@ -344,7 +344,7 @@ class MeterService {
 
         $current_bill = Bill::with('reading.sc_discount', 'breakdown', 'discount')
             ->where('reference_no', $reference_no)
-            ->first();    
+            ->first();
 
         if (!$current_bill) {
             return [
@@ -355,7 +355,7 @@ class MeterService {
 
         // Get meter number from current bill
         $account_no = optional($current_bill->reading)->account_no;
-    
+
         $client = User::with(['accounts.sc_discount', 'accounts.property_types'])
                 ->whereHas('accounts', function ($query) use ($account_no) {
                     $query->where('account_no', $account_no);
@@ -369,14 +369,14 @@ class MeterService {
             ->select('bill.*')
             ->orderBy('bill.created_at', 'desc')
             ->first();
-        
+
         // Prepare base query for unpaid bills
         $unpaidQuery = Bill::with('reading')
             ->where('isPaid', false)
             ->whereHas('reading', function ($query) use ($account_no) {
                 $query->where('account_no', $account_no);
-            });    
-            
+            });
+
         // Fetch the latest unpaid payment (active payment)
         $active_payment = (clone $unpaidQuery)
             ->latest()
@@ -387,7 +387,7 @@ class MeterService {
         $unpaid_bills = (clone $unpaidQuery)
             ->where('reference_no', '!=', $reference_no)
             ->get();
-    
+
         // Ensure active_payment is null if it matches the current reference_no
         if ($active_payment && $active_payment->reference_no == $reference_no) {
             $active_payment = null;
@@ -406,13 +406,13 @@ class MeterService {
 
         $filteredAccountArray = optional($filteredAccounts->first())->toArray() ?? [];
         $client = array_merge($filteredAccountArray, $client->toArray());
-        
+
         $bill_period_from = $current_bill->bill_period_from;
 
         $previousConsumption = self::previousConsumption($account_no, $bill_period_from);
-        
+
         unset($client['accounts']);
-        
+
         return [
             'client' => $client,
             'current_bill' => $current_bill->toArray() ?? [],
@@ -421,15 +421,15 @@ class MeterService {
             'unpaid_bills' => $unpaid_bills->toArray() ?? [],
             'previousConsumption' => $previousConsumption
         ];
-    }    
+    }
 
     public static function getBills(?string $number = null, bool $isAll = false, bool $isPaid = false) {
 
         $query = Bill::with(['reading', 'breakdown'])
             ->where('isPaid', $isPaid);
-            
+
         if ($number) {
-            
+
             $account = UserAccounts::where('account_no', $number)
                 ->first();
 
@@ -463,7 +463,7 @@ class MeterService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -479,9 +479,9 @@ class MeterService {
         DB::beginTransaction();
 
         try {
-            
+
             $updateData = [
-                'property_types_id' => $payload['property_type'],
+                'property_types_id' => $payload['property_types_id'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
                 'rates' => $payload['rate']
@@ -497,7 +497,7 @@ class MeterService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -513,9 +513,9 @@ class MeterService {
         DB::beginTransaction();
 
         try {
-            
+
             $data = Rates::where('id', $id)->first();
-                
+
             $data->delete();
 
             DB::commit();
@@ -526,7 +526,7 @@ class MeterService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -571,7 +571,7 @@ class MeterService {
             ->latest()
             ->first();
 
-        
+
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
 
@@ -582,21 +582,23 @@ class MeterService {
         }
 
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
-    
+
         $base_rate = null;
 
         if(config('app.product') === 'novustream') {
             # novustream
-            $rate = Rates::where('cu_m', $consumption)
-                ->where('property_types_id', $payload['property_type_id'])
-                ->value('amount') ?? 0;
+            $rate = Rates::where('property_types_id', $payload['property_types_id'])
+            ->where('cu_m', '<=', $consumption)
+            ->orderByDesc('cu_m')
+            ->value('amount');
+
         } else {
             # novusurge
-            $base_rate = BaseRate::where('property_type_id', $payload['property_type_id'])
+            $base_rate = BaseRate::where('property_types_id', $payload['property_types_id'])
                 ->value('rate') ?? 0;
             $rate = $base_rate  *  $consumption;
         }
-        
+
         if ($rate == 0 || $base_rate && $base_rate == 0) {
             return [
                 'status' => 'error',
@@ -614,7 +616,7 @@ class MeterService {
             ->sum('amount') ?? 0;
 
         $total_amount = $unpaidAmount + $rate;
-    
+
         $other_deductions = $this->paymentBreakdownService::getData();
         $discounts = $this->paymentBreakdownService::getDiscounts();
 
@@ -635,8 +637,8 @@ class MeterService {
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
                 $base_amount = ($deduction->percentage_of == 'basic_charge') ? $rate : $total_amount;
-                $amount = $base_amount * ($deduction->amount); 
-    
+                $amount = $base_amount * ($deduction->amount);
+
                 $deductions[] = [
                     'name' => $deduction->name,
                     'description' => $deduction->amount . '%',
@@ -662,7 +664,7 @@ class MeterService {
         $basic_charge = collect($deductions)
             ->where('name', 'Basic Charge')
             ->sum('amount');
-            
+
         $appliedDiscounts = [];
         $discountAmount = 0;
 
@@ -693,13 +695,13 @@ class MeterService {
             $appliedDiscounts[] = [
                 'name' => $discount->name,
                 'amount' => $discountAmount,
-                'description' => '', 
+                'description' => '',
             ];
         }
 
         $overall_total = $discountAmount == 0 ? $total : $overall_total;
         $overall_total = $overall_total - $advances;
-        
+
         $arrears = collect($deductions)
             ->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
@@ -738,7 +740,7 @@ class MeterService {
             $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
             $bill_period_to = $date->copy()->format('Y-m-d H:i:s');
         }
-        
+
         $due_date = Carbon::parse($payload['date'])->addDays($days_due)->format('Y-m-d H:i:s');
 
         $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
@@ -776,7 +778,7 @@ class MeterService {
         ];
 
         try {
-            
+
             $readingID = Reading::insertGetId($reading);
 
             $bill['reading_id'] = $readingID;
@@ -808,7 +810,7 @@ class MeterService {
             if (!empty($payload['isReRead'])) {
                 $reference_no = $payload['reference_no'];
                 if ($reread_bill && $reread_bill->reading) {
-                    $reread_bill->reading->reread_reference_no = $generatedReferenceNo; 
+                    $reread_bill->reading->reread_reference_no = $generatedReferenceNo;
                     $reread_bill->reading->save();
                 }
             }
@@ -827,7 +829,7 @@ class MeterService {
     }
 
     private static function previousConsumption(string $account_no, string $bill_period_from) {
-        
+
         $billDate = Carbon::parse($bill_period_from);
 
         $targetMonths = collect();
@@ -883,7 +885,7 @@ class MeterService {
             if ($exists) {
                 sleep(1);
             }
-            
+
         } while ($exists);
 
         return $combined;
