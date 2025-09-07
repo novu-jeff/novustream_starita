@@ -315,9 +315,21 @@ class ReadingController extends Controller
             throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
+        // ✅ Resolve property_types_id from property_types.name
+        $propertyTypeId = DB::table('property_types')
+            ->where('name', $account->property_type) // account->property_type = string
+            ->value('id');
+
+        if (!$propertyTypeId) {
+            return response()->json([
+                'status' => 'error',
+                'message' => "No property type found for '{$account->property_type}'."
+            ], 400);
+        }
+
         $computed = $this->meterService->create_breakdown([
             'account_no' => $account_no,
-            'property_types_id' => $account->property_types_id,
+            'property_types_id' => $propertyTypeId,
             'present_reading' => $present_reading,
             'previous_reading' => $previous_reading,
             'consumption' => $consumption,
@@ -327,37 +339,35 @@ class ReadingController extends Controller
             'reference_no' => $payload['reference_no'] ?? null
         ]);
 
-        if ($computed['status'] === 'error') {
-            return response()->json([
-                'status' => 'error',
-                'message' => $computed['message']
-            ], 400);
+        if ($computed['status'] !== 'success') {
+            DB::rollBack();
+            return response()->json($computed, 400);
         }
 
-        $amount = (float) $computed['bill']['amount'] + (float) $computed['bill']['penalty'];
         $reference_no = $computed['bill']['reference_no'];
+        $amount = $computed['bill']['amount'];
 
+        // ✅ Build payload for QR
         $paymentPayload = [
-            'amount' => $amount,
             'reference_no' => $reference_no,
+            'amount' => $amount,
             'customer' => [
-                'account_number' => $account->account_no,
-                'address' => $account->address,
-                'email' => $account->user->email ?? '',
                 'name' => $account->user->name ?? '',
-                'phone_number' => $account->user->contact_no ?? '',
-                'remark' => ''
-            ],
+                'account_no' => $account->account_no,
+                'address' => $account->address ?? ''
+            ]
         ];
 
         $qrResponse = $this->generatePaymentQR($reference_no, $paymentPayload);
 
         if (!$qrResponse) {
+            DB::rollBack();
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to save this transaction. Please try again later.'
             ], 500);
         }
+
 
         session(['recent_reading' => [
             'name' => $account->user->name ?? '',
@@ -404,47 +414,64 @@ class ReadingController extends Controller
         }
     }
 
-    private function generatePaymentQR(string $reference_no, array $payload) {
+    // private function generatePaymentQR(string $reference_no, array $payload) {
 
-        // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
-        $api = 'http://localhost/api/v1/save/transaction';
+    //     // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
+    //     $api = 'http://localhost/api/v1/save/transaction';
 
-        $ch = curl_init($api);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+    //     $ch = curl_init($api);
+    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    //     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    //     curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    //         'Content-Type: application/json'
+    //     ]);
+    //     curl_setopt($ch, CURLOPT_POST, true);
+    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+    //     $response = curl_exec($ch);
+    //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    //     $curlError = curl_errno($ch) ? curl_error($ch) : null;
+    //     curl_close($ch);
+
+    //     $decodedResponse = json_decode($response, true);
+
+    //     if(is_null($decodedResponse)) {
+    //         Log::error('error: ' . $decodedResponse);
+    //         return false;
+    //     }
+
+    //     if ($httpCode == 200) {
+
+    //         if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
+    //             return true;
+    //         } else {
+    //             Log::error('error: ' . $decodedResponse);
+    //             return false;
+    //         }
+
+    //     } else {
+    //         Log::error('error: ' . $decodedResponse);
+    //         return false;
+    //     }
+
+    // }
+
+    private function generatePaymentQR(string $reference_no, array $payload)
+    {
+        // 🔹 Temporary stub for testing only
+        Log::info('generatePaymentQR TEST MODE', [
+            'reference_no' => $reference_no,
+            'payload' => $payload,
         ]);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_errno($ch) ? curl_error($ch) : null;
-        curl_close($ch);
-
-        $decodedResponse = json_decode($response, true);
-
-        if(is_null($decodedResponse)) {
-            Log::error('error: ' . $decodedResponse);
-            return false;
-        }
-
-        if ($httpCode == 200) {
-
-            if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-                return true;
-            } else {
-                Log::error('error: ' . $decodedResponse);
-                return false;
-            }
-
-        } else {
-            Log::error('error: ' . $decodedResponse);
-            return false;
-        }
-
+        // Simulate a successful QR generation
+        return [
+            'status' => 'success',
+            'reference_no' => $reference_no,
+            'qr_code' => 'TEST_QR_CODE_' . $reference_no
+        ];
     }
+
 
     public function datatable($query)
     {

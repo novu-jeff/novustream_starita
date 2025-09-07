@@ -174,8 +174,9 @@ class MeterService {
 
         $expired_date = null;
 
-        $sc_discount_start = $data->sc_discount->effective_date ?? null;
-        $sc_discount_end = $data->sc_discount->expired_date ?? null;
+        $sc_discount_start = $data['current_bill']['reading']['sc_discount']['effective_date'] ?? null;
+        $sc_discount_end = $data['current_bill']['reading']['sc_discount']['expired_date'] ?? null;
+
 
         if ($sc_discount_start && $sc_discount_end) {
             $billDate = Carbon::parse($reading['created_at']);
@@ -206,10 +207,11 @@ class MeterService {
     }
 
     public function getAccount($meter_no) {
-        return  UserAccounts::with('user')->where('account_no', $meter_no ?? '')
+        return UserAccounts::with('user')->where('account_no', $meter_no ?? '')
         ->orWhere('meter_serial_no', $meter_no ?? '')
         ->first();
     }
+
 
     public static function getReport(string $zone = null, string $date = null, string $search = null)
     {
@@ -336,8 +338,9 @@ class MeterService {
         return [
             'status' => 'success',
             'account' => $account,
-            'reading' => $previous_reading
+            'reading' => $this->getPreviousReading($account->account_no)
         ];
+
     }
 
     public static function getBill(string $reference_no) {
@@ -728,7 +731,7 @@ class MeterService {
             }
         }
 
-        $date = $payload['date'];
+        $date = Carbon::parse($payload['date']);
         $days_due = $ruling->due_date;
 
         if($latest_reading) {
@@ -815,7 +818,7 @@ class MeterService {
                 }
             }
 
-        } catch (\Exeception $e) {
+        } catch (\Exception $e) {
             return [
                 'status' => 'error',
                 'message' => $e->getMessage
