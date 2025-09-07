@@ -217,44 +217,42 @@ class ReadingController extends Controller
     }
 
 
-
-
     public function store(Request $request) {
-    $payload = $request->all();
+        $payload = $request->all();
 
-    Log::info('Reading Store Request', $request->all());
+        Log::info('Reading Store Request', $request->all());
 
 
-    if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
-        session()->forget('recent_reading');
-        return response()->json([
-            'status' => 'success',
-            'message' => 'recent reading cleared'
-        ]);
-    }
-
-    $validator = Validator::make($payload, [
-    'reading_month' => [
-        function ($attribute, $value, $fail) {
-            if ($this->isTesting && empty($value)) {
-                return $fail('Reading month is required.');
-            }
+        if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
+            session()->forget('recent_reading');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'recent reading cleared'
+            ]);
         }
-    ],
-    'account_no' => [
-        'required',
-        function ($attribute, $value, $fail) {
-            if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
-                $fail('The meter no. or account no. does not exist.');
+
+        $validator = Validator::make($payload, [
+        'reading_month' => [
+            function ($attribute, $value, $fail) {
+                if ($this->isTesting && empty($value)) {
+                    return $fail('Reading month is required.');
+                }
             }
-        },
-    ],
-    'previous_reading' => 'required|integer|min:0',
-    'present_reading' => 'required|integer|min:0',
-    'is_high_consumption' => 'required|in:yes,no',
-    'isReRead' => 'required|in:true,false',
-    'reference_no' => 'nullable|exists:bill,reference_no'
-]);
+        ],
+        'account_no' => [
+            'required',
+            function ($attribute, $value, $fail) {
+                if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
+                    $fail('The meter no. or account no. does not exist.');
+                }
+            },
+        ],
+        'previous_reading' => 'required|integer|min:0',
+        'present_reading' => 'required|integer|min:0',
+        'is_high_consumption' => 'required|in:yes,no',
+        'isReRead' => 'required|in:true,false',
+        'reference_no' => 'nullable|exists:bill,reference_no'
+    ]);
 
 
     if ($validator->fails()) {

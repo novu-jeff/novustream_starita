@@ -97,7 +97,7 @@
                     <tbody>
                         @forelse ($data as $index => $row)
                              <tr>
-                                <td>{{ $row->reference_no }}</td>
+                                <td>{{ $row->bill->reference_no ?? 'N/A' }}</td>
                                 <td>{{ $row->account_no }}</td>
                                 <td>{{ $row->concessionaire->user->name ?? 'N/A' }}</td>
                                 <td>{{ $row->previous_reading }}</td>
@@ -106,11 +106,13 @@
                                 <td>{{ \Carbon\Carbon::parse($row->created_at)->format('F d, Y') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <a href="{{ route('reading.show', $row->bill->reference_no) }}"
-                                        class="btn btn-primary text-white text-uppercase fw-bold"
-                                        id="show-btn" data-id="{{ $row->id }}">
-                                            <i class="bx bx-receipt"></i>
-                                        </a>
+                                        <a href="{{ $row->bill ? route('reading.show', $row->bill->reference_no) : '#' }}"
+   class="btn btn-primary text-white text-uppercase fw-bold"
+   id="show-btn" data-id="{{ $row->id }}"
+   {{ $row->bill ? '' : 'disabled' }}>
+    <i class="bx bx-receipt"></i>
+</a>
+
                                     </div>
                                 </td>
                             </tr>
