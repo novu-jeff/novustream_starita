@@ -110,12 +110,12 @@ class ReadingController extends Controller
         $zones = Zone::all();
 
 
-    return view('reading.index', [
-        'isReRead' => $isReRead,
-        'reference_no' => $reference_no,
-        'zones' => $zones,
-    ]);
-        }
+        return view('reading.index', [
+            'isReRead' => $isReRead,
+            'reference_no' => $reference_no,
+            'zones' => $zones,
+        ]);
+    }
 
 
 
@@ -166,13 +166,11 @@ class ReadingController extends Controller
         $toSearch = $request->search ?? '';
         $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-        // Step 1: Get all zones with total accounts
         $zonesRaw = DB::table('concessioner_accounts')
             ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
             ->groupBy('zone', 'address')
             ->get();
 
-        // Step 2: Get meter readings count per zone for selected month
         $readingsPerZone = DB::table('readings')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
@@ -181,13 +179,11 @@ class ReadingController extends Controller
             ->groupBy('concessioner_accounts.zone')
             ->pluck('read_count', 'zone');
 
-        // Step 3: Merge read count into zonesRaw
         $zonesMerged = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
             $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
             return $zone;
         });
 
-        // Step 4: Apply custom order for zones (to match the visual layout you want)
         $preferredOrder = [
             // First row
             '101', '201', '301', '302', '303', '401', '501',
@@ -197,14 +193,12 @@ class ReadingController extends Controller
             '804', '805', '806',
         ];
 
-        // Reorder the zones
         $zonesByCode = $zonesMerged->keyBy('zone');
         $zones = collect($preferredOrder)
             ->map(fn($code) => $zonesByCode[$code] ?? null)
             ->filter()
             ->values();
 
-        // Step 5: Get report data
         $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
             ->flatten(2);
 
@@ -223,44 +217,42 @@ class ReadingController extends Controller
     }
 
 
-
-
     public function store(Request $request) {
-    $payload = $request->all();
+        $payload = $request->all();
 
-    Log::info('Reading Store Request', $request->all());
+        Log::info('Reading Store Request', $request->all());
 
 
-    if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
-        session()->forget('recent_reading');
-        return response()->json([
-            'status' => 'success',
-            'message' => 'recent reading cleared'
-        ]);
-    }
-
-    $validator = Validator::make($payload, [
-    'reading_month' => [
-        function ($attribute, $value, $fail) {
-            if ($this->isTesting && empty($value)) {
-                return $fail('Reading month is required.');
-            }
+        if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
+            session()->forget('recent_reading');
+            return response()->json([
+                'status' => 'success',
+                'message' => 'recent reading cleared'
+            ]);
         }
-    ],
-    'account_no' => [
-        'required',
-        function ($attribute, $value, $fail) {
-            if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
-                $fail('The meter no. or account no. does not exist.');
+
+        $validator = Validator::make($payload, [
+        'reading_month' => [
+            function ($attribute, $value, $fail) {
+                if ($this->isTesting && empty($value)) {
+                    return $fail('Reading month is required.');
+                }
             }
-        },
-    ],
-    'previous_reading' => 'required|integer|min:0',
-    'present_reading' => 'required|integer|min:0',
-    'is_high_consumption' => 'required|in:yes,no',
-    'isReRead' => 'required|in:true,false',
-    'reference_no' => 'nullable|exists:bill,reference_no'
-]);
+        ],
+        'account_no' => [
+            'required',
+            function ($attribute, $value, $fail) {
+                if (!DB::table('concessioner_accounts')->where('account_no', $value)->exists()) {
+                    $fail('The meter no. or account no. does not exist.');
+                }
+            },
+        ],
+        'previous_reading' => 'required|integer|min:0',
+        'present_reading' => 'required|integer|min:0',
+        'is_high_consumption' => 'required|in:yes,no',
+        'isReRead' => 'required|in:true,false',
+        'reference_no' => 'nullable|exists:bill,reference_no'
+    ]);
 
 
     if ($validator->fails()) {
@@ -315,9 +307,8 @@ class ReadingController extends Controller
             throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
-        // ✅ Resolve property_types_id from property_types.name
         $propertyTypeId = DB::table('property_types')
-            ->where('name', $account->property_type) // account->property_type = string
+            ->where('name', $account->property_type)
             ->value('id');
 
         if (!$propertyTypeId) {
@@ -347,7 +338,6 @@ class ReadingController extends Controller
         $reference_no = $computed['bill']['reference_no'];
         $amount = $computed['bill']['amount'];
 
-        // ✅ Build payload for QR
         $paymentPayload = [
             'reference_no' => $reference_no,
             'amount' => $amount,
@@ -456,6 +446,7 @@ class ReadingController extends Controller
 
     // }
 
+    // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)
     {
         // 🔹 Temporary stub for testing only
