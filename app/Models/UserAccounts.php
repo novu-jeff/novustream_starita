@@ -29,5 +29,9 @@ class UserAccounts extends Model
     public function sc_discount() {
         return $this->hasOne(SeniorDiscount::class, 'account_no', 'account_no');
     }
+    public function readings() {
+        return $this->hasMany(Reading::class, 'account_no', 'account_no');
+    }
+
 }
     

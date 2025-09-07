@@ -37,11 +37,14 @@
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label for="search_by" class="form-label">Search By</label>
-                                        <select name="search_by" id="search_by" class="form-select dropdown-toggle">
-                                            <option value="name"> Name </option>
-                                            <option value="account_no">Account No</option>
-                                            <option value="meter_serial_no">Meter No</option>
-                                        </select>
+                                        <select name="search_by" id="search_by" class="form-select dropdown-toggle text-uppercase">
+                                        <option value="name">Name</option>
+                                        <option value="account_no">Account No</option>
+                                        <option value="meter_serial_no">Meter No</option>
+                                        <option value="read">Read Accounts</option>
+                                        <option value="unread">Unread Accounts</option>
+                                    </select>
+
                                         @error('search_by')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
@@ -68,14 +71,14 @@
                 </div>
             </div>
         </div>
-        <div class="modal fade" id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered" da>
-                <div class="modal-content">
-                    <div class="modal-header px-4">
+        <div class="modal fade " id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered text-uppercase" da>
+                <div class="modal-content text-uppercase">
+                    <div class="modal-header px-4 text-uppercase">
                         <h5 class="modal-title text-uppercase" id="accountModalLabel"></h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body p-4">
+                    <div class="modal-body p-4 text-uppercase">
                         <div id="accountModalBody">
 
                         </div>
@@ -142,7 +145,7 @@
                         }
                     modalContent+=`
                         <hr>
-                        <div class="row mt-3">
+                        <div class="row mt-3 ">
                             @if(env('IS_TEST_READING'))
                                 <div class="col-md-12 mb-3">
                                     <label for="reading_month" class="form-label">Reading Month</label>
@@ -242,7 +245,7 @@
 
                 if (!append) {
                     $('.concessionaire-result').html(`
-                        <div class="text-uppercase fw-bold text-muted fst-italic mb-2" data-count="${data.length}">
+                        <div class="text-uppercase fw-bold text-muted fst-italic mb-2 " data-count="${data.length}">
                             Accounts Found: ${data.length}
                         </div>
                     `);
