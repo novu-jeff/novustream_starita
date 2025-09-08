@@ -38,12 +38,20 @@ Route::get('/login', [LoginController::class, 'index'])
 Route::post('/login', [LoginController::class, 'login'])
     ->name('auth.login');
 
-Route::get('/login', [LoginController::class, 'index'])
-    ->name('auth.register');
+Route::get('/login', [LoginController::class, 'index']);
 
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
-    
+
+// Show register page
+Route::get('/register', function () {
+    return view('auth.register');
+})->name('register');
+
+// Handle register form
+Route::post('/register', [LoginController::class, 'register'])
+    ->name('auth.register.store');
+
 Route::middleware('admin')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -85,7 +93,7 @@ Route::middleware('admin')->prefix('admin')->group(function () {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
-            ->name('previous-billing.upload'); 
+            ->name('previous-billing.upload');
         Route::get('process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
         Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
@@ -95,12 +103,12 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::prefix('settings')->group(function() {
         Route::resource('property-types', PropertyTypesController::class)
             ->names('property-types');
-            
+
         Route::resource('rates', RatesController::class)
             ->names('rates')->only('index', 'create', 'update', 'store');
-        
+
         Route::put('update-rates', [RatesController::class, 'updateBulkRate'])->name('bulk-rates.update');
-        
+
         Route::resource('base-rate', BaseRateController::class)
             ->names('base-rate')->only('index', 'store');
 

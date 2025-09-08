@@ -28,7 +28,7 @@
                     }
                 @endphp
 
-                @if($data->accounts) 
+                @if($data->accounts)
                     <div class="row pb-5">
                         <div class="col-12 col-md-6 mb-3">
                             <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">
@@ -118,7 +118,7 @@
                                                                    @endif
                                                                     <tr>
                                                                         <th class="text-uppercase fw-bold text-muted">Property Type: </th>
-                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->property_types->name}}</th>
+                                                                        <th class="text-uppercase fw-bold text-muted">{{$account->property_type->name ?? 'N/A'}}</th>
                                                                     </tr>
                                                                     <tr>
                                                                         <th class="text-uppercase fw-bold text-muted">SC No: </th>
@@ -173,7 +173,7 @@
                                     <div class="bg-primary mt-1 p-3 text-uppercase fw-bold text-white fs-5">Statement of Account as of <span class="text-decoration-underline text-offset-2">{{Carbon\Carbon::now()->format('F d, Y')}}</span></div>
                                     <div class="note mt-3 ms-0 fst-italic text-uppercase fw-medium" style="font-size: 12px;"><strong>Disclaimer:</strong> Successful payments will be reflected on the next statement and can be viewed via the <strong>Payment History</strong></div>
                                     <hr class="my-4">
-                                    <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due: 
+                                    <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due:
                                         <h3 class="ms-2">
                                             @if($statement['total'] != 0)
                                                 PHP {{number_format($statement['total'] ?? 0, 2)}}
@@ -192,7 +192,7 @@
                                                                 {{$transactions['reference_no']}} | {{$transactions['account_no']}}
                                                             </div>
                                                             <div class="text-uppercase">
-                                                                {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}} 
+                                                                {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}}
                                                             </div>
                                                         </div>
                                                         <div class="text-end">

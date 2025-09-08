@@ -20,4 +20,9 @@ class Account extends Model
     {
         return $this->hasMany(Reading::class, 'account_id');
     }
+    public function propertyType()
+    {
+        return $this->belongsTo(PropertyTypes::class, 'property_type_id');
+    }
+
 }

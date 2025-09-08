@@ -10,7 +10,7 @@ class Rates extends Model
     use HasFactory;
 
     protected $table = 'rates';
-    
+
    protected $guarded = ['id', 'created_at', 'updated_at'];
 
     public function property_type() {
