@@ -117,9 +117,8 @@
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
                           <option v-for="type in property_types" :key="type.id" :value="type.id">
-    {{ type.name.toUpperCase() }}
-</option>
-
+                              {{ type.name.toUpperCase() }}
+                          </option>
                         </select>
                         <small v-if="errors['accounts.' + index + '.property_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.property_type'][0] }}</small>
                     </div>

@@ -41,50 +41,49 @@ class ConcessionaireController extends Controller
     }
 
     public function index(Request $request) {
-    $zones = $this->meterService->getZones()->pluck('area', 'zone'); 
-    // → gives you [zone_code => area_name]
+        $zones = $this->meterService->getZones()->pluck('area', 'zone'); 
 
-    $zone = $request->zone ?? 'all';
-    $entries = $request->entries ?? 10;
-    $toSearch = $request->search ?? '';
+        $zone = $request->zone ?? 'all';
+        $entries = $request->entries ?? 10;
+        $toSearch = $request->search ?? '';
 
-    $search = [
-        'parameter' => [
-            'name',
-            'account_no',
-            'address',
-        ],
-        'value' => $toSearch
-    ];
+        $search = [
+            'parameter' => [
+                'name',
+                'account_no',
+                'address',
+            ],
+            'value' => $toSearch
+        ];
 
-    $collection = collect($this->clientService::getData(null, $zone, $search))
-        ->flatten(2)
-        ->map(function ($client) use ($zones) {
-            $client->zone = null;
+        $collection = collect($this->clientService::getData(null, $zone, $search))
+            ->flatten(2)
+            ->map(function ($client) use ($zones) {
+                $client->zone = null;
 
-            foreach ($zones as $code => $area) {
-                if (stripos($client->address, $area) !== false) {
-                    $client->zone = $code;
-                    break;
+                foreach ($zones as $code => $area) {
+                    if (stripos($client->address, $area) !== false) {
+                        $client->zone = $code;
+                        break;
+                    }
                 }
-            }
 
-            return $client;
-        });
+                return $client;
+            });
 
-    $currentPage = LengthAwarePaginator::resolveCurrentPage();
-    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
 
-    $data = new LengthAwarePaginator(
-        $currentItems,
-        $collection->count(),
-        $entries,
-        $currentPage,
-        ['path' => $request->url(), 'query' => $request->query()]
-    );
+        $data = new LengthAwarePaginator(
+            $currentItems,
+            $collection->count(),
+            $entries,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
-    return view('concessionaires.index', compact('data', 'entries', 'zone', 'zones', 'toSearch'));
-}
+        return view('concessionaires.index', compact('data', 'entries', 'zone', 'zones', 'toSearch'));
+    }
 
 
     public function create() {

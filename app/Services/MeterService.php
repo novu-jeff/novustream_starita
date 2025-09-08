@@ -67,10 +67,9 @@ class MeterService {
     }
 
     public function getZones() {
-        $zones = Zones::select('zone', 'area')
-            ->get();
-        return $zones;
+        return Zones::select('zone', 'area')->get();
     }
+
 
     public function filterAccount(array $filter) {
     $query = UserAccounts::with('user');
@@ -339,7 +338,6 @@ class MeterService {
 
 
     public function locate(array $payload) {
-
         $account = $this->getAccount($payload['meter_no']);
 
         if (!$account) {
@@ -358,7 +356,6 @@ class MeterService {
     }
 
     public static function getBill(string $reference_no) {
-
         $current_bill = Bill::with('reading.sc_discount', 'breakdown', 'discount')
             ->where('reference_no', $reference_no)
             ->first();
@@ -372,13 +369,11 @@ class MeterService {
 
         // Get meter number from current bill
         $account_no = optional($current_bill->reading)->account_no;
-
         $client = User::with(['accounts.sc_discount', 'accounts.property_types'])
                 ->whereHas('accounts', function ($query) use ($account_no) {
                     $query->where('account_no', $account_no);
                 })
                 ->first();
-
         $previous_payment = DB::table('bill')
             ->leftJoin('readings', 'bill.reading_id', 'readings.id')
             ->where('readings.account_no', $account_no)
@@ -386,30 +381,25 @@ class MeterService {
             ->select('bill.*')
             ->orderBy('bill.created_at', 'desc')
             ->first();
-
         // Prepare base query for unpaid bills
         $unpaidQuery = Bill::with('reading')
             ->where('isPaid', false)
             ->whereHas('reading', function ($query) use ($account_no) {
                 $query->where('account_no', $account_no);
             });
-
         // Fetch the latest unpaid payment (active payment)
         $active_payment = (clone $unpaidQuery)
             ->latest()
             ->select('reference_no')
             ->first();
-
         // Fetch other unpaid bills excluding the current reference number
         $unpaid_bills = (clone $unpaidQuery)
             ->where('reference_no', '!=', $reference_no)
             ->get();
-
         // Ensure active_payment is null if it matches the current reference_no
         if ($active_payment && $active_payment->reference_no == $reference_no) {
             $active_payment = null;
         }
-
         if (is_null($client)) {
             return [
                 'status' => 'error',
@@ -423,11 +413,8 @@ class MeterService {
 
         $filteredAccountArray = optional($filteredAccounts->first())->toArray() ?? [];
         $client = array_merge($filteredAccountArray, $client->toArray());
-
         $bill_period_from = $current_bill->bill_period_from;
-
         $previousConsumption = self::previousConsumption($account_no, $bill_period_from);
-
         unset($client['accounts']);
 
         return [
@@ -456,123 +443,90 @@ class MeterService {
                 });
             }
         }
-
         return $isAll ? $query->get()->toArray() : optional($query->first())->toArray();
     }
 
     public static function create(array $payload) {
-
         DB::beginTransaction();
         try {
-
             Rates::create([
                 'property_types_id' => $payload['property_type'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
                 'rates' => $payload['rate']
             ]);
-
             DB::commit();
-
             return [
                 'status' => 'success',
                 'message' => 'Rate added.'
             ];
-
         } catch (\Exception $e) {
-
             DB::rollBack();
-
             return [
                 'status' => 'error',
                 'message' => 'Error occured: ' . $e->getMessage()
             ];
         }
-
     }
 
     public static function update(int $id, array $payload) {
-
         DB::beginTransaction();
-
         try {
-
             $updateData = [
                 'property_types_id' => $payload['property_types_id'],
                 'cubic_from' => $payload['cubic_from'],
                 'cubic_to' => $payload['cubic_to'],
                 'rates' => $payload['rate']
             ];
-
             Rates::where('id', $id)->update($updateData);
-
             DB::commit();
-
             return [
                 'status' => 'success',
                 'message' => 'Rate  updated.'
             ];
-
         } catch (\Exception $e) {
-
             DB::rollBack();
-
             return [
                 'status' => 'error',
                 'message' => 'Error occured: ' . $e->getMessage()
             ];
         }
-
     }
 
     public static function delete(int $id) {
-
         DB::beginTransaction();
-
         try {
-
             $data = Rates::where('id', $id)->first();
-
             $data->delete();
-
             DB::commit();
-
             return [
                 'status' => 'success',
                 'message' => 'Rate deleted.'
             ];
-
         } catch (\Exception $e) {
-
             DB::rollBack();
-
             return [
                 'status' => 'error',
                 'message' => 'Error occured: ' . $e->getMessage()
             ];
         }
-
     }
 
     public function create_breakdown(array $payload) {
-
         $ruling = Ruling::first();
         $concessionaire = UserAccounts::with('user')->where('account_no', $payload['account_no'])->first();
-
         if(is_null($ruling)) {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no ruling set. Please add first."
             ];
         }
-
         if(is_null($concessionaire)) {
              return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no concessionaire with this account no."
             ];
         }
-
         $reference_no = $payload['reference_no'];
         $reread_bill = Bill::with('reading')->where('reference_no', $reference_no)->first();
         if (!empty($payload['isReRead'])) {
@@ -581,48 +535,37 @@ class MeterService {
                 $reread_bill->reading->save();
             }
         }
-
         $latest_reading = Reading::with('concessionaire.user', 'bill')
             ->where('isReRead', false)
             ->where('account_no', $payload['account_no'])
             ->latest()
             ->first();
-
-
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
-
         $advances = 0;
-
         if($isChangeSaved) {
             $advances = (float) $latest_reading->bill->change ?? 0;
         }
-
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
-
         $base_rate = null;
-
         if(config('app.product') === 'novustream') {
             # novustream
             $rate = Rates::where('property_types_id', $payload['property_types_id'])
             ->where('cu_m', '<=', $consumption)
             ->orderByDesc('cu_m')
             ->value('amount');
-
         } else {
             # novusurge
             $base_rate = BaseRate::where('property_types_id', $payload['property_types_id'])
                 ->value('rate') ?? 0;
             $rate = $base_rate  *  $consumption;
         }
-
         if ($rate == 0 || $base_rate && $base_rate == 0) {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no rate for this consumption"
             ];
         }
-
         $unpaidAmount = Bill::with('reading')
             ->where('isPaid', false)
             ->whereNotNull('amount')
@@ -631,12 +574,9 @@ class MeterService {
                     ->where('isReRead', false);
             })->whereNotNull('amount')
             ->sum('amount') ?? 0;
-
         $total_amount = $unpaidAmount + $rate;
-
         $other_deductions = $this->paymentBreakdownService::getData();
         $discounts = $this->paymentBreakdownService::getDiscounts();
-
         $deductions = [
             [
                 'name' => 'Previous Balance',
@@ -649,7 +589,6 @@ class MeterService {
                 'description' => '',
             ],
         ];
-
         // deductions
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -669,10 +608,8 @@ class MeterService {
                 ];
             }
         }
-
         $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])
             ->first();
-
         $isSeniorCitizen = !is_null($sc_discount) ? true : false;
         $sc_discount_start = $sc_discount->effective_date ?? null;
         $sc_discount_end = $sc_discount->expired_date ?? null;

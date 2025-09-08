@@ -32,9 +32,9 @@
                         <label class="mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
                             <option value="all">All</option>
-                            @foreach($zones as $targetedZone)
-                               <option value="{{ $targetedZone->zone }}" {{ $targetedZone->zone == $zone ? 'selected' : '' }}>
-                                    {{ $targetedZone->zone }}
+                            @foreach($zones as $code => $area)
+                                <option value="{{ $code }}" {{ $code == $zone ? 'selected' : '' }}>
+                                    {{ $code }} - {{ $area }}
                                 </option>
                             @endforeach
                         </select>
