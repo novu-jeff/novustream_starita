@@ -68,15 +68,15 @@ class ClientService {
             $propertyTypeName = PropertyTypes::where('id', $account['property_type'])
                                 ->value('name');
         }
-
+        $zone = $account['zone'] ?? self::getZoneFromAddress(strtoupper(trim($account['address'])));
         UserAccounts::updateOrCreate(
             ['id' => $account['id'] ?? null],
             [
                 'user_id'        => $user->id,
-                'zone'           => $account['zone'] ?? null,
+                'zone'           => $zone,
                 'account_no'     => $account['account_no'],
                 'address'        => $account['address'],
-                'property_type'  => $propertyTypeName, // store the name instead of number
+                'property_type'  => $propertyTypeName,
                 'rate_code'      => $account['rate_code'],
                 'status'         => $account['status'],
                 'sc_no'          => $account['sc_no'],
@@ -119,13 +119,16 @@ class ClientService {
                                     ->value('name');
             }
 
+            $zone = $account['zone'] ?? self::getZoneFromAddress(strtoupper(trim($account['address'])));
+
             UserAccounts::updateOrCreate(
                 ['id' => $account['id'] ?? null],
                 [
                     'user_id'        => $user->id,
+                    'zone'           => $zone,
                     'account_no'     => $account['account_no'],
                     'address'        => $account['address'],
-                    'property_type'  => $propertyTypeName, // ✅ correct name
+                    'property_type'  => $propertyTypeName,
                     'rate_code'      => $account['rate_code'],
                     'status'         => $account['status'],
                     'sc_no'          => $account['sc_no'],
@@ -139,18 +142,14 @@ class ClientService {
                     'meter_class'    => $account['meter_class'] ?? null,
                     'lat_long'       => $account['lat_long'] ?? null,
                     'isErcSealed'    => $account['isErcSealed'] ?? 0,
-                    // 'inspection_image'=> $inspectionImage, // Removed undefined variable
                 ]
             );
         }
-
         return $user->load('accounts'); 
     }
 
     public static function delete(int $id) {
-
         DB::beginTransaction();
-
         try {
             $data = User::where('id', $id)->first();
             $data->isActive = false;

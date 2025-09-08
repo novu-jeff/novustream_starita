@@ -29,9 +29,7 @@
                             <small v-if="errors.contact_no" class="text-danger px-1">{{ errors.contact_no[0] }}</small>
                         </div>
                     </div>
-
                     <div class="text-uppercase fw-bold py-4">Login Information</div>
-
                     <div class="row mt-3">
                         <div class="col-md-4 mb-3">
                             <label for="email" class="form-label">Email <small class="text-danger"> ( required )</small></label>
@@ -156,6 +154,7 @@
                                 :id="'address_' + index"
                                 v-model="account.address"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }"
+                                @input="account.address = account.address.replace(/\b\w/g, char => char.toUpperCase())"
                                 >
                         <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
                     </div>
