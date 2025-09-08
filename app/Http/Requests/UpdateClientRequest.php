@@ -25,7 +25,7 @@ class UpdateClientRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'email' => 'required|unique:users,email,' . $id,
-            'password' => 'nullable|min:8',
+            'password' => 'required|min:8|confirmed',
             'confirm_password' => 'nullable|same:password',
             'contact_no' => 'required',
 
@@ -47,8 +47,8 @@ class UpdateClientRequest extends FormRequest
             'accounts.*.meter_form' => 'nullable|string|max:120',
             'accounts.*.meter_class' => 'nullable|string|max:120',
             'accounts.*.lat_long' => 'nullable|string|max:120',
-            'accounts.*.isErcSealed' => 'nullable',
-            'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif'
+            'accounts.*.isErcSealed' => 'nullable|boolean',
+            'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048',
         ];
     }
 
@@ -58,7 +58,7 @@ class UpdateClientRequest extends FormRequest
             'name.required' => 'The name field is required.',
             'name.string' => 'The name must be a valid string.',
             'name.max' => 'The name must not exceed 255 characters.',
-            
+
             'address.required' => 'The address field is required.',
             'address.string' => 'The address must be a valid string.',
             'address.max' => 'The address must not exceed 255 characters.',

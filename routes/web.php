@@ -16,6 +16,7 @@ use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\RegisterController;
 
 /*
 |--------------------------------------------------------------------------
@@ -44,12 +45,11 @@ Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
 
 // Show register page
-Route::get('/register', function () {
-    return view('auth.register');
-})->name('register');
+Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
+    ->name('register');
 
 // Handle register form
-Route::post('/register', [LoginController::class, 'register'])
+Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
 
 Route::middleware('admin')->prefix('admin')->group(function () {

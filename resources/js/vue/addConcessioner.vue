@@ -10,21 +10,21 @@
                     <div class="row border-bottom">
                         <div class="col-md-6 mb-3">
                             <label for="name" class="form-label">Full Name <small class="text-danger"> ( required )</small></label>
-                            <input type="text" 
-                                  class="form-control" 
-                                  id="name" 
+                            <input type="text"
+                                  class="form-control"
+                                  id="name"
                                   v-model="concessioner.name"
-                                  :class="{ 'is-invalid': errors && errors.name }" 
+                                  :class="{ 'is-invalid': errors && errors.name }"
                                   >
                             <small v-if="errors.name" class="text-danger px-1">{{ errors.name[0] }}</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="contact_no" class="form-label">Contact No <small class="text-danger"> ( required )</small></label>
-                            <input type="text" 
-                                  class="form-control" 
-                                  id="contact_no" 
+                            <input type="text"
+                                  class="form-control"
+                                  id="contact_no"
                                   v-model="concessioner.contact_no"
-                                  :class="{ 'is-invalid': errors && errors.contact_no }" 
+                                  :class="{ 'is-invalid': errors && errors.contact_no }"
                                   >
                             <small v-if="errors.contact_no" class="text-danger px-1">{{ errors.contact_no[0] }}</small>
                         </div>
@@ -35,8 +35,8 @@
                     <div class="row mt-3">
                         <div class="col-md-4 mb-3">
                             <label for="email" class="form-label">Email <small class="text-danger"> ( required )</small></label>
-                            <input type="text" 
-                                    class="form-control" id="email" 
+                            <input type="text"
+                                    class="form-control" id="email"
                                     v-model="concessioner.email"
                                     :class="{ 'is-invalid': errors && errors.email }"
                                     >
@@ -44,8 +44,8 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="password" class="form-label">Password <small class="text-danger"> ( required )</small></label>
-                            <input type="password" 
-                                    class="form-control" id="password" 
+                            <input type="password"
+                                    class="form-control" id="password"
                                     v-model="concessioner.password"
                                     :class="{ 'is-invalid': errors && errors.password }"
                                     >
@@ -53,8 +53,8 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="confirm_password" class="form-label">Confirm Password <small class="text-danger"> ( required )</small></label>
-                            <input type="password" 
-                                    class="form-control" id="confirm_password" 
+                            <input type="password"
+                                    class="form-control" id="confirm_password"
                                     v-model="concessioner.confirm_password"
                                     :class="{ 'is-invalid': errors && errors.confirm_password }"
                                     >
@@ -80,7 +80,7 @@
                 :data-bs-target="'#flush-account-collapse-' + (index + 1)"
                 :aria-controls="'flush-account-collapse-' + (index + 1)">
                 <div class="mb-1">
-                  Account No: {{ account.account_no }}  
+                  Account No: {{ account.account_no }}
                 </div>
                 <small class="text-muted">
                   {{ account.address }}
@@ -88,7 +88,7 @@
               </button>
               <button type="button" v-if="index != 0" @click="removeAccount(index)" class="remove-account btn btn-danger mb-0 me-3"><i class="bx bx-trash"></i></button>
             </h2>
-            <div 
+            <div
               :id="'flush-account-collapse-' + (index + 1)"
               class="accordion-collapse collapse"
               :aria-labelledby="'flush-account-' + (index + 1)"
@@ -99,10 +99,10 @@
                         <label :for="'account_no_' + index" class="form-label">
                           Account No. <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'account_no_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'account_no_' + index"
                                 v-model="account.account_no"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }" 
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }"
                                 >
                         <small v-if="errors['accounts.' + index + '.account_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
                     </div>
@@ -110,10 +110,10 @@
                         <label :for="'property_type_' + index" class="form-label">
                           Property Type <small class="text-danger">( required )</small>
                         </label>
-                        <select class="form-select" 
-                                :id="'property_type_' + index" 
+                        <select class="form-select"
+                                :id="'property_type_' + index"
                                 v-model="account.property_type"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }" 
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }"
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
                           <option v-for="type in property_types" :key="type.id" :value="type.id">
@@ -126,10 +126,10 @@
                         <label :for="'rate_code_' + index" class="form-label">
                           Rate Code <small class="text-danger">( required )</small>
                         </label>
-                        <input type="number" class="form-control" 
-                              :id="'rate_code_' + index" 
+                        <input type="number" class="form-control"
+                              :id="'rate_code_' + index"
                               v-model="account.rate_code"
-                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }" 
+                              :class="{ 'is-invalid': errors && errors['accounts.' + index + '.rate_code'] }"
                               >
                         <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
                     </div>
@@ -137,9 +137,9 @@
                       <label :for="'senior_citizen_no_' + index" class="form-label">
                         Senior Citizen Discount <small class="text-danger"></small>
                       </label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
+                      <input
+                        type="text"
+                        class="form-control"
                         :id="'senior_citizen_no_' + index" readonly
                         :value="getScDiscountIdNo(index)"
                         :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
@@ -152,35 +152,37 @@
                         <label :for="'address_' + index" class="form-label">
                           Address <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'address_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'address_' + index"
                                 v-model="account.address"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" 
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }"
                                 >
                         <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label :for="'status_' + index" class="form-label">
-                          Status <small class="text-danger">( required )</small>
+                        <label for="isActive" class="form-label">
+                            Status <small class="text-danger">( required )</small>
                         </label>
-                        <select class="form-select" 
-                                :id="'status_' + index" 
-                                v-model="account.status"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.status'] }" 
-                                >
-                          <option :value="null">-- SELECT --</option>
-                          <option v-for="(status, key) in status_code" :key="key" :value="status.code">
-                            {{ status.code + ' - ' +  status.name }}
-                          </option>
+                        <select
+                            class="form-select"
+                            id="isActive"
+                            v-model="concessioner.isActive"
+                            :class="{ 'is-invalid': errors && errors.isActive }"
+                        >
+                            <option :value="null" disabled>-- SELECT --</option>
+                            <option :value="1">Active</option>
+                            <option :value="0">Not Active</option>
                         </select>
-                        <small v-if="errors['accounts.' + index + '.status']" class="text-danger px-1">{{ errors['accounts.' + index + '.status'][0] }}</small>
+                        <small v-if="errors.isActive" class="text-danger px-1">
+                            {{ errors.isActive[0] }}
+                        </small>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label :for="'meter_serial_no_' + index" class="form-label">
                           Meter Serial No <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control" 
-                              :id="'meter_serial_no_' + index" 
+                        <input type="text" class="form-control"
+                              :id="'meter_serial_no_' + index"
                               v-model="account.meter_serial_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_serial_no'] }"
                               >
@@ -190,8 +192,8 @@
                         <label :for="'sc_no_' + index" class="form-label">
                           SC No <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control" 
-                              :id="'sc_no_' + index" 
+                        <input type="text" class="form-control"
+                              :id="'sc_no_' + index"
                               v-model="account.sc_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_no'] }"
                               >
@@ -201,8 +203,8 @@
                         <label :for="'date_connected_' + index" class="form-label">
                           Date Connected <small class="text-danger">( required )</small>
                         </label>
-                        <input type="date" class="form-control" 
-                              :id="'date_connected_' + index" 
+                        <input type="date" class="form-control"
+                              :id="'date_connected_' + index"
                               v-model="account.date_connected"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.date_connected'] }"
                               >
@@ -212,8 +214,8 @@
                         <label :for="'sequence_no_' + index" class="form-label">
                           Sequence No <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control" 
-                              :id="'sequence_no_' + index" 
+                        <input type="text" class="form-control"
+                              :id="'sequence_no_' + index"
                               v-model="account.sequence_no"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sequence_no'] }"
                               >
@@ -225,8 +227,8 @@
                         <label :for="'meter_brand_' + index" class="form-label">
                           Meter Brand
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'meter_brand_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'meter_brand_' + index"
                                 v-model="account.meter_brand"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_brand'] }"
                                 >
@@ -234,10 +236,10 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label :for="'meter_type_' + index" class="form-label">
-                          Meter Type 
+                          Meter Type
                         </label>
-                        <input type="text" class="form-control" 
-                              :id="'meter_type_' + index" 
+                        <input type="text" class="form-control"
+                              :id="'meter_type_' + index"
                               v-model="account.meter_type"
                               :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
                               >
@@ -245,20 +247,20 @@
                     </div>
                     <div class="col-md-7 mb-3">
                         <label :for="'meter_wire_' + index" class="form-label">
-                          Meter Wire 
+                          Meter Wire
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'meter_wire_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'meter_wire_' + index"
                                 v-model="account.meter_wire"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_type'] }"
                                 >
                     </div>
                     <div class="col-md-5 mb-3">
                         <label :for="'meter_form_' + index" class="form-label">
-                          Meter Form 
+                          Meter Form
                         </label>
-                        <input type="text" class="form-control" 
-                                  :id="'meter_form_' + index" 
+                        <input type="text" class="form-control"
+                                  :id="'meter_form_' + index"
                                   v-model="account.meter_form"
                                   :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_form'] }"
                                   >
@@ -266,10 +268,10 @@
                     </div>
                     <div class="col-md-5 mb-3">
                         <label :for="'meter_class_' + index" class="form-label">
-                          Meter Class 
+                          Meter Class
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'meter_class_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'meter_class_' + index"
                                 v-model="account.meter_class"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.meter_class'] }"
                                 >
@@ -279,8 +281,8 @@
                         <label :for="'lat_long_' + index" class="form-label">
                           Latitude/Longitude
                         </label>
-                        <input type="text" class="form-control" 
-                                :id="'lat_long_' + index" 
+                        <input type="text" class="form-control"
+                                :id="'lat_long_' + index"
                                 v-model="account.lat_long"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.lat_long'] }"
                                 >
@@ -290,8 +292,8 @@
                         <label :for="'isErcSealed_' + index" class="form-label">
                           ERC Sealed
                         </label>
-                        <select class="form-select" 
-                                :id="'isErcSealed_' + index" 
+                        <select class="form-select"
+                                :id="'isErcSealed_' + index"
                                 v-model="account.isErcSealed"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.isErcSealed'] }"
                                 >
@@ -357,6 +359,8 @@
 <script>
 
 import { nextTick } from 'vue';
+const baseURL = window.location.origin; // http://127.0.0.1:8000
+
 
 export default {
   mounted() {
@@ -390,6 +394,7 @@ export default {
         email: '',
         password: '',
         confirm_password: '',
+        isActive: 1,
         accounts: [
           {
             account_no: '',
@@ -416,6 +421,7 @@ export default {
         ],
       },
       errors: [],
+      maxIndex: 0,
     };
   },
   created() {
@@ -432,7 +438,7 @@ export default {
   methods: {
     getScDiscountIdNo(index) {
       const account = this.concessioner.accounts[index];
-      return account && account.sc_discount ? account.sc_discount.id_no : ''; 
+      return account && account.sc_discount ? account.sc_discount.id_no : '';
     },
     lightGallery() {
       nextTick(() => {
@@ -475,18 +481,21 @@ export default {
         isErcSealed: true,
         inspectionImage: '',
       });
+      this.maxIndex = this.concessioner.accounts.length - 1;
     },
     saveConcessioner() {
-      this.loading = true;
-      this.errors = [];
+        this.loading = true;
+        this.errors = [];
 
-      let endpoint = `/${this.client}/admin/users/concessionaires`;
-      let method = 'post';
+        let method = 'post';
+        let endpoint = `${baseURL}/admin/users/concessionaires`;
+        let data = { ...this.concessioner };
 
-      if (this.concessioner.id != null) {
-        endpoint = `/${this.client}/admin/users/concessionaires/${this.concessioner.id}`;
-        method = 'post'; // Use POST with `_method` override since PUT doesn't handle FormData well
-      }
+        if (this.concessioner.id) {
+            endpoint = `${baseURL}/admin/users/concessionaires/${this.concessioner.id}`;
+            data._method = 'PUT'; // method spoofing
+        }
+
 
       const formData = new FormData();
 
@@ -592,7 +601,7 @@ export default {
     object-fit: cover;
     cursor: pointer;
   }
-  
+
   .remove-account {
     position: absolute;
     right: 0;
