@@ -19,6 +19,33 @@ class UpdateClientRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
+    protected function prepareForValidation()
+{
+    if ($this->has('accounts')) {
+        $accounts = $this->input('accounts');
+        foreach ($accounts as &$account) {
+            if (isset($account['status'])) {
+                // Convert to uppercase and trim
+                $account['status'] = strtoupper(trim($account['status']));
+
+                // Optional: map human-readable names to codes
+                $map = [
+                    'ACTIVE'   => 'AB',
+                    'BLOCKED'  => 'BL',
+                    'INACTIVE' => 'ID',
+                    'INVALID'  => 'IV',
+                ];
+                if (isset($map[$account['status']])) {
+                    $account['status'] = $map[$account['status']];
+                }
+            }
+        }
+        $this->merge(['accounts' => $accounts]);
+    }
+}
+
+
+
     public function rules(): array
     {
         $id = $this->route('concessionaire');
@@ -107,4 +134,6 @@ class UpdateClientRequest extends FormRequest
         ];
 
     }
+
+    
 }

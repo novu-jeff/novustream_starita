@@ -52,13 +52,13 @@
                             <small v-if="errors.password" class="text-danger px-1">{{ errors.password[0] }}</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="confirm_password" class="form-label">Confirm Password <small class="text-danger"> ( required )</small></label>
+                            <label for="password_confirmation" class="form-label">Confirm Password <small class="text-danger"> ( required )</small></label>
                             <input type="password"
-                                    class="form-control" id="confirm_password"
-                                    v-model="concessioner.confirm_password"
-                                    :class="{ 'is-invalid': errors && errors.confirm_password }"
+                                    class="form-control" id="password_confirmation"
+                                    v-model="concessioner.password_confirmation"
+                                    :class="{ 'is-invalid': errors && errors.password_confirmation }"
                                     >
-                            <small v-if="errors.confirm_password" class="text-danger px-1">{{ errors.confirm_password[0] }}</small>
+                            <small v-if="errors.password_confirmation" class="text-danger px-1">{{ errors.password_confirmation[0] }}</small>
                         </div>
                     </div>
                 </div>
@@ -117,8 +117,9 @@
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
                           <option v-for="type in property_types" :key="type.id" :value="type.id">
-                            {{ type.name.toUpperCase() }}
-                          </option>
+    {{ type.name.toUpperCase() }}
+</option>
+
                         </select>
                         <small v-if="errors['accounts.' + index + '.property_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.property_type'][0] }}</small>
                     </div>
@@ -166,12 +167,14 @@
                         <select
                             class="form-select"
                             id="isActive"
-                            v-model="concessioner.isActive"
+                            v-model="account.status"
                             :class="{ 'is-invalid': errors && errors.isActive }"
                         >
                             <option :value="null" disabled>-- SELECT --</option>
-                            <option :value="1">Active</option>
-                            <option :value="0">Not Active</option>
+                            <option value="AB">Active</option>
+                            <option value="BL">Blocked</option>
+                            <option value="ID">Inactive</option>
+                            <option value="IV">Invalid</option>
                         </select>
                         <small v-if="errors.isActive" class="text-danger px-1">
                             {{ errors.isActive[0] }}
@@ -387,6 +390,25 @@ export default {
   },
   data() {
     return {
+    zones: [
+      { zone: '101', area: 'CABAMBANGAN' },
+      { zone: '201', area: 'SAN VICENTE' },
+      { zone: '301', area: 'STA. INES' },
+      { zone: '302', area: 'SAN GUILLELRMO' },
+      { zone: '303', area: 'TINAJERO' },
+      { zone: '401', area: 'CABETICAN' },
+      { zone: '501', area: 'STA. BARBARA' },
+      { zone: '601', area: 'CABALANTIAN' },
+      { zone: '602', area: 'WESTVILLE' },
+      { zone: '701', area: 'SAN ISIDRO' },
+      { zone: '702', area: 'SOLANDA' },
+      { zone: '801', area: 'BANLIC' },
+      { zone: '802', area: 'SPLENDEROSA-LA HACIENDA' },
+      { zone: '803', area: 'LA TIERRA' },
+      { zone: '804', area: 'MACABACLE' },
+      { zone: '805', area: 'PARULOG' },
+      { zone: '806', area: 'SAN ANTONIO' },
+    ],
       loading: false,
       concessioner: {
         name: '',
@@ -401,10 +423,11 @@ export default {
             sc_discount: {
               id_no: ''
             },
-            property_type: null,
+            zone: '',
+            property_type: '',
             address: '',
             rate_code: '',
-            status: null,
+            status: '',
             meter_brand: '',
             meter_serial_no: '',
             sc_no: '',
@@ -415,7 +438,7 @@ export default {
             meter_form: '',
             meter_class: '',
             lat_long: '',
-            isErcSealed: null,
+            isErcSealed: '',
             inspectionImage: '',
           },
         ],
@@ -464,7 +487,7 @@ export default {
     addAccount() {
       this.concessioner.accounts.push({
         account_no: '',
-        property_type: null,
+        property_type: '',
         address: '',
         rate_code: '',
         status: '',
@@ -568,10 +591,10 @@ export default {
         accounts: [
           {
             account_no: '',
-            property_type: null,
+            property_type: '',
             address: '',
             rate_code: '',
-            status: null,
+            status: '',
             meter_brand: '',
             meter_serial_no: '',
             sc_no: '',
@@ -582,7 +605,7 @@ export default {
             meter_form: '',
             meter_class: '',
             lat_long: '',
-            isErcSealed: null,
+            isErcSealed: '',
             inspectionImage: '',
           },
         ],

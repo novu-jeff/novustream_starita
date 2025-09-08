@@ -22,7 +22,8 @@ class Account extends Model
     }
     public function propertyType()
     {
-        return $this->belongsTo(PropertyTypes::class, 'property_type_id');
+        return $this->belongsTo(PropertyTypes::class, 'property_type', 'id');
     }
+
 
 }
