@@ -21,8 +21,8 @@ class DatabaseSeeder extends Seeder
             BaseRateSeeder::class,
             RateSeeder::class,
             BillSeeder::class,
-            ConcessionerAccountSeeder::class,
-            UserSeeder::class,
+            //ConcessionerAccountSeeder::class,
+            //UserSeeder::class,
             ZoneSeeder::class,
         ]);
 

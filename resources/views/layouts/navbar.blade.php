@@ -88,9 +88,6 @@
 					@csrf
 					<button type="submit" class="border-0 bg-transparent p-0 m-0 align-baseline">Logout</button>
 				</form>
-				<a href="#" class="avatar">
-					<img src="https://assets.codepen.io/285131/hat-man.png" alt="" />
-				</a>
 			</div>
 		</div>
 		<a href="javascript:void(0)" class="button btn-navigate">

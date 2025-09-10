@@ -151,12 +151,13 @@
                           Address <small class="text-danger">( required )</small>
                         </label>
                         <input type="text" class="form-control"
-                                :id="'address_' + index"
-                                v-model="account.address"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }"
-                                @input="account.address = account.address.replace(/\b\w/g, char => char.toUpperCase())"
-                                >
-                        <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
+                            :id="'address_' + index"
+                            :value="account.address"
+                            @input="uppercaseAddress($event, index)"
+                            :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" />
+                        <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">
+                        {{ errors['accounts.' + index + '.address'][0] }}
+                        </small>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="isActive" class="form-label">
@@ -470,6 +471,10 @@ export default {
           });
         });
       });
+    },
+    uppercaseAddress(event, index) {
+        const input = event.target.value.toUpperCase();
+        this.concessioner.accounts[index].address = input;
     },
     getImageSrc(account) {
       if (typeof account.inspection_image === 'string') {

@@ -17,8 +17,8 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 use App\Services\PaymentBreakdownService;
 use Carbon\Carbon;
 
-class PreviousBillingImport implements 
-    ToModel, 
+class PreviousBillingImport implements
+    ToModel,
     WithHeadingRow,
     WithChunkReading,
     SkipsEmptyRows,
@@ -218,7 +218,7 @@ class PreviousBillingImport implements
 
     public function chunkSize(): int
     {
-        return 1000;
+        return 10000;
     }
 
     public function getSkippedRows()

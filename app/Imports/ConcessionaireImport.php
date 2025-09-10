@@ -15,11 +15,11 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class ConcessionaireImport implements 
-    ToModel, 
-    WithHeadingRow, 
-    WithValidation, 
-    SkipsEmptyRows, 
+class ConcessionaireImport implements
+    ToModel,
+    WithHeadingRow,
+    WithValidation,
+    SkipsEmptyRows,
     SkipsOnFailure,
     WithChunkReading
 {
@@ -31,7 +31,6 @@ class ConcessionaireImport implements
     public function rules(): array
     {
         return [
-            'zone' => ['required'],
             'account_no' => [
                 function ($attribute, $value, $fail) {
                     if (empty($value)) {
@@ -52,7 +51,6 @@ class ConcessionaireImport implements
     {
         return [
             'name.required' => 'Missing required field: name',
-            'zone.required' => 'Missing required field: zone',
         ];
     }
 
@@ -103,7 +101,7 @@ class ConcessionaireImport implements
     public function validateRow(array $row, $index)
     {
         if ($this->isRowEmpty($row)) {
-            return true; 
+            return true;
         }
         return null;
     }
@@ -111,18 +109,27 @@ class ConcessionaireImport implements
     public function getPropertyType($rate_code)
     {
         return match((int) $rate_code) {
-            12 => 1,
-            22 => 2,
-            32 => 3,
-            42 => 4,
-            52 => 5,
+            12 => 'Residential 1/2"',
+            13 => 'Residential 3/4"',
+            15 => 'Residential 1 1/2"',
+            17 => 'Residential 2"',
+            19 => 'Residential 4"',
+            22 => 'Government 1/2"',
+            32 => 'Commercial/Industrial 1/2"',
+            34 => 'Commercial/Industrial 1"',
+            37 => 'Commercial/Industrial 2"',
+            38 => 'Commercial/Industrial 3"',
+            42 => 'Commercial A 1/2"',
+            63 => 'Commercial C 3/4"',
+            64 => 'Commercial C 1"',
+            67 => 'Commercial C 2"',
             default => null,
         };
     }
 
     public function headingRow(): int
     {
-        return 2;
+        return 1;
     }
 
     public function chunkSize(): int
