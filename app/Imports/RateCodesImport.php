@@ -16,11 +16,11 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class RateCodesImport implements 
-    ToModel, 
-    WithHeadingRow, 
-    WithValidation, 
-    SkipsEmptyRows, 
+class RateCodesImport implements
+    ToModel,
+    WithHeadingRow,
+    WithValidation,
+    SkipsEmptyRows,
     SkipsOnFailure,
     WithChunkReading
 {
@@ -28,11 +28,11 @@ class RateCodesImport implements
 
     protected $skippedRows = [];
     protected $rowCounter = 3;
-    protected $sheetName; 
+    protected $sheetName;
 
     public function __construct($sheetName = 'Unknown Sheet')
     {
-        $this->sheetName = $sheetName; 
+        $this->sheetName = $sheetName;
     }
 
      public function rules(): array
@@ -71,14 +71,21 @@ class RateCodesImport implements
         $rowNum = $this->rowCounter++;
         $row = array_map('trim', $row);
 
+        $normalized = [];
+        foreach ($row as $key => $value) {
+            $cleanKey = strtolower(str_replace([' ', '-'], '_', $key));
+            $normalized[$cleanKey] = trim($value);
+        }
+        $row = $normalized;
+
         try {
 
             $property = PropertyTypes::updateOrCreate(
-                ['rate_code' => $row['rate_code']], 
+                ['rate_code' => $row['rate_code']],
                 [
-                    'rate_code' => $row['rate_code'], 
-                    'name' => $row['name'], 
-                ]  
+                    'rate_code' => $row['rate_code'],
+                    'name' => $row['name'],
+                ]
             );
 
             $base_rate = BaseRate::updateOrCreate(
@@ -91,7 +98,7 @@ class RateCodesImport implements
                     $this->compute($property, $base_rate, $key, $value);
                 }
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Import error in ConcessionaireImport', [
                 'error' => $e->getMessage(),
@@ -142,7 +149,7 @@ class RateCodesImport implements
 
     public function headingRow(): int
     {
-        return 2;
+        return 1;
     }
 
     public function chunkSize(): int
@@ -159,6 +166,6 @@ class RateCodesImport implements
     {
         return $this->rowCounter;
     }
-    
+
 
 }

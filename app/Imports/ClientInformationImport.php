@@ -18,6 +18,7 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
     protected $sheetName;
     protected $rowCounter = 0;
     protected $skippedRows = [];
+    protected $insertedRows = 0;
 
     public function __construct($sheetName = 'Unknown Sheet')
     {
@@ -27,54 +28,55 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
     public function collection(Collection $rows)
     {
         try {
-
-            $data = [];
-
-            foreach ($rows as $row) {
-               
+            foreach ($rows as $rowNumber => $row) {
+                // First column = key, second column = value
                 $key = strtoupper(trim($row[0] ?? ''));
                 $value = trim($row[1] ?? '');
 
-                if ($key === '' || $value === '') {
-                    $this->skippedRows[] = "Row skipped: Empty key or value.";
+                if ($key === '') {
+                    $this->skippedRows[] = "Row ".($rowNumber+1)." skipped: Empty key.";
                     continue;
                 }
 
+                $data = [];
+
                 switch ($key) {
                     case 'COMPANY NAME / CLIENT NAME':
+                    case 'NAME':
                         $data['company_client'] = $value;
                         break;
                     case 'ADDRESS':
                         $data['address'] = $value;
                         break;
                     case 'TELEPHONE NO.':
-                        $data['tel_no'] = $value;
+                        $data['tel_no'] = $value ?: null; // allow empty
                         break;
                     case 'CELLPHONE NO.':
-                        $data['phone_no'] = $value;
+                        $data['phone_no'] = $value ?: null; // allow empty
                         break;
                     case 'EMAIL ADDRESS':
-                        $data['email'] = $value;
+                    case 'EMAIL':
+                        $data['email'] = $value ?: null; // allow empty
                         break;
                     case 'TIN NO.':
-                        $data['tin_no'] = $value;
+                        $data['tin_no'] = $value ?: null; // allow empty
                         break;
                     case 'BANK ACCOUNT NO.':
-                        $data['bank_account_no'] = $value;
+                        $data['bank_account_no'] = $value ?: null; // allow empty
                         break;
                     default:
-                        $this->skippedRows[] = "Row skipped: Empty key or value.";
-                        break;
+                        continue 2;
                 }
-            }
 
-            $this->rowCounter = count($data);
+                if (!empty($data)) {
+                    ClientInformations::updateOrCreate(
+                        ['id' => 1],
+                        $data
+                    );
+                    $this->insertedRows++;
+                }
 
-            if (!empty($data)) {
-                ClientInformations::updateOrCreate(
-                    ['id' => 1], 
-                    $data
-                );
+                $this->rowCounter++;
             }
 
         } catch (\Exception $e) {
@@ -87,7 +89,7 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
 
     public function getRowCounter()
     {
-        return $this->rowCounter; 
+        return $this->insertedRows; // count of rows actually stored
     }
 
     public function getSkippedRows()
@@ -97,6 +99,6 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
 
     public function startRow(): int
     {
-        return 3;
+        return 1; // read all rows starting from row 1
     }
 }

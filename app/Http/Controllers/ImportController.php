@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\HeadingRowImport;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Imports\AdminAccountsImport;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Imports\ConcessionaireImport;
 use App\Imports\SCDiscountImport;
@@ -55,7 +56,7 @@ class ImportController extends Controller
                 'success_message' => 'Client Informations imported successfully.',
             ],
             'admin_accounts' => [
-                'expected_headers' => ['name', 'email', 'password'],
+                'expected_headers' => ['name', 'email', 'user_type', 'password'],
                 'import_class' => \App\Imports\AdminAccountsImport::class,
                 'success_message' => 'Admin Accounts imported successfully.',
             ],
@@ -117,10 +118,26 @@ class ImportController extends Controller
         foreach ($sheetNames as $index => $sheetName) {
             $sheetKey = strtolower(trim($sheetName));
 
-            // Handle CSV / default PhpSpreadsheet names
+            $filename = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+
             if (in_array($sheetKey, ['sheet1', 'worksheet'])) {
-                $sheetKey = 'concessionaire informations';
+                if (str_contains($filename, 'admin')) {
+                    $sheetKey = 'admin accounts';
+                } elseif (str_contains($filename, 'zones')) {
+                    $sheetKey = 'zones';
+                } elseif (str_contains($filename, 'concessionaire')) {
+                    $sheetKey = 'concessionaire informations';
+                } elseif (str_contains($filename, 'rates code')) {
+                    $sheetKey = 'rates code';
+                } elseif (str_contains($filename, 'client informations')) {
+                    $sheetKey = 'client informations';
+                } elseif (str_contains($filename, 'technician accounts')) {
+                    $sheetKey = 'technician accounts';
+                } elseif (str_contains($filename, 'settings')) {
+                    $sheetKey = 'settings';
+                }
             }
+
 
             if (!isset($sheetToProcessMap[$sheetKey])) {
                 $allMessages[] = [
@@ -194,6 +211,14 @@ class ImportController extends Controller
                     $totalImported = max($rowCount - 1 - count($failureErrors) - count($skippedRows), 0);
                 }
 
+                if ($processKey === 'admin_accounts') {
+                    $totalImported = $importInstance->getImportedCount();
+                } else {
+                    $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
+                    $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 1;
+                    $totalImported = max($rowCount - 1 - count($failureErrors) - count($skippedRows), 0);
+                }
+
                 if (!empty($failureErrors) || !empty($skippedRows)) {
                     $message = [];
                     if (!empty($failureErrors)) {
@@ -252,4 +277,5 @@ class ImportController extends Controller
             'messages' => $allMessages,
         ]);
     }
+
 }

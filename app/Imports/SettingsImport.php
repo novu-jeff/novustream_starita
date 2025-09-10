@@ -53,11 +53,12 @@ class SettingsImport implements ToCollection, WithStartRow, SkipsEmptyRows, Skip
                     case 'SENIOR DISCOUNT LIMIT':
                         $data['snr_dc_rule'] = $value;
                         break;
-                    default:
-                        $this->skippedRows[] = "Row skipped: Empty key or value.";
+                    case 'PENALTY PERCENTAGE':
+                        $data['penalty_percent'] = $value;
                         break;
+                    default:
+                        continue 2;
                 }
-
             }
 
             $this->rowCounter = count($data);
@@ -76,12 +77,12 @@ class SettingsImport implements ToCollection, WithStartRow, SkipsEmptyRows, Skip
 
     public function startRow(): int
     {
-        return 3;
+        return 1;
     }
 
     public function getRowCounter()
     {
-        return $this->rowCounter; 
+        return $this->rowCounter;
     }
 
     public function getSkippedRows()

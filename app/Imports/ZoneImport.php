@@ -14,11 +14,11 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class ZoneImport implements 
-    ToModel, 
-    WithHeadingRow, 
-    WithValidation, 
-    SkipsEmptyRows, 
+class ZoneImport implements
+    ToModel,
+    WithHeadingRow,
+    WithValidation,
+    SkipsEmptyRows,
     SkipsOnFailure,
     WithChunkReading
 {
@@ -48,17 +48,23 @@ class ZoneImport implements
         $rowNum = $this->rowCounter++;
         $row = array_map('trim', $row);
 
-        try {
+        $rowNum = $this->rowCounter++;
+        $normalized = [];
+        foreach ($row as $key => $value) {
+            $key = strtolower(trim($key));
+            $normalized[$key] = is_string($value) ? trim($value) : $value;
+        }
+        $row = $normalized;
 
+        try {
             Zones::updateOrCreate(
-                ['zone' => $row['zone']], 
+                ['zone' => $row['zone']],
                 [
                     'zone' => $row['zone'],
                     'area' => $row['area']
                 ]
             );
-            
-        } catch (\Exception $e) {
+        }catch (\Exception $e) {
             Log::error('Import error in Zones Sheet', [
                 'error' => $e->getMessage(),
                 'row'   => $row,
@@ -72,7 +78,7 @@ class ZoneImport implements
 
     public function headingRow(): int
     {
-        return 2;
+        return 1;
     }
 
     public function chunkSize(): int

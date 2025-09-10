@@ -57,19 +57,25 @@ class ConcessionaireImport implements
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
-        $row = array_map('trim', $row);
+
+        $normalized = [];
+        foreach ($row as $key => $value) {
+            $key = strtolower(trim($key));
+            $key = str_replace([' ', '-', '.'], '_', $key);
+            $normalized[$key] = is_string($value) ? trim($value) : $value;
+        }
+        $row = $normalized;
 
         try {
-
             $user = User::create([
-                'name'       => $row['name'],
+                'name'       => $row['name'] ?? null,
                 'contact_no' => $row['contact_no'] ?? null,
             ]);
 
             if ($user) {
-                $property_type = $this->getPropertyType($row['rate_code']);
-                $timestamp = strtotime($row['date_connected']);
-                $date_connected = $timestamp !== false ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d') : '';
+                $property_type   = $this->getPropertyType($row['rate_code'] ?? null);
+                $timestamp       = isset($row['date_connected']) ? strtotime($row['date_connected']) : false;
+                $date_connected  = $timestamp !== false ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d') : null;
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
@@ -100,10 +106,7 @@ class ConcessionaireImport implements
 
     public function validateRow(array $row, $index)
     {
-        if ($this->isRowEmpty($row)) {
-            return true;
-        }
-        return null;
+        return $this->isRowEmpty($row) ? true : null;
     }
 
     public function getPropertyType($rate_code)
