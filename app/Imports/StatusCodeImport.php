@@ -3,8 +3,6 @@
 namespace App\Imports;
 
 use App\Models\StatusCode;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
@@ -14,18 +12,24 @@ use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 
-class StatusCodeImport implements 
-    ToModel, 
-    WithHeadingRow, 
-    WithValidation, 
-    SkipsEmptyRows, 
+class StatusCodeImport implements
+    ToModel,
+    WithHeadingRow,
+    WithValidation,
+    SkipsEmptyRows,
     SkipsOnFailure,
     WithChunkReading
 {
     use SkipsFailures;
 
-    protected $skippedRows = [];
-    protected $rowCounter = 3;
+    protected array $skippedRows = [];
+    protected int $rowCounter = 3;
+    protected string $sheetName;
+
+    public function __construct(string $sheetName = 'Status Codes')
+    {
+        $this->sheetName = $sheetName;
+    }
 
     public function rules(): array
     {
@@ -46,26 +50,30 @@ class StatusCodeImport implements
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
-        $row = array_map('trim', $row);
+
+        $normalized = [];
+        foreach ($row as $key => $value) {
+            $cleanKey = strtolower(str_replace([' ', '-', '.'], '_', $key));
+            $normalized[$cleanKey] = is_string($value) ? trim($value) : $value;
+        }
+        $row = $normalized;
 
         try {
-
-            StatusCode::updateOrCreate(
-                ['code' => $row['code']], 
+            return StatusCode::updateOrCreate(
+                ['code' => $row['code'] ?? null],
                 [
-                    'code' => $row['code'],
-                    'name' => $row['name']
+                    'code' => $row['code'] ?? null,
+                    'name' => $row['name'] ?? null,
                 ]
             );
-            
         } catch (\Exception $e) {
-            Log::error('Import error in Status Codes Sheet', [
+            Log::error("Import error in {$this->sheetName}", [
                 'error' => $e->getMessage(),
                 'row'   => $row,
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
+            $this->skippedRows[] = "Row {$rowNum} skipped ({$this->sheetName}): " . $e->getMessage();
             return null;
         }
     }
@@ -80,15 +88,13 @@ class StatusCodeImport implements
         return 100;
     }
 
-    public function getSkippedRows()
+    public function getSkippedRows(): array
     {
         return $this->skippedRows;
     }
 
-    public function getRowCounter()
+    public function getRowCounter(): int
     {
         return $this->rowCounter;
     }
-    
-
 }

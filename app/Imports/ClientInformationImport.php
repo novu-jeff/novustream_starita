@@ -18,7 +18,6 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
     protected $sheetName;
     protected $rowCounter = 0;
     protected $skippedRows = [];
-    protected $insertedRows = 0;
 
     public function __construct($sheetName = 'Unknown Sheet')
     {
@@ -28,57 +27,57 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
     public function collection(Collection $rows)
     {
         try {
-            foreach ($rows as $rowNumber => $row) {
-                // First column = key, second column = value
+            $data = [];
+
+            foreach ($rows as $index => $row) {
                 $key = strtoupper(trim($row[0] ?? ''));
                 $value = trim($row[1] ?? '');
 
                 if ($key === '') {
-                    $this->skippedRows[] = "Row ".($rowNumber+1)." skipped: Empty key.";
+                    $this->skippedRows[] = "Row " . ($index + 1) . " skipped: Empty key.";
                     continue;
                 }
 
-                $data = [];
+                if ($value === '') {
+                    $value = null;
+                }
+
 
                 switch ($key) {
                     case 'COMPANY NAME / CLIENT NAME':
-                    case 'NAME':
                         $data['company_client'] = $value;
                         break;
                     case 'ADDRESS':
                         $data['address'] = $value;
                         break;
                     case 'TELEPHONE NO.':
-                        $data['tel_no'] = $value ?: null; // allow empty
+                        $data['tel_no'] = $value;
                         break;
                     case 'CELLPHONE NO.':
-                        $data['phone_no'] = $value ?: null; // allow empty
+                        $data['phone_no'] = $value;
                         break;
                     case 'EMAIL ADDRESS':
-                    case 'EMAIL':
-                        $data['email'] = $value ?: null; // allow empty
+                        $data['email'] = $value;
                         break;
                     case 'TIN NO.':
-                        $data['tin_no'] = $value ?: null; // allow empty
+                        $data['tin_no'] = $value;
                         break;
                     case 'BANK ACCOUNT NO.':
-                        $data['bank_account_no'] = $value ?: null; // allow empty
+                        $data['bank_account_no'] = $value;
                         break;
                     default:
                         continue 2;
                 }
 
-                if (!empty($data)) {
-                    ClientInformations::updateOrCreate(
-                        ['id' => 1],
-                        $data
-                    );
-                    $this->insertedRows++;
-                }
-
                 $this->rowCounter++;
             }
 
+            if (!empty($data)) {
+                ClientInformations::updateOrCreate(
+                    ['id' => 1],
+                    $data
+                );
+            }
         } catch (\Exception $e) {
             Log::error('Import error in Client Information Sheet', [
                 'error' => $e->getMessage(),
@@ -89,7 +88,7 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
 
     public function getRowCounter()
     {
-        return $this->insertedRows; // count of rows actually stored
+        return $this->rowCounter;
     }
 
     public function getSkippedRows()
@@ -99,6 +98,6 @@ class ClientInformationImport implements ToCollection, WithStartRow, SkipsEmptyR
 
     public function startRow(): int
     {
-        return 1; // read all rows starting from row 1
+        return 3;
     }
 }

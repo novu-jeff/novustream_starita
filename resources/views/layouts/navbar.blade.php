@@ -84,10 +84,10 @@
 					Profile
 				</a>
 				@endcan
-				<form action="{{ route('auth.logout') }}" method="POST" style="display: inline;" class="logout-form">
-					@csrf
-					<button type="submit" class="border-0 bg-transparent p-0 m-0 align-baseline">Logout</button>
-				</form>
+				<a href="javascript:void(0)" onclick="document.getElementById('logout-form').submit();">Logout</a>
+                <form id="logout-form" action="{{ route('auth.logout') }}" method="POST" style="display: none;">
+                    @csrf
+                </form>
 			</div>
 		</div>
 		<a href="javascript:void(0)" class="button btn-navigate">

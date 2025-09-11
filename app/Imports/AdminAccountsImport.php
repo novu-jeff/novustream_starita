@@ -3,52 +3,60 @@
 namespace App\Imports;
 
 use App\Models\Admin;
-use Illuminate\Validation\Rule;
-use Maatwebsite\Excel\Concerns\ToModel;
-use Maatwebsite\Excel\Concerns\WithValidation;
-use Maatwebsite\Excel\Concerns\SkipsOnFailure;
-use Maatwebsite\Excel\Concerns\SkipsFailures;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
+use Maatwebsite\Excel\Concerns\WithStartRow;
 
-class AdminAccountsImport implements ToModel, WithValidation, SkipsOnFailure, WithHeadingRow, SkipsEmptyRows
+class AdminAccountsImport implements ToCollection, SkipsEmptyRows, WithStartRow
 {
-    use SkipsFailures;
+    protected $rowCounter = 0;
+    protected $skippedRows = [];
 
-    private int $importedCount = 0; // counter
-
-    public function model(array $row)
+    public function startRow(): int
     {
-        $this->importedCount++; // increment for each row
+        return 2; // skip the first row with IMPORTANT note
+    }
 
-        $normalized = [];
-        foreach ($row as $key => $value) {
-            $key = strtolower(trim($key));
-            $key = str_replace([' ', '-', '.'], '_', $key);
-            $normalized[$key] = is_string($value) ? trim($value) : $value;
+    public function collection(Collection $rows)
+    {
+        foreach ($rows as $index => $row) {
+
+            $rowData = [
+                'name' => isset($row[0]) ? trim($row[0]) : null,
+                'role' => isset($row[1]) ? trim($row[1]) : null,
+                'email' => isset($row[2]) ? trim($row[2]) : null,
+                'password' => isset($row[3]) ? trim($row[3]) : null,
+            ];
+
+            if (empty($rowData['name']) || empty($rowData['email']) || empty($rowData['password'])) {
+                $this->skippedRows[] = "Row " . ($index + $this->startRow()) . " skipped: Missing required fields.";
+                continue;
+            }
+
+            $userType = $rowData['role'] ?? 'admin';
+
+            Admin::updateOrCreate(
+                ['email' => $rowData['email']],
+                [
+                    'name'      => $rowData['name'],
+                    'user_type' => $userType,
+                    'password'  => Hash::make($rowData['password']),
+                ]
+            );
+
+            $this->rowCounter++;
         }
-        $row = $normalized;
-
-        return new Admin([
-            'name'      => $row['name'] ?? null,
-            'email'     => $row['email'] ?? null,
-            'user_type' => $row['user_type'] ?? 'admin',
-            'password'  => isset($row['password']) ? bcrypt($row['password']) : null,
-        ]);
     }
 
-    public function rules(): array
+    public function getRowCounter()
     {
-        return [
-            'name'     => 'required|string',
-            'email'    => 'required|email|unique:admins,email',
-            'password' => 'required|string|min:6',
-        ];
+        return $this->rowCounter;
     }
 
-    // getter to retrieve the count after import
-    public function getImportedCount(): int
+    public function getSkippedRows()
     {
-        return $this->importedCount;
+        return $this->skippedRows;
     }
 }

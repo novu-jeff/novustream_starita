@@ -57,7 +57,8 @@ class SettingsImport implements ToCollection, WithStartRow, SkipsEmptyRows, Skip
                         $data['penalty_percent'] = $value;
                         break;
                     default:
-                        continue 2;
+                        $this->skippedRows[] = "Row skipped: Unknown key '$key'.";
+                        break;
                 }
             }
 
@@ -77,7 +78,7 @@ class SettingsImport implements ToCollection, WithStartRow, SkipsEmptyRows, Skip
 
     public function startRow(): int
     {
-        return 1;
+        return 3;
     }
 
     public function getRowCounter()

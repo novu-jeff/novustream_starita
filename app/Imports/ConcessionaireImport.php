@@ -31,6 +31,7 @@ class ConcessionaireImport implements
     public function rules(): array
     {
         return [
+            'zone' => ['required'],
             'account_no' => [
                 function ($attribute, $value, $fail) {
                     if (empty($value)) {
@@ -51,31 +52,36 @@ class ConcessionaireImport implements
     {
         return [
             'name.required' => 'Missing required field: name',
+            'zone.required' => 'Missing required field: zone',
         ];
     }
 
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
-
-        $normalized = [];
-        foreach ($row as $key => $value) {
-            $key = strtolower(trim($key));
-            $key = str_replace([' ', '-', '.'], '_', $key);
-            $normalized[$key] = is_string($value) ? trim($value) : $value;
-        }
-        $row = $normalized;
+        $row = array_map('trim', $row);
 
         try {
+
             $user = User::create([
-                'name'       => $row['name'] ?? null,
+                'name'       => $row['name'],
                 'contact_no' => $row['contact_no'] ?? null,
             ]);
 
             if ($user) {
-                $property_type   = $this->getPropertyType($row['rate_code'] ?? null);
-                $timestamp       = isset($row['date_connected']) ? strtotime($row['date_connected']) : false;
-                $date_connected  = $timestamp !== false ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d') : null;
+                $property_type = $this->getPropertyType($row['rate_code']);
+                $date_connected = null;
+                if (isset($row['date_connected']) && $row['date_connected'] !== '') {
+                    if (is_numeric($row['date_connected'])) {
+                        // Excel numeric date → PHP date
+                        $date_connected = Carbon::instance(
+                            \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($row['date_connected'])
+                        )->format('Y-m-d');
+                    } else {
+                        $timestamp = strtotime($row['date_connected']);
+                        $date_connected = $timestamp !== false ? Carbon::createFromTimestamp($timestamp)->format('Y-m-d') : null;
+                    }
+                }
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
@@ -106,33 +112,27 @@ class ConcessionaireImport implements
 
     public function validateRow(array $row, $index)
     {
-        return $this->isRowEmpty($row) ? true : null;
+        if ($this->isRowEmpty($row)) {
+            return true;
+        }
+        return null;
     }
 
     public function getPropertyType($rate_code)
     {
         return match((int) $rate_code) {
-            12 => 'Residential 1/2"',
-            13 => 'Residential 3/4"',
-            15 => 'Residential 1 1/2"',
-            17 => 'Residential 2"',
-            19 => 'Residential 4"',
-            22 => 'Government 1/2"',
-            32 => 'Commercial/Industrial 1/2"',
-            34 => 'Commercial/Industrial 1"',
-            37 => 'Commercial/Industrial 2"',
-            38 => 'Commercial/Industrial 3"',
-            42 => 'Commercial A 1/2"',
-            63 => 'Commercial C 3/4"',
-            64 => 'Commercial C 1"',
-            67 => 'Commercial C 2"',
+            12 => 1,
+            22 => 2,
+            32 => 3,
+            42 => 4,
+            52 => 5,
             default => null,
         };
     }
 
     public function headingRow(): int
     {
-        return 1;
+        return 2;
     }
 
     public function chunkSize(): int

@@ -5,8 +5,6 @@ namespace App\Imports;
 use App\Models\PropertyTypes;
 use App\Models\BaseRate;
 use App\Models\Rates;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
@@ -26,16 +24,16 @@ class RateCodesImport implements
 {
     use SkipsFailures;
 
-    protected $skippedRows = [];
-    protected $rowCounter = 3;
-    protected $sheetName;
+    protected array $skippedRows = [];
+    protected int $rowCounter = 3;
+    protected string $sheetName;
 
-    public function __construct($sheetName = 'Unknown Sheet')
+    public function __construct(string $sheetName = 'Rate Codes')
     {
         $this->sheetName = $sheetName;
     }
 
-     public function rules(): array
+    public function rules(): array
     {
         return [
             'rate_code' => ['required'],
@@ -67,9 +65,7 @@ class RateCodesImport implements
 
     public function model(array $row)
     {
-
         $rowNum = $this->rowCounter++;
-        $row = array_map('trim', $row);
 
         $normalized = [];
         foreach ($row as $key => $value) {
@@ -79,77 +75,57 @@ class RateCodesImport implements
         $row = $normalized;
 
         try {
-
             $property = PropertyTypes::updateOrCreate(
                 ['rate_code' => $row['rate_code']],
-                [
-                    'rate_code' => $row['rate_code'],
-                    'name' => $row['name'],
-                ]
+                ['name' => $row['name']]
             );
 
-            $base_rate = BaseRate::updateOrCreate(
+            $baseRate = BaseRate::updateOrCreate(
                 ['property_type_id' => $property->id],
                 ['rate' => $row['rate']]
             );
 
-            foreach ($row as $key => $value) {
-                if (str_contains($key, '_')) {
-                    $this->compute($property, $base_rate, $key, $value);
+            $runningAmount = 0;
+            foreach ($row as $key => $cumCharge) {
+                if (preg_match('/^\d+_\d+$/', $key)) {
+                    [$from, $to] = explode('_', $key);
+
+                    for ($i = (int) $from; $i <= (int) $to; $i++) {
+                        if ($i == 0) {
+                            $runningAmount = $baseRate->rate;
+                        } else {
+                            $runningAmount += $cumCharge;
+                        }
+
+                        Rates::updateOrCreate(
+                            [
+                                'property_types_id' => $property->id,
+                                'cu_m'              => $i,
+                            ],
+                            [
+                                'charge' => $cumCharge,
+                                'amount' => $runningAmount,
+                            ]
+                        );
+                    }
                 }
             }
-
         } catch (\Exception $e) {
-            Log::error('Import error in ConcessionaireImport', [
-                'error' => $e->getMessage(),
+            $this->skippedRows[] = "Row $rowNum skipped (Sheet: {$this->sheetName}): " . $e->getMessage();
+
+            Log::error('Import error in RateCodesImport', [
+                'sheet' => $this->sheetName,
                 'row'   => $row,
-                'trace' => $e->getTraceAsString(),
+                'error' => $e->getMessage(),
             ]);
 
-            $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
             return null;
-        }
-    }
-
-    public function compute($property, $base_rate, $range, $cum_charge)
-    {
-        [$from, $to] = explode('_', $range);
-
-        if($from === '0') {
-            for ($i = (int)$from; $i <= (int)$to; $i++) {
-
-                $amount = $base_rate->rate;
-
-                Rates::updateOrCreate([
-                    'property_types_id' => $property->id,
-                    'cu_m' => $i,
-                ], [
-                    'charge' => $cum_charge,
-                    'amount' => $amount
-                ]);
-            }
-        } else {
-            for ($i = (int)$from; $i <= (int)$to; $i++) {
-                $prevAmount = Rates::where('property_types_id', $property->id)
-                    ->where('cu_m', $i - 1)
-                    ->value('amount') ?? 0;
-
-                $amount = $prevAmount + $cum_charge;
-
-                Rates::updateOrCreate([
-                    'property_types_id' => $property->id,
-                    'cu_m' => $i,
-                ], [
-                    'charge' => $cum_charge,
-                    'amount' => $amount
-                ]);
-            }
         }
     }
 
     public function headingRow(): int
     {
-        return 1;
+        return 2;
     }
 
     public function chunkSize(): int
@@ -157,15 +133,13 @@ class RateCodesImport implements
         return 100;
     }
 
-    public function getSkippedRows()
+    public function getSkippedRows(): array
     {
         return $this->skippedRows;
     }
 
-    public function getRowCounter()
+    public function getRowCounter(): int
     {
         return $this->rowCounter;
     }
-
-
 }

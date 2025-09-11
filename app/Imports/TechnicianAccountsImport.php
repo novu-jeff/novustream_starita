@@ -4,62 +4,56 @@ namespace App\Imports;
 
 use App\Models\Admin;
 use Illuminate\Support\Facades\Hash;
-use Maatwebsite\Excel\Concerns\ToModel;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\SkipsFailures;
-use Maatwebsite\Excel\Concerns\SkipsOnFailure;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
+use Maatwebsite\Excel\Concerns\WithStartRow;
 
-class TechnicianAccountsImport implements ToModel, WithHeadingRow, SkipsOnFailure
+class TechnicianAccountsImport implements ToCollection, SkipsEmptyRows, WithStartRow
 {
-    use SkipsFailures;
-
     protected $rowCounter = 0;
-    protected $inserted = 0;
-    protected $updated = 0;
+    protected $skippedRows = [];
 
-    public function model(array $row)
+    public function startRow(): int
     {
-        $this->rowCounter++;
-
-        $normalized = [];
-        foreach ($row as $key => $value) {
-            $key = strtolower(trim($key));
-            $key = str_replace([' ', '-', '.'], '_', $key);
-            $normalized[$key] = is_string($value) ? trim($value) : $value;
-        }
-        $row = $normalized;
-
-        $admin = Admin::updateOrCreate(
-            ['email' => $row['email']],
-            [
-                'name'      => $row['name'],
-                'password'  => Hash::make($row['password']),
-                'user_type' => 'technician',
-            ]
-        );
-
-        // Track inserted vs updated
-        if ($admin->wasRecentlyCreated) {
-            $this->inserted++;
-        } else {
-            $this->updated++;
-        }
-
-        return $admin;
+        return 3;
     }
 
-    public function getRowCounter()
+    public function collection(Collection $rows)
+    {
+        foreach ($rows as $index => $row) {
+
+            $rowData = [
+                'name'     => isset($row[0]) ? trim($row[0]) : null,
+                'email'    => isset($row[1]) ? trim($row[1]) : null,
+                'password' => isset($row[2]) ? trim($row[2]) : null,
+            ];
+
+            if (empty($rowData['name']) || empty($rowData['email']) || empty($rowData['password'])) {
+                $this->skippedRows[] = "Row " . ($index + $this->startRow()) . " skipped: Missing required fields.";
+                continue;
+            }
+
+            Admin::updateOrCreate(
+                ['email' => $rowData['email']],
+                [
+                    'name'      => $rowData['name'],
+                    'user_type' => 'technician',
+                    'password'  => Hash::make($rowData['password']),
+                ]
+            );
+
+            $this->rowCounter++;
+        }
+    }
+
+    public function getRowCounter(): int
     {
         return $this->rowCounter;
     }
 
-    public function getInsertedCount()
+    public function getSkippedRows(): array
     {
-        return $this->inserted;
-    }
-
-    public function getUpdatedCount()
-    {
-        return $this->updated;
+        return $this->skippedRows;
     }
 }

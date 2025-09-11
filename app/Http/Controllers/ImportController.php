@@ -7,8 +7,9 @@ use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\HeadingRowImport;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+
 use App\Imports\AdminAccountsImport;
-use Maatwebsite\Excel\Excel as ExcelFormat;
+use App\Imports\TechnicianAccountsImport;
 use App\Imports\ConcessionaireImport;
 use App\Imports\SCDiscountImport;
 use App\Imports\RateCodesImport;
@@ -25,153 +26,145 @@ class ImportController extends Controller
         }
 
         if (!$request->hasFile('file')) {
-            return $this->errorResponse('No file uploaded.');
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No file uploaded.'
+            ]);
         }
 
         $file = $request->file('file');
         $spreadsheet = IOFactory::load($file->getRealPath());
         $sheetNames = $spreadsheet->getSheetNames();
+        $filename = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
 
-        // Map of supported sheet names -> process keys
         $sheetToProcessMap = [
-            'client informations'       => 'client_informations',
-            'admin accounts'            => 'admin_accounts',
-            'technician accounts'       => 'technician_accounts',
+            'client informations'         => 'client_informations',
+            'client info'                 => 'client_informations',
+            'admin accounts'              => 'admin_accounts',
+            'administrators'              => 'admin_accounts',
+            'technician accounts'         => 'technician_accounts',
+            'technicians'                 => 'technician_accounts',
             'concessionaire informations' => 'concessionaire',
-            'concessionaire'            => 'concessionaire', // alias
-            'advances'                  => 'advances',
-            'outstanding balance'       => 'outstanding_balance',
-            'senior citizen discount'   => 'sc_discount',
-            'rates code'                => 'rates_code',
-            'status code'               => 'status_code',
-            'zones'                     => 'zones',
-            'settings'                  => 'settings',
+            'concessionaire'              => 'concessionaire',
+            'sc discount'                 => 'sc_discount',
+            'senior citizen discount'     => 'sc_discount',
+            'advances'                    => 'advances',
+            'outstanding balance'         => 'outstanding_balance',
+            'rates code'                  => 'rates_code',
+            'status code'                 => 'status_code',
+            'zones'                       => 'zones',
+            'settings'                    => 'settings',
         ];
 
-        // Expected headers + import class mapping
-        $allowedProcesses = [
+        $processConfig = [
             'client_informations' => [
-                'expected_headers' => ['name', 'value', 'description'],
-                'import_class' => \App\Imports\ClientInformationImport::class,
-                'success_message' => 'Client Informations imported successfully.',
+                'expected_headers' => ['name','value','description'],
+                'import_class' => ClientInformationImport::class,
             ],
             'admin_accounts' => [
-                'expected_headers' => ['name', 'email', 'user_type', 'password'],
-                'import_class' => \App\Imports\AdminAccountsImport::class,
-                'success_message' => 'Admin Accounts imported successfully.',
+                'expected_headers' => ['name','role','email','password'],
+                'import_class' => AdminAccountsImport::class,
             ],
             'technician_accounts' => [
-                'expected_headers' => ['name', 'email', 'password'],
-                'import_class' => \App\Imports\TechnicianAccountsImport::class,
-                'success_message' => 'Technician Accounts imported successfully.',
+                'expected_headers' => ['name','email','password'],
+                'import_class' => TechnicianAccountsImport::class,
             ],
             'concessionaire' => [
                 'expected_headers' => [
-                    'account_no', 'name', 'address', 'rate_code', 'status',
-                    'meter_brand', 'meter_serial_no', 'sc_no', 'date_connected',
-                    'contact_no', 'sequence_no'
+                    'account_no','name','address','zone','rate_code','status',
+                    'meter_brand','meter_serial_no','sc_no','date_connected',
+                    'contact_no','sequence_no'
                 ],
-                'import_class' => \App\Imports\ConcessionaireImport::class,
-                'success_message' => 'Concessionaires imported successfully.',
+                'import_class' => ConcessionaireImport::class,
             ],
             'advances' => [
-                'expected_headers' => ['account_no', 'amount', 'date_applied'],
+                'expected_headers' => ['account_no','amount','as_of'],
                 'import_class' => \App\Imports\AdvancesImport::class,
-                'success_message' => 'Advances imported successfully.',
             ],
             'outstanding_balance' => [
-                'expected_headers' => ['account_no', 'amount'],
+                'expected_headers' => ['account_no','amount'],
                 'import_class' => \App\Imports\OutstandingBalanceImport::class,
-                'success_message' => 'Outstanding Balances imported successfully.',
             ],
             'sc_discount' => [
-                'expected_headers' => ['account_no', 'name', 'id_no', 'effectivity_date', 'expired_date'],
-                'import_class' => \App\Imports\SCDiscountImport::class,
-                'success_message' => 'Senior Citizen Discounts imported successfully.',
+                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date'],
+                'import_class' => SCDiscountImport::class,
             ],
             'rates_code' => [
-                'expected_headers' => ['rate_code', 'name', 'rate', '0_10', '11_20', '21_30', '31_40', '41_50', '51_60'],
-                'import_class' => \App\Imports\RateCodesImport::class,
-                'success_message' => 'Rate Codes imported successfully.',
+                'expected_headers' => ['rate_code','name','rate','0_10','11_20','21_30','31_40','41_50','51_60'],
+                'import_class' => RateCodesImport::class,
             ],
             'status_code' => [
-                'expected_headers' => ['code', 'name'],
-                'import_class' => \App\Imports\StatusCodeImport::class,
-                'success_message' => 'Status Codes imported successfully.',
+                'expected_headers' => ['code','name'],
+                'import_class' => StatusCodeImport::class,
             ],
             'zones' => [
-                'expected_headers' => ['zone', 'area'],
+                'expected_headers' => ['zone','area'],
                 'import_class' => \App\Imports\ZoneImport::class,
-                'success_message' => 'Zones imported successfully.',
             ],
             'settings' => [
-                'expected_headers' => ['name', 'value', 'description'],
-                'import_class' => \App\Imports\SettingsImport::class,
-                'success_message' => 'Settings imported successfully.',
+                'expected_headers' => ['name','value','description'],
+                'import_class' => SettingsImport::class,
             ],
         ];
 
+        $normalize = function ($header) {
+            $header = strtolower(trim($header));
+            $header = preg_replace('/[^a-z0-9]+/i', '_', $header);
+            return $header;
+        };
+
+        $headingData = (new HeadingRowImport(2))->toArray($file);
+
         $allMessages = [];
         $importedSheets = [];
-        $headingData = (new HeadingRowImport(1))->toArray($file);
 
         foreach ($sheetNames as $index => $sheetName) {
             $sheetKey = strtolower(trim($sheetName));
 
-            $filename = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
-
-            if (in_array($sheetKey, ['sheet1', 'worksheet'])) {
-                if (str_contains($filename, 'admin')) {
-                    $sheetKey = 'admin accounts';
-                } elseif (str_contains($filename, 'zones')) {
-                    $sheetKey = 'zones';
-                } elseif (str_contains($filename, 'concessionaire')) {
-                    $sheetKey = 'concessionaire informations';
-                } elseif (str_contains($filename, 'rates code')) {
-                    $sheetKey = 'rates code';
-                } elseif (str_contains($filename, 'client informations')) {
-                    $sheetKey = 'client informations';
-                } elseif (str_contains($filename, 'technician accounts')) {
-                    $sheetKey = 'technician accounts';
-                } elseif (str_contains($filename, 'settings')) {
-                    $sheetKey = 'settings';
+            if (in_array($sheetKey, ['sheet1','worksheet'])) {
+                foreach ($sheetToProcessMap as $alias => $processKey) {
+                    if (str_contains($filename, str_replace(' ', '', $alias))) {
+                        $sheetKey = $alias;
+                        break;
+                    }
                 }
             }
 
-
             if (!isset($sheetToProcessMap[$sheetKey])) {
                 $allMessages[] = [
-                    'sheet'   => $sheetName,
-                    'status'  => 'error',
-                    'message' => 'Unrecognized file to upload',
-                    'errors'  => '',
-                ];
-                return response()->json([
-                    'status'   => 'completed',
-                    'imported' => $importedSheets,
-                    'messages' => $allMessages,
-                ]);
-            }
-
-            $processKey = $sheetToProcessMap[$sheetKey];
-            $config = $allowedProcesses[$processKey];
-            $expectedHeaders = array_map('strtolower', array_map('trim', $config['expected_headers']));
-            $actualHeaders = array_map('strtolower', array_map('trim', $headingData[$index][0] ?? []));
-
-            $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
-
-            if (!empty($missingHeaders)) {
-                $allMessages[] = [
-                    'sheet'           => $sheetName,
-                    'status'          => 'error',
-                    'message'         => 'Missing headers',
-                    'missing_headers' => array_values($missingHeaders),
+                    'sheet' => $sheetName,
+                    'status' => 'error',
+                    'message' => 'Unrecognized sheet: ' . $sheetName,
                 ];
                 continue;
             }
 
+            $processKey = $sheetToProcessMap[$sheetKey];
+            $config = $processConfig[$processKey];
+
+            if (!in_array($processKey, ['client_informations', 'settings'])) {
+                $expectedHeaders = array_map($normalize, $config['expected_headers']);
+                $rawHeaders = $headingData[$index][0] ?? [];
+                $actualHeaders = array_map($normalize, $rawHeaders);
+
+                $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
+
+                if (!empty($missingHeaders)) {
+                    $allMessages[] = [
+                        'sheet' => $sheetName,
+                        'status' => 'error',
+                        'message' => 'Missing headers: ' . implode(', ', $missingHeaders),
+                    ];
+                    continue;
+                }
+            }
+
             try {
                 $importInstance = new $config['import_class']($sheetName);
+
+                if ($processKey === 'technician_accounts' && method_exists($importInstance, 'setUserType')) {
+                    $importInstance->setUserType('technician');
+                }
 
                 Excel::import(new class($importInstance, $sheetName) implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
                     private $importInstance;
@@ -190,92 +183,41 @@ class ImportController extends Controller
                 }, $file);
 
                 $importedSheets[] = $sheetName;
-                $failures = $importInstance->failures();
-                $failureErrors = [];
 
-                if ($failures->isNotEmpty()) {
-                    foreach ($failures as $failure) {
-                        $row = $failure->row();
-                        foreach ($failure->errors() as $error) {
-                            $failureErrors[] = "Row [$row]: $error";
-                        }
-                    }
-                }
-
+                $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 0;
                 $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
-                $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 1;
+                $totalImported = max($rowCount - count($skippedRows), 0);
 
-                if (in_array($sheetKey, ['client informations', 'settings'])) {
-                    $totalImported = $rowCount;
-                } else {
-                    $totalImported = max($rowCount - 1 - count($failureErrors) - count($skippedRows), 0);
-                }
-
-                if ($processKey === 'admin_accounts') {
-                    $totalImported = $importInstance->getImportedCount();
-                } else {
-                    $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
-                    $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 1;
-                    $totalImported = max($rowCount - 1 - count($failureErrors) - count($skippedRows), 0);
-                }
-
-                if (!empty($failureErrors) || !empty($skippedRows)) {
-                    $message = [];
-                    if (!empty($failureErrors)) {
-                        $message[] = count($failureErrors) . ' failed validation';
-                    }
-                    if (!empty($skippedRows)) {
-                        $message[] = count($skippedRows) . ' skipped due to logic checks';
-                    }
-
+                if (!empty($skippedRows)) {
                     $allMessages[] = [
                         'sheet' => $sheetName,
                         'status' => 'warning',
-                        'message' => "Total of <b>(" . number_format($totalImported, 0) . ")</b> records partially imported. <br>" . implode(', ', $message),
-                        'errors' => array_merge($failureErrors, $skippedRows),
+                        'message' => "Total of ($totalImported) records partially imported. " . count($skippedRows) . " skipped.",
+                        'errors' => $skippedRows,
                     ];
                 } else {
                     $allMessages[] = [
-                        'sheet'   => $sheetName,
-                        'status'  => 'success',
-                        'message' => "Total of <b>(" . number_format($totalImported, 0) . ")</b> records imported successfully.",
+                        'sheet' => $sheetName,
+                        'status' => 'success',
+                        'message' => "Total of ($totalImported) records imported successfully.",
                     ];
                 }
-            } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-                $failures = $e->failures();
-                $messages = [];
-
-                foreach ($failures as $failure) {
-                    $row = $failure->row();
-                    foreach ($failure->errors() as $error) {
-                        $messages[] = "Row [$row]: $error";
-                    }
-                }
-
-                $allMessages[] = [
-                    'sheet'   => $sheetName,
-                    'status'  => 'error',
-                    'message' => 'Validation errors found during import.',
-                    'errors'  => $messages,
-                ];
             } catch (\Exception $e) {
                 Log::error("Import error on sheet '$sheetName': " . $e->getMessage(), [
                     'trace' => $e->getTraceAsString()
                 ]);
-
                 $allMessages[] = [
-                    'sheet'   => $sheetName,
-                    'status'  => 'error',
+                    'sheet' => $sheetName,
+                    'status' => 'error',
                     'message' => 'An error occurred: ' . $e->getMessage(),
                 ];
             }
         }
 
         return response()->json([
-            'status'   => 'completed',
+            'status' => 'completed',
             'imported' => $importedSheets,
             'messages' => $allMessages,
         ]);
     }
-
 }

@@ -3,8 +3,6 @@
 namespace App\Imports;
 
 use App\Models\Zones;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
@@ -46,9 +44,7 @@ class ZoneImport implements
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
-        $row = array_map('trim', $row);
 
-        $rowNum = $this->rowCounter++;
         $normalized = [];
         foreach ($row as $key => $value) {
             $key = strtolower(trim($key));
@@ -61,14 +57,15 @@ class ZoneImport implements
                 ['zone' => $row['zone']],
                 [
                     'zone' => $row['zone'],
-                    'area' => $row['area']
+                    'area' => $row['area'],
                 ]
             );
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error('Import error in Zones Sheet', [
-                'error' => $e->getMessage(),
-                'row'   => $row,
-                'trace' => $e->getTraceAsString(),
+                'row_num' => $rowNum,
+                'error'   => $e->getMessage(),
+                'row'     => $row,
+                'trace'   => $e->getTraceAsString(),
             ]);
 
             $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();
@@ -78,7 +75,7 @@ class ZoneImport implements
 
     public function headingRow(): int
     {
-        return 1;
+        return 2;
     }
 
     public function chunkSize(): int
