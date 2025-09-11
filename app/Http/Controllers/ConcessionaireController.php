@@ -25,13 +25,13 @@ class ConcessionaireController extends Controller
     public $meterService;
 
     public function __construct(MeterService $meterService, ClientService $clientService, PropertyTypesService $propertyTypesService) {
-        
+
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
 
@@ -41,7 +41,7 @@ class ConcessionaireController extends Controller
     }
 
     public function index(Request $request) {
-        $zones = $this->meterService->getZones()->pluck('area', 'zone'); 
+        $zones = $this->meterService->getZones()->pluck('area', 'zone');
 
         $zone = $request->zone ?? 'all';
         $entries = $request->entries ?? 10;
@@ -95,26 +95,36 @@ class ConcessionaireController extends Controller
     }
 
     public function store(StoreClientRequest $request) {
-        
-        $payload = $request->validated();
 
-        DB::beginTransaction();
+    $payload = $request->validated();
 
-        try {
-
-            $client = $this->clientService::create($payload);
-
-            DB::commit();
-
-            return response(['data' => $client, 'status' => 'success', 'message' => 'Client ' . $payload['name'] . ' added.']);
-
-        } catch  (\Exception $e)  {
-
-            DB::rollBack();
-
-            return response(['status' => 'error', 'message' => $e->getMessage()]);
+    // ADD THIS: set zone from account_no
+    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+        foreach ($payload['accounts'] as &$account) {
+            $account['zone'] = isset($account['account_no'])
+                ? substr($account['account_no'], 0, 3)
+                : null;
         }
     }
+
+    DB::beginTransaction();
+
+    try {
+        $client = $this->clientService::create($payload);
+        DB::commit();
+
+        return response([
+            'data' => $client,
+            'status' => 'success',
+            'message' => 'Client ' . $payload['name'] . ' added.'
+        ]);
+
+    } catch  (\Exception $e)  {
+        DB::rollBack();
+        return response(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+
 
     private function getUploadErrorMessage($errorCode)
     {
@@ -168,38 +178,47 @@ class ConcessionaireController extends Controller
 
     public function update(int $id, UpdateClientRequest $request) {
 
+    $payload = $request->validated();
 
-        $payload = $request->validated();
-
-        DB::beginTransaction();
-
-        try {
-
-            $client = $this->clientService::update($payload, $id);
-
-            DB::commit();
-
-            return response(['data' => $client, 'status' => 'success', 'message' => 'Client ' . $payload['name'] . ' update succesfully.']);
-
-        } catch (\Exception $e) {
-
-            DB::rollBack();
-
-            return response(['status' => 'error', 'message' => $e->getMessage()]);
+    // ADD THIS: set zone from account_no
+    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+        foreach ($payload['accounts'] as &$account) {
+            $account['zone'] = isset($account['account_no'])
+                ? substr($account['account_no'], 0, 3)
+                : null;
         }
     }
+
+    DB::beginTransaction();
+
+    try {
+        $client = $this->clientService::update($payload, $id);
+        DB::commit();
+
+        return response([
+            'data' => $client,
+            'status' => 'success',
+            'message' => 'Client ' . $payload['name'] . ' updated successfully.'
+        ]);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+
 
     public function destroy(int $id) {
 
         $response = $this->clientService::delete($id);
 
         if ($response['status'] === 'success') {
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => $response['message']
             ]);
-            
+
         } else {
             return response()->json([
                 'status' => 'error',

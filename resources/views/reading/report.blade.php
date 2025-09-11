@@ -3,26 +3,23 @@
 @section('content')
     <main class="main">
       <div class="container-fluid my-4">
-        <div class="row row-cols-3 row-cols-md-3 row-cols-lg-auto g-3 justify-content-center">
+        <div class="row row-cols-3 row-cols-md-4 row-cols-lg-auto g-3 justify-content-center">
             @foreach($zones as $zone)
                 <div class="col">
                     <div class="card h-100 shadow-sm text-center border border-primary-subtle">
                         <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
                             <div class="fw-bold text-primary fs-6">
                                 {{ $zone->read_count ?? 0 }} / {{ $zone->total_accounts }}
+
                             </div>
                             <div class="text-uppercase text-muted mt-1 small">
-                                {{ $zone->zone }} - {{ $zone->address }}
+                                {{ $zone->zone }} - {{ $zone->area }}
                             </div>
                         </div>
                     </div>
                 </div>
             @endforeach
         </div>
-
-
-
-
 
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
@@ -44,11 +41,14 @@
                         <label class="mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
                             <option value="all">All Zones</option>
-                            @forelse($zones as $targetedZone)
-                                <option value="{{$targetedZone->zone}}" {{$targetedZone->zone == $zone ? 'selected' : ''}}> {{$targetedZone->zone . ' - ' . $targetedZone->address}} </option>
-                            @empty
-                                <option value="">No Zones Available</option>
-                            @endforelse
+                            @foreach($zones as $targetedZone)
+                                @php
+                                    $zoneValue = is_object($targetedZone->zone) ? (string) $targetedZone->zone : $targetedZone->zone;
+                                @endphp
+                                <option value="{{ $zoneValue }}" {{ $zoneValue == $zone ? 'selected' : '' }}>
+                                    {{ $targetedZone->zone }} - {{ $targetedZone->area ?? '' }}
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="col-12 col-md-3 mb-3">

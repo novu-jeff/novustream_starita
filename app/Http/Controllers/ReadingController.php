@@ -158,17 +158,14 @@ class ReadingController extends Controller
     }
 
     public function report(Request $request) {
-        $month = $request->input('date', now()->month);
-        $year = $request->input('year', now()->year);
-
         $zone = $request->zone ?? 'all';
         $entries = $request->entries ?? 10;
         $toSearch = $request->search ?? '';
         $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
         $zonesRaw = DB::table('concessioner_accounts')
-            ->select('zone', 'address', DB::raw('COUNT(*) as total_accounts'))
-            ->groupBy('zone', 'address')
+            ->select('zone', DB::raw('COUNT(*) as total_accounts'))
+            ->groupBy('zone')
             ->get();
 
         $readingsPerZone = DB::table('readings')
@@ -179,28 +176,15 @@ class ReadingController extends Controller
             ->groupBy('concessioner_accounts.zone')
             ->pluck('read_count', 'zone');
 
-        $zonesMerged = $zonesRaw->map(function ($zone) use ($readingsPerZone) {
+        $zoneAreas = DB::table('zones')->pluck('area', 'zone');
+
+        $zones = $zonesRaw->map(function ($zone) use ($readingsPerZone, $zoneAreas) {
             $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
+            $zone->area = $zoneAreas[$zone->zone] ?? 'Unknown';
             return $zone;
         });
 
-        $preferredOrder = [
-            // First row
-            '101', '201', '301', '302', '303', '401', '501',
-            // Second row
-            '601', '602', '701', '702', '801', '802', '803',
-            // Third row
-            '804', '805', '806',
-        ];
-
-        $zonesByCode = $zonesMerged->keyBy('zone');
-        $zones = collect($preferredOrder)
-            ->map(fn($code) => $zonesByCode[$code] ?? null)
-            ->filter()
-            ->values();
-
-        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))
-            ->flatten(2);
+        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))->flatten(2);
 
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
@@ -215,6 +199,7 @@ class ReadingController extends Controller
 
         return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
     }
+
 
 
     public function store(Request $request) {

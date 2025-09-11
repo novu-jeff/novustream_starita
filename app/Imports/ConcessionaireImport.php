@@ -31,7 +31,6 @@ class ConcessionaireImport implements
     public function rules(): array
     {
         return [
-            'zone' => ['required'],
             'account_no' => [
                 function ($attribute, $value, $fail) {
                     if (empty($value)) {
@@ -149,4 +148,5 @@ class ConcessionaireImport implements
     {
         return $this->rowCounter;
     }
+
 }

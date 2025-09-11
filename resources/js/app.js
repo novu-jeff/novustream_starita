@@ -13,6 +13,7 @@ const authApp = createApp({
         addConcessioner,
     },
 });
+ //@input="uppercaseAddress($event, index)"
 
 authApp.mount('#app');
 

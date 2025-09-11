@@ -100,6 +100,7 @@
                         <input type="text" class="form-control"
                                 :id="'account_no_' + index"
                                 v-model="account.account_no"
+                                @input="updateZone(index)"
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.account_no'] }"
                                 >
                         <small v-if="errors['accounts.' + index + '.account_no']" class="text-danger px-1">{{ errors['accounts.' + index + '.account_no'][0] }}</small>
@@ -153,7 +154,6 @@
                         <input type="text" class="form-control"
                             :id="'address_' + index"
                             :value="account.address"
-                            @input="uppercaseAddress($event, index)"
                             :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" />
                         <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">
                         {{ errors['accounts.' + index + '.address'][0] }}
@@ -389,25 +389,6 @@ export default {
   },
   data() {
     return {
-    zones: [
-      { zone: '101', area: 'CABAMBANGAN' },
-      { zone: '201', area: 'SAN VICENTE' },
-      { zone: '301', area: 'STA. INES' },
-      { zone: '302', area: 'SAN GUILLELRMO' },
-      { zone: '303', area: 'TINAJERO' },
-      { zone: '401', area: 'CABETICAN' },
-      { zone: '501', area: 'STA. BARBARA' },
-      { zone: '601', area: 'CABALANTIAN' },
-      { zone: '602', area: 'WESTVILLE' },
-      { zone: '701', area: 'SAN ISIDRO' },
-      { zone: '702', area: 'SOLANDA' },
-      { zone: '801', area: 'BANLIC' },
-      { zone: '802', area: 'SPLENDEROSA-LA HACIENDA' },
-      { zone: '803', area: 'LA TIERRA' },
-      { zone: '804', area: 'MACABACLE' },
-      { zone: '805', area: 'PARULOG' },
-      { zone: '806', area: 'SAN ANTONIO' },
-    ],
       loading: false,
       concessioner: {
         name: '',
@@ -472,6 +453,17 @@ export default {
         });
       });
     },
+    getZoneFromAccountNo(accountNo) {
+  if (!accountNo) return '';
+  const zone = accountNo.substring(0, 3);
+  return /^\d{3}$/.test(zone) ? zone : '';
+},
+    updateZone(index) {
+        for (const key in account) {
+            const value = account[key];
+            formData.append(`accounts[${index}][${key}]`, value ?? '');
+        }
+    },
     uppercaseAddress(event, index) {
         const input = event.target.value.toUpperCase();
         this.concessioner.accounts[index].address = input;
@@ -512,6 +504,10 @@ export default {
     saveConcessioner() {
         this.loading = true;
         this.errors = [];
+
+        this.concessioner.accounts.forEach((account, index) => {
+        account.zone = account.account_no ? account.account_no.substring(0, 3) : '';
+        });
 
         let method = 'post';
         let endpoint = `${baseURL}/admin/users/concessionaires`;
