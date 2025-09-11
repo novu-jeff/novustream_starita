@@ -16,7 +16,7 @@ class AdminAccountsImport implements ToCollection, SkipsEmptyRows, WithStartRow
 
     public function startRow(): int
     {
-        return 2; // skip the first row with IMPORTANT note
+        return 3; // skip the first row with IMPORTANT note
     }
 
     public function collection(Collection $rows)
