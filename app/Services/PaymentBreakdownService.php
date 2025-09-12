@@ -45,22 +45,20 @@ class PaymentBreakdownService {
     }
 
      public static function getDiscounts(?int $id = null) {
-
-        if(!is_null($id)) {
-            return PaymentDiscount::where('id', $id)
-                ->first() ?? null;
+        if (!is_null($id)) {
+            return PaymentDiscount::where('id', $id)->first() ?? null;
         }
-
         return PaymentDiscount::all();
-
     }
+
+
 
     public static function create(array $payload) {
         DB::beginTransaction();
 
         try {
             $message = '';
-            
+
             switch ($payload['action']) {
                 case 'regular':
                     $model = PaymentBreakdown::create([
@@ -190,11 +188,11 @@ class PaymentBreakdownService {
         DB::beginTransaction();
 
         try {
-            
+
             $updateData = [
                 'name' => $payload['name'],
                 'type' => $payload['type'],
-                'amount' => $payload['amount'], 
+                'amount' => $payload['amount'],
             ];
 
             PaymentBreakdown::where('id', $id)->update($updateData);
@@ -207,7 +205,7 @@ class PaymentBreakdownService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [
@@ -247,7 +245,7 @@ class PaymentBreakdownService {
             ];
 
         } catch (\Exception $e) {
-            
+
             DB::rollBack();
 
             return [

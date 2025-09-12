@@ -22,15 +22,15 @@ class PaymentBreakdownController extends Controller
     public function __construct(PaymentBreakdownService $paymentBreakdownService, PropertyTypesService $propertyService) {
 
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
 
-        
+
         $this->paymentBreakdownService = $paymentBreakdownService;
         $this->propertyService = $propertyService;
     }
@@ -107,15 +107,15 @@ class PaymentBreakdownController extends Controller
                 'percentage_of' => 'nullable|required_if:type,percentage|in:basic_charge,total_amount',
                 'amount' => 'required|numeric'
             ]);
-            
+
             if($validator->fails()) {
                 return redirect()->back()
                     ->withErrors($validator)
                     ->withInput();
             }
-    
+
             $response = $this->paymentBreakdownService::create($payload);
-        } 
+        }
 
         if($action == 'penalty') {
 
@@ -176,7 +176,7 @@ class PaymentBreakdownController extends Controller
             if ($validator->fails()) {
                 throw new ValidationException($validator);
             }
-            
+
             if($validator->fails()) {
                 return redirect()->route('payment-breakdown.create', ['action' => $action])
                     ->withErrors($validator)
@@ -196,12 +196,12 @@ class PaymentBreakdownController extends Controller
                     function ($attribute, $value, $fail) use ($payload) {
                         preg_match('/\d+/', $attribute, $matches);
                         $index = isset($matches[0]) ? (int) $matches[0] : null;
-            
+
                         if ($index === 1) {
                             $exists = DB::table('payment_service_fees')
                                 ->where('property_id', $value)
                                 ->exists();
-            
+
                             if ($exists) {
                                 $fail('* already exists');
                             }
@@ -215,7 +215,7 @@ class PaymentBreakdownController extends Controller
                 'service_fee.amount.*.required' => '* required',
                 'service_fee.amount.*.numeric' => '* must be a number',
             ]);
-            
+
             if($validator->fails()) {
                 return redirect()->route('payment-breakdown.create', ['action' => $action])
                     ->withErrors($validator)
@@ -236,13 +236,13 @@ class PaymentBreakdownController extends Controller
                 'eligible' => 'required|in:pwd,senior',
                 'amount' => 'required|numeric'
             ]);
-            
+
             if($validator->fails()) {
                 return redirect()->route('payment-breakdown.create', ['action' => $action])
                     ->withErrors($validator)
                     ->withInput();
             }
-    
+
             $response = $this->paymentBreakdownService::create($payload);
 
         }
@@ -261,7 +261,7 @@ class PaymentBreakdownController extends Controller
                     ->withErrors($validator)
                     ->withInput();
             }
-    
+
             $response = $this->paymentBreakdownService::create($payload);
         }
 
@@ -295,18 +295,23 @@ class PaymentBreakdownController extends Controller
     }
 
     public function edit(int $id, Request $request) {
-
         $action = $request->action;
 
-        if(!in_array($action, ['regular', 'penalty', 'service-fee'])) {
+        if(!in_array($action, ['regular', 'penalty', 'service-fee', 'discount'])) {
             return redirect()->route('payment-breakdown.index');
         }
 
-        $data = $this->paymentBreakdownService::getData($id);
+        if ($action === 'discount') {
+        $data = $this->paymentBreakdownService::getDiscounts($id);
+        } else {
+            $data = $this->paymentBreakdownService::getData($id);
+        }
+
         $property_types = $this->propertyService->getData() ?? [];
 
         return view('payment-breakdown.form', compact('action', 'property_types', 'data'));
     }
+
 
     public function update(int $id, Request $request) {
 
@@ -341,7 +346,7 @@ class PaymentBreakdownController extends Controller
                 'message' => $response['message']
             ]);
         }
-        
+
     }
 
 
@@ -359,12 +364,12 @@ class PaymentBreakdownController extends Controller
         $response = $this->paymentBreakdownService::delete($action, $id);
 
         if ($response['status'] === 'success') {
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => $response['message']
             ]);
-            
+
         } else {
             return response()->json([
                 'status' => 'error',
@@ -389,7 +394,7 @@ class PaymentBreakdownController extends Controller
                 return '
                 <div class="d-flex align-items-center gap-2">
                     <a href="' . route('payment-breakdown.edit', ['payment_breakdown' => $row->id, 'action' => $action]) . '"
-                        class="btn btn-secondary text-white text-uppercase fw-bold" 
+                        class="btn btn-secondary text-white text-uppercase fw-bold"
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>
                     </a>
@@ -461,7 +466,7 @@ class PaymentBreakdownController extends Controller
                     $index = $row->eligible;
 
                     $eligible = $eligible[$index] ?? 'N/A';
-                    
+
                     return $eligible;
 
 
@@ -470,7 +475,7 @@ class PaymentBreakdownController extends Controller
                     return '
                     <div class="d-flex align-items-center gap-2">
                         <a href="' . route('payment-breakdown.edit', ['payment_breakdown' => $row->id, 'action' => $action]) . '"
-                            class="btn btn-secondary text-white text-uppercase fw-bold" 
+                            class="btn btn-secondary text-white text-uppercase fw-bold"
                             id="update-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-edit-alt"></i>
                         </a>

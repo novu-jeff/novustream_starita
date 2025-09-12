@@ -6,7 +6,7 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>Payment Breakdown</h1>
                 <div class="d-flex align-items-center gap-2">
-                    <a href="{{ route('payment-breakdown.index', ['view' => request('action')]) }}" 
+                    <a href="{{ route('payment-breakdown.index', ['view' => request('action')]) }}"
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
                         Go Back
                     </a>
@@ -26,7 +26,7 @@
                                         <div class="text-uppercase fw-bold">Information</div>
                                     </div>
                                     <div class="card-body">
-                                        
+
                                         <div class="row mb-3">
                                             <div class="col-md-12 mb-3">
                                                 <label for="name" class="form-label">Name</label>
@@ -119,7 +119,7 @@
                                                         <div class="col-12 col-md-3 mb-3">
                                                             <label class="form-label">Amount Type</label>
                                                             <select name="penalty[amount_type][]" class="form-select text-uppercase amount-type-select @error("penalty.to.$index") is-invalid @enderror" data-index="{{ $index }}">
-                                                                <option value=""> - CHOOSE -</option>        
+                                                                <option value=""> - CHOOSE -</option>
                                                                 <option value="fixed" {{ ($amountTypeValues[$index] ?? '') === 'fixed' ? 'selected' : '' }}>Fixed Amount</option>
                                                                 <option value="percentage" {{ ($amountTypeValues[$index] ?? '') === 'percentage' ? 'selected' : '' }}>Percentage</option>
                                                             </select>
@@ -142,7 +142,7 @@
                                                     </div>
                                                 </div>
                                             @endforeach
-                                        </div>                                        
+                                        </div>
                                         <div class="d-flex justify-content-end">
                                             <button type="button" id="add-row-breakdown" class="btn btn-dark mt-3 text-uppercase px-4">Add Row</button>
                                         </div>
@@ -189,19 +189,19 @@
                                                                 @error("service_fee.property_type.$index")
                                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                                 @enderror
-                                                            </div>                                                            
-                                                
+                                                            </div>
+
                                                             <!-- Amount -->
                                                             <div class="col-12 col-md-6 mb-3">
                                                                 <label class="form-label">Amount</label>
-                                                                <input type="text" name="service_fee[amount][]" class="form-control text-uppercase @error("service_fee.amount.$index") is-invalid @enderror" 
+                                                                <input type="text" name="service_fee[amount][]" class="form-control text-uppercase @error("service_fee.amount.$index") is-invalid @enderror"
                                                                     value="{{ old("service_fee.amount.$index", $amountValues[$index] ?? '') }}">
                                                                 @error("service_fee.amount.$index")
                                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                                 @enderror
                                                             </div>
                                                         </div>
-                                                
+
                                                         <!-- Remove Button -->
                                                         <div class="mt-2">
                                                             <button type="button" class="btn btn-danger mt-3 remove-row-service">
@@ -209,16 +209,16 @@
                                                             </button>
                                                         </div>
                                                     </div>
-                                                @endforeach                                            
+                                                @endforeach
                                             @endif
-                                        </div>                                        
+                                        </div>
                                         <div class="d-flex justify-content-end">
                                             <button type="button" id="add-row-service" class="btn btn-dark mt-3 text-uppercase px-4">Add Row</button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>                        
+                        </div>
                         <div class="d-flex justify-content-end my-5">
                             <button type="submit" class="btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
                         </div>
@@ -238,7 +238,7 @@
                                         <div class="text-uppercase fw-bold">Information</div>
                                     </div>
                                     <div class="card-body">
-                                        
+
                                         <div class="row mb-3">
                                             <div class="col-md-12 mb-3">
                                                 <label for="name" class="form-label">Name</label>
@@ -339,7 +339,7 @@
                             <div class="col-12 col-md-3 mb-3">
                                 <label class="form-label">Amount Type</label>
                                 <select name="penalty[amount_type][]" class="form-select text-uppercase amount-type-select">
-                                    <option value=""> - CHOOSE -</option>    
+                                    <option value=""> - CHOOSE -</option>
                                     <option value="fixed">Fixed Amount</option>
                                     <option value="percentage">Percentage</option>
                                 </select>
@@ -425,7 +425,7 @@
                 toggleFields();
             });
 
-            toggleFields(); 
+            toggleFields();
         });
     </script>
 @endsection
