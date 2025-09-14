@@ -63,18 +63,31 @@ class ReadingController extends Controller
 
         $user = auth()->user();
         if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
+        $assignedZones = explode(',', $user->zone_assigned);
+        $payload['zones'] = $assignedZones;
 
-            $payload['zones'] = $assignedZones;
-
-            if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
-                if (in_array($payload['zone'], $assignedZones)) {
-                    $payload['zones'] = [$payload['zone']];
-                } else {
-                    $payload['zones'] = [];
-                }
+        if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
+            if (in_array($payload['zone'], $assignedZones)) {
+                $payload['zones'] = [$payload['zone']];
+            } else {
+                $payload['zones'] = [];
             }
         }
+    }
+
+    if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+        try {
+            $response = $this->meterService->getPreviousReading($payload['account_no']);
+            return response()->json($response);
+        } catch (\Exception $e) {
+            Log::error('getPreviousReading failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unable to get previous reading.'
+            ], 500);
+        }
+    }
+
 
         if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
             $response = $this->meterService->getReRead($payload['reference_no']);
