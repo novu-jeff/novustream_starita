@@ -93,10 +93,10 @@ class PaymentController extends Controller
         $sheetNames = $spreadsheet->getSheetNames();
 
         $expectedHeaders = [
-            'reference_no', 'account_no', 'billing_from', 'billing_to', 'previous_reading',
-            'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
-            'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
-            'payment_reference_no',
+            'reference_no', 'account_no', 'billing_from', 'billing_to',
+            'previous_reading', 'present_reading', 'consumption', 'penalty',
+            'unpaid', 'arrears', 'current_bill', 'amount_paid',
+            'date_paid', 'due_date', 'payor_name', 'payment_reference_no',
         ];
 
         $allMessages = [];
@@ -104,16 +104,48 @@ class PaymentController extends Controller
 
         $headingData = (new HeadingRowImport(2))->toArray($file);
 
+        $normalizeHeader = function ($header) {
+            $h = (string)$header;
+            $h = trim($h);
+            $h = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $h));
+            $h = preg_replace('/_+/', '_', $h);
+            $h = trim($h, '_');
+            return $h;
+        };
+
         foreach ($sheetNames as $index => $sheetName) {
-            $actualHeaders = array_map('strtolower', array_map('trim', $headingData[$index][0] ?? []));
-            $missing = array_diff($expectedHeaders, $actualHeaders);
+            $rawHeadersRow = $headingData[$index][0] ?? [];
+
+            $normalizedHeaders = [];
+            foreach ($rawHeadersRow as $h) {
+                $n = $normalizeHeader($h);
+                if (!empty($n)) {
+                    $normalizedHeaders[] = $n;
+                }
+            }
+
+            if (empty($normalizedHeaders) && !empty($headingData[$index])) {
+                foreach ($headingData[$index] as $possibleRow) {
+                    if (!empty($possibleRow) && is_array($possibleRow)) {
+                        foreach ($possibleRow as $h) {
+                            $n = $normalizeHeader($h);
+                            if (!empty($n)) {
+                                $normalizedHeaders[] = $n;
+                            }
+                        }
+                        if (!empty($normalizedHeaders)) break;
+                    }
+                }
+            }
+
+            $missing = array_values(array_diff($expectedHeaders, $normalizedHeaders));
 
             if (!empty($missing)) {
                 $allMessages[] = [
                     'sheet' => $sheetName,
                     'status' => 'error',
                     'message' => 'Missing headers in sheet.',
-                    'missing_headers' => array_values($missing),
+                    'missing_headers' => $missing,
                 ];
                 continue;
             }
@@ -158,7 +190,7 @@ class PaymentController extends Controller
                 if (!empty($failureErrors) || !empty($skippedRows)) {
                     $message = [];
                     if (!empty($failureErrors)) {
-                        $message[] = count($failureErrors) . ' skipped due to logic checks';
+                        $message[] = count($failureErrors) . ' skipped due to validation';
                     }
                     if (!empty($skippedRows)) {
                         $message[] = count($skippedRows) . ' skipped due to logic checks';
@@ -214,6 +246,7 @@ class PaymentController extends Controller
             'messages' => $allMessages,
         ]);
     }
+
 
     public function pay(Request $request, string $reference_no) {
 
