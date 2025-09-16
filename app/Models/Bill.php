@@ -35,6 +35,15 @@ class Bill extends Model
         'isChangeForAdvancePayment'
     ];
 
+    protected $casts = [
+        'isPaid' => 'boolean',
+        'hasPenalty' => 'boolean',
+        'hasDisconnection' => 'boolean',
+        'hasDisconnected' => 'boolean',
+        'isChangeForAdvancePayment' => 'boolean',
+        'isHighConsumption' => 'boolean',
+    ];
+
     public function reading() {
         return $this->hasOne(Reading::class, 'id', 'reading_id');
     }
