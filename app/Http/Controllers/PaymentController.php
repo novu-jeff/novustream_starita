@@ -24,7 +24,7 @@ class PaymentController extends Controller
     public $meterService;
     public $generateService;
 
-    public function __construct(MeterService $meterService,
+    public function __construct(MeterService $meterService, 
         GenerateService $generateService) {
         $this->meterService = $meterService;
         $this->generateService = $generateService;
@@ -47,7 +47,7 @@ class PaymentController extends Controller
         $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
         $collection = collect($this->meterService::getPayments($filter, $zone, $date, $toSearch))
-            ->flatten(2);
+            ->flatten(2); 
 
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
@@ -228,10 +228,6 @@ class PaymentController extends Controller
                     'errors' => $messages,
                 ];
             } catch (\Exception $e) {
-                \Log::error("Import error on sheet '$sheetName': " . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString()
-                ]);
-
                 $allMessages[] = [
                     'sheet' => $sheetName,
                     'status' => 'error',
@@ -252,10 +248,10 @@ class PaymentController extends Controller
 
         if($request->getMethod() == 'POST') {
             $payload = $request->all();
-
+            
             switch($payload['payment_type']) {
                 case 'cash':
-                    return $this->processCashPayment($reference_no, $payload);
+                    return $this->processCashPayment($reference_no, $payload);    
                 case 'online':
                     return $this->processOnlinePayment($reference_no, $payload);
             }
@@ -271,15 +267,19 @@ class PaymentController extends Controller
             ]);
         }
 
-        if(!is_null($data['active_payment'])) {
-            return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']['reference_no']]);
+        if (!is_null($data['active_payment']) 
+            && $data['active_payment']['reference_no'] !== $reference_no) {
+            $alert = [
+                'status' => 'warning',
+                'message' => 'This account has another active payment. Showing requested bill anyway.'
+            ];
         }
 
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        $amount = $data['current_bill']['amount' ?? 0];
+        $amount = $data['current_bill']['amount'] ?? 0;
         $assumed_penalty = $amount * 0.15;
         $assumed_amount_after_due = $amount + $assumed_penalty;
 
@@ -293,41 +293,41 @@ class PaymentController extends Controller
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
         $data = $this->meterService::getBill($reference_no);
-
+    
         if (!$data || !isset($data['current_bill'])) {
             return ['error' => 'Bill not found'];
         }
-
+    
         $total = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
-
+    
         if($strictAmount) {
             $validator = Validator::make($payload, [
                 'payment_amount' => 'required|gte:' . $total
             ], [
                 'payment_amount.gte' => 'Cash payment is insufficient'
             ]);
-
+        
             if ($validator->fails()) {
                 return ['error' => $validator->errors()->first()];
             }
         }
-
-        return ['data' => $data];
+    
+        return ['data' => $data]; 
     }
-
+    
     public function processCashPayment(string $reference_no, array $payload) {
-
+        
         $result = $this->getBill($reference_no, $payload, true);
-
+    
         if (isset($result['error'])) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => $result['error']
             ]);
         }
-
-        $data = $result['data'];
-
+    
+        $data = $result['data']; 
+    
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
         $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
@@ -339,7 +339,7 @@ class PaymentController extends Controller
         if($change != 0 && $forAdvancePayment) {
             $saveChange = true;
         }
-
+            
         $currentBill = Bill::find($data['current_bill']['id']);
 
         if ($currentBill) {
@@ -370,24 +370,24 @@ class PaymentController extends Controller
             }
         }
 
-
+    
         return redirect()->back()->with('alert', [
             'status' => 'success',
             'message' => 'Bill has been paid'
         ]);
     }
-
+    
     public function processOnlinePayment(string $reference_no, array $payload) {
 
         $result = $this->getBill($reference_no, $payload, false);
-
+    
         if (isset($result['error'])) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => $result['error']
             ]);
         }
-
+        
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
 
         return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with('alert', [
@@ -403,7 +403,7 @@ class PaymentController extends Controller
         $payload = $request->all();
 
         $bill = $this->meterService->getBill($reference_no);
-
+            
         if($bill) {
 
             $now = Carbon::now()->format('Y-m-d H:i:s');
@@ -429,7 +429,7 @@ class PaymentController extends Controller
                 'status' => 'success',
                 'message' => 'Payment successful'
             ]);
-        }
+        } 
 
         return response()->json([
             'status' => 'error',
@@ -445,21 +445,21 @@ class PaymentController extends Controller
                 return $row->reading->account_no ?? 'N/A';
             })
             ->editColumn('billing_period', function ($row) {
-                return ($row->bill_period_from && $row->bill_period_to)
+                return ($row->bill_period_from && $row->bill_period_to) 
                     ? Carbon::parse($row->bill_period_from)->format('M d, Y') . ' TO ' . Carbon::parse($row->bill_period_to)->format('M d, Y')
                     : 'N/A';
             })
             ->editColumn('bill_date', function ($row) {
-                return !empty($row->bill_period_to)
-                    ? Carbon::parse($row->bill_period_to)->format('M d, Y')
+                return !empty($row->bill_period_to) 
+                    ? Carbon::parse($row->bill_period_to)->format('M d, Y') 
                     : 'N/A';
             })
             ->editColumn('amount', function ($row) {
                 return '₱' . number_format((float)($row->amount ?? 0), 2);
             })
             ->editColumn('due_date', function ($row) {
-                return !empty($row->due_date)
-                    ? Carbon::parse($row->due_date)->format('M d, Y')
+                return !empty($row->due_date) 
+                    ? Carbon::parse($row->due_date)->format('M d, Y') 
                     : 'N/A';
             })
             ->editColumn('status', function ($row) {
@@ -471,16 +471,16 @@ class PaymentController extends Controller
                 if(!$row->isPaid) {
                     return '
                     <div class="d-flex align-items-center gap-2">
-                        <a href="' . route('payments.pay', ['reference_no' => $row->reference_no]) . '"
+                        <a href="' . route('payments.pay', ['reference_no' => $row->reference_no]) . '" 
                             class="btn btn-primary text-white text-uppercase fw-bold">
                             <i class="bx bx-credit-card-alt" ></i>
                         </a>
                     </div>';
                 } else {
-                    return
+                    return 
                     '<div class="d-flex align-items-center gap-2">
-                        <a target="_blank" href="' . route('reading.show', $row->reference_no) . '"
-                            class="btn btn-primary text-white text-uppercase fw-bold"
+                        <a target="_blank" href="' . route('reading.show', $row->reference_no) . '" 
+                            class="btn btn-primary text-white text-uppercase fw-bold" 
                             id="show-btn" data-id="' . e($row->id) . '">
                             <i class="bx bx-receipt"></i>
                         </a>
