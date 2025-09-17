@@ -90,7 +90,7 @@ class ImportController extends Controller
                 'import_class' => SCDiscountImport::class,
             ],
             'rates_code' => [
-                'expected_headers' => ['rate_code','name','rate','0_10','11_20','21_30','31_40','41_50','51_60'],
+                'expected_headers' => ['rate_code','name','rate','0_10','11_20','21_30','31_40','41_50','51_1000', '1001'],
                 'import_class' => RateCodesImport::class,
             ],
             'status_code' => [

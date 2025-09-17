@@ -31,6 +31,7 @@ class Bill extends Model
         'date_paid',
         'due_date',
         'payor_name',
+        'payment_method',
         'paid_by_reference_no',
         'isChangeForAdvancePayment'
     ];
