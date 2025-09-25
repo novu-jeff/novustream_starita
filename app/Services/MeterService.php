@@ -129,12 +129,20 @@ class MeterService {
             }
         }
 
+        $total = $query->count();
+
         $limit = (isset($filter['filter']) && is_numeric($filter['filter']))
             ? (int) $filter['filter']
             : 50;
 
-        return $query->limit($limit)->get();
+        $data = $query->limit($limit)->get();
+
+        return [
+            'total' => $total,
+            'data' => $data
+        ];
     }
+
 
     public function getPreviousReading($account_no) {
 

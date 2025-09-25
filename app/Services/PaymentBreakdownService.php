@@ -7,6 +7,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\PaymentDiscount;
 use App\Models\PaymentServiceFee;
 use App\Models\Ruling;
+use App\Models\Bill;
 use Illuminate\Support\Facades\DB;
 
 class PaymentBreakdownService {
@@ -256,5 +257,20 @@ class PaymentBreakdownService {
 
     }
 
+   public function applyDiscount($bill, $basicCharge, $totalAmount)
+{
+    $discounts = PaymentDiscount::whereIn('eligible', ['senior', 'franchise'])->get();
+    $totalDiscount = 0;
+
+    foreach ($discounts as $d) {
+        if ($d->eligible == 'senior') {
+            $totalDiscount += $totalAmount * $d->amount;
+        } elseif ($d->eligible == 'franchise') {
+            $totalDiscount += $totalAmount * $d->amount; // <-- make sure this is included
+        }
+    }
+
+    return $totalDiscount;
+}
 
 }
