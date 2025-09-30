@@ -366,19 +366,18 @@ class ReadingController extends Controller
         $reference_no = $billData['reference_no'];
         $amount = $billData['amount'];
 
-        // initialize totals
-        $basicCharge = $amount; // base bill
-        $totalAmount = $amount; // if you add penalties or fees later, add them here
+        $basicCharge = $computed['basic_charge'];
+        $totalAmount = $computed['bill']['amount'];
 
         // Save bill
-        $bill = Bill::firstOrCreate(
+        $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
             [
                 'account_no' => $account_no,
                 'amount' => $amount,
                 'penalty' => 0,
-                'discount' => 0,
-                'amount_after_due' => $amount
+                'discount' => $computed['bill']['discount'] ?? 0,
+                'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
             ]
         );
 
@@ -395,18 +394,24 @@ class ReadingController extends Controller
             'type_id' => $discountRecord ? $discountRecord->discount_type_id : null,
         ]);
 
+        $totalDiscount = 0;
+
         if ($discountRecord && $discountRecord->discount_type_id) {
             $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
             Log::info('DiscountTypeRow', [
                 'discount_type_row' => $discountTypeRow ? $discountTypeRow->toArray() : null
             ]);
 
-            // Senior Discount
             if ($discountRecord->discount_type_id == 1) {
                 $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
 
-                if ($seniorDiscount && isset($seniorDiscount->amount)) {
-                    $seniorAmount = round($bill->amount * floatval($seniorDiscount->amount), 2);
+                if ($seniorDiscount) {
+                    //calculate baseAmount based on percentage_of
+                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $seniorAmount = $seniorDiscount->type === 'fixed'
+                        ? round(floatval($seniorDiscount->amount), 2)
+                        : round($baseAmount * floatval($seniorDiscount->amount), 2);
 
                     BillDiscount::create([
                         'bill_id' => $bill->id,
@@ -416,6 +421,8 @@ class ReadingController extends Controller
                     ]);
 
                     Log::info('Senior discount applied', ['amount' => $seniorAmount]);
+
+                    $totalDiscount += $seniorAmount;
                 }
             }
 
@@ -423,8 +430,12 @@ class ReadingController extends Controller
             if ($discountRecord->discount_type_id == 2) {
                 $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
 
-                if ($franchiseDiscount && isset($franchiseDiscount->amount)) {
-                    $franchiseAmount = round($bill->amount * floatval($franchiseDiscount->amount), 2);
+                if ($franchiseDiscount) {
+                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $franchiseAmount = $franchiseDiscount->type === 'fixed'
+                        ? round(floatval($franchiseDiscount->amount), 2)
+                        : round($baseAmount * floatval($franchiseDiscount->amount), 2);
 
                     BillDiscount::create([
                         'bill_id' => $bill->id,
@@ -433,12 +444,20 @@ class ReadingController extends Controller
                         'amount' => $franchiseAmount,
                     ]);
 
+                    $totalDiscount += $franchiseAmount;
+
                     Log::info('Franchise discount applied', ['amount' => $franchiseAmount]);
                 }
             }
+
         } else {
             Log::info('No valid discount for this account', ['account_no' => $account->account_no]);
         }
+
+        $bill->update([
+            'discount' => $totalDiscount,
+            'amount_after_due' => $bill->amount - $totalDiscount
+        ]);
 
         // Generate payment QR
         $paymentPayload = [
