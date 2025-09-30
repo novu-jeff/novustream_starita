@@ -61,7 +61,6 @@ class ConcessionaireImport implements
         $row = array_map('trim', $row);
 
         try {
-
             $user = User::create([
                 'name'       => $row['name'],
                 'contact_no' => $row['contact_no'] ?? null,
@@ -69,10 +68,18 @@ class ConcessionaireImport implements
 
             if ($user) {
                 $property_type = $this->getPropertyType($row['rate_code']);
+
+                $zone = null;
+                if (!empty($row['account_no'])) {
+                    $cleanAccountNo = preg_replace('/\s+/', '', $row['account_no']);
+                    if (preg_match('/^(\d{3})/', $cleanAccountNo, $matches)) {
+                        $zone = $matches[1];
+                    }
+                }
+
                 $date_connected = null;
                 if (isset($row['date_connected']) && $row['date_connected'] !== '') {
                     if (is_numeric($row['date_connected'])) {
-                        // Excel numeric date → PHP date
                         $date_connected = Carbon::instance(
                             \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($row['date_connected'])
                         )->format('Y-m-d');
@@ -84,7 +91,7 @@ class ConcessionaireImport implements
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
-                    'zone'            => $row['zone'] ?? null,
+                    'zone'            => $zone, // ✅ use extracted zone
                     'account_no'      => $row['account_no'] ?? null,
                     'address'         => $row['address'] ?? null,
                     'property_type'   => $property_type,
@@ -109,6 +116,7 @@ class ConcessionaireImport implements
         }
     }
 
+
     public function validateRow(array $row, $index)
     {
         if ($this->isRowEmpty($row)) {
@@ -121,19 +129,11 @@ class ConcessionaireImport implements
     {
         $types = [
             12 => 'Residential 1/2"',
-            13 => 'Residential 3/4"',
-            15 => 'Residential 1 1/2"',
-            17 => 'Residential 2"',
-            19 => 'Residential 4"',
             22 => 'Government 1/2"',
-            32 => 'Commercial/Industrial 1/2"',
-            34 => 'Commercial/Industrial 1"',
-            37 => 'Commercial/Industrial 2"',
-            38 => 'Commercial/Industrial 3"',
-            42 => 'Commercial A 1/2"',
-            63 => 'Commercial C 3/4"',
-            64 => 'Commercial C 1"',
-            67 => 'Commercial C 2"',
+            32 => 'Commercial & Industrial 1/2"',
+            42 => 'Commercial C 1/2"',
+            52 => 'Commercial B 1/2"',
+            62 => 'Commercial A 1/2"',
         ];
 
         return $types[(int) $rate_code] ?? null;

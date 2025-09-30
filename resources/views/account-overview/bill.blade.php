@@ -181,11 +181,11 @@
                                     </div>
                                     <div style="width: fit-content;">
                                         <p style="font-size: 11px; text-transform: uppercase; margin: 0; font-weight: 600">Republic of the Philippines</p>
-                                        <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Bacolor Water District</p>
-                                        <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Sta. Ines, Bacolor, Pampanga</p>
-                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. (045) 900- 2911</p>
-                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 09190644815</p>
-                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
+                                        <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Sta. Rita Water District</p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Zone 6 Dila-Dila, Santa Rita, Pampanga</p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. </p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 0917-103-2421 | 0917-104-7196</p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 261-304-832-000 Non VAT</p>
                                     </div>
                                 </div>
                                 <div style="text-align:center; text-transform: uppercase; font-size: 16px; margin: 10px 0 10px 0;">
