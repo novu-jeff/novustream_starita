@@ -47,7 +47,7 @@ class ImportController extends Controller
             'concessionaire informations' => 'concessionaire',
             'concessionaire'              => 'concessionaire',
             'sc discount'                 => 'sc_discount',
-            'senior citizen discount'     => 'sc_discount',
+            'discount'                    => 'discount',
             'advances'                    => 'advances',
             'outstanding balance'         => 'outstanding_balance',
             'rates code'                  => 'rates_code',

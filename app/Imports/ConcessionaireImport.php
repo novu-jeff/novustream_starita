@@ -91,7 +91,7 @@ class ConcessionaireImport implements
 
                 UserAccounts::create([
                     'user_id'         => $user->id,
-                    'zone'            => $zone, // ✅ use extracted zone
+                    'zone'            => $zone,
                     'account_no'      => $row['account_no'] ?? null,
                     'address'         => $row['address'] ?? null,
                     'property_type'   => $property_type,
