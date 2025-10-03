@@ -12,14 +12,17 @@ return new class extends Migration
             Schema::create('discount', function (Blueprint $table) {
                 $table->id();
                 $table->string('account_no');
-                $table->string('id_no');
+                $table->string('id_no')
+                      ->nullable();
                 $table->foreignId('discount_type_id')
                       ->nullable()
                       ->constrained('discount_type')
                       ->nullOnDelete()
                       ->restrictOnUpdate();
-                $table->string('effective_date');
-                $table->string('expired_date');
+                $table->string('effective_date')
+                      ->nullable();
+                $table->string('expired_date')
+                      ->nullable();
                 $table->timestamps();
             });
         }

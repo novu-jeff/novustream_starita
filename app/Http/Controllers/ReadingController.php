@@ -384,8 +384,8 @@ class ReadingController extends Controller
         $today = Carbon::today();
 
         $discountRecord = Discount::where('account_no', $account->account_no)
-            ->whereDate('effective_date', '<=', $today)
-            ->whereDate('expired_date', '>=', $today)
+            // ->whereDate('effective_date', '<=', $today)
+            // ->whereDate('expired_date', '>=', $today)
             ->first();
 
         Log::info('Checking discount record', [
