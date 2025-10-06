@@ -235,11 +235,18 @@ class PreviousBillingImport implements
     protected function cleanAmount($value)
     {
         if ($value === null) return 0;
+
+        if (is_string($value) && preg_match('/^=/', $value)) {
+            return 0; // or null
+        }
+
         $clean = str_replace([',', ' '], ['', ''], trim((string)$value));
+
         return is_numeric($clean)
             ? (fmod(floatval($clean), 1.0) === 0.0 ? (int)$clean : floatval($clean))
-            : $clean;
+            : 0;
     }
+
 
     public function chunkSize(): int
     {

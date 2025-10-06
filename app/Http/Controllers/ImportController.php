@@ -47,7 +47,8 @@ class ImportController extends Controller
             'concessionaire informations' => 'concessionaire',
             'concessionaire'              => 'concessionaire',
             'sc discount'                 => 'sc_discount',
-            'senior citizen discount'     => 'sc_discount',
+            'discount'                    => 'sc_discount',
+            'discounts'                   => 'sc_discount',
             'advances'                    => 'advances',
             'outstanding balance'         => 'outstanding_balance',
             'rates code'                  => 'rates_code',
@@ -86,7 +87,7 @@ class ImportController extends Controller
                 'import_class' => \App\Imports\OutstandingBalanceImport::class,
             ],
             'sc_discount' => [
-                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date'],
+                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date', 'type'],
                 'import_class' => SCDiscountImport::class,
             ],
             'rates_code' => [

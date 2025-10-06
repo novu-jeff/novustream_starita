@@ -102,6 +102,7 @@ class ConcessionaireImport implements
         }
     }
 
+
     public function validateRow(array $row, $index)
     {
         if ($this->isRowEmpty($row)) {
