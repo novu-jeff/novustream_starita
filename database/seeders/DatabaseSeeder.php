@@ -18,12 +18,13 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             //PropertyTypeSeeder::class,
             TicketsCategorySeeder::class,
-            BaseRateSeeder::class,
+            //BaseRateSeeder::class,
             //RateSeeder::class,
             //BillSeeder::class,
             //ConcessionerAccountSeeder::class,
             //UserSeeder::class,
             //ZoneSeeder::class,
+            DiscountTypeSeeder::class,
         ]);
 
     }

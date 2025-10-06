@@ -145,7 +145,7 @@ class ClientService {
                 ]
             );
         }
-        return $user->load('accounts'); 
+        return $user->load('accounts');
     }
 
     public static function delete(int $id) {
@@ -171,23 +171,17 @@ class ClientService {
     private static function getZoneFromAddress($address)
     {
         $zones = [
-            ['zone' => '101', 'area' => 'CABAMBANGAN'],
-            ['zone' => '201', 'area' => 'SAN VICENTE'],
-            ['zone' => '301', 'area' => 'STA. INES'],
-            ['zone' => '302', 'area' => 'SAN GUILLELRMO'],
-            ['zone' => '303', 'area' => 'TINAJERO'],
-            ['zone' => '401', 'area' => 'CABETICAN'],
-            ['zone' => '501', 'area' => 'STA. BARBARA'],
-            ['zone' => '601', 'area' => 'CABALANTIAN'],
-            ['zone' => '602', 'area' => 'WESTVILLE'],
-            ['zone' => '701', 'area' => 'SAN ISIDRO'],
-            ['zone' => '702', 'area' => 'SOLANDA'],
-            ['zone' => '801', 'area' => 'BANLIC'],
-            ['zone' => '802', 'area' => 'SPLENDEROSA-LA HACIENDA'],
-            ['zone' => '803', 'area' => 'LA TIERRA'],
-            ['zone' => '804', 'area' => 'MACABACLE'],
-            ['zone' => '805', 'area' => 'PARULOG'],
-            ['zone' => '806', 'area' => 'SAN ANTONIO'],
+            ['zone' => '011', 'area' => 'BOOK 1'],
+            ['zone' => '021', 'area' => 'BOOK 2'],
+            ['zone' => '031', 'area' => 'BOOK 3'],
+            ['zone' => '041', 'area' => 'BOOK 4'],
+            ['zone' => '051', 'area' => 'BOOK 5'],
+            ['zone' => '061', 'area' => 'BOOK 6'],
+            ['zone' => '071', 'area' => 'BOOK 7'],
+            ['zone' => '081', 'area' => 'BOOK 8'],
+            ['zone' => '091', 'area' => 'BOOK 9'],
+            ['zone' => '101', 'area' => 'BOOK 10'],
+            ['zone' => '111', 'area' => 'BOOK 11'],
         ];
 
         foreach ($zones as $zone) {
@@ -198,7 +192,5 @@ class ClientService {
 
         return null;
     }
-
-
 
 }
