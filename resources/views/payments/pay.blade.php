@@ -38,7 +38,7 @@
                                             <p style="font-size: 11px; text-transform: uppercase; margin: 0; font-weight: 600">Republic of the Philippines</p>
                                             <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Sta. Rita Water District</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Zone 6 Dila-Dila, Santa Rita, Pampanga</p>
-                                            <!-- <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. </p> -->
+                                            <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Facebook Page: Sta. Rita Water District</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 0917-103-2421 | 0917-104-7196</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 261-304-832-000 Non VAT</p>
                                         </div>
@@ -82,15 +82,15 @@
                                                     <div>Due Date</div>
                                                     <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                                 </div>
-                                                <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
+                                                <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                                     <ul style="list-style: none !important">
                                                         <li>> Office - Last working day of the month</li>
                                                         <li>> Online - Last day of the month</li>
                                                     </ul>
-                                                </div>
+                                                </div> -->
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Disconnection Date</div>
-                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
+                                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -148,7 +148,7 @@
                                             @endforelse
                                             @if(!empty($data['current_bill']['advances']))
                                                 <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
-                                                    <div>Advances</div>
+                                                    <div>ADVANCES</div>
                                                     <div>- ({{$data['current_bill']['advances']}})</div>
                                                 </div>
                                             @endif
@@ -308,6 +308,7 @@
                                             $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
                                             $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
                                             $discount = (float)($data['current_bill']['discount'] ?? 0);
+                                            $advance_payment = (float)($data['current_bill']['advances'] ?? 0);
                                             $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                             $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
 
@@ -321,7 +322,7 @@
 
                                             $netCurrentBill = max(0, $currentBill - $discount - ($hasAdvancePayment ? $advancePayment : 0));
 
-                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty + $prevPenalty;
+                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty + $prevPenalty - $totalDiscount - $advance_payment;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -339,15 +340,21 @@
                                                 <h2 class="fw-bold">PHP {{ number_format($netCurrentBill, 2) }}</h2>
                                             </div>
 
-                                            @if($discount > 0)
+                                            @if($discount || $totalDiscount > 0)
                                                 <div class="text-end">
-                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($discount, 2) }} (DISCOUNT)</h6>
+                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($totalDiscount, 2) }} (DISCOUNT)</h6>
                                                 </div>
                                             @endif
 
                                             @if($hasAdvancePayment && $advancePayment > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advancePayment, 2) }} (ADVANCE PAYMENT)</h6>
+                                                </div>
+                                            @endif
+
+                                            @if($advance_payment > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advance_payment, 2) }} (ADVANCE PAYMENT)</h6>
                                                 </div>
                                             @endif
 

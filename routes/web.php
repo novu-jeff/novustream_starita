@@ -52,7 +52,7 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
 
-Route::middleware('admin')->prefix('admin')->group(function () {
+Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');

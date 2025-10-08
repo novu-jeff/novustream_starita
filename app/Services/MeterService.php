@@ -799,7 +799,7 @@ class MeterService {
         ];
     }
 
-    private static function previousConsumption(string $account_no, string $bill_period_from) {
+    public static function previousConsumption(string $account_no, string $bill_period_from) {
 
         $billDate = Carbon::parse($bill_period_from);
 

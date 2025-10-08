@@ -26,13 +26,13 @@ class AccountOverviewController extends Controller
 
     public function index()
     {
-        
+
         $my = Auth::user()->load('property_types', 'accounts.sc_discount');
 
         $id = $my->id;
 
         $data = $this->clientService::getData($id);
-       
+
         $accounts = $data->accounts ?? [];
 
         $statement = [];
@@ -47,16 +47,16 @@ class AccountOverviewController extends Controller
             }
         }
 
-        $statement['total'] = !empty($statement['transactions']) 
-            ? array_sum(array_column($statement['transactions'], 'amount')) 
+        $statement['total'] = !empty($statement['transactions'])
+            ? array_sum(array_column($statement['transactions'], 'amount'))
             : 0;
 
-        $statement['due_date'] = !empty($statement['transactions']) 
+        $statement['due_date'] = !empty($statement['transactions'])
             ? collect($statement['transactions'])
             ->pluck('due_date')
             ->filter()
             ->sortDesc()
-            ->first() 
+            ->first()
             : '';
 
         $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
@@ -72,23 +72,27 @@ class AccountOverviewController extends Controller
 
     // View specific bill by reference number
     if ($reference_no) {
-        $data = $this->meterService::getBill($reference_no);
+    $data = $this->meterService::getBill($reference_no);
 
-        if (!$data) {
-            return redirect()->route('reading.index')->with('alert', [
-                'status' => 'error',
-                'message' => 'Bill Not Found',
-            ]);
-        }
-
-        $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);
-        $qr_code = $this->generateService::qr_code($url, 80);
-        $isViewBill = true;
-        $account_no = null;
-        $viewer = 'receipt';
-
-        return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code'));
+    if (!$data) {
+        return redirect()->route('reading.index')->with('alert', [
+            'status' => 'error',
+            'message' => 'Bill Not Found',
+        ]);
     }
+
+    // Compute penalties
+    $data['current_bill'] = $this->computeBillPenalty($data['current_bill']);
+
+    $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);
+    $qr_code = $this->generateService::qr_code($url, 80);
+    $isViewBill = true;
+    $account_no = null;
+    $viewer = 'receipt';
+
+    return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code'));
+}
+
 
     $account_no = $request->query('account_no');
     $view = $request->query('view');
@@ -112,10 +116,17 @@ class AccountOverviewController extends Controller
 
     foreach ($accounts as $account) {
         $bills = $this->meterService::getBills($account->account_no, true, $isPaid);
+
         if (!empty($bills)) {
+            // Compute penalty for each bill
+            $bills = array_map(function ($bill) {
+                return $this->computeBillPenalty($bill);
+            }, $bills);
+
             $statements[$account->account_no] = $bills;
         }
     }
+
 
     if ($isAccountNoValid && $isViewValid) {
         $data = $statements[$account_no] ?? [];
@@ -159,13 +170,13 @@ class AccountOverviewController extends Controller
                 ->editColumn('date_connected', function ($row) {
                     return $row['date_connected'] ?? 'N/A';
                 })
-               
+
                 ->addColumn('actions', function ($row) {
                     return '<div class="d-flex align-items-center gap-2">
                         <a href="' . e(route('account-overview.bills', [
                             'account_no' => $row['account_no'],
                             'view' => 'unpaid'
-                        ])) . '" 
+                        ])) . '"
                             class="btn btn-primary text-white text-uppercase fw-bold">
                             <i class="bx bx-receipt"></i>
                         </a>
@@ -176,45 +187,88 @@ class AccountOverviewController extends Controller
         }
 
         if($type == 'bills') {
-            return DataTables::of($query)
-                ->addIndexColumn()
-                ->editColumn('billing_period', function ($row) {
-                    return ($row['bill_period_from'] && $row['bill_period_to'])
-                        ? Carbon::parse($row['bill_period_from'])->format('M d, Y') . ' TO ' . Carbon::parse($row['bill_period_to'])->format('M d, Y')
-                        : 'N/A';
-                })
-                ->editColumn('bill_date', function ($row) {
-                    return $row['bill_period_to'] ? Carbon::parse($row['bill_period_to'])->format('M d, Y') : 'N/A';
-                })
-                ->editColumn('amount', function ($row) {
-                    return '₱' . number_format($row['amount'] ?? 0, 2);
-                })
-                ->editColumn('due_date', function ($row) {
-                    return $row['due_date'] ? Carbon::parse($row['due_date'])->format('M d, Y') : 'N/A';
-                })
-                ->editColumn('status', function ($row) {
-                    return $row['isPaid']
-                        ? '<div class="alert alert-primary mb-0 py-1 px-2 text-center">Paid</div>'
-                        : '<div class="alert alert-danger mb-0 py-1 px-2 text-center">Unpaid</div>';
-                })
-                ->addColumn('actions', function ($row) {
-                    $reference_no = $row['reference_no'] ?? null;
-        
-                    if ($reference_no) {
-                        return '<div class="d-flex align-items-center gap-2">
-                            <a href="' . e(route('account-overview.bills.reference_no', $reference_no)) . '" 
-                                class="btn btn-primary text-white text-uppercase fw-bold" 
-                                id="show-btn" data-id="' . e($row['id']) . '">
-                                <i class="bx bx-receipt"></i>
-                            </a>
-                        </div>';
-                    }
-                    return '<span class="text-muted">No Reference</span>';
-                })
-                ->rawColumns(['status', 'actions'])
-                ->make(true);
-        }
+    return DataTables::of($query)
+        ->addIndexColumn()
+        ->editColumn('billing_period', function ($row) {
+            return ($row['bill_period_from'] && $row['bill_period_to'])
+                ? Carbon::parse($row['bill_period_from'])->format('M d, Y') . ' TO ' . Carbon::parse($row['bill_period_to'])->format('M d, Y')
+                : 'N/A';
+        })
+        ->editColumn('bill_date', function ($row) {
+            return $row['bill_period_to'] ? Carbon::parse($row['bill_period_to'])->format('M d, Y') : 'N/A';
+        })
+        ->editColumn('due_date', function ($row) {
+            return $row['due_date'] ? Carbon::parse($row['due_date'])->format('M d, Y') : 'N/A';
+        })
+        ->editColumn('penalty_date', function ($row) {
+            return $row['due_date']
+                ? Carbon::parse($row['due_date'])->addDay()->format('M d, Y')
+                : '—';
+        })
+        ->editColumn('penalty_amount', function ($row) {
+            return isset($row['penalty'])
+                ? '₱' . number_format($row['penalty'], 2)
+                : '₱0.00';
+        })
+        ->editColumn('amount_after_due', function ($row) {
+            return isset($row['amount_after_due'])
+                ? '₱' . number_format($row['amount_after_due'], 2)
+                : '₱' . number_format($row['amount'], 2);
+        })
+        ->editColumn('status', function ($row) {
+            return $row['isPaid']
+                ? '<div class="alert alert-primary mb-0 py-1 px-2 text-center">Paid</div>'
+                : '<div class="alert alert-danger mb-0 py-1 px-2 text-center">Unpaid</div>';
+        })
+        ->addColumn('actions', function ($row) {
+            $reference_no = $row['reference_no'] ?? null;
+            if ($reference_no) {
+                return '<div class="d-flex align-items-center gap-2">
+                    <a href="' . e(route('account-overview.bills.reference_no', $reference_no)) . '"
+                        class="btn btn-primary text-white text-uppercase fw-bold"
+                        id="show-btn" data-id="' . e($row['id']) . '">
+                        <i class="bx bx-receipt"></i>
+                    </a>
+                </div>';
+            }
+            return '<span class="text-muted">No Reference</span>';
+        })
+        ->rawColumns(['status', 'actions'])
+        ->make(true);
+}
+
     }
-    
+
+    private function computeBillPenalty(array $bill): array
+{
+    $amount = $bill['amount'] ?? 0;
+    $dueDate = isset($bill['due_date']) ? Carbon::parse($bill['due_date']) : null;
+    $today = Carbon::today();
+
+    // Default penalty rate: 15% (can be adjusted or pulled from DB)
+    $penaltyRate = isset($bill['penalty_rate']) ? floatval($bill['penalty_rate']) : 0.15;
+
+    $penaltyAmount = 0;
+    $daysOverdue = 0;
+    $penaltyDate = null;
+
+    if ($dueDate && $today->gt($dueDate)) {
+        $daysOverdue = $dueDate->diffInDays($today);
+        $penaltyAmount = round($amount * $penaltyRate, 2);
+        $penaltyDate = $dueDate->copy()->addDay();
+    } elseif ($dueDate) {
+        $penaltyDate = $dueDate->copy()->addDay();
+    }
+
+    $bill['computed_penalty'] = $penaltyAmount;
+    $bill['computed_penalty_date'] = $penaltyDate ? $penaltyDate->format('Y-m-d') : null;
+    $bill['computed_amount_after_due'] = $amount + $penaltyAmount;
+    $bill['days_overdue'] = $daysOverdue;
+    $bill['is_overdue'] = $daysOverdue > 0;
+
+    return $bill;
+}
+
+
 
 }
