@@ -112,12 +112,12 @@
                         <select class="form-select"
                                 :id="'property_type_' + index"
                                 v-model="account.property_type"
-                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }"
-                                >
-                          <option :value="null" disabled>-- SELECT --</option>
-                          <option v-for="type in property_types" :key="type.id" :value="type.id">
-                              {{ type.name.toUpperCase() }}
-                          </option>
+                                @change="onPropertyTypeChange(index)"
+                                :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }">
+                        <option :value="null" disabled>-- SELECT --</option>
+                        <option v-for="type in property_types" :key="type.id" :value="type.id">
+                            {{ type.name.toUpperCase() }}
+                        </option>
                         </select>
                         <small v-if="errors['accounts.' + index + '.property_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.property_type'][0] }}</small>
                     </div>
@@ -151,9 +151,10 @@
                         <label :for="'address_' + index" class="form-label">
                           Address <small class="text-danger">( required )</small>
                         </label>
-                        <input type="text" class="form-control"
+                        <input type="text"
+                            class="form-control"
                             :id="'address_' + index"
-                            :value="account.address"
+                            v-model="account.address"
                             :class="{ 'is-invalid': errors && errors['accounts.' + index + '.address'] }" />
                         <small v-if="errors['accounts.' + index + '.address']" class="text-danger px-1">
                         {{ errors['accounts.' + index + '.address'][0] }}
@@ -395,7 +396,7 @@ export default {
         contact_no: '',
         email: '',
         password: '',
-        confirm_password: '',
+        password_confirmation: '',
         isActive: 1,
         accounts: [
           {
@@ -449,6 +450,15 @@ export default {
         }
     },
   methods: {
+    getRateCodeByPropertyTypeId(propertyTypeId) {
+  const type = this.property_types.find((t) => t.id === propertyTypeId);
+  return type ? type.rate_code : '';
+},
+onPropertyTypeChange(index) {
+  const selectedTypeId = this.concessioner.accounts[index].property_type;
+  const rateCode = this.getRateCodeByPropertyTypeId(selectedTypeId);
+  this.concessioner.accounts[index].rate_code = rateCode;
+},
     getScDiscountIdNo(index) {
       const account = this.concessioner.accounts[index];
       return account && account.sc_discount ? account.sc_discount.id_no : '';
@@ -596,7 +606,7 @@ export default {
         contact_no: '',
         email: '',
         password: '',
-        confirm_password: '',
+        password_confirmation: '',
         accounts: [
           {
             account_no: '',
