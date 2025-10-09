@@ -115,7 +115,7 @@
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }"
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
-                          <option v-for="type in property_types" :key="type.id" :value="type.id">
+                          <option v-for="type in property_types" :key="type.id" :value="type.name">
                               {{ type.name.toUpperCase() }}
                           </option>
                         </select>

@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
-use App\Providers\RouteServiceProvider;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\LoginController;
 use Symfony\Component\HttpFoundation\Response;
 
 class RedirectIfAuthenticated
@@ -20,19 +20,27 @@ class RedirectIfAuthenticated
         $guards = empty($guards) ? [null] : $guards;
 
         foreach ($guards as $guard) {
-            if (Auth::guard($guard)->check()) {
+            if (Auth::guard('admins')->check()) {
+                return redirect('/admin/dashboard');
+            }
 
-                if (in_array(Auth::user()->user_type, ['admin', 'cashier'])) {
+            if (Auth::guard('web')->check()) {
+                $user = Auth::guard('web')->user();
+
+                if (in_array($user->user_type, ['admin', 'cashier'])) {
                     return redirect('/dashboard');
                 }
-        
-                if(Auth::user()->user_type == 'client') {
+
+                if ($user->user_type === 'client') {
                     return redirect('my/overview');
                 }
-        
-                if(Auth::user()->user_type == 'technician') {
+
+                if ($user->user_type === 'technician') {
                     return redirect('/reading');
                 }
+
+                $loginController = app(LoginController::class);
+                return redirect($loginController->redirectTo($user));
             }
         }
 

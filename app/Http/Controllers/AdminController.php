@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
+use App\Models\Zone;
 
 class AdminController extends Controller
 {
@@ -19,11 +20,11 @@ class AdminController extends Controller
     public function __construct(AdminService $adminService, RoleService $roleService) {
 
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
 
@@ -42,102 +43,82 @@ class AdminController extends Controller
         return view('admins.index', compact('data'));
     }
 
+    // public function create() {
+
+    //     $roles = $this->roleService::getData();
+
+    //     return view('admins.form', compact('roles'));
+    // }
+
     public function create() {
-
         $roles = $this->roleService::getData();
-
-        return view('admins.form', compact('roles'));
-    }
-
-    public function store(Request $request) {
-
-        $payload = $request->all();
-
-        $validator = Validator::make($payload, [
-            'name' => 'required',
-            'email' => 'required|unique:users,email',
-            'role' => 'required|exists:roles,name',
-            'password' => 'required|min:8',
-            'confirm_password' => 'required|same:password',
-        ]);
-
-        if($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $response = $this->adminService::create($payload);
-
-        if ($response['status'] === 'success') {
-            return redirect()->back()->with('alert', [
-                'status' => 'success',
-                'message' => $response['message']
-            ]);
-        } else {
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => $response['message']
-            ]);
-        }
+        $zones = Zone::all();
+        return view('admins.form', compact('roles', 'zones'));
     }
 
     public function edit(int $id) {
-
         $data = $this->adminService::getData($id);
         $roles = $this->roleService::getData();
+        $zones = Zone::all();
+        return view('admins.form', compact('data', 'roles', 'zones'));
+    }
 
-        return view('admins.form', compact('data', 'roles'));
+    public function store(Request $request) {
+        $payload = $request->all();
+        $response = $this->adminService::create($payload);
+
+        if ($response['status'] === 'success') {
+            $roleLabel = ucwords($payload['role']); // Capitalize role
+            $name = $payload['name'];
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => "{$roleLabel} {$name} added successfully."
+            ]);
+        }
+
+        return redirect()->back()->withInput()->with('alert', [
+            'status' => 'error',
+            'message' => $response['message']
+        ]);
     }
 
     public function update(int $id, Request $request) {
-
         $payload = $request->all();
-
-        $validator = Validator::make($payload, [
-            'name' => 'required',
-            'email' => [
-            'required',
-                Rule::unique('users', 'email')->ignore($id),
-            ],
-            'role' => 'required|exists:roles,name',
-            'password' => 'nullable|min:8|required_with:confirm_password',
-            'confirm_password' => 'nullable|same:password|required_with:password',
-        ]);
-
-        if($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
         $response = $this->adminService::update($id, $payload);
 
         if ($response['status'] === 'success') {
+            $roleLabel = ucwords($payload['role']); // Capitalize role
+            $name = $payload['name'];
             return redirect()->back()->with('alert', [
                 'status' => 'success',
-                'message' => $response['message']
-            ]);
-        } else {
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => $response['message']
+                'message' => "{$roleLabel} {$name} updated successfully."
             ]);
         }
 
+        return redirect()->back()->withInput()->with('alert', [
+            'status' => 'error',
+            'message' => $response['message']
+        ]);
     }
+
 
     public function destroy(int $id) {
 
+        $user = $this->adminService::getData($id);
         $response = $this->adminService::delete($id);
 
         if ($response['status'] === 'success') {
-            
+            $roleLabel = 'User';
+
+            if ($user && isset($user->user_type)) {
+                $roleLabel = ucwords(str_replace('_', ' ', $user->user_type));
+            }
+
             return response()->json([
                 'status' => 'success',
-                'message' => $response['message']
+                'message' => "{$roleLabel} deleted successfully.",
             ]);
-            
+
         } else {
             return response()->json([
                 'status' => 'error',
@@ -153,8 +134,8 @@ class AdminController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                 <div class="d-flex align-items-center gap-2">
-                    <a href="' . route('admins.edit', $row->id) . '" 
-                        class="btn btn-secondary text-white text-uppercase fw-bold" 
+                    <a href="' . route('admins.edit', $row->id) . '"
+                        class="btn btn-secondary text-white text-uppercase fw-bold"
                         id="update-btn" data-id="' . e($row->id) . '">
                         <i class="bx bx-edit-alt"></i>
                     </a>

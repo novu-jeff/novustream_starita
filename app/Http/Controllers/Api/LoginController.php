@@ -7,13 +7,13 @@ use Illuminate\Http\Request;
 
 class LoginController extends Controller
 {
-    
+
     public function login(Request $request)
     {
         $credentials = $request->only('email', 'password');
-    
+
         if (auth()->guard('admins')->attempt($credentials)) {
-            
+
             $admin = auth()->guard('admins')->user();
 
             if($admin->user_type !== 'technician') {
@@ -24,7 +24,7 @@ class LoginController extends Controller
             }
 
             $token = $admin->createToken('authToken', ['role:technician'])->plainTextToken;
-    
+
             return response()->json([
                 'status' => 'success',
                 'token' => $token,
@@ -43,12 +43,12 @@ class LoginController extends Controller
         if ($request->user()) {
             $request->user()->tokens()->delete();
         }
-        
+
         return response()->json([
             'status' => 'success',
             'message' => 'Logged out',
         ], 200);
     }
-    
+
 
 }

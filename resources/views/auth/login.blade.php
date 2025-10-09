@@ -2,6 +2,10 @@
 
 @section('content')
 
+@if (session('success'))
+<div class="alert alert-success">{{ session('success') }}</div>
+@endif
+
 <div class="login">
     <div class="container " id="container">
         <div class="form-container sign-up-container">

@@ -67,7 +67,11 @@ class ReadingController extends Controller
 
         $user = auth()->user();
         if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
+            // zone_assigned = "2,3,5"
+            $assignedZoneIds = explode(',', $user->zone_assigned);
+
+            // Convert IDs to zone codes (e.g. 2 -> "021")
+            $assignedZones = Zone::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
             $payload['zones'] = $assignedZones;
 
             if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
@@ -79,12 +83,12 @@ class ReadingController extends Controller
             }
         }
 
+
         if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
             try {
                 $response = $this->meterService->getPreviousReading($payload['account_no']);
                 return response()->json($response);
             } catch (\Exception $e) {
-                Log::error('getPreviousReading failed: ' . $e->getMessage());
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Unable to get previous reading.'
@@ -130,8 +134,8 @@ class ReadingController extends Controller
                 $zones = Zone::all();
                 $showAllOption = true;
             } else {
-                $assignedZones = explode(',', $user->zone_assigned);
-                $zones = Zone::whereIn('zone', $assignedZones)->get();
+                $assignedZoneIds = explode(',', $user->zone_assigned);
+                $zones = Zone::whereIn('id', $assignedZoneIds)->get();
                 $showAllOption = false;
             }
         } else {
@@ -188,17 +192,20 @@ class ReadingController extends Controller
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
-    public function report(Request $request) {
-        $user = auth()->user();
+    public function report(Request $request)
+    {
         $zone = $request->zone ?? 'all';
+        $user = auth()->user();
         $entries = $request->entries ?? 10;
         $toSearch = $request->search ?? '';
         $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
         $zonesQuery = DB::table('concessioner_accounts');
 
+        // Restrict zones if user is a technician
         if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
-            $assignedZones = explode(',', $user->zone_assigned);
+            $assignedZoneIds = explode(',', $user->zone_assigned);
+            $assignedZones = Zone::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
             $zonesQuery->whereIn('zone', $assignedZones);
         }
 
@@ -217,7 +224,9 @@ class ReadingController extends Controller
             $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
         }
 
-        $readingsPerZone = $readingsPerZone->groupBy('concessioner_accounts.zone')->pluck('read_count', 'zone');
+        $readingsPerZone = $readingsPerZone
+            ->groupBy('concessioner_accounts.zone')
+            ->pluck('read_count', 'zone');
 
         $zoneAreas = DB::table('zones')->pluck('area', 'zone');
 
@@ -225,30 +234,51 @@ class ReadingController extends Controller
             $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
             $zone->area = $zoneAreas[$zone->zone] ?? 'Unknown';
             return $zone;
-        });
+        })->sortBy('zone')->values();
 
         $collection = collect($this->meterService::getReport($zone, $date, $toSearch))->flatten(2);
 
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        $currentItems = $collection
+            ->slice(($currentPage - 1) * $entries, $entries)
+            ->values();
 
         $data = new LengthAwarePaginator(
             $currentItems,
             $collection->count(),
             $entries,
             $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
+            [
+                'path'  => $request->url(),
+                'query' => $request->query(),
+            ]
         );
 
-        return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
-    }
+        if ($request->ajax()) {
+            return response()->json([
+                'data'       => $data->items(),
+                'zones'      => $zones,
+                'pagination' => [
+                    'current_page' => $data->currentPage(),
+                    'last_page'    => $data->lastPage(),
+                    'per_page'     => $data->perPage(),
+                    'total'        => $data->total(),
+                ],
+            ]);
+        }
 
+        return view('reading.report', compact(
+            'data',
+            'entries',
+            'zones',
+            'zone',
+            'date',
+            'toSearch'
+        ));
+    }
 
     public function store(Request $request) {
         $payload = $request->all();
-
-        Log::info('Reading Store Request', $request->all());
-
 
         if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
             session()->forget('recent_reading');
@@ -324,7 +354,6 @@ class ReadingController extends Controller
 
     try {
         $account = $this->meterService->getAccount($account_no);
-        Log::info('Account info:', ['account' => $account]);
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];
@@ -369,13 +398,17 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
+        $penaltyRate = 0.15;
+        $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
+
+
         // Save bill
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
             [
                 'account_no' => $account_no,
                 'amount' => $amount,
-                'penalty' => 0,
+                'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
             ]
@@ -388,19 +421,10 @@ class ReadingController extends Controller
             // ->whereDate('expired_date', '>=', $today)
             ->first();
 
-        Log::info('Checking discount record', [
-            'account_no' => $account->account_no,
-            'record' => $discountRecord ? $discountRecord->toArray() : null,
-            'type_id' => $discountRecord ? $discountRecord->discount_type_id : null,
-        ]);
-
         $totalDiscount = 0;
 
         if ($discountRecord && $discountRecord->discount_type_id) {
             $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
-            Log::info('DiscountTypeRow', [
-                'discount_type_row' => $discountTypeRow ? $discountTypeRow->toArray() : null
-            ]);
 
             if ($discountRecord->discount_type_id == 1) {
                 $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
@@ -419,8 +443,6 @@ class ReadingController extends Controller
                         'description' => $seniorDiscount->type ?? null,
                         'amount' => $seniorAmount,
                     ]);
-
-                    Log::info('Senior discount applied', ['amount' => $seniorAmount]);
 
                     $totalDiscount += $seniorAmount;
                 }
@@ -446,17 +468,14 @@ class ReadingController extends Controller
 
                     $totalDiscount += $franchiseAmount;
 
-                    Log::info('Franchise discount applied', ['amount' => $franchiseAmount]);
                 }
             }
 
-        } else {
-            Log::info('No valid discount for this account', ['account_no' => $account->account_no]);
         }
 
         $bill->update([
             'discount' => $totalDiscount,
-            'amount_after_due' => $bill->amount - $totalDiscount
+            'amount_after_due' => $bill->amount + $penaltyAmount
         ]);
 
         // Generate payment QR
@@ -503,7 +522,6 @@ class ReadingController extends Controller
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Reading Store Error:', ['exception' => $e]);
 
                 return response()->json([
                     'status' => 'error',
@@ -571,10 +589,6 @@ class ReadingController extends Controller
     // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)
     {
-        Log::info('generatePaymentQR TEST MODE', [
-            'reference_no' => $reference_no,
-            'payload' => $payload,
-        ]);
 
         return [
             'status' => 'success',
@@ -620,8 +634,6 @@ class ReadingController extends Controller
 
     public function create_breakdown(array $data) {
         try {
-            // Log inputs for debugging
-            Log::info('Creating breakdown with data:', $data);
 
             $rate = Rates::where('property_types_id', $data['property_types_id'])
             ->where('cu_m', '<=', $data['consumption'])
@@ -629,9 +641,7 @@ class ReadingController extends Controller
             ->first();
 
         if (!$rate) {
-            Log::warning("No rate found for property type {$data['property_types_id']} and consumption {$data['consumption']}");
 
-            // Optional: fallback rate
             $rate = Rates::where('property_types_id', $data['property_types_id'])
                 ->orderBy('cu_m', 'desc')
                 ->first();
@@ -654,7 +664,6 @@ class ReadingController extends Controller
             ]
         ];
         } catch (\Exception $e) {
-            Log::error('create_breakdown failed', ['error' => $e->getMessage()]);
 
             return [
                 'status' => 'error',
