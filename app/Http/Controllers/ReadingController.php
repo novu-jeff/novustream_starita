@@ -234,7 +234,7 @@ class ReadingController extends Controller
             $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
             $zone->area = $zoneAreas[$zone->zone] ?? 'Unknown';
             return $zone;
-        });
+        })->sortBy('zone')->values();
 
         $collection = collect($this->meterService::getReport($zone, $date, $toSearch))->flatten(2);
 

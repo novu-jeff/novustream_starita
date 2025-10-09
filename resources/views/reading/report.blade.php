@@ -129,160 +129,176 @@
 @endsection
 
 @section('script')
-<script>
-$(function () {
+    <script>
+    $(function () {
 
-    function updateFilters(page = 1) {
-        const data = {
-            search: $('#search').val(),
-            entries: $('#entries').val(),
-            zone: $('#zone_no').val(),
-            date: $('#date').val(),
-            page
-        };
+        function updateFilters(page = 1) {
+            const data = {
+                search: $('#search').val(),
+                entries: $('#entries').val(),
+                zone: $('#zone_no').val(),
+                date: $('#date').val(),
+                page
+            };
 
-        $.ajax({
-            url: "{{ route('reading.report') }}",
-            type: "GET",
-            data,
-            success: function(res) {
-                renderTable(res.data, res.pagination);
-                window.latestZones = res.zones;
-                renderZones(window.latestZones, parseInt($('#entries').val()), 1);
-            },
-            error: function(err) {
-                console.log(err);
-                alert('Failed to fetch readings.');
+            $.ajax({
+                url: "{{ route('reading.report') }}",
+                type: "GET",
+                data,
+                success: function(res) {
+                    renderTable(res.data, res.pagination);
+                    window.latestZones = res.zones;
+                    renderZones(window.latestZones, parseInt($('#entries').val()), 1);
+                },
+                error: function(err) {
+                    console.log(err);
+                    alert('Failed to fetch readings.');
+                }
+            });
+        }
+
+        function renderTable(rows, pagination) {
+            const tbody = $('table tbody');
+            tbody.empty();
+
+            if (!rows.length) {
+                tbody.append('<tr><td colspan="12" class="text-center text-muted">No records found.</td></tr>');
+            } else {
+                rows.forEach(row => {
+                    tbody.append(`
+                        <tr>
+                            <td>${row.bill?.reference_no ?? 'N/A'}</td>
+                            <td>${row.account_no}</td>
+                            <td>${row.concessionaire?.user?.name ?? 'N/A'}</td>
+                            <td>${row.previous_reading}</td>
+                            <td>${row.present_reading}</td>
+                            <td>${row.consumption} m³</td>
+                            <td>${new Date(row.created_at).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a href="{{ $row->bill ? route('reading.show', $row->bill->reference_no) : '#' }}"
+                                    class="btn btn-primary text-white text-uppercase fw-bold"
+                                    id="show-btn" data-id="{{ $row->id }}"
+                                    {{ $row->bill ? '' : 'disabled' }}>
+                                        <i class="bx bx-receipt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                });
             }
-        });
-    }
+            renderPagination(pagination);
+        }
 
-    function renderTable(rows, pagination) {
-        const tbody = $('table tbody');
-        tbody.empty();
+        function renderZones(zones) {
+            const container = $('#zones-container');
+            container.empty();
 
-        if (!rows.length) {
-            tbody.append('<tr><td colspan="12" class="text-center text-muted">No records found.</td></tr>');
-        } else {
-            rows.forEach(row => {
-                tbody.append(`
-                    <tr>
-                        <td>${row.bill?.reference_no ?? 'N/A'}</td>
-                        <td>${row.account_no}</td>
-                        <td>${row.concessionaire?.user?.name ?? 'N/A'}</td>
-                        <td>${row.previous_reading}</td>
-                        <td>${row.present_reading}</td>
-                        <td>${row.consumption} m³</td>
-                        <td>${new Date(row.created_at).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <a href="{{ $row->bill ? route('reading.show', $row->bill->reference_no) : '#' }}"
-                                class="btn btn-primary text-white text-uppercase fw-bold"
-                                id="show-btn" data-id="{{ $row->id }}"
-                                {{ $row->bill ? '' : 'disabled' }}>
-                                    <i class="bx bx-receipt"></i>
-                                </a>
+            zones.forEach(zone => {
+                container.append(`
+                    <div class="col">
+                        <div class="card h-100 shadow-sm text-center border border-primary-subtle">
+                            <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
+                                <div class="fw-bold text-primary fs-6">
+                                    ${zone.read_count ?? 0} / ${zone.total_accounts}
+                                </div>
+                                <div class="text-uppercase text-muted mt-1 small">
+                                    ${zone.zone} - ${zone.area ?? ''}
+                                </div>
                             </div>
-                        </td>
-                    </tr>
+                        </div>
+                    </div>
                 `);
             });
         }
 
-        renderPagination(pagination);
-    }
+        function renderPagination(pagination) {
+            const wrapper = $('#pagination-wrapper');
+            wrapper.empty();
 
-    function renderZones(zones) {
-    const container = $('#zones-container');
-    container.empty();
+            if (!pagination || pagination.last_page <= 1) return;
 
-    zones.forEach(zone => {
-        container.append(`
-            <div class="col">
-                <div class="card h-100 shadow-sm text-center border border-primary-subtle">
-                    <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
-                        <div class="fw-bold text-primary fs-6">
-                            ${zone.read_count ?? 0} / ${zone.total_accounts}
-                        </div>
-                        <div class="text-uppercase text-muted mt-1 small">
-                            ${zone.zone} - ${zone.area ?? ''}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `);
-    });
-}
+            const totalPages = pagination.last_page;
+            const currentPage = pagination.current_page;
+            const perPage = pagination.per_page;
+            const total = pagination.total;
 
+            const start = (currentPage - 1) * perPage + 1;
+            const end = Math.min(start + perPage - 1, total);
+            wrapper.append(`<div class="mb-2 text-center text-muted">Showing ${start} to ${end} of ${total} results</div>`);
 
-    function renderPagination(pagination) {
-        const wrapper = $('#pagination-wrapper');
-        wrapper.empty();
+            let html = '<nav><ul class="pagination justify-content-center">';
 
-        if (!pagination || pagination.last_page <= 1) return;
+            // Previous button
+            html += `
+                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                    <a href="#" class="page-link" data-page="${currentPage - 1}">&lsaquo;</a>
+                </li>`;
 
-        // Showing X to Y of Z results
-        const start = (pagination.current_page - 1) * pagination.per_page + 1;
-        const end = Math.min(start + pagination.per_page - 1, pagination.total);
-        wrapper.append(`<div class="mb-2 text-center text-muted">Showing ${start} to ${end} of ${pagination.total} results</div>`);
+            const delta = 4;
+            const range = [];
+            const rangeWithDots = [];
+            let l;
 
-        let html = '<nav><ul class="pagination justify-content-center">';
-
-        // Previous button
-        html += `<li class="page-item ${pagination.current_page === 1 ? 'disabled' : ''}">
-                    <a href="#" class="page-link" data-page="${pagination.current_page - 1}">&lsaquo;</a>
-                 </li>`;
-
-       const totalPages = pagination.last_page;
-        const maxPagesToShow = 9; // change this to however many pages you want to show
-
-        let startPage = 1;
-        let endPage = Math.min(totalPages, maxPagesToShow);
-
-        if (totalPages > maxPagesToShow) {
-            // If current page is beyond half of maxPagesToShow, slide the window
-            if (pagination.current_page > Math.floor(maxPagesToShow / 2)) {
-                startPage = Math.max(1, pagination.current_page - Math.floor(maxPagesToShow / 2));
-                endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+            // Build core page range
+            for (let i = 1; i <= totalPages; i++) {
+                if (
+                    i === 1 ||
+                    i === 2 ||
+                    i === totalPages ||
+                    (i >= currentPage - delta && i <= currentPage + delta)
+                ) {
+                    range.push(i);
+                }
             }
+
+            // Add dots where gaps exist
+            for (let i of range) {
+                if (l) {
+                    if (i - l === 2) {
+                        rangeWithDots.push(l + 1);
+                    } else if (i - l !== 1) {
+                        rangeWithDots.push('...');
+                    }
+                }
+                rangeWithDots.push(i);
+                l = i;
+            }
+
+            rangeWithDots.forEach(i => {
+                if (i === '...') {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                } else {
+                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                                <a href="#" class="page-link" data-page="${i}">${i}</a>
+                            </li>`;
+                }
+            });
+
+            html += `
+                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                    <a href="#" class="page-link" data-page="${currentPage + 1}">&rsaquo;</a>
+                </li>`;
+
+            html += '</ul></nav>';
+            wrapper.append(html);
         }
 
-        for (let i = startPage; i <= endPage; i++) {
-            html += `<li class="page-item ${i === pagination.current_page ? 'active' : ''}">
-                        <a href="#" class="page-link" data-page="${i}">${i}</a>
-                    </li>`;
-        }
+        // Event listeners
+        $('#search, #entries, #zone_no, #date').on('change keyup', () => updateFilters(1));
+        $('#clear-search').on('click', () => {
+            $('#search').val('');
+            updateFilters(1);
+        });
 
-        if (endPage < totalPages) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-            html += `<li class="page-item"><a href="#" class="page-link" data-page="${totalPages}">${totalPages}</a></li>`;
-        }
+        $(document).on('click', '#pagination-wrapper .page-link', function(e) {
+            e.preventDefault();
+            const page = $(this).data('page');
+            if (page > 0) updateFilters(page);
+        });
 
-        // Next button
-        html += `<li class="page-item ${pagination.current_page === totalPages ? 'disabled' : ''}">
-                    <a href="#" class="page-link" data-page="${pagination.current_page + 1}">&rsaquo;</a>
-                 </li>`;
-
-        html += '</ul></nav>';
-        wrapper.append(html);
-    }
-
-    // Event listeners
-    $('#search, #entries, #zone_no, #date').on('change keyup', () => updateFilters(1));
-    $('#clear-search').on('click', () => {
-        $('#search').val('');
-        updateFilters(1);
+        updateFilters();
     });
-
-    $(document).on('click', '#pagination-wrapper .page-link', function(e) {
-        e.preventDefault();
-        const page = $(this).data('page');
-        if (page > 0) updateFilters(page);
-    });
-
-    // Initial fetch
-    updateFilters();
-});
-</script>
-
+    </script>
 @endsection
