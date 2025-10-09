@@ -288,8 +288,8 @@
 
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
-                                    <h3 class="ms-2 mb-0">
-                                        PHP {{ number_format($amount + $totalPenalty, 2) }}
+                                    <h3 class="ms-2">
+                                        PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -336,8 +336,17 @@
                                         <!-- Current Billing -->
                                         <div class="mb-3">
                                             <div class="text-end">
-                                                <label class="form-label">Current Billing</label>
-                                                <h2 class="fw-bold">PHP {{ number_format($netCurrentBill, 2) }}</h2>
+                                                <label for="total_charges" class="form-label">Current Billing</label>
+                                                 @php
+                                                    $current_billing = (float)$data['current_bill']['amount'] - (float) $data['current_bill']['previous_unpaid'];
+                                                    $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'];
+                                                    $advancePayment = (float) $data['current_bill']['advances'] ?? 0;
+
+                                                    if($hasAdvancePayment) {
+                                                        $current_billing =  $current_billing + $advancePayment;
+                                                    }
+                                                @endphp
+                                                <h2 class="fw-bold">PHP {{number_format($current_billing, 2)}}</h2>
                                             </div>
 
                                             @if($discount || $totalDiscount > 0)
