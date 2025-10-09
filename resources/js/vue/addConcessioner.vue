@@ -115,7 +115,7 @@
                                 :class="{ 'is-invalid': errors && errors['accounts.' + index + '.property_type'] }"
                                 >
                           <option :value="null" disabled>-- SELECT --</option>
-                          <option v-for="type in property_types" :key="type.id" :value="type.name">
+                          <option v-for="type in property_types" :key="type.id" :value="type.id">
                               {{ type.name.toUpperCase() }}
                           </option>
                         </select>
@@ -427,17 +427,27 @@ export default {
       maxIndex: 0,
     };
   },
-  created() {
-    if (this.data) {
-      this.concessioner = {
-        ...this.concessioner,
-        ...this.data,
-        accounts: this.data.accounts ?? this.concessioner.accounts,
-      };
+    created() {
+        if (this.data) {
+            this.concessioner = {
+            ...this.concessioner,
+            ...this.data,
+            };
 
-      console.log(this.concessioner);
-    }
-  },
+            this.concessioner.accounts = this.data.accounts.map(account => {
+            const matchedType = this.property_types.find(
+                type => type.name.toLowerCase() === account.property_type?.toLowerCase()
+            );
+
+            return {
+                ...account,
+                property_type: matchedType ? matchedType.id : null,
+            };
+            });
+
+            console.log(this.concessioner);
+        }
+    },
   methods: {
     getScDiscountIdNo(index) {
       const account = this.concessioner.accounts[index];

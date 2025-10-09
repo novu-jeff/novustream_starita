@@ -135,5 +135,5 @@ class UpdateClientRequest extends FormRequest
 
     }
 
-    
+
 }
