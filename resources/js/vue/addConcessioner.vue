@@ -141,6 +141,7 @@
                         class="form-control"
                         :id="'senior_citizen_no_' + index"
                         :value="getScDiscountIdNo(index)"
+                        disabled
                         :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
                       >
                       <small v-if="errors && errors['accounts.' + index + '.sc_discount.id_no']" class="text-danger px-1">
