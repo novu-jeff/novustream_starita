@@ -170,3 +170,9 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
+
+
+Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
+Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
+Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
+Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
