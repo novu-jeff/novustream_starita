@@ -94,9 +94,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('payments.index');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
             ->name('previous-billing.upload');
-        Route::get('process/{reference_no}', [PaymentController::class, 'pay'])
-            ->name('payments.pay');
-        Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
+        Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
     });
 
