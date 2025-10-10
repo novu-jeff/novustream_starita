@@ -20,10 +20,25 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /var/www/html/novustream-sta_rita
-            git pull origin testing
-            composer install --no-interaction --prefer-dist --optimize-autoloader
-            npm install
+            cd /var/www/html/novustream
+
+            echo "→ Pulling latest code..."
+            git fetch origin testing
+            git reset --hard origin/testing
+
+            echo "→ Installing PHP dependencies..."
+            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+            echo "→ Installing Node dependencies..."
+            npm ci --no-audit --no-fund
             npm run build
+
+            echo "→ Optimizing Laravel cache..."
+            php artisan optimize:clear
             php artisan migrate --force
-            php artisan cache:clear
+
+            echo "→ Setting correct permissions..."
+            chown -R www-data:www-data storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+
+            echo "✅ Deployment completed successfully!"
