@@ -35,16 +35,21 @@ class DashboardController extends Controller
         $users = $this->dashboardService->getAllUsers() ?? [];
         $readings = $this->meterService->getReport() ?? collect([]);
 
-        // Safely calculate totals with casting to float
-        $total_transactions = $readings->sum(fn($reading) => (float) ($reading['bill']['amount'] ?? 0));
-
         $total_unpaid = $readings
-            ->where('bill.isPaid', false)
-            ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
+    ->where('bill.isPaid', false)
+    ->sum(fn($r) =>
+        (float)($r['bill']['previous_unpaid'] ?? 0) +
+        (float)($r['bill']['amount'] ?? 0) +
+        (float)($r['bill']['penalty'] ?? 0)
+    );
 
-        $total_paid = $readings
-            ->where('bill.isPaid', true)
-            ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
+$total_paid = $readings
+    ->where('bill.isPaid', true)
+    ->sum(fn($r) => (float)($r['bill']['amount_paid'] ?? 0));
+
+// Total transactions = paid + unpaid
+$total_transactions = $total_paid + $total_unpaid;
+
 
         $total_payments = $readings->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
 
