@@ -1,4 +1,7 @@
 @extends('layouts.app')
+@php
+    $arrearsStack = $arrearsStack ?? collect();
+@endphp
 
 @section('content')
     <main class="main">
