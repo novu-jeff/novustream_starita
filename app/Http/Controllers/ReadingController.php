@@ -185,7 +185,7 @@ class ReadingController extends Controller
 
         // 🔹 Step 2: Generate HitPay checkout link (using PaymentController)
         $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->generatePaymentQR($reference_no, $paymentPayload);
+            ->processOnlinePayment($reference_no, $paymentPayload);
 
         // 🔹 Step 3: Use HitPay URL if available, else fallback to default Novupay URL
         if ($hitpayData && !empty($hitpayData['url'])) {
