@@ -24,6 +24,7 @@ use App\Models\PaymentDiscount;
 use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
+use App\Models\PaymentBreakdownPenalty;
 
 
 class ReadingController extends Controller
@@ -154,43 +155,65 @@ class ReadingController extends Controller
     }
 
 
-    public function show(string $reference_no) {
+public function show(string $reference_no) {
 
-        $data = $this->meterService::getBill($reference_no);
+    $data = $this->meterService::getBill($reference_no);
 
-        if(isset($data['status']) && $data['status'] == 'error') {
+    if (isset($data['status']) && $data['status'] == 'error') {
 
-            if(empty($data['client']['account_no'])) {
-                return redirect()->back()->with('alert', [
-                    'status' => 'error',
-                    'message' => 'No concessionaire found'
-                ]);
-            }
-
-            return redirect()->route('reading.index')->with('alert', [
+        if (empty($data['client']['account_no'])) {
+            return redirect()->back()->with('alert', [
                 'status' => 'error',
-                'message' => 'Bill Not Found'
+                'message' => 'No concessionaire found'
             ]);
         }
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-
-        $qr_code = $this->generateService::qr_code($url, 80);
-
-        $amount = $data['current_bill']['amount' ?? 0];
-        $assumed_penalty = $amount * 0.15;
-        $assumed_amount_after_due = $amount + $assumed_penalty;
-
-        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-
-        $isReRead = [
-            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
-            'reference_no' => $data['current_bill']['reading']['reread_reference_no']
-        ];
-
-        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+        return redirect()->route('reading.index')->with('alert', [
+            'status' => 'error',
+            'message' => 'Bill Not Found'
+        ]);
     }
+
+    $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    $qr_code = $this->generateService::qr_code($url, 80);
+
+    // Get base amount from bill
+    $amount = $data['current_bill']['amount'] ?? 0;
+    $discount = $data['current_bill']['discount'] ?? 0;
+
+    // Get today's penalty config
+    $currentDay = now()->day;
+
+    $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+        ->where('due_to', '>=', $currentDay)
+        ->first();
+
+    $assumed_penalty = 0;
+
+    if ($penaltyEntry) {
+        $penaltyBase = $amount - $discount;
+
+        if ($penaltyEntry->amount_type === 'percentage') {
+            $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+        } elseif ($penaltyEntry->amount_type === 'fixed') {
+            $assumed_penalty = floatval($penaltyEntry->amount);
+        }
+    }
+
+    $assumed_amount_after_due = $amount + $assumed_penalty;
+
+    // Append to data array
+    $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+    $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+    $isReRead = [
+        'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+        'reference_no' => $data['current_bill']['reading']['reread_reference_no']
+    ];
+
+    return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+}
+
 
     public function report(Request $request)
     {
@@ -398,9 +421,27 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $penaltyRate = 0.15;
-        $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
+        // $penaltyRate = 0.15;
+        // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
 
+        $currentDay = now()->day;
+
+        // Get the applicable penalty entry
+        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $penaltyAmount = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - ($computed['bill']['discount'] ?? 0);
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $penaltyAmount = floatval($penaltyEntry->amount);
+            }
+        }
 
         // Save bill
         $bill = Bill::updateOrCreate(
@@ -408,7 +449,7 @@ class ReadingController extends Controller
             [
                 'account_no' => $account_no,
                 'amount' => $amount,
-                //'penalty' => $penaltyAmount,
+                'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
             ]

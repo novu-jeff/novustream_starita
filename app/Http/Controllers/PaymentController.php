@@ -17,6 +17,7 @@ use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
+use App\Models\PaymentBreakdownPenalty;
 
 class PaymentController extends Controller
 {
@@ -296,13 +297,30 @@ class PaymentController extends Controller
         }
 
         $amount = (float)($currentBill['amount'] ?? 0);
-        $previousPenalty = (float)($currentBill['penalty'] ?? 0);
+        $discount = (float)($currentBill['discount'] ?? 0);
+        $currentDay = now()->day;
 
-        $assumedPenalty = $amount * 0.15;
-        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid + $previousPenalty;
+        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $assumedPenalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumedPenalty = floatval($penaltyEntry->amount);
+            }
+        }
+
+        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
 
         $data['current_bill']['assumed_penalty'] = $assumedPenalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+
 
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
         $qr_code = $this->generateService::qr_code($url, 80);
@@ -313,6 +331,7 @@ class PaymentController extends Controller
 
     private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
     {
+
         $currentBill = (float) ($currentBillData['total'] ?? 0);
         $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
         $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
@@ -332,16 +351,29 @@ class PaymentController extends Controller
 
         $dueDatePenalty = 0;
         $dueDate = $currentBillData['due_date'] ?? null;
+
         if ($dueDate) {
             $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
             $today = \Carbon\Carbon::today('Asia/Manila');
+
             if ($today->gt($dueDateCarbon)) {
-                $dueDatePenalty = $currentBill * 0.15;
+                $daysOverdue = $dueDateCarbon->diffInDays($today);
+
+                $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+                    ->where('due_to', '>=', $daysOverdue)
+                    ->first();
+
+                if ($penaltyRule) {
+                    if ($penaltyRule->amount_type === 'percentage') {
+                        $dueDatePenalty = round($currentBill * floatval($penaltyRule->amount), 2);
+                    } elseif ($penaltyRule->amount_type === 'fixed') {
+                        $dueDatePenalty = round(floatval($penaltyRule->amount), 2);
+                    }
+                }
             }
         }
 
-        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty + $prevPenalty - $advancePayment;
-
+        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty - $advancePayment;
         $totalDue = max(0, round($totalDue, 2));
 
         return [
@@ -349,13 +381,14 @@ class PaymentController extends Controller
             'breakdown' => [
                 'current_bill' => $currentBill,
                 'arrears' => $arrears,
-                'previous_penalty' => $prevPenalty,
+                //'previous_penalty' => $prevPenalty, // optional
                 'discount' => $discount,
                 'advance_payment' => $advancePayment,
                 'due_date_penalty' => $dueDatePenalty,
             ],
         ];
     }
+
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
