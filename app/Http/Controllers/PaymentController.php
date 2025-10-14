@@ -286,9 +286,8 @@ class PaymentController extends Controller
 
         $data['current_bill']['assumed_penalty'] = $assumed_penalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-
-        return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
-
+        $arrearsStack = collect($data['arrearsStack'] ?? []);
+        return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
     }
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
@@ -423,17 +422,27 @@ class PaymentController extends Controller
             ''
         );
 
+        $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
+        $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
+        $account_no = $result['data']['client']['account_no']
+            ?? ($payload['account_no'] ?? '000000');
+        // dd($result);
         $hitpayPayload = [
             'amount' => $amount,
             'currency' => 'PHP',
-            'email' => $payload['email'] ?? 'jeff@novulutions.com',
-            'purpose' => 'Sta. Rita Water District. Payment for reference # -  ' . $reference_no,
+            'email' => $email,
+            'purpose' => 'Sta. Rita Water District. Payment for Account # -  ' . $account_no,
             'reference_number' => $reference_no,
             'redirect_url' => env('HITPAY_REDIRECT_URL'),
             // 'redirect_url' => route('payments.redirect', ['reference' => $reference_no, 'status' => 'pending']),
             'webhook' => env('HITPAY_WEBHOOK_URL'),
             'send_email' => true,
             'send_sms' => true,
+            'name' => $payor,
+            'add_admin_fee' => true,
+            'admin_fee' => '15.00', // Optional fixed admin fee
+            // 'generate_qr' => true,
+            // 'payment_methods' => ['qrph_netbank'],
         ];
 
         // Step 3: Send request to HitPay API
@@ -452,7 +461,12 @@ class PaymentController extends Controller
         $hitpayData = $response->json();
 
         // Step 4: Redirect to HitPay checkout page
-        return redirect()->away($hitpayData['url']);
+        return redirect()->back()->with('alert', [
+            'status' => 'success',
+            'payment_request' => true,
+            'redirect' => $hitpayData['url']
+        ]);
+
     }
 
     public function handleRedirect(Request $request)
