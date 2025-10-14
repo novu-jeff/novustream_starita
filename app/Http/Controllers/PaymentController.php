@@ -17,6 +17,7 @@ use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
+use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
@@ -456,6 +457,7 @@ class PaymentController extends Controller
         ]);
     }
 
+    public function processOnlinePayment_Old(string $reference_no, array $payload) {
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
@@ -493,6 +495,156 @@ class PaymentController extends Controller
             'qr_code' => $qr_code,
         ]);
     }
+
+    public function processOnlinePayment(string $reference_no, array $payload)
+    {
+        // Step 1: Retrieve bill details
+        $result = $this->getBill($reference_no, $payload, false);
+
+        if (isset($result['error'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => $result['error']
+            ]);
+        }
+
+        // var_dump($result); exit;
+        $billData = $result['data']['current_bill'] ?? null;
+
+        if (!$billData) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Missing bill data.'
+            ]);
+        }
+
+
+        // Step 2: Prepare HitPay payload
+        $amount = number_format(
+            (float)$billData['amount'] + (float)$billData['penalty'],
+            2,
+            '.',
+            ''
+        );
+
+        $hitpayPayload = [
+            'amount' => $amount,
+            'currency' => 'PHP',
+            'email' => $payload['email'] ?? 'jeff@novulutions.com',
+            'purpose' => 'Sta. Rita Water District. Payment for reference # -  ' . $reference_no,
+            'reference_number' => $reference_no,
+            'redirect_url' => env('HITPAY_REDIRECT_URL'),
+            // 'redirect_url' => route('payments.redirect', ['reference' => $reference_no, 'status' => 'pending']),
+            'webhook' => env('HITPAY_WEBHOOK_URL'),
+        ];
+
+        // Step 3: Send request to HitPay API
+        $response = Http::withHeaders([
+            'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+        ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
+
+        if ($response->failed()) {
+            $error = $response->json('message') ?? 'Failed to create HitPay payment.';
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => $error,
+            ]);
+        }
+
+        $hitpayData = $response->json();
+
+        // Step 4: Redirect to HitPay checkout page
+        return redirect()->away($hitpayData['url']);
+    }
+
+    public function handleRedirect(Request $request)
+    {
+        $reference = $request->query('reference');
+        $status = $request->query('status');
+
+        if (!$reference || !$status) {
+            abort(404, 'Invalid payment reference.');
+        }
+
+        // You can show a custom page or redirect based on status
+        if ($status === 'completed' || $status === 'success') {
+            return view('payments.success', [
+                'reference' => $reference,
+                'message' => 'Your payment was successful!'
+            ]);
+        }
+
+        if ($status === 'failed' || $status === 'canceled') {
+            return view('payments.failed', [
+                'reference' => $reference,
+                'message' => 'Your payment was canceled or failed. Please try again.'
+            ]);
+        }
+
+        abort(404, 'Unknown payment status.');
+    }
+
+
+    public function createHitPayPayment(Request $request)
+    {
+        $reference_no = $request->input('reference_no');
+        $amount = $request->input('amount');
+
+        $response = Http::withHeaders([
+            'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            'Content-Type' => 'application/json',
+        ])->post(env('HITPAY_API_URL') . '/payment-requests', [
+            'amount' => $amount,
+            'currency' => 'PHP',
+            'reference_number' => $reference_no,
+            'redirect_url' => env('HITPAY_REDIRECT_URL'),
+            'webhook' => env('HITPAY_WEBHOOK_URL'),
+            'name' => 'Bill Payment #' . $reference_no,
+            'email' => $request->input('email', 'customer@example.com'),
+        ]);
+
+        if ($response->failed()) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Failed to create payment request. Please try again.'
+            ]);
+        }
+
+        $data = $response->json();
+        return response()->json($data);
+    }
+
+    public function hitpayCallback(Request $request)
+    {
+        // HitPay redirects here after payment
+        $reference_no = $request->input('reference_number');
+        $status = $request->input('status'); // 'completed', 'failed', etc.
+
+        // Update your DB or bill status here
+        // Example:
+        // Bill::where('reference_no', $reference_no)->update(['status' => $status]);
+
+        return redirect()->route('payments.pay', ['reference_no' => $reference_no])
+            ->with('alert', [
+                'status' => $status === 'completed' ? 'success' : 'error',
+                'message' => "Payment {$status}"
+            ]);
+    }
+
+    public function hitpayWebhook(Request $request)
+    {
+        // optional: verify signature before processing
+        $payload = $request->all();
+
+        if (isset($payload['reference_number'], $payload['status'])) {
+            // Bill::where('reference_no', $payload['reference_number'])
+            //     ->update(['status' => $payload['status']]);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+
 
     public function callback(Request $request, string $reference_no)
     {
