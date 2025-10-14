@@ -154,13 +154,12 @@ class ReadingController extends Controller
     }
 
 
-    public function show(string $reference_no) {
-
+    public function show(string $reference_no)
+    {
         $data = $this->meterService::getBill($reference_no);
 
-        if(isset($data['status']) && $data['status'] == 'error') {
-
-            if(empty($data['client']['account_no'])) {
+        if (isset($data['status']) && $data['status'] === 'error') {
+            if (empty($data['client']['account_no'])) {
                 return redirect()->back()->with('alert', [
                     'status' => 'error',
                     'message' => 'No concessionaire found'
@@ -173,24 +172,49 @@ class ReadingController extends Controller
             ]);
         }
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        // 🔹 Step 1: Prepare payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
 
+        // 🔹 Step 2: Generate HitPay checkout link (using PaymentController)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->generatePaymentQR($reference_no, $paymentPayload);
+
+        // 🔹 Step 3: Use HitPay URL if available, else fallback to default Novupay URL
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout URL
+        } else {
+            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        }
+
+        // 🔹 Step 4: Generate QR code from chosen URL
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        $amount = $data['current_bill']['amount' ?? 0];
+        // 🔹 Step 5: Compute penalty and total
+        $amount = $data['current_bill']['amount'] ?? 0;
         $assumed_penalty = $amount * 0.15;
         $assumed_amount_after_due = $amount + $assumed_penalty;
 
         $data['current_bill']['assumed_penalty'] = $assumed_penalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
 
+        // 🔹 Step 6: Handle reread state
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
-            'reference_no' => $data['current_bill']['reading']['reread_reference_no']
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null
         ];
 
+        // 🔹 Step 7: Render view
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
+
 
     public function report(Request $request)
     {
