@@ -24,9 +24,9 @@ class StoreClientRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'email' => 'required|unique:users,email',
-            'password' => 'required|min:8',
+            'password' => 'required|min:8|confirmed',
             'contact_no' => 'required',
-            'confirm_password' => 'required|same:password',
+            // 'confirm_password' => 'required|same:password',
 
             'accounts' => 'required|array',
             'accounts.*.account_no' => 'required|unique:concessioner_accounts,account_no',
@@ -55,6 +55,7 @@ class StoreClientRequest extends FormRequest
             'accounts.required' => 'Atleast one account is required',
             'accounts.*.account_no.required' => 'The account number is required.',
             'accounts.*.account_no.unique' => 'The account number must be unique.',
+            'password.confirmed' => 'The password and confirmation do not match.',
             'accounts.*.property_type.required' => 'The property type is required.',
             'accounts.*.property_type.exists' => 'The selected property type is invalid.',
             'accounts.*.address.required' => 'The address is required.',

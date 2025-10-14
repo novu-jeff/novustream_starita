@@ -408,7 +408,7 @@ class ReadingController extends Controller
             [
                 'account_no' => $account_no,
                 'amount' => $amount,
-                'penalty' => $penaltyAmount,
+                //'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
             ]

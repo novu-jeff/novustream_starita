@@ -165,28 +165,35 @@
                 tbody.append('<tr><td colspan="12" class="text-center text-muted">No records found.</td></tr>');
             } else {
                 rows.forEach(row => {
-                    tbody.append(`
-                        <tr>
-                            <td>${row.bill?.reference_no ?? 'N/A'}</td>
-                            <td>${row.account_no}</td>
-                            <td>${row.concessionaire?.user?.name ?? 'N/A'}</td>
-                            <td>${row.previous_reading}</td>
-                            <td>${row.present_reading}</td>
-                            <td>${row.consumption} m³</td>
-                            <td>${new Date(row.created_at).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</td>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <a href="{{ $row->bill ? route('reading.show', $row->bill->reference_no) : '#' }}"
-                                    class="btn btn-primary text-white text-uppercase fw-bold"
-                                    id="show-btn" data-id="{{ $row->id }}"
-                                    {{ $row->bill ? '' : 'disabled' }}>
-                                        <i class="bx bx-receipt"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                    `);
-                });
+                const referenceNo = row.bill?.reference_no ?? null;
+                const link = referenceNo
+                    ? `{{ route('reading.show', ':reference_no') }}`.replace(':reference_no', referenceNo)
+                    : '#';
+                const disabled = referenceNo ? '' : 'disabled';
+
+                tbody.append(`
+                    <tr>
+                        <td>${referenceNo ?? 'N/A'}</td>
+                        <td>${row.account_no}</td>
+                        <td>${row.concessionaire?.user?.name ?? 'N/A'}</td>
+                        <td>${row.previous_reading}</td>
+                        <td>${row.present_reading}</td>
+                        <td>${row.consumption} m³</td>
+                        <td>${new Date(row.created_at).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="${link}"
+                                class="btn btn-primary text-white text-uppercase fw-bold"
+                                id="show-btn"
+                                data-id="${row.id}"
+                                ${disabled}>
+                                    <i class="bx bx-receipt"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+            });
             }
             renderPagination(pagination);
         }
