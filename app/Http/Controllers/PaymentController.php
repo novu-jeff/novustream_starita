@@ -371,9 +371,9 @@ class PaymentController extends Controller
             'message' => 'Bill has been paid'
         ]);
     }
-
-    public function processOnlinePayment_Old(string $reference_no, array $payload) {
-
+    
+    public function processOnlinePaymentOld(string $reference_no, array $payload)
+    {
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
