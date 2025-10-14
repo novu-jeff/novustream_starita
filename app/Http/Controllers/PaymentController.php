@@ -245,117 +245,50 @@ class PaymentController extends Controller
     }
 
 
-    public function pay(Request $request, string $reference_no)
-    {
-        if ($request->getMethod() == 'POST') {
+    public function pay(Request $request, string $reference_no) {
+
+        if($request->getMethod() == 'POST') {
             $payload = $request->all();
 
-            switch ($payload['payment_type']) {
+            switch($payload['payment_type']) {
                 case 'cash':
                     return $this->processCashPayment($reference_no, $payload);
                 case 'online':
                     return $this->processOnlinePayment($reference_no, $payload);
             }
+
         }
 
         $data = $this->meterService::getBill($reference_no);
 
-        if (isset($data['status']) && $data['status'] === 'error') {
+        if(isset($data['status']) && $data['status'] == 'error') {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => $data['message']
             ]);
         }
 
-        $currentBill = $data['current_bill'] ?? null;
-
-        if (!$currentBill || !isset($currentBill['reading_id'])) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'No reading found for this bill.'
-            ]);
+        if (!is_null($data['active_payment'])
+            && $data['active_payment']['reference_no'] !== $reference_no) {
+            $alert = [
+                'status' => 'warning',
+                'message' => 'This account has another active payment. Showing requested bill anyway.'
+            ];
         }
-
-        $reading = \App\Models\Reading::find($currentBill['reading_id']);
-        if (!$reading) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Reading not found.'
-            ]);
-        }
-
-        $accountNo = $reading->account_no;
-
-        $arrearsStack = collect();
-        $previousUnpaid = (float)($currentBill['previous_unpaid'] ?? 0);
-
-        if ($previousUnpaid > 0) {
-            $arrearsMonth = Carbon::parse($currentBill['bill_period_from'])
-                ->subMonth()
-                ->format('F');
-            $arrearsStack[$arrearsMonth] = $previousUnpaid;
-        }
-
-        $amount = (float)($currentBill['amount'] ?? 0);
-        $previousPenalty = (float)($currentBill['penalty'] ?? 0);
-
-        $assumedPenalty = $amount * 0.15;
-        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid + $previousPenalty;
-
-        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
 
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
-    }
+        $amount = $data['current_bill']['amount'] ?? 0;
+        $assumed_penalty = $amount * 0.15;
+        $assumed_amount_after_due = $amount + $assumed_penalty;
 
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
 
-    private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
-    {
-        $currentBill = (float) ($currentBillData['total'] ?? 0);
-        $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
-        $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
+        return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
 
-        $discount = 0;
-        if (isset($payload['discount'])) {
-            $discount = (float) $payload['discount'];
-        } elseif (isset($currentBillData['discount'])) {
-            if (is_array($currentBillData['discount'])) {
-                $discount = collect($currentBillData['discount'])->sum('amount');
-            } else {
-                $discount = (float) $currentBillData['discount'];
-            }
-        }
-
-        $advancePayment = (float) ($currentBillData['advances'] ?? 0);
-
-        $dueDatePenalty = 0;
-        $dueDate = $currentBillData['due_date'] ?? null;
-        if ($dueDate) {
-            $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
-            $today = \Carbon\Carbon::today('Asia/Manila');
-            if ($today->gt($dueDateCarbon)) {
-                $dueDatePenalty = $currentBill * 0.15;
-            }
-        }
-
-        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty + $prevPenalty - $advancePayment;
-
-        $totalDue = max(0, round($totalDue, 2));
-
-        return [
-            'total_due' => $totalDue,
-            'breakdown' => [
-                'current_bill' => $currentBill,
-                'arrears' => $arrears,
-                'previous_penalty' => $prevPenalty,
-                'discount' => $discount,
-                'advance_payment' => $advancePayment,
-                'due_date_penalty' => $dueDatePenalty,
-            ],
-        ];
     }
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
@@ -366,37 +299,13 @@ class PaymentController extends Controller
             return ['error' => 'Bill not found'];
         }
 
-        $readingId = $data['current_bill']['reading_id'] ?? null;
+        $total = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
 
-        if (!$readingId) {
-            return ['error' => 'No reading found for this bill.'];
-        }
-
-        $reading = \App\Models\Reading::find($readingId);
-        if (!$reading) {
-            return ['error' => 'Reading not found.'];
-        }
-
-        $accountNo = $reading->account_no;
-
-        $unpaidBills = Bill::whereHas('reading', function($query) use ($accountNo) {
-            $query->where('account_no', $accountNo);
-        })
-        ->where('isPaid', 0)
-        ->orderBy('bill_period_from')
-        ->get();
-
-        $fullArrears = $unpaidBills->sum(fn($b) => $b->previous_unpaid);
-
-        $totalDueResult = $this->calculateTotalDue($data['current_bill'], $payload);
-        $totalDue = $totalDueResult['total_due'];
-        $breakdown = $totalDueResult['breakdown'];
-
-        if ($strictAmount && $payload) {
+        if($strictAmount) {
             $validator = Validator::make($payload, [
-                'payment_amount' => 'required|numeric|gte:' . $totalDue,
+                'payment_amount' => 'required|gte:' . $total
             ], [
-                'payment_amount.gte' => 'Cash payment is insufficient. Total due is PHP ' . number_format($totalDue, 2)
+                'payment_amount.gte' => 'Cash payment is insufficient'
             ]);
 
             if ($validator->fails()) {
@@ -404,20 +313,11 @@ class PaymentController extends Controller
             }
         }
 
-        $data['current_bill']['assumed_amount_after_due'] = $totalDue;
-        $data['current_bill']['breakdown'] = $breakdown;
-        $data['current_bill']['previous_unpaid'] = $fullArrears;
-
-        return [
-            'data' => $data,
-            'total_due' => $totalDue,
-            'breakdown' => $breakdown,
-        ];
+        return ['data' => $data];
     }
 
+    public function processCashPayment(string $reference_no, array $payload) {
 
-    public function processCashPayment(string $reference_no, array $payload)
-    {
         $result = $this->getBill($reference_no, $payload, true);
 
         if (isset($result['error'])) {
@@ -428,13 +328,12 @@ class PaymentController extends Controller
         }
 
         $data = $result['data'];
-        $totalDue = $result['total_due'];
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        $paymentAmount = (float) $payload['payment_amount'];
-        $change = $paymentAmount - $totalDue;
-
+        $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
+        $change = (float) $payload['payment_amount'] - $amount;
         $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
+
         $saveChange = ($change != 0 && $forAdvancePayment);
 
         $currentBill = Bill::find($data['current_bill']['id']);
@@ -442,13 +341,29 @@ class PaymentController extends Controller
         if ($currentBill) {
             $currentBill->update([
                 'isPaid' => true,
-                'amount_paid' => $paymentAmount,
+                'amount_paid' => $payload['payment_amount'],
                 'change' => $change,
                 'payor_name' => $payload['payor'],
                 'date_paid' => $now,
                 'isChangeForAdvancePayment' => $saveChange,
                 'payment_method' => 'cash',
             ]);
+        }
+
+        if (!empty($data['unpaid_bills'])) {
+            foreach ($data['unpaid_bills'] as $unpaid_bill) {
+                $unpaidBill = Bill::find($unpaid_bill['id']);
+                if ($unpaidBill) {
+                    $unpaidBill->update([
+                        'payor_name' => $payload['payor'],
+                        'date_paid' => $now,
+                        'isPaid' => true,
+                        'amount_paid' => $payload['payment_amount'],
+                        'change' => $change,
+                        'paid_by_reference_no' => $reference_no,
+                    ]);
+                }
+            }
         }
 
         return redirect()->back()->with('alert', [
@@ -459,8 +374,6 @@ class PaymentController extends Controller
 
     public function processOnlinePayment_Old(string $reference_no, array $payload) {
 
-    public function processOnlinePayment(string $reference_no, array $payload)
-    {
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
@@ -470,29 +383,12 @@ class PaymentController extends Controller
             ]);
         }
 
-        $data = $result['data'];
-        $totalDue = $result['total_due'];
-
-        $currentBill = Bill::find($data['current_bill']['id']);
-
-        if ($currentBill) {
-            $currentBill->update([
-                'assumed_penalty' => $data['current_bill']['assumed_penalty'] ?? 0,
-                'assumed_amount_after_due' => $data['current_bill']['assumed_amount_after_due'] ?? $totalDue,
-            ]);
-        }
-
         $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-        $qr_code = $this->generateService::qr_code($url, 80);
 
-        return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with([
-            'alert' => [
-                'status' => 'success',
-                'payment_request' => true,
-                'redirect' => $url,
-            ],
-            'total_due' => $totalDue,
-            'qr_code' => $qr_code,
+        return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with('alert', [
+            'status' => 'success',
+            'payment_request' => true,
+            'redirect' => $url,
         ]);
     }
 
@@ -536,6 +432,8 @@ class PaymentController extends Controller
             'redirect_url' => env('HITPAY_REDIRECT_URL'),
             // 'redirect_url' => route('payments.redirect', ['reference' => $reference_no, 'status' => 'pending']),
             'webhook' => env('HITPAY_WEBHOOK_URL'),
+            'send_email' => true,
+            'send_sms' => true,
         ];
 
         // Step 3: Send request to HitPay API
@@ -662,6 +560,22 @@ class PaymentController extends Controller
                     'date_paid' => $now,
                     'payment_method' => 'online',
                 ]);
+            }
+
+            // Update unpaid bills if needed
+            if (!empty($bill['unpaid_bills'])) {
+                foreach ($bill['unpaid_bills'] as $unpaid_bill) {
+                    $unpaidBill = Bill::find($unpaid_bill['id']);
+                    if ($unpaidBill) {
+                        $unpaidBill->update([
+                            'isPaid' => true,
+                            'amount_paid' => $payload['amount'],
+                            'date_paid' => $now,
+                            'paid_by_reference_no' => $reference_no,
+                            'payment_method' => 'online',
+                        ]);
+                    }
+                }
             }
 
             return response()->json([
