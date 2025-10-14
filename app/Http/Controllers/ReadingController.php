@@ -172,7 +172,6 @@ class ReadingController extends Controller
             ]);
         }
 
-        // 🔹 Step 1: Prepare payment payload
         $paymentPayload = [
             'reference_no' => $reference_no,
             'amount' => $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0,
@@ -183,19 +182,17 @@ class ReadingController extends Controller
             ],
         ];
 
-        // 🔹 Step 2: Generate HitPay checkout link (using PaymentController)
         $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->processOnlinePayment($reference_no, $paymentPayload);
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
 
-        // 🔹 Step 3: Use HitPay URL if available, else fallback to default Novupay URL
         if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout URL
+            $url = $hitpayData['url']; // ✅ This is the HitPay checkout link
         } else {
             $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
         }
 
-        // 🔹 Step 4: Generate QR code from chosen URL
         $qr_code = $this->generateService::qr_code($url, 80);
+
 
         // 🔹 Step 5: Compute penalty and total
         $amount = $data['current_bill']['amount'] ?? 0;
