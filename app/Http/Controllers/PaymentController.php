@@ -457,7 +457,7 @@ class PaymentController extends Controller
         ]);
     }
     
-    public function processOnlinePayment(string $reference_no, array $payload)
+    public function processOnlinePaymentOld(string $reference_no, array $payload)
     {
         $result = $this->getBill($reference_no, $payload, false);
 
