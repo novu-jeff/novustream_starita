@@ -3,7 +3,7 @@ name: 🚀 Deploy Novustream
 on:
   push:
     branches:
-      - testing   # or main if that’s your production branch
+      - testing   # or main if deploying production
 
 jobs:
   deploy:
@@ -24,32 +24,38 @@ jobs:
           port: 22
           script: |
             echo "→ Starting deployment on server..."
-
             cd /var/www/html/novustream
 
-            echo "→ Fixing ownership and permissions before deployment..."
+            echo "→ Fixing base ownership and permissions..."
             sudo chown -R www-data:www-data /var/www/html/novustream || true
-            sudo find /var/www/html/novustream -type d -exec chmod 775 {} \; || true
-            sudo find /var/www/html/novustream -type f -exec chmod 664 {} \; || true
-            sudo chmod -R 775 storage bootstrap/cache || true
+            sudo find storage bootstrap/cache -type d -exec chmod 775 {} \; || true
+            sudo find storage bootstrap/cache -type f -exec chmod 664 {} \; || true
 
-            echo "→ Pulling latest code from testing branch..."
+            echo "→ Pulling latest code..."
             sudo -u www-data git fetch origin testing
             sudo -u www-data git reset --hard origin/testing
 
             echo "→ Installing PHP dependencies..."
             sudo -u www-data composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
+            echo "→ Preparing npm cache directory..."
+            sudo mkdir -p /var/www/.npm
+            sudo chown -R www-data:www-data /var/www/.npm
+            sudo chmod -R 775 /var/www/.npm
+
             echo "→ Installing Node dependencies..."
-            sudo -u www-data npm ci --no-audit --no-fund
-            sudo -u www-data npm run build
+            sudo -u www-data npm ci --no-audit --no-fund || { echo "❌ npm install failed"; exit 1; }
+
+            echo "→ Building assets..."
+            sudo -u www-data npm run build || { echo "❌ vite build failed"; exit 1; }
 
             echo "→ Optimizing Laravel cache..."
             sudo -u www-data php artisan optimize:clear
             sudo -u www-data php artisan migrate --force
 
             echo "→ Fixing final permissions..."
-            sudo chown -R www-data:www-data storage bootstrap/cache
-            sudo chmod -R 775 storage bootstrap/cache
+            sudo chown -R www-data:www-data storage bootstrap/cache /var/www/.npm
+            sudo find storage bootstrap/cache -type d -exec chmod 775 {} \; || true
+            sudo find storage bootstrap/cache -type f -exec chmod 664 {} \; || true
 
             echo "✅ Deployment completed successfully!"
