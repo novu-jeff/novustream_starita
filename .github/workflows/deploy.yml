@@ -1,44 +1,55 @@
-name: Deploy to Server
+name: 🚀 Deploy Novustream
 
 on:
   push:
     branches:
-      - testing
+      - testing   # or main if that’s your production branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📦 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: 🔐 SSH into server and deploy
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
           script: |
+            echo "→ Starting deployment on server..."
+
             cd /var/www/html/novustream
 
-            echo "→ Pulling latest code..."
-            git fetch origin testing
-            git reset --hard origin/testing
+            echo "→ Fixing ownership and permissions before deployment..."
+            sudo chown -R www-data:www-data /var/www/html/novustream || true
+            sudo find /var/www/html/novustream -type d -exec chmod 775 {} \; || true
+            sudo find /var/www/html/novustream -type f -exec chmod 664 {} \; || true
+            sudo chmod -R 775 storage bootstrap/cache || true
+
+            echo "→ Pulling latest code from testing branch..."
+            sudo -u www-data git fetch origin testing
+            sudo -u www-data git reset --hard origin/testing
 
             echo "→ Installing PHP dependencies..."
-            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            sudo -u www-data composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
             echo "→ Installing Node dependencies..."
-            npm ci --no-audit --no-fund
-            npm run build
+            sudo -u www-data npm ci --no-audit --no-fund
+            sudo -u www-data npm run build
 
             echo "→ Optimizing Laravel cache..."
-            php artisan optimize:clear
-            php artisan migrate --force
+            sudo -u www-data php artisan optimize:clear
+            sudo -u www-data php artisan migrate --force
 
-            echo "→ Setting correct permissions..."
-            chown -R www-data:www-data storage bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
+            echo "→ Fixing final permissions..."
+            sudo chown -R www-data:www-data storage bootstrap/cache
+            sudo chmod -R 775 storage bootstrap/cache
 
             echo "✅ Deployment completed successfully!"
