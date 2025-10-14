@@ -370,7 +370,7 @@ class PaymentController extends Controller
             'message' => 'Bill has been paid'
         ]);
     }
-    
+
     public function processOnlinePaymentOld(string $reference_no, array $payload)
     {
         $result = $this->getBill($reference_no, $payload, false);
@@ -468,6 +468,71 @@ class PaymentController extends Controller
         ]);
 
     }
+
+    public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
+    {
+        try {
+            $result = $this->getBill($reference_no, $payload, false);
+
+            if (isset($result['error'])) {
+                \Log::error('HitPay error: ' . $result['error']);
+                return null;
+            }
+
+            $billData = $result['data']['current_bill'] ?? null;
+            if (!$billData) {
+                \Log::error('Missing bill data for HitPay', ['reference_no' => $reference_no]);
+                return null;
+            }
+
+            $amount = number_format(
+                (float)$billData['amount'] + (float)$billData['penalty'],
+                2,
+                '.',
+                ''
+            );
+
+            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
+            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
+            $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+
+            $hitpayPayload = [
+                'amount' => $amount,
+                'currency' => 'PHP',
+                'email' => $email,
+                'purpose' => 'Sta. Rita Water District. Payment for Account # - ' . $account_no,
+                'reference_number' => $reference_no,
+                'redirect_url' => env('HITPAY_REDIRECT_URL'),
+                'webhook' => env('HITPAY_WEBHOOK_URL'),
+                'send_email' => true,
+                'send_sms' => true,
+                'name' => $payor,
+                'add_admin_fee' => true,
+                'admin_fee' => '15.00',
+            ];
+
+            $response = \Http::withHeaders([
+                'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
+
+            if ($response->failed()) {
+                \Log::error('HitPay API request failed', ['body' => $response->body()]);
+                return null;
+            }
+
+            $data = $response->json();
+            return [
+                'id' => $data['id'] ?? null,
+                'url' => $data['url'] ?? null,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('createHitpayPaymentRequest exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+
+
 
     public function handleRedirect(Request $request)
     {
