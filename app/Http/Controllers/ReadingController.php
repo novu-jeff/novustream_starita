@@ -191,7 +191,7 @@ public function show(string $reference_no) {
     $assumed_penalty = 0;
 
     if ($penaltyEntry) {
-        $penaltyBase = $amount - $discount;
+        $penaltyBase = (float) $amount - (float) $discount;
 
         if ($penaltyEntry->amount_type === 'percentage') {
             $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
