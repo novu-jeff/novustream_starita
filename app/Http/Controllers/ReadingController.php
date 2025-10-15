@@ -566,7 +566,7 @@ public function show(string $reference_no) {
 
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Error occurred: ' . $e->getMessage()
+                    'message' => 'Error occurred1: ' . $e->getMessage()
                 ], 500);
             }
         }
