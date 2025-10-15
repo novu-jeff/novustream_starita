@@ -422,13 +422,20 @@ class PaymentController extends Controller
             ''
         );
 
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        // $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $amount + $additional_service_fee;
+
         $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
         $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
         $account_no = $result['data']['client']['account_no']
             ?? ($payload['account_no'] ?? '000000');
         // dd($result);
         $hitpayPayload = [
-            'amount' => $amount,
+            'amount' => $final_amount,
             'currency' => 'PHP',
             'email' => $email,
             'purpose' => 'Sta. Rita Water District. Payment for Account # -  ' . $account_no,
