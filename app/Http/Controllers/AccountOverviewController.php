@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Yajra\DataTables\Facades\DataTables;
+use App\Models\PaymentBreakdownPenalty;
 
 class AccountOverviewController extends Controller
 {
@@ -241,12 +242,10 @@ class AccountOverviewController extends Controller
 
     private function computeBillPenalty(array $bill): array
 {
+
     $amount = $bill['amount'] ?? 0;
     $dueDate = isset($bill['due_date']) ? Carbon::parse($bill['due_date']) : null;
     $today = Carbon::today();
-
-    // Default penalty rate: 15% (can be adjusted or pulled from DB)
-    $penaltyRate = isset($bill['penalty_rate']) ? floatval($bill['penalty_rate']) : 0.15;
 
     $penaltyAmount = 0;
     $daysOverdue = 0;
@@ -254,8 +253,23 @@ class AccountOverviewController extends Controller
 
     if ($dueDate && $today->gt($dueDate)) {
         $daysOverdue = $dueDate->diffInDays($today);
-        $penaltyAmount = round($amount * $penaltyRate, 2);
         $penaltyDate = $dueDate->copy()->addDay();
+
+        // Fetch the penalty rule that matches the days overdue
+        $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+            ->where('due_to', '>=', $daysOverdue)
+            ->first();
+
+        if ($penaltyRule) {
+            $penaltyBase = $amount;
+
+            if ($penaltyRule->amount_type === 'percentage') {
+                $penaltyAmount = round($penaltyBase * floatval($penaltyRule->amount), 2);
+            } elseif ($penaltyRule->amount_type === 'fixed') {
+                $penaltyAmount = round(floatval($penaltyRule->amount), 2);
+            }
+        }
+
     } elseif ($dueDate) {
         $penaltyDate = $dueDate->copy()->addDay();
     }
@@ -268,6 +282,7 @@ class AccountOverviewController extends Controller
 
     return $bill;
 }
+
 
 
 

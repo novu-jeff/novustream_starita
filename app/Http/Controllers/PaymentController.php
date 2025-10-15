@@ -17,7 +17,7 @@ use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
-use Illuminate\Support\Facades\Http;
+use App\Models\PaymentBreakdownPenalty;
 
 class PaymentController extends Controller
 {
@@ -299,7 +299,7 @@ class PaymentController extends Controller
         $discount = (float)($currentBill['discount'] ?? 0);
         $currentDay = now()->day;
 
-        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
             ->where('due_to', '>=', $currentDay)
             ->first();
 
@@ -307,10 +307,41 @@ class PaymentController extends Controller
 
         if ($penaltyEntry) {
             $penaltyBase = $amount - $discount;
+
             if ($penaltyEntry->amount_type === 'percentage') {
                 $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
             } elseif ($penaltyEntry->amount_type === 'fixed') {
                 $assumedPenalty = floatval($penaltyEntry->amount);
+            }
+        }
+
+        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
+
+        $assumedPenalty = 0;
+
+
+        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        $qr_code = $this->generateService::qr_code($url, 80);
+
+        return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
+    }
+
+
+    private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
+    {
+
+        $currentBill = (float) ($currentBillData['total'] ?? 0);
+        $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
+        $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
+
+        $discount = 0;
+        if (isset($payload['discount'])) {
+            $discount = (float) $payload['discount'];
+        } elseif (isset($currentBillData['discount'])) {
+            if (is_array($currentBillData['discount'])) {
+                $discount = collect($currentBillData['discount'])->sum('amount');
+            } else {
+                $discount = (float) $currentBillData['discount'];
             }
         } else {
             // fallback to your default 15% if no penalty rule found
@@ -320,23 +351,42 @@ class PaymentController extends Controller
         // 🧾 Recompute total after due + arrears
         $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
 
-        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+        $dueDatePenalty = 0;
+        $dueDate = $currentBillData['due_date'] ?? null;
 
-        // 💰 Add your additional service fee + HitPay logic (your code preserved)
-        $hitpay_fee = 20;
-        $novupay_fee = 10;
-        $additional_service_fee = $hitpay_fee + $novupay_fee;
+        if ($dueDate) {
+            $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
+            $today = \Carbon\Carbon::today('Asia/Manila');
 
-        $final_amount = $assumedAmountAfterDue + $additional_service_fee;
+            if ($today->gt($dueDateCarbon)) {
+                $daysOverdue = $dueDateCarbon->diffInDays($today);
 
-        $paymentPayload = [
-            'reference_no' => $reference_no,
-            'amount' => $final_amount,
-            'customer' => [
-                'name' => $data['client']['name'] ?? '',
-                'account_no' => $data['client']['account_no'] ?? '',
-                'address' => $data['client']['address'] ?? '',
+                $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+                    ->where('due_to', '>=', $daysOverdue)
+                    ->first();
+
+                if ($penaltyRule) {
+                    if ($penaltyRule->amount_type === 'percentage') {
+                        $dueDatePenalty = round($currentBill * floatval($penaltyRule->amount), 2);
+                    } elseif ($penaltyRule->amount_type === 'fixed') {
+                        $dueDatePenalty = round(floatval($penaltyRule->amount), 2);
+                    }
+                }
+            }
+        }
+
+        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty - $advancePayment;
+        $totalDue = max(0, round($totalDue, 2));
+
+        return [
+            'total_due' => $totalDue,
+            'breakdown' => [
+                'current_bill' => $currentBill,
+                'arrears' => $arrears,
+                //'previous_penalty' => $prevPenalty, // optional
+                'discount' => $discount,
+                'advance_payment' => $advancePayment,
+                'due_date_penalty' => $dueDatePenalty,
             ],
         ];
 
