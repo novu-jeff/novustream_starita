@@ -171,10 +171,15 @@ class ReadingController extends Controller
                 'message' => 'Bill Not Found'
             ]);
         }
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
 
+        $final_amount = $bill_amount + $additional_service_fee;
         $paymentPayload = [
             'reference_no' => $reference_no,
-            'amount' => $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0,
+            'amount' => $final_amount,
             'customer' => [
                 'name' => $data['client']['name'] ?? '',
                 'account_no' => $data['client']['account_no'] ?? '',
