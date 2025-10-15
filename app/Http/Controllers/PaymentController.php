@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\HeadingRowImport;
 use Yajra\DataTables\Facades\DataTables;
@@ -299,7 +300,7 @@ class PaymentController extends Controller
         $discount = (float)($currentBill['discount'] ?? 0);
         $currentDay = now()->day;
 
-        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
             ->where('due_to', '>=', $currentDay)
             ->first();
 
@@ -316,18 +317,50 @@ class PaymentController extends Controller
             } elseif ($penaltyEntry->amount_type === 'fixed') {
                 $assumedPenalty = floatval($penaltyEntry->amount);
             }
+        } else {
+            // fallback 15%
+            $assumedPenalty = $amount * 0.15;
         }
 
         $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
 
-        $assumedPenalty = 0;
+        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
 
+        // 💰 Add service fees
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        $final_amount = $assumedAmountAfterDue + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+        // 🔹 Generate HitPay checkout link (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
+        } else {
+            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        }
+
+        // 🔹 Generate QR code (HitPay or fallback NovuPay)
         $qr_code = $this->generateService::qr_code($url, 80);
 
         return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
     }
+
 
 
     private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
