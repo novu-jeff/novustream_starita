@@ -245,50 +245,117 @@ class PaymentController extends Controller
     }
 
 
-    public function pay(Request $request, string $reference_no) {
-
-        if($request->getMethod() == 'POST') {
+    public function pay(Request $request, string $reference_no)
+    {
+        if ($request->getMethod() == 'POST') {
             $payload = $request->all();
 
-            switch($payload['payment_type']) {
+            switch ($payload['payment_type']) {
                 case 'cash':
                     return $this->processCashPayment($reference_no, $payload);
                 case 'online':
                     return $this->processOnlinePayment($reference_no, $payload);
             }
-
         }
 
         $data = $this->meterService::getBill($reference_no);
 
-        if(isset($data['status']) && $data['status'] == 'error') {
+        if (isset($data['status']) && $data['status'] === 'error') {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => $data['message']
             ]);
         }
 
-        if (!is_null($data['active_payment'])
-            && $data['active_payment']['reference_no'] !== $reference_no) {
-            $alert = [
-                'status' => 'warning',
-                'message' => 'This account has another active payment. Showing requested bill anyway.'
-            ];
+        // ⚙️ Validate reading
+        $currentBill = $data['current_bill'] ?? null;
+        if (!$currentBill || !isset($currentBill['reading_id'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'No reading found for this bill.'
+            ]);
         }
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        $reading = \App\Models\Reading::find($currentBill['reading_id']);
+        if (!$reading) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Reading not found.'
+            ]);
+        }
 
+        // 🧾 Compute arrears stack (from co-dev)
+        $arrearsStack = collect();
+        $previousUnpaid = (float)($currentBill['previous_unpaid'] ?? 0);
+        if ($previousUnpaid > 0) {
+            $arrearsMonth = \Carbon\Carbon::parse($currentBill['bill_period_from'])
+                ->subMonth()
+                ->format('F');
+            $arrearsStack[$arrearsMonth] = $previousUnpaid;
+        }
+
+        // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
+        $amount = (float)($currentBill['amount'] ?? 0);
+        $discount = (float)($currentBill['discount'] ?? 0);
+        $currentDay = now()->day;
+
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $assumedPenalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumedPenalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback to your default 15% if no penalty rule found
+            $assumedPenalty = $amount * 0.15;
+        }
+
+        // 🧾 Recompute total after due + arrears
+        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
+
+        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+
+        // 💰 Add your additional service fee + HitPay logic (your code preserved)
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $assumedAmountAfterDue + $additional_service_fee;
+
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+        // ⚡ Generate HitPay URL (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
+        } else {
+            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        }
+
+        // 🧾 Generate QR code (yours)
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        $amount = $data['current_bill']['amount'] ?? 0;
-        $assumed_penalty = $amount * 0.15;
-        $assumed_amount_after_due = $amount + $assumed_penalty;
-
-        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-        $arrearsStack = collect($data['arrearsStack'] ?? []);
         return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
     }
+
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
@@ -438,7 +505,7 @@ class PaymentController extends Controller
             'amount' => $final_amount,
             'currency' => 'PHP',
             'email' => $email,
-            'purpose' => 'Sta. Rita Water District. Payment for Account # -  ' . $account_no,
+            'purpose' => 'Sta. Rita Water District. Payment for Account # ' . $account_no,
             'reference_number' => $reference_no,
             'redirect_url' => env('HITPAY_REDIRECT_URL'),
             // 'redirect_url' => route('payments.redirect', ['reference' => $reference_no, 'status' => 'pending']),
@@ -498,16 +565,22 @@ class PaymentController extends Controller
                 '.',
                 ''
             );
+             $hitpay_fee = 20;
+            $novupay_fee = 10;
+            // $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
+            $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+            $final_amount = $amount + $additional_service_fee;
 
             $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
             $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
 
             $hitpayPayload = [
-                'amount' => $amount,
+                'amount' => $final_amount,
                 'currency' => 'PHP',
                 'email' => $email,
-                'purpose' => 'Sta. Rita Water District. Payment for Account # - ' . $account_no,
+                'purpose' => 'Sta. Rita Water District. Payment for Account # ' . $account_no,
                 'reference_number' => $reference_no,
                 'redirect_url' => env('HITPAY_REDIRECT_URL'),
                 'webhook' => env('HITPAY_WEBHOOK_URL'),
