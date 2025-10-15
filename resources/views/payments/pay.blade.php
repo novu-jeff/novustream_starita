@@ -176,12 +176,12 @@
                                             $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
                                         @endphp
 
-                                        @if($prevPenalty > 0)
+                                        <!-- @if($prevPenalty > 0)
                                             <div style="display: flex; justify-content: space-between;">
                                                 <div style="text-transform: uppercase">Previous Penalty</div>
                                                 <div style="text-transform: uppercase">+ ₱ {{ number_format($prevPenalty, 2) }}</div>
                                             </div>
-                                        @endif
+                                        @endif -->
                                         @if($arrearsStack->isNotEmpty())
                                             <div class="d-flex flex-column">
                                                 <div class="mb-1">Arrears months:</div>
@@ -210,7 +210,7 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['total'] - (float) $totalDiscount - (float) $advancePayment + (float) $prevPenalty + (float) $arrears, 2)}}</div>
+                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['total'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears, 2)}}</div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -241,7 +241,7 @@
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                               ₱ {{ number_format($data['current_bill']['assumed_amount_after_due'] - $discount, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount_after_due'] - $discount, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -350,7 +350,7 @@
                                         }
                                     $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
-                                    $netCurrentBill = max(0, $currentBill - $discount - $advancePayment + $prevPenalty);
+                                    $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
                                 @endphp
 
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
@@ -396,7 +396,7 @@
 
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
-                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty + $prevPenalty;
+                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty ;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -443,13 +443,13 @@
                                                 </div>
                                             @endif
 
-                                            @if($prevPenalty > 0)
+                                            <!-- @if($prevPenalty > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-danger" style="font-size: 12px;">
                                                         + PHP {{ number_format($prevPenalty, 2) }} (PREVIOUS PENALTY)
                                                     </h6>
                                                 </div>
-                                            @endif
+                                            @endif -->
 
                                             @if($applicablePenalty > 0)
                                                 <div class="text-end">
@@ -505,8 +505,8 @@
 
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
-                                            <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
-                                            <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
+                                           <button type="button" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" id="payCashBtn">Pay Cash</button>
+                                            <button type="button" class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" id="payOnlineBtn">Pay Online</button>
                                         </div>
                                     </div>
                                 </div>
@@ -519,7 +519,35 @@
                             @endif
                         </div>
                     </div>
+                    <input type="hidden" name="payment_type" id="payment_type" value="">
                 </form>
+            </div>
+        </div>
+        <div class="modal fade" id="serviceFeeModal" tabindex="-1" aria-labelledby="serviceFeeModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-3 text-center p-4" style="max-width: 820px; margin: auto;">
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto" width="120" height="70" fill="none" stroke="#196685ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-info-circle" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="#196685ff" stroke-width="2"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12" stroke="#196685ff" stroke-width="2"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8" stroke="#196685ff" stroke-width="2"></line>
+                    </svg>
+                    </div>
+
+                    <h4 class="modal-title fw-bold mb-3" id="serviceFeeModalLabel" style="color: #196685ff;">Notice</h4>
+
+                    <p class="text-secondary fs-4 mb-4">
+                    Service fees vary by payment channel and are shown before payment confirmation.
+                    </p>
+
+                    <div class="d-flex justify-content-center gap-3">
+                    <button type="button" class="mb-3 btn btn-outline-primary px-4 py-2 text-uppercase fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmPaymentBtn" class="mb-3 btn btn-primary px-4 py-2 text-uppercase fw-bold">Okay</button>
+                    </div>
+                </div>
+                </div>
             </div>
         </div>
     </main>
@@ -640,6 +668,27 @@
                     `);
                 }
             });
+            $(function () {
+            let paymentType = '';
+
+            $('#payCashBtn').on('click', function() {
+                paymentType = 'cash';
+                $('#serviceFeeModal').modal('show');
+            });
+
+            $('#payOnlineBtn').on('click', function() {
+                paymentType = 'online';
+                $('#serviceFeeModal').modal('show');
+            });
+
+            $('#confirmPaymentBtn').on('click', function() {
+                if(paymentType) {
+                    $('#payment_type').val(paymentType); // set the hidden input
+                    $('form').submit(); // submit the form
+                    $('#serviceFeeModal').modal('hide');
+                }
+            });
+        });
     });
 </script>
 @endsection

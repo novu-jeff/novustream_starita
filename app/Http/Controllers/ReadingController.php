@@ -24,6 +24,7 @@ use App\Models\PaymentDiscount;
 use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
+use App\Models\PaymentBreakdownPenalty;
 
 
 class ReadingController extends Controller
@@ -154,95 +155,64 @@ class ReadingController extends Controller
     }
 
 
-    public function show(string $reference_no)
-    {
-        $data = $this->meterService::getBill($reference_no);
+public function show(string $reference_no) {
 
-        if (isset($data['status']) && $data['status'] === 'error') {
-            if (empty($data['client']['account_no'])) {
-                return redirect()->back()->with('alert', [
-                    'status' => 'error',
-                    'message' => 'No concessionaire found'
-                ]);
-            }
+    $data = $this->meterService::getBill($reference_no);
 
-            return redirect()->route('reading.index')->with('alert', [
+    if (isset($data['status']) && $data['status'] == 'error') {
+
+        if (empty($data['client']['account_no'])) {
+            return redirect()->back()->with('alert', [
                 'status' => 'error',
-                'message' => 'Bill Not Found'
+                'message' => 'No concessionaire found'
             ]);
         }
 
-        // 🔹 Step 1: Get base amount and discount
-        $amount = (float)($data['current_bill']['amount'] ?? 0);
-        $discount = (float)($data['current_bill']['discount'] ?? 0);
-
-        // 🔹 Step 2: Compute dynamic penalty (merged from co-dev)
-        $currentDay = now()->day;
-        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
-            ->where('due_to', '>=', $currentDay)
-            ->first();
-
-        $assumed_penalty = 0;
-
-        if ($penaltyEntry) {
-            $penaltyBase = $amount - $discount;
-
-            if ($penaltyEntry->amount_type === 'percentage') {
-                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
-            } elseif ($penaltyEntry->amount_type === 'fixed') {
-                $assumed_penalty = floatval($penaltyEntry->amount);
-            }
-        } else {
-            // fallback to your 15% rule if no penalty config found
-            $assumed_penalty = $amount * 0.15;
-        }
-
-        $assumed_amount_after_due = $amount + $assumed_penalty;
-
-        // 🔹 Step 3: Add penalty info to data (same as yours)
-        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-
-        // 🔹 Step 4: Include your service fees
-        $hitpay_fee = 20;
-        $novupay_fee = 10;
-        $additional_service_fee = $hitpay_fee + $novupay_fee;
-
-        $final_amount = $assumed_amount_after_due + $additional_service_fee;
-
-        $paymentPayload = [
-            'reference_no' => $reference_no,
-            'amount' => $final_amount,
-            'customer' => [
-                'name' => $data['client']['name'] ?? '',
-                'account_no' => $data['client']['account_no'] ?? '',
-                'address' => $data['client']['address'] ?? '',
-            ],
-        ];
-
-        // 🔹 Step 5: Generate HitPay checkout URL (your logic preserved)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
-        } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-        }
-
-        // 🔹 Step 6: Generate QR code (your logic)
-        $qr_code = $this->generateService::qr_code($url, 80);
-
-        // 🔹 Step 7: Handle reread state (same as yours)
-        $isReRead = [
-            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
-            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null
-        ];
-
-        // 🔹 Step 8: Render the view
-        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+        return redirect()->route('reading.index')->with('alert', [
+            'status' => 'error',
+            'message' => 'Bill Not Found'
+        ]);
     }
 
+    $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    $qr_code = $this->generateService::qr_code($url, 80);
+
+    // Get base amount from bill
+    $amount = $data['current_bill']['amount'] ?? 0;
+    $discount = $data['current_bill']['discount'] ?? 0;
+
+    // Get today's penalty config
+    $currentDay = now()->day;
+
+    $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+        ->where('due_to', '>=', $currentDay)
+        ->first();
+
+    $assumed_penalty = 0;
+
+    if ($penaltyEntry) {
+        $penaltyBase = (float) $amount - (float) $discount;
+
+        if ($penaltyEntry->amount_type === 'percentage') {
+            $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+        } elseif ($penaltyEntry->amount_type === 'fixed') {
+            $assumed_penalty = floatval($penaltyEntry->amount);
+        }
+    }
+
+    $assumed_amount_after_due = $amount + $assumed_penalty;
+
+    // Append to data array
+    $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+    $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+    $isReRead = [
+        'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+        'reference_no' => $data['current_bill']['reading']['reread_reference_no']
+    ];
+
+    return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+}
 
 
     public function report(Request $request)
@@ -451,9 +421,27 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $penaltyRate = 0.15;
-        $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
+        // $penaltyRate = 0.15;
+        // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
 
+        $currentDay = now()->day;
+
+        // Get the applicable penalty entry
+        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $penaltyAmount = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - ($computed['bill']['discount'] ?? 0);
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $penaltyAmount = floatval($penaltyEntry->amount);
+            }
+        }
 
         // Save bill
         $bill = Bill::updateOrCreate(
@@ -461,7 +449,7 @@ class ReadingController extends Controller
             [
                 'account_no' => $account_no,
                 'amount' => $amount,
-                //'penalty' => $penaltyAmount,
+                'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
             ]

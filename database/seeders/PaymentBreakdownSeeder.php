@@ -29,7 +29,7 @@ class PaymentBreakdownSeeder extends Seeder
                 'amount' => 0
             ], [
                 'name' => 'Materials',
-                'type' => 'fixed',  
+                'type' => 'fixed',
                 'amount' => 0
             ], [
                 'name' => 'Reconnection Fee',
@@ -50,19 +50,19 @@ class PaymentBreakdownSeeder extends Seeder
             PaymentBreakdown::create($breakdown);
         }
 
-        PaymentBreakdownPenalty::create([
-            'due_from' => '1',
-            'due_to' => '*',
-            'amount_type' => 'percentage',
-            'amount' => 0.15
-        ]);
+        // PaymentBreakdownPenalty::create([
+        //     'due_from' => '1',
+        //     'due_to' => '*',
+        //     'amount_type' => 'percentage',
+        //     'amount' => 0.15
+        // ]);
 
-        PaymentDiscount::create([
-            'name' => 'SC Discount',
-            'eligible' => 'senior',
-            'type' => 'percentage',
-            'percentage_of' => 'basic_charge',
-            'amount' => 0.05
-        ]);
+        // PaymentDiscount::create([
+        //     'name' => 'SC Discount',
+        //     'eligible' => 'senior',
+        //     'type' => 'percentage',
+        //     'percentage_of' => 'basic_charge',
+        //     'amount' => 0.05
+        // ]);
     }
 }
