@@ -171,12 +171,45 @@ class ReadingController extends Controller
                 'message' => 'Bill Not Found'
             ]);
         }
+
+        // 🔹 Step 1: Get base amount and discount
+        $amount = (float)($data['current_bill']['amount'] ?? 0);
+        $discount = (float)($data['current_bill']['discount'] ?? 0);
+
+        // 🔹 Step 2: Compute dynamic penalty (merged from co-dev)
+        $currentDay = now()->day;
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $assumed_penalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumed_penalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback to your 15% rule if no penalty config found
+            $assumed_penalty = $amount * 0.15;
+        }
+
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        // 🔹 Step 3: Add penalty info to data (same as yours)
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+        // 🔹 Step 4: Include your service fees
         $hitpay_fee = 20;
         $novupay_fee = 10;
-        $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-        $final_amount = $bill_amount + $additional_service_fee;
+        $final_amount = $assumed_amount_after_due + $additional_service_fee;
+
         $paymentPayload = [
             'reference_no' => $reference_no,
             'amount' => $final_amount,
@@ -187,35 +220,29 @@ class ReadingController extends Controller
             ],
         ];
 
+        // 🔹 Step 5: Generate HitPay checkout URL (your logic preserved)
         $hitpayData = app(\App\Http\Controllers\PaymentController::class)
             ->createHitpayPaymentRequest($reference_no, $paymentPayload);
 
         if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ This is the HitPay checkout link
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
         } else {
             $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
         }
 
+        // 🔹 Step 6: Generate QR code (your logic)
         $qr_code = $this->generateService::qr_code($url, 80);
 
-
-        // 🔹 Step 5: Compute penalty and total
-        $amount = $data['current_bill']['amount'] ?? 0;
-        $assumed_penalty = $amount * 0.15;
-        $assumed_amount_after_due = $amount + $assumed_penalty;
-
-        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
-
-        // 🔹 Step 6: Handle reread state
+        // 🔹 Step 7: Handle reread state (same as yours)
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null
         ];
 
-        // 🔹 Step 7: Render view
+        // 🔹 Step 8: Render the view
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
+
 
 
     public function report(Request $request)
