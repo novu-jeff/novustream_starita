@@ -303,8 +303,11 @@ class PaymentController extends Controller
             ->where('due_to', '>=', $currentDay)
             ->first();
 
+        // ✅ Always ensure defaults
         $assumedPenalty = 0;
+        $assumedAmountAfterDue = $amount;
 
+        // 🔹 Try to compute based on dynamic penalty config
         if ($penaltyEntry) {
             $penaltyBase = $amount - $discount;
             if ($penaltyEntry->amount_type === 'percentage') {
@@ -313,15 +316,17 @@ class PaymentController extends Controller
                 $assumedPenalty = floatval($penaltyEntry->amount);
             }
         } else {
-            // fallback to your default 15% if no penalty rule found
+            // fallback to your old 15% rule
             $assumedPenalty = $amount * 0.15;
         }
 
-        // 🧾 Recompute total after due + arrears
-        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
+        // 🔹 Add to final amount (include arrears if any)
+        $assumedAmountAfterDue = $amount + $assumedPenalty + ($previousUnpaid ?? 0);
 
-        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+        // 🔹 Always define the keys for the view
+        $data['current_bill']['assumed_penalty'] = $assumedPenalty ?? 0;
+        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue ?? $amount;
+
 
         // 💰 Add your additional service fee + HitPay logic (your code preserved)
         $hitpay_fee = 20;
