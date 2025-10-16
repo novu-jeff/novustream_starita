@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
 use App\Http\Controllers\RoleController;
@@ -176,3 +177,6 @@ Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayP
 Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
 Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
 Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
+
+
+// Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');

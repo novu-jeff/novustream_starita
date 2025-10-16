@@ -365,11 +365,12 @@ class PaymentController extends Controller
 
     private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
     {
-
         $currentBill = (float) ($currentBillData['total'] ?? 0);
         $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
         $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
+        $advancePayment = (float) ($currentBillData['advances'] ?? 0);
 
+        // 🧾 Determine discount
         $discount = 0;
         if (isset($payload['discount'])) {
             $discount = (float) $payload['discount'];
@@ -379,18 +380,33 @@ class PaymentController extends Controller
             } else {
                 $discount = (float) $currentBillData['discount'];
             }
+        }
+
+        // 🧮 Compute assumed penalty (dynamic rule or fallback 15%)
+        $assumedPenalty = 0;
+        $amount = (float) ($currentBillData['amount'] ?? $currentBill);
+        $previousUnpaid = (float) ($currentBillData['previous_unpaid'] ?? 0);
+
+        $currentDay = now()->day;
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumedPenalty = floatval($penaltyEntry->amount);
+            }
         } else {
-            // fallback to your old 15% rule
+            // fallback 15% rule
             $assumedPenalty = $amount * 0.15;
         }
 
-        // 🔹 Add to final amount (include arrears if any)
-        $assumedAmountAfterDue = $amount + $assumedPenalty + ($previousUnpaid ?? 0);
+        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid;
 
-        // 🔹 Always define the keys for the view
-        $data['current_bill']['assumed_penalty'] = $assumedPenalty ?? 0;
-        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue ?? $amount;
-
+        // 🗓️ Check if due-date penalty applies (past due)
         $dueDatePenalty = 0;
         $dueDate = $currentBillData['due_date'] ?? null;
 
@@ -401,7 +417,7 @@ class PaymentController extends Controller
             if ($today->gt($dueDateCarbon)) {
                 $daysOverdue = $dueDateCarbon->diffInDays($today);
 
-                $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+                $penaltyRule = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
                     ->where('due_to', '>=', $daysOverdue)
                     ->first();
 
@@ -415,36 +431,26 @@ class PaymentController extends Controller
             }
         }
 
-        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty - $advancePayment;
+        // 💰 Compute total due
+        $totalDue = $arrears + ($currentBill - $discount) + $assumedPenalty + $dueDatePenalty - $advancePayment;
         $totalDue = max(0, round($totalDue, 2));
 
+        // ✅ Return clean structured result
         return [
             'total_due' => $totalDue,
+            'assumed_penalty' => round($assumedPenalty, 2),
+            'assumed_amount_after_due' => round($assumedAmountAfterDue, 2),
             'breakdown' => [
                 'current_bill' => $currentBill,
                 'arrears' => $arrears,
-                //'previous_penalty' => $prevPenalty, // optional
+                'previous_penalty' => $prevPenalty,
                 'discount' => $discount,
                 'advance_payment' => $advancePayment,
                 'due_date_penalty' => $dueDatePenalty,
             ],
         ];
-
-        // ⚡ Generate HitPay URL (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
-        } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-        }
-
-        // 🧾 Generate QR code (yours)
-        $qr_code = $this->generateService::qr_code($url, 80);
-
-        return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
     }
+
 
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
@@ -550,7 +556,6 @@ class PaymentController extends Controller
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
-        // Step 1: Retrieve bill details
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
@@ -560,7 +565,6 @@ class PaymentController extends Controller
             ]);
         }
 
-        // var_dump($result); exit;
         $billData = $result['data']['current_bill'] ?? null;
 
         if (!$billData) {
@@ -570,47 +574,43 @@ class PaymentController extends Controller
             ]);
         }
 
+        // ✅ Define $bill model properly
+        $bill = \App\Models\Bill::find($billData['id']);
+        if (!$bill) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill not found in database.'
+            ]);
+        }
 
-        // Step 2: Prepare HitPay payload
-        $amount = number_format(
-            (float)$billData['amount'] + (float)$billData['penalty'],
-            2,
-            '.',
-            ''
-        );
-
+        // Prepare HitPay payload
+        $amount = number_format((float)$billData['amount'] + (float)$billData['penalty'], 2, '.', '');
         $hitpay_fee = 20;
         $novupay_fee = 10;
-        // $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
-
         $final_amount = $amount + $additional_service_fee;
 
         $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
         $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
-        $account_no = $result['data']['client']['account_no']
-            ?? ($payload['account_no'] ?? '000000');
-        // dd($result);
+        $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+
         $hitpayPayload = [
-            'amount' => $final_amount,
+            'amount' => $amount,
             'currency' => 'PHP',
             'email' => $email,
-            'purpose' => 'Sta. Rita Water District. Payment for Account # ' . $account_no,
+            'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no} ----- Convenience Fee: PHP {$additional_service_fee}",
             'reference_number' => $reference_no,
             'redirect_url' => env('HITPAY_REDIRECT_URL'),
-            // 'redirect_url' => route('payments.redirect', ['reference' => $reference_no, 'status' => 'pending']),
             'webhook' => env('HITPAY_WEBHOOK_URL'),
             'send_email' => true,
             'send_sms' => true,
             'name' => $payor,
             'add_admin_fee' => true,
-            'admin_fee' => '15.00', // Optional fixed admin fee
-            // 'generate_qr' => true,
-            // 'payment_methods' => ['qrph_netbank'],
+            'admin_fee' => '15.00',
         ];
 
-        // Step 3: Send request to HitPay API
-        $response = Http::withHeaders([
+        // Send request to HitPay API
+        $response = \Http::withHeaders([
             'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
         ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
 
@@ -624,14 +624,24 @@ class PaymentController extends Controller
 
         $hitpayData = $response->json();
 
-        // Step 4: Redirect to HitPay checkout page
+        // ✅ Now update the Bill record with HitPay references
+        $bill->update([
+            'payment_method' => 'online',
+            'initiated_at' => now(),
+            'hitpay_reference' => $hitpayData['reference']
+                ?? $hitpayData['reference_number']
+                ?? null,
+            'hitpay_payment_id' => $hitpayData['id'] ?? null,
+        ]);
+
+
         return redirect()->back()->with('alert', [
             'status' => 'success',
             'payment_request' => true,
-            'redirect' => $hitpayData['url']
+            'redirect' => $hitpayData['url'],
         ]);
-
     }
+
 
     public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
     {
@@ -670,7 +680,7 @@ class PaymentController extends Controller
                 'amount' => $final_amount,
                 'currency' => 'PHP',
                 'email' => $email,
-                'purpose' => 'Sta. Rita Water District. Payment for Account # ' . $account_no,
+                'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no}\nConvenience Fee: PHP {$additional_service_fee}",
                 'reference_number' => $reference_no,
                 'redirect_url' => env('HITPAY_REDIRECT_URL'),
                 'webhook' => env('HITPAY_WEBHOOK_URL'),
@@ -706,30 +716,73 @@ class PaymentController extends Controller
 
     public function handleRedirect(Request $request)
     {
-        $reference = $request->query('reference');
-        $status = $request->query('status');
+        \Log::info('HitPay redirect received in PaymentController', $request->all());
 
-        if (!$reference || !$status) {
+        $status = strtolower($request->query('status'));
+        $hitpay_reference = $request->query('reference');
+
+        if (!$hitpay_reference || !$status) {
             abort(404, 'Invalid payment reference.');
         }
 
-        // You can show a custom page or redirect based on status
-        if ($status === 'completed' || $status === 'success') {
-            return view('payments.success', [
-                'reference' => $reference,
-                'message' => 'Your payment was successful!'
-            ]);
-        }
+        // ✅ Step 1: Verify payment details directly with HitPay API
+        $response = \Http::withHeaders([
+            'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+        ])->get(env('HITPAY_API_URL') . "/payment-requests/{$hitpay_reference}");
 
-        if ($status === 'failed' || $status === 'canceled') {
+        if ($response->failed()) {
+            \Log::error('HitPay verify API failed', ['reference' => $hitpay_reference]);
             return view('payments.failed', [
-                'reference' => $reference,
-                'message' => 'Your payment was canceled or failed. Please try again.'
+                'reference' => $hitpay_reference,
+                'message' => 'Unable to verify payment from HitPay.',
             ]);
         }
 
-        abort(404, 'Unknown payment status.');
+        $payment = $response->json();
+        \Log::info('HitPay verified payment', $payment);
+
+        $status = strtolower($payment['status'] ?? $status);
+        $reference_number = $payment['reference_number'] ?? null;
+        $amount = (float) ($payment['amount'] ?? 0);
+        $payor = $payment['name'] ?? 'Unknown';
+
+        // ✅ Step 2: Find your local bill using either HitPay or local reference
+        $bill = \App\Models\Bill::where('hitpay_reference', $hitpay_reference)
+            ->orWhere('reference_no', $reference_number)
+            ->first();
+
+        if (!$bill) {
+            \Log::warning("HitPay verify: Bill not found for {$hitpay_reference}");
+            return view('payments.failed', [
+                'reference' => $hitpay_reference,
+                'message' => 'Payment verified, but no matching bill found.',
+            ]);
+        }
+
+        // ✅ Step 3: Mark bill as paid if HitPay says completed
+        if (in_array($status, ['completed', 'succeeded', 'success'])) {
+            $bill->update([
+                'isPaid' => 1,
+                'amount_paid' => $amount,
+                'payor_name' => $payor,
+                'date_paid' => now(),
+                'payment_method' => 'online',
+            ]);
+
+            return view('payments.success', [
+                'reference' => $bill->reference_no,
+                'message' => 'Your payment was verified and marked as paid.',
+            ]);
+        }
+
+        // ❌ If HitPay says failed/canceled
+        return view('payments.failed', [
+            'reference' => $bill->reference_no,
+            'message' => 'Payment not completed or canceled.',
+        ]);
     }
+
+
 
 
     public function createHitPayPayment(Request $request)
@@ -778,17 +831,88 @@ class PaymentController extends Controller
             ]);
     }
 
+
     public function hitpayWebhook(Request $request)
     {
-        // optional: verify signature before processing
         $payload = $request->all();
 
-        if (isset($payload['reference_number'], $payload['status'])) {
-            // Bill::where('reference_no', $payload['reference_number'])
-            //     ->update(['status' => $payload['status']]);
+        Log::info('💳 HitPay Webhook received', $payload);
+
+        if (empty($payload) || !isset($payload['reference_number'])) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid payload'], 400);
         }
 
-        return response()->json(['success' => true]);
+        $reference_no = $payload['reference_number'];
+        $payment_status = strtolower($payload['status'] ?? '');
+        $payment_amount = (float)($payload['amount'] ?? 0);
+        $payor = $payload['customer']['name'] ?? 'Unknown';
+
+        // ✅ Only process successful payments
+        if (!in_array($payment_status, ['completed', 'succeeded'])) {
+            Log::warning("⚠️ Ignored HitPay payment with status: {$payment_status}");
+            return response()->json(['status' => 'ignored', 'message' => 'Payment not completed'], 200);
+        }
+
+        try {
+            $meterService = new MeterService();
+            $result = $meterService->getBill($reference_no, $payload, true);
+
+            if (isset($result['error'])) {
+                Log::error("❌ HitPay webhook bill retrieval failed: {$result['error']}");
+                return response()->json(['status' => 'error', 'message' => $result['error']], 400);
+            }
+
+            $data = $result['data'];
+            $now = Carbon::now();
+
+            $amount = (float)($data['current_bill']['amount'] ?? 0);
+            $penalty = (float)($data['current_bill']['penalty'] ?? 0);
+            $total = $amount + $penalty;
+
+            $change = $payment_amount - $total;
+            $forAdvancePayment = !empty($payload['for_advances']);
+            $saveChange = ($change > 0 && $forAdvancePayment);
+
+            // 🔹 Update main bill
+            $currentBill = Bill::find($data['current_bill']['id']);
+            if ($currentBill) {
+                $currentBill->update([
+                    'isPaid' => true,
+                    'amount_paid' => $payment_amount,
+                    'change' => $change,
+                    'payor_name' => $payor,
+                    'date_paid' => $now,
+                    'isChangeForAdvancePayment' => $saveChange,
+                    'payment_method' => 'hitpay',
+                    'payment_reference' => $payload['payment_id'] ?? null,
+                ]);
+            }
+
+            // 🔹 Optionally mark arrears as paid
+            if (!empty($data['unpaid_bills'])) {
+                foreach ($data['unpaid_bills'] as $unpaid_bill) {
+                    $unpaidBill = Bill::find($unpaid_bill['id']);
+                    if ($unpaidBill) {
+                        $unpaidBill->update([
+                            'isPaid' => true,
+                            'amount_paid' => $unpaidBill['amount'] ?? 0,
+                            'change' => 0,
+                            'payor_name' => $payor,
+                            'date_paid' => $now,
+                            'paid_by_reference_no' => $reference_no,
+                        ]);
+                    }
+                }
+            }
+
+            Log::info("✅ HitPay payment processed successfully for ref {$reference_no}");
+
+            return response()->json(['status' => 'success', 'message' => 'Bill updated successfully'], 200);
+
+        } catch (\Exception $e) {
+            Log::error("💥 HitPay Webhook Exception: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Server error'], 500);
+        }
     }
 
 
