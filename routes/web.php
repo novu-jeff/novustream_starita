@@ -17,6 +17,7 @@ use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Helper\NumberHelper;
 
 /*
 |--------------------------------------------------------------------------
@@ -172,3 +173,7 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
+
+Route::get('/test-helper', function () {
+    return NumberHelper::convertToWords(1234);
+});
