@@ -258,166 +258,162 @@
 <div id="receipt-full" class="printable page-wrap" style="display:none;">
   <div class="receipt-sheet receipt-border">
 
-      <div class="border border-dark bg-white text-dark p-2" style="width: 10.16cm; height: 21.59cm; font-family: 'Times New Roman', serif; font-size: 11px; position: relative; box-sizing: border-box;">
-    {{-- Form Header --}}
-    <div class="d-flex justify-content-between mb-1">
-      <div>
-        <div class="small text-muted" style="font-size: 8px;">ACCOUNTABLE FORM No. 51-C</div>
-        <div class="small text-muted" style="font-size: 8px;">Revised January, 1992</div>
+    <!-- HEADER BOX (single solid border) -->
+    <div class="or-header">
+      <!-- LOGO on left -->
+      <div class="or-logo">
+        <div class="crest-box">
+          <img src="{{ asset('images/rnp.png') }}" alt="logo" style="width:72px; display:block; margin:0 auto;">
+        </div>
+        <div class="muted-small mt-1">{{ \Carbon\Carbon::now()->format('H:i:s') }}</div>
       </div>
-      <div class="fw-bold" style="font-size: 9px;">(ORIGINAL)</div>
+
+      <!-- CENTER Text -->
+      <div class="or-center">
+        <div style="font-size:11px; font-weight:700; text-align:center; letter-spacing:0.5px;">
+          OFFICIAL RECEIPT
+        </div>
+        <div style="font-size:10px; line-height:1; font-weight:700; text-align:center;">
+          OF THE REPUBLIC OF THE PHILIPPINES
+        </div>
+      </div>
+
+      <!-- RIGHT: OR No. and Date -->
+      <div class="or-right">
+        <div class="or-no">No. <span style="font-size:13px; letter-spacing:1px;">{{ $receipt_no }}</span> <span style="font-weight:normal;">T</span></div>
+        <div class="muted-small mt-1">{{ $receipt_no }}</div>
+        <div style="border-top:1px solid #000; padding-top:6px; margin-top:6px; font-size:9px;">
+          Date: <span>{{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}</span>
+        </div>
+      </div>
     </div>
 
-    {{-- Main Frame --}}
-    <div class="border border-dark p-1" style="height: calc(100% - 28px); box-sizing: border-box;">
+    <!-- GAP 0.4cm between header and Agency -->
+    <div style="height:0.4cm;"></div>
 
-      {{-- Top Row --}}
-      <div class="d-flex gap-2 align-items-start mb-2">
-        <div class="text-center" style="width: 50%; padding: 5px;">
-          <div class="border border-dark mx-auto" style="width: 100px; height: 120px; background: #f8f8f8;">
-            <img src="{{ asset('images/rnp.png')}}"
-            style="width: 80px; margin: 5px auto 10px auto"
-            alt="logo" class="web-logo">
-            <p class="small mt-1" style="font-size: 8px;">{{ \Carbon\Carbon::now()->format('H:i:s') }}</p>
-          </div>
-        </div>
-        <div class="text-center" style="width: 50%; height: 100%">
-            <div class="fw-bold" style="font-size: 10px;">
-            Official Receipt <br> of the <br> Republic of the Philippines
-          </div>
-          <div class="fw-bold border border-dark d-inline-block px-2 py-1">
-            No. <span class="fw-bold" style="font-size: 13px; letter-spacing: 1px;">4364322</span> <span class="suffix">T</span>
-          </div>
-          <div class="border border-dark pt-1 text-start" style="font-size: 9px;" >
-            Date: <span>{{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}</span>
-          </div>
-        </div>
-      </div>
+    <!-- AGENCY -->
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="row-label">Agency</div>
+      <div class="underline-field">SANTA RITA WATER DISTRICT</div>
+    </div>
 
-      {{-- Agency and Payor --}}
-      <div class="d-flex gap-2 align-items-center mt-1">
-        <div class="fw-bold" style="width: 22%; font-size: 10px;">Agency</div>
-        <div class="flex-grow-1 border-bottom border-dark px-2" style="font-size: 11px;">SANTA RITA WATER DISTRICT</div>
+    <!-- PAYOR -->
+    <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+      <div class="row-label">Payor</div>
+      <div class="underline-field text-uppercase">
+        {{ $data['client']['name'] ?? 'N/A' }} {{ !empty($data['client']['account_no']) ? ' | '.$data['client']['account_no'] : '' }}
       </div>
-      <div class="d-flex gap-2 align-items-center mt-1">
-        <div class="fw-bold" style="width: 22%; font-size: 10px;">Payor</div>
-        <div class="flex-grow-1 border-bottom border-dark px-2 text-uppercase" style="font-size: 11px;">{{$data['client']['name']}} | {{$data['client']['account_no'] ?? ''}}</div>
-      </div>
+    </div>
 
-      {{-- Table --}}
-      <table class="table table-bordered border-dark mt-2 mb-0" style="font-size: 5px;">
+    <!-- Account No. -->
+    <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+      <div class="row-label">Account No.</div>
+      <div class="underline-field">{{ $account_no }}</div>
+    </div>
+
+    <!-- 3-column table -->
+    <div style="margin-top:10px;">
+      <table class="or-table">
         <thead>
           <tr>
-            <th style="width: 55%;">Nature of<br>Collection</th>
-            <th style="width: 20%;" class="text-center">Account<br>Code</th>
-            <th style="width: 25%;" class="text-end">Amount</th>
+            <th style="width:55%;">Nature of Collection</th>
+            <th style="width:20%; text-align:center;">Account Code</th>
+            <th style="width:25%; text-align:right;">Amount</th>
           </tr>
         </thead>
         <tbody>
-          {{-- Always show current bill --}}
-          <tr style="line-height: 5px;">
+          <tr>
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($amount, 2) }}</td>
+            <td class="amount-col">₱ {{ number_format($amount,2) }}</td>
           </tr>
 
-          {{-- Conditionally show Arrears and Penalty --}}
           @if($arrears > 0)
-            <tr style="line-height: 5px;">
+            <tr>
               <td>Arrears</td>
               <td></td>
-              <td class="text-end">₱ {{ number_format($arrears, 2) }}</td>
+              <td class="amount-col">₱ {{ number_format($arrears,2) }}</td>
             </tr>
           @endif
 
           @if($assumed_penalty > 0)
-            <tr style="line-height: 5px;">
+            <tr>
               <td>Penalty</td>
               <td></td>
-              <td class="text-end">₱ {{ number_format($assumed_penalty, 2) }}</td>
+              <td class="amount-col">₱ {{ number_format($assumed_penalty,2) }}</td>
             </tr>
           @endif
 
-          {{-- Blank rows --}}
           @php
             $filled = 1 + ($arrears > 0 ? 1 : 0) + ($assumed_penalty > 0 ? 1 : 0);
-            $blank = 6 - $filled;
+            $rowsNeeded = 6 - $filled;
           @endphp
-          @for($i = 0; $i < $blank; $i++)
-            <tr style="line-height: 5px;">
+          @for($i=0;$i<$rowsNeeded;$i++)
+            <tr>
               <td>&nbsp;</td>
               <td></td>
               <td></td>
             </tr>
           @endfor
 
-          {{-- Discount and Total --}}
-          <tr style="line-height: 5px;">
-            <td style="font-size: 8px;">Less: Senior Discount</td>
+          <tr>
+            <td>Less: Senior Discount</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($discount, 2) }}</td>
+            <td class="amount-col">₱ {{ number_format($discount,2) }}</td>
           </tr>
-          <tr class="fw-bold" style="line-height: 5px;">
+
+          <tr style="font-weight:700;">
             <td>TOTAL</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($total, 2) }}</td>
+            <td class="amount-col">₱ {{ number_format($total,2) }}</td>
           </tr>
         </tbody>
       </table>
+    </div>
 
-      {{-- Amount in words --}}
-      <div class="mt-2 border-top border-dark pt-1">
-        <div class="fw-bold" style="font-size: 10px;">Amount in Words</div>
-        <div class="border border-dark p-1 fst-italic text-center" style="font-size: 10px; min-height: 20px;">
-          {{ $amount_in_words }}
-        </div>
+    <!-- Amount in words -->
+    <div class="amount-words">
+      {{ $amount_in_words }}
+    </div>
+
+    <!-- Payment and Drawee -->
+    <div class="payment-row">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" disabled> Cash</label>
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" disabled> Check</label>
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" disabled> Money Order</label>
       </div>
 
-      {{-- Payment methods --}}
-      <div class="mt-2">
-        <div class="d-flex gap-3">
-          <label class="form-check-label d-flex align-items-center gap-1" style="font-size: 10px;">
-            <input type="checkbox" disabled> Cash
-          </label>
-          <label class="form-check-label d-flex align-items-center gap-1" style="font-size: 10px;">
-            <input type="checkbox" disabled> Check
-          </label>
-          <label class="form-check-label d-flex align-items-center gap-1" style="font-size: 10px;">
-            <input type="checkbox" disabled> Money Order
-          </label>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <div style="flex:1;">
+          <div style="font-size:9px;">Drawee Bank</div>
+          <div class="drawee-box"></div>
         </div>
-
-        <div class="d-flex gap-2 mt-2">
-          <div class="flex-fill">
-            <div style="font-size: 9px;">Drawee Bank</div>
-            <div class="border-bottom border-dark" style="height: 18px;"></div>
-          </div>
-          <div class="flex-fill">
-            <div style="font-size: 9px;">Number</div>
-            <div class="border-bottom border-dark" style="height: 18px;"></div>
-          </div>
-          <div class="flex-fill">
-            <div style="font-size: 9px;">Date</div>
-            <div class="border-bottom border-dark" style="height: 18px;"></div>
-          </div>
+        <div style="flex:1;">
+          <div style="font-size:9px;">Number</div>
+          <div class="drawee-box"></div>
         </div>
-      </div>
-
-      <div class="mt-2" style="font-size: 10px;">Received the amount stated above.</div>
-
-      {{-- Signature --}}
-      <div class="d-flex justify-content-end align-items-center mt-2">
-        <div class="text-center" style="width: 60%;">
-          <div class="border-bottom border-dark pt-1 fw-bold">{{ strtoupper($cashier) }}</div>
-          <div style="font-size: 9px;">Collecting Officer</div>
+        <div style="flex:1;">
+          <div style="font-size:9px;">Date</div>
+          <div class="drawee-box"></div>
         </div>
-      </div>
-
-      <div class="border-top border-dark pt-1 mt-2" style="font-size: 9px;">
-        NOTE: Write the number and date of this receipt on the back of check or money order received.
       </div>
     </div>
-  </div>
+
+    <div style="margin-top:10px; font-size:10px;">Received the amount stated above.</div>
+
+    <!-- signature -->
+    <div class="signature-area">
+      <div class="sig-box">
+        <div style="border-top:1px solid #000; font-weight:700;">{{ strtoupper($cashier) }}</div>
+        <div style="font-size:9px;">Collecting Officer</div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #000; margin-top:10px; padding-top:6px; font-size:9px;">
+      NOTE: Write the number and date of this receipt on the back of check or money order received.
+    </div>
+
   </div> <!-- .receipt-sheet -->
 </div> <!-- #receipt-full -->
 

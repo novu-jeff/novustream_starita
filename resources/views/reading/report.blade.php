@@ -25,10 +25,12 @@
                 <h1>All Meter Readings</h1>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
-                <div class="row mb-4">
-                    <div class="col-12 col-md-1">
+                <div class="d-flex flex-wrap align-items-end gap-3 mb-4">
+
+                    <!-- Show Entries -->
+                    <div style="flex: 0 0 80px;">
                         <label class="mb-1">Show Entries</label>
-                        <select name="entries" id="entries" class="form-select text-uppercase dropdown-toggle">
+                        <select name="entries" id="entries" class="form-select text-uppercase">
                             @foreach([10, 25, 50, 100, 200, 250, 350, 400, 450, 500] as $entry)
                                 <option value="{{ $entry }}" {{ $entries == $entry ? 'selected' : '' }}>
                                     {{ $entry }}
@@ -36,11 +38,12 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-4 mb-3">
-                        <label class="mb-1">Zone</label>
-                        <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
-                            <option value="all" {{ $zone === 'all' ? 'selected' : '' }}>All Zones</option>
 
+                    <!-- Zone -->
+                    <div style="flex: 0 0 200px;">
+                        <label class="mb-1">Zone</label>
+                        <select name="zone_no" id="zone_no" class="form-select text-uppercase">
+                            <option value="all" {{ $zone === 'all' ? 'selected' : '' }}>All Zones</option>
                             @foreach($zones as $targetedZone)
                                 <option value="{{ $targetedZone->zone }}" {{ $zone === $targetedZone->zone ? 'selected' : '' }}>
                                     {{ $targetedZone->zone }} - {{ $targetedZone->area ?? '' }}
@@ -48,11 +51,15 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-3 mb-3">
+
+                    <!-- Reading Month -->
+                    <div style="flex: 0 0 170px;">
                         <label class="mb-1">Reading Month</label>
-                        <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
+                        <input type="month" name="month" id="date" class="form-control" value="{{ $date }}">
                     </div>
-                    <div class="col-12 col-md-4">
+
+                    <!-- Search -->
+                    <div style="flex: 1 1 250px; min-width: 220px;">
                         <label class="mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
                         <div class="position-relative">
                             <input
@@ -63,7 +70,6 @@
                                 value="{{ $toSearch }}"
                                 placeholder=""
                             >
-
                             @if(!empty($toSearch))
                                 <button
                                     type="button"
@@ -76,6 +82,20 @@
                                 </button>
                             @endif
                         </div>
+                    </div>
+
+                    <!-- Report Type -->
+                    <div style="flex: 0 0 280px;">
+                        <label class="mb-1">Report Type</label>
+                        <select class="form-select ">
+                            <option hidden>Select to download</option>
+                            <option>Billing summary by rate and classification</option>
+                            <option>Penalty Summary Report</option>
+                        </select>
+                    </div>
+                    <!-- Download Button -->
+                    <div>
+                        <button class="btn btn-primary text-uppercase px-4">Download</button>
                     </div>
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
