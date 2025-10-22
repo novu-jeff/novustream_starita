@@ -384,7 +384,7 @@ private function calculateTotalDue(array $currentBillData, ?array $payload = nul
         }
     }
 
-    $advancePayment = (float) ($currentBillData['advances'] ?? 0);
+    $advancePayment = (float) ($currentBillData['advances'] ?? null);
     $dueDatePenalty = 0;
     $dueDate = $currentBillData['due_date'] ?? null;
 
