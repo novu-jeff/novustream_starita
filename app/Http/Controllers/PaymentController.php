@@ -259,6 +259,7 @@ class PaymentController extends Controller
             }
         }
 
+
         $data = $this->meterService::getBill($reference_no);
 
         if (isset($data['status']) && $data['status'] === 'error') {
@@ -381,6 +382,16 @@ class PaymentController extends Controller
                 $discount = (float) $currentBillData['discount'];
             }
         }
+    }
+
+    $advancePayment = (float) ($currentBillData['advances'] ?? 0);
+    $dueDatePenalty = 0;
+    $dueDate = $currentBillData['due_date'] ?? null;
+
+    // Compute assumed penalty if overdue
+    if ($dueDate) {
+        $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
+        $today = \Carbon\Carbon::today('Asia/Manila');
 
         // 🧮 Compute assumed penalty (dynamic rule or fallback 15%)
         $assumedPenalty = 0;
@@ -430,6 +441,7 @@ class PaymentController extends Controller
                 }
             }
         }
+    }
 
         // 💰 Compute total due
         $totalDue = $arrears + ($currentBill - $discount) + $assumedPenalty + $dueDatePenalty - $advancePayment;
@@ -501,6 +513,7 @@ class PaymentController extends Controller
         $currentBill = Bill::find($data['current_bill']['id']);
 
         if ($currentBill) {
+            $client = \App\Models\UserAccounts::where('account_no', $data['client']['account_no'] ?? null)->first();
             $currentBill->update([
                 'isPaid' => true,
                 'amount_paid' => $payload['payment_amount'],
@@ -509,6 +522,8 @@ class PaymentController extends Controller
                 'date_paid' => $now,
                 'isChangeForAdvancePayment' => $saveChange,
                 'payment_method' => 'cash',
+                'client_id' => $client?->id, // ✅ attach client_id
+                'cashier_id' => auth()->id(),
             ]);
         }
 

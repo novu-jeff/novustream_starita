@@ -170,11 +170,8 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
-                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">₱ {{number_format($data['current_bill']['total'], 2)}}</div>
+                                            <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">₱ {{number_format($data['current_bill']['amount'], 2)}}</div>
                                         </div>
-                                        @php
-                                            $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
-                                        @endphp
 
                                         <!-- @if($prevPenalty > 0)
                                             <div style="display: flex; justify-content: space-between;">
@@ -339,7 +336,6 @@
                                     $computedPenalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
                                     $totalPenalty = $dbPenalty + $computedPenalty;
                                     $currentBill = (float)($data['current_bill']['amount'] ?? 0);
-                                    $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
                                     $discount = 0;
                                         if (isset($data['current_bill']['discount'])) {
                                             if (is_array($data['current_bill']['discount'])) {
@@ -348,6 +344,14 @@
                                                 $discount = (float) $data['current_bill']['discount'];
                                             }
                                         }
+                                    $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                    $dueDate = isset($data['current_bill']['due_date'])
+                                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                        : null;
+
+                                    $today = \Carbon\Carbon::today();
+
+                                    $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                     $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
                                     $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
@@ -371,10 +375,9 @@
                                         <h3>Bill Breakdown:</h3>
 
                                         @php
-                                            $currentBill = (float)($data['current_bill']['total'] ?? 0);
+                                            $currentBill = (float)($data['current_bill']['amount'] ?? 0);
                                             $arrears = (float)($data['current_bill']['previous_unpaid'] ?? 0);
                                             $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
-                                            $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
                                             $discount = 0;
                                             if (isset($data['current_bill']['discount'])) {
                                                 if (is_array($data['current_bill']['discount'])) {
