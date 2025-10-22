@@ -1,4 +1,7 @@
 @extends('layouts.app')
+@php
+    $arrearsStack = $arrearsStack ?? collect();
+@endphp
 
 @section('content')
     <main class="main">
@@ -170,6 +173,12 @@
                                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">₱ {{number_format($data['current_bill']['amount'], 2)}}</div>
                                         </div>
 
+                                        <!-- @if($prevPenalty > 0)
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <div style="text-transform: uppercase">Previous Penalty</div>
+                                                <div style="text-transform: uppercase">+ ₱ {{ number_format($prevPenalty, 2) }}</div>
+                                            </div>
+                                        @endif -->
                                         @if($arrearsStack->isNotEmpty())
                                             <div class="d-flex flex-column">
                                                 <div class="mb-1">Arrears months:</div>
@@ -198,7 +207,7 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['amount'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears, 2)}}</div>
+                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['total'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears, 2)}}</div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -229,7 +238,7 @@
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                               ₱ {{ number_format($data['current_bill']['assumed_amount_after_due'] - $discount, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount_after_due'] - $discount, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -350,8 +359,8 @@
 
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
-                                    <h3 class="ms-2 mb-0">
-                                        PHP {{ number_format($netCurrentBill + (float) $arrears + $applicablePenalty, 2) }}
+                                    <h3 class="ms-2">
+                                        PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -390,7 +399,7 @@
 
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
-                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty;
+                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty ;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -412,8 +421,17 @@
                                         <!-- Current Billing -->
                                         <div class="mb-3">
                                             <div class="text-end">
-                                                <label class="form-label">Basic Charge</label>
-                                                <h2 class="fw-bold">PHP {{ number_format($currentBill, 2) }}</h2>
+                                                <label for="total_charges" class="form-label">Current Billing</label>
+                                                 @php
+                                                    $current_billing = (float)$data['current_bill']['amount'] - (float) $data['current_bill']['previous_unpaid'];
+                                                    $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'];
+                                                    $advancePayment = (float) $data['current_bill']['advances'] ?? 0;
+
+                                                    if($hasAdvancePayment) {
+                                                        $current_billing =  $current_billing + $advancePayment;
+                                                    }
+                                                @endphp
+                                                <h2 class="fw-bold">PHP {{number_format($current_billing, 2)}}</h2>
                                             </div>
 
                                             @if($discount > 0)
@@ -427,6 +445,14 @@
                                                     <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advancePayment, 2) }} (ADVANCE PAYMENT)</h6>
                                                 </div>
                                             @endif
+
+                                            <!-- @if($prevPenalty > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-danger" style="font-size: 12px;">
+                                                        + PHP {{ number_format($prevPenalty, 2) }} (PREVIOUS PENALTY)
+                                                    </h6>
+                                                </div>
+                                            @endif -->
 
                                             @if($applicablePenalty > 0)
                                                 <div class="text-end">
@@ -482,7 +508,7 @@
 
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
-                                            <button type="button" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" id="payCashBtn">Pay Cash</button>
+                                           <button type="button" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" id="payCashBtn">Pay Cash</button>
                                             <button type="button" class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" id="payOnlineBtn">Pay Online</button>
                                         </div>
                                     </div>
@@ -496,6 +522,7 @@
                             @endif
                         </div>
                     </div>
+                    <input type="hidden" name="payment_type" id="payment_type" value="">
                 </form>
             </div>
         </div>
@@ -649,17 +676,11 @@
 
             $('#payCashBtn').on('click', function() {
                 paymentType = 'cash';
-                // Change modal text for cash
-                $('#serviceFeeModalLabel').text('Notice');
-                $('#serviceFeeModal .modal-body p').text('The system fee is 10 pesos.');
                 $('#serviceFeeModal').modal('show');
             });
 
             $('#payOnlineBtn').on('click', function() {
                 paymentType = 'online';
-                // Keep default text for online
-                $('#serviceFeeModalLabel').text('Notice');
-                $('#serviceFeeModal .modal-body p').text('Service fees vary by payment channel and are shown before payment confirmation.');
                 $('#serviceFeeModal').modal('show');
             });
 
