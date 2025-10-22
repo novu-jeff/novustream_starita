@@ -17,6 +17,7 @@ use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\ReportsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,6 +69,15 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('reading/bill/{reference_no}', [ReadingController::class, 'show'])
         ->name('reading.show');
+
+    Route::get('reading/invoice/{reference_no}', [ReadingController::class, 'invoice'])
+        ->name('reading.invoice');
+
+    Route::get('/reading/or/{reference_no}', [ReadingController::class, 'orShow'])
+        ->name('reading.orshow');
+
+    Route::get('/reports/download', [ReportsController::class, 'downloadSummary'])
+    ->name('reports.download');
 
     Route::get('reading/reports', [ReadingController::class, 'report'])
         ->name('reading.report');

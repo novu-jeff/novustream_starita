@@ -71,6 +71,10 @@ return new class extends Migration
                 ->nullable();
             $table->string('paid_by_reference_no')
                 ->nullable();
+            $table->foreignId('cashier_id')
+                ->nullable()
+                ->constrained('admins')
+                ->onDelete('set null');
             $table->boolean('isChangeForAdvancePayment')
                 ->default(false);
             $table->boolean('isHighConsumption')

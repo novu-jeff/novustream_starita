@@ -33,6 +33,7 @@ class Bill extends Model
         'payor_name',
         'payment_method',
         'paid_by_reference_no',
+        'cashier_id',
         'isChangeForAdvancePayment'
     ];
 
