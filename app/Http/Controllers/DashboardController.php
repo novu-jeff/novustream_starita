@@ -43,12 +43,11 @@ class DashboardController extends Controller
         (float)($r['bill']['penalty'] ?? 0)
     );
 
-$total_paid = $readings
-    ->where('bill.isPaid', true)
-    ->sum(fn($r) => (float)($r['bill']['amount_paid'] ?? 0));
+    $total_paid = $readings
+        ->where('bill.isPaid', true)
+        ->sum(fn($r) => (float)($r['bill']['amount_paid'] ?? 0));
 
-// Total transactions = paid + unpaid
-$total_transactions = $total_paid + $total_unpaid;
+    $total_transactions = $total_paid + $total_unpaid;
 
 
         $total_payments = $readings->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
