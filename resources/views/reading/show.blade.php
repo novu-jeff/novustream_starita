@@ -312,6 +312,8 @@
                                 $remarks[] = 'high consumption';
                             }
 
+                            $note = $data['current_bill']['high_consumption_note'] ?? null;
+
                         @endphp
 
                         @if (!empty($remarks))
@@ -319,6 +321,9 @@
                                 <div style="color: red; text-transform: uppercase; text-align: center; font-style: italic; font-weight: 500;">
                                     REMARKS: {{ implodeWithAnd($remarks) }}
                                 </div>
+                            </div>
+                            <div style="text-transform: uppercase; text-align: center; font-style: bold; font-weight: bold;">
+                                Note: {{ $note }}
                             </div>
                         @endif
                         <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">

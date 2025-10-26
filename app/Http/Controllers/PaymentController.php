@@ -259,7 +259,6 @@ class PaymentController extends Controller
             }
         }
 
-
         $data = $this->meterService::getBill($reference_no);
 
         if (isset($data['status']) && $data['status'] === 'error') {
@@ -382,16 +381,6 @@ class PaymentController extends Controller
                 $discount = (float) $currentBillData['discount'];
             }
         }
-    }
-
-    $advancePayment = (float) ($currentBillData['advances'] ?? 0);
-    $dueDatePenalty = 0;
-    $dueDate = $currentBillData['due_date'] ?? null;
-
-    // Compute assumed penalty if overdue
-    if ($dueDate) {
-        $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
-        $today = \Carbon\Carbon::today('Asia/Manila');
 
         // 🧮 Compute assumed penalty (dynamic rule or fallback 15%)
         $assumedPenalty = 0;
@@ -440,8 +429,10 @@ class PaymentController extends Controller
                     }
                 }
             }
+        } else {
+            // fallback 15% rule
+            $assumedPenalty = $amount * 0.15;
         }
-    }
 
         // 💰 Compute total due
         $totalDue = $arrears + ($currentBill - $discount) + $assumedPenalty + $dueDatePenalty - $advancePayment;
@@ -463,15 +454,32 @@ class PaymentController extends Controller
         ];
     }
 
+        // 🗓️ Check if due-date penalty applies (past due)
+        $dueDatePenalty = 0;
+        $dueDate = $currentBillData['due_date'] ?? null;
 
+        if ($dueDate) {
+            $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
+            $today = \Carbon\Carbon::today('Asia/Manila');
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
         $data = $this->meterService::getBill($reference_no);
 
-        if (!$data || !isset($data['current_bill'])) {
-            return ['error' => 'Bill not found'];
+                $penaltyRule = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+                    ->where('due_to', '>=', $daysOverdue)
+                    ->first();
+
+                if ($penaltyRule) {
+                    if ($penaltyRule->amount_type === 'percentage') {
+                        $dueDatePenalty = round($currentBill * floatval($penaltyRule->amount), 2);
+                    } elseif ($penaltyRule->amount_type === 'fixed') {
+                        $dueDatePenalty = round(floatval($penaltyRule->amount), 2);
+                    }
+                }
+            }
         }
+    }
 
         $total = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
 
@@ -513,7 +521,6 @@ class PaymentController extends Controller
         $currentBill = Bill::find($data['current_bill']['id']);
 
         if ($currentBill) {
-            $client = \App\Models\UserAccounts::where('account_no', $data['client']['account_no'] ?? null)->first();
             $currentBill->update([
                 'isPaid' => true,
                 'amount_paid' => $payload['payment_amount'],
@@ -522,8 +529,6 @@ class PaymentController extends Controller
                 'date_paid' => $now,
                 'isChangeForAdvancePayment' => $saveChange,
                 'payment_method' => 'cash',
-                'client_id' => $client?->id, // ✅ attach client_id
-                'cashier_id' => auth()->id(),
             ]);
         }
 
@@ -610,7 +615,7 @@ class PaymentController extends Controller
         $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
 
         $hitpayPayload = [
-            'amount' => $amount,
+            'amount' => $amount + 30,
             'currency' => 'PHP',
             'email' => $email,
             'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no} ----- Convenience Fee: PHP {$additional_service_fee}",
