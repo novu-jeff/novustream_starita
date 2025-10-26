@@ -595,7 +595,7 @@ class PaymentController extends Controller
         $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
 
         $hitpayPayload = [
-            'amount' => $amount,
+            'amount' => $amount + 30,
             'currency' => 'PHP',
             'email' => $email,
             'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no} ----- Convenience Fee: PHP {$additional_service_fee}",
