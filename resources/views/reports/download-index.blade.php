@@ -45,6 +45,7 @@
             <select name="format" class="form-select">
                 <option value="xlsx">Excel (.xlsx)</option>
                 <option value="csv">CSV (.csv)</option>
+                <option value="plain">Plain Sheet (.xlsx)</option>
             </select>
         </div>
 

@@ -519,8 +519,8 @@
                     </p>
 
                     <div class="d-flex justify-content-center gap-3">
-                    <button type="button" class="mb-3 btn btn-outline-primary px-4 py-2 text-uppercase fw-bold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" id="confirmPaymentBtn" class="mb-3 btn btn-primary px-4 py-2 text-uppercase fw-bold">Okay</button>
+                        <button type="button" class="mb-3 btn btn-outline-primary px-4 py-2 text-uppercase fw-bold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="confirmPaymentBtn" class="mb-3 btn btn-primary px-4 py-2 text-uppercase fw-bold">Okay</button>
                     </div>
                 </div>
                 </div>
