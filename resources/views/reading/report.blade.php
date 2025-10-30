@@ -26,7 +26,7 @@
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
                 <div class="row align-items-end gy-2 gx-3 mb-4">
-                    <div class="col-auto">
+                    <div class="col-md-1">
                         <label class="form-label mb-1">Show Entries</label>
                         <select name="entries" id="entries" class="form-select text-uppercase">
                             @foreach([10, 25, 50, 100, 200, 250, 350, 400, 450, 500] as $entry)
@@ -37,7 +37,7 @@
                         </select>
                     </div>
 
-                    <div class="col-auto">
+                    <div class="col-md-3">
                         <label class="form-label mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase">
                             <option value="all" {{ $zone === 'all' ? 'selected' : '' }}>All Zones</option>
@@ -49,12 +49,12 @@
                         </select>
                     </div>
 
-                    <div class="col-auto">
+                    <div class="col-md-3">
                         <label class="form-label mb-1">Reading Month</label>
                         <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
                     </div>
 
-                    <div class="col-auto">
+                    <div class="col-md-3">
                         <label class="form-label mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
                         <div class="position-relative">
                             <input type="text" name="search" id="search" class="form-control pe-5" value="{{ $toSearch }}">
@@ -68,20 +68,6 @@
                                 >&times;</button>
                             @endif
                         </div>
-                    </div>
-
-                    <div class="col-auto">
-                        <label class="form-label mb-1">Print</label>
-                        <select name="print" id="print" class="form-select text-uppercase">
-                            <option hidden>Select to Print</option>
-                            <option>Billing Summary</option>
-                            <option>Penalty Summary Report</option>
-                        </select>
-                    </div>
-
-                    <div class="col-auto">
-                        <label class="form-label mb-1 d-block">&nbsp;</label>
-                        <button class="btn btn-primary px-3">Download</button>
                     </div>
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
