@@ -261,39 +261,38 @@
                 `);
 
                 data.forEach((account, index) => {
-                    const status = account.status;
-                    const isActive = account.user?.isActive == 1;
+                const status = account.status;
+                const isActive = account.user?.isActive == 1;
 
-                    const cardStyle = `
-                        background-color: ${isActive ? '#fff' : '#ffffffff'};
-                        cursor: pointer;
-                    `;
+                const cardStyle = `
+                    background-color: ${isActive ? '#fff' : '#ff1a1a'};
+                    cursor: pointer;
+                    color: ${isActive ? '#000' : '#fff'};
+                `;
 
-                    const textColor = isActive ? '' : 'color: #000000ff;';
+                const dot = isActive
+                    ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>`
+                    : `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #ff1a1a;"></div>`;
 
-                    const dot = isActive
-                        ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>`
-                        : `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #ff1a1aff;"></div>`;
-
-                    const html = `
-                        <div class="card shadow mb-3 account-card"
-                            data-account-no="${account.account_no}"
-                            data-index="${offset + index}"
-                            style="${cardStyle}"
-                            data-account='${JSON.stringify(account)}'>
-                            <div class="card-body" style="${textColor}">
-                                ${dot}
-                                <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
-                                <hr class="my-2 mb-2">
-                                <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
-                                <h4>${account.user ? account.user.name : 'N/A'}</h4>
-                                <h5 class="fw-normal text-capitalize">${account.address ?? 'N/A'}</h5>
-                            </div>
+                const html = `
+                    <div class="card shadow mb-3 account-card"
+                        data-account-no="${account.account_no}"
+                        data-index="${offset + index}"
+                        style="${cardStyle}"
+                        data-account='${JSON.stringify(account)}'>
+                        <div class="card-body position-relative">
+                            ${dot}
+                            <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
+                            <hr class="my-2 mb-2">
+                            <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
+                            <h4>${account.user ? account.user.name : 'N/A'}</h4>
+                            <h5 class="fw-normal text-capitalize">${account.address ?? 'N/A'}</h5>
                         </div>
-                    `;
+                    </div>
+                `;
 
-                    $('.concessionaire-list').append(html);
-                });
+                $('.concessionaire-list').append(html);
+            });
 
                 offset += data.length;
 

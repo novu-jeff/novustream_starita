@@ -929,26 +929,102 @@ class ReportsController extends Controller
         return $result;
     }
 
-    protected function createFile($reportName, $rows, $format)
-    {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle(substr($reportName, 0, 31));
+    protected function createFile(string $reportName, array $rows, string $format): string
+{
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle(substr($reportName, 0, 31));
 
-        if (!empty($rows)) {
-            $headers = array_keys($rows[0]);
-            $sheet->fromArray([$headers], null, 'A1');
-            $sheet->fromArray($rows, null, 'A2');
+    $headers = !empty($rows) ? array_keys($rows[0]) : [];
+
+    // ✅ "Plain Sheet" layout
+    if ($format === 'plain') {
+        // Title row
+        $sheet->setCellValue('A1', strtoupper($reportName));
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        $sheet->getRowDimension('1')->setRowHeight(25);
+
+        // Column headers start on row 3
+        if (!empty($headers)) {
+            $sheet->fromArray([$headers], null, 'A3');
+            $lastHeaderCol = chr(64 + count($headers));
+            $sheet->getStyle("A3:{$lastHeaderCol}3")->getFont()->setBold(true);
+            $sheet->getStyle("A3:{$lastHeaderCol}3")
+                ->getAlignment()->setHorizontal('center')->setVertical('center');
+        } else {
+            $sheet->setCellValue('A3', 'No Data Found');
         }
 
-        $fileName = 'report-' . $this->sanitizeFilename($reportName) . '-' . now()->format('Ymd_His') . '.' . $format;
-        $filePath = storage_path("app/reports/{$fileName}");
+        // Data rows start at row 4
+        if (!empty($rows)) {
+            $sheet->fromArray($rows, null, 'A4');
+        }
 
-        $writer = $format === 'csv' ? new Csv($spreadsheet) : new Xlsx($spreadsheet);
-        $writer->save($filePath);
+        // ✅ Clean plain layout
+        $sheet->getDefaultColumnDimension()->setWidth(18);
+        $sheet->getDefaultRowDimension()->setRowHeight(20);
+        $sheet->getStyle('A:Z')->getAlignment()->setHorizontal('center');
 
-        return $filePath;
+        // ✅ Add thin borders for readability
+        if (!empty($headers)) {
+            $lastRow = count($rows) + 3;
+            $lastCol = chr(64 + count($headers));
+            $sheet->getStyle("A3:{$lastCol}{$lastRow}")
+                ->getBorders()->getAllBorders()->setBorderStyle(
+                    \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN
+                );
+            // ✅ Add gray background for header
+            $sheet->getStyle("A3:{$lastCol}3")->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('DDDDDD');
+        }
     }
+
+    // ✅ Regular Excel or CSV export
+    else {
+        if (!empty($rows)) {
+            $sheet->fromArray([$headers], null, 'A1');
+            $sheet->fromArray($rows, null, 'A2');
+        } else {
+            $sheet->setCellValue('A1', 'No Data Available');
+        }
+    }
+
+    // ✅ Ensure reports folder exists
+    $reportsPath = storage_path('app/reports');
+    if (!file_exists($reportsPath)) {
+        mkdir($reportsPath, 0777, true);
+    }
+
+    // ✅ Safe filename and correct extension
+    $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reportName);
+    $extension = ($format === 'csv') ? 'csv' : 'xlsx';
+    $fileName = "{$safeName}_" . now()->format('Ymd_His') . ".{$extension}";
+    $filePath = "{$reportsPath}/{$fileName}";
+
+    // ✅ Select proper writer
+    if ($format === 'csv') {
+        // CSV can only handle a single sheet; ensure combined mode didn’t break this
+        if ($spreadsheet->getSheetCount() > 1) {
+            $spreadsheet->setActiveSheetIndex(0);
+        }
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Csv($spreadsheet);
+    } else {
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    }
+
+    // ✅ Safety: Ensure at least 1 sheet has visible data
+    if ($sheet->getHighestDataRow() === 0) {
+        $sheet->setCellValue('A1', 'No data available');
+    }
+
+    $writer->save($filePath);
+
+    return $filePath;
+}
+
 
     protected function sanitizeFilename($name)
     {
