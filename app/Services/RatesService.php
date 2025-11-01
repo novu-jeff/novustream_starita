@@ -156,7 +156,6 @@ class RatesService {
 
         $rates = Rates::where('property_types_id', $payload['property_type'])
             ->whereBetween('cu_m', [$from, $to])
-            ->orWhereBetween('cu_m', [$from, $to])
             ->get();
 
         foreach ($rates as $rate) {

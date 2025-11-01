@@ -4,7 +4,7 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Admins Lists</h1>
+                <h1>Accounts Lists</h1>
                 <a href="{{route('admins.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
                     Add New
                 </a>
@@ -37,7 +37,7 @@
             serverSide: true,
             ajax: url,
             columns: [
-                { data: 'id', name: 'id' }, 
+                { data: 'id', name: 'id' },
                 { data: 'name', name: 'name' },
                 { data: 'email', name: 'email' },
                 { data: 'actions', name: 'actions', orderable: false, searchable: false }
@@ -51,7 +51,7 @@
             const id = $(this).data('id');
             const token = '{{csrf_token()}}';
             const url = '{{route("admins.destroy", ["personnel" => "__ID__"])}}'.replace('__ID__', id);
-        
+
             remove(table, url, token)
 
         });

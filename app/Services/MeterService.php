@@ -300,8 +300,9 @@ class MeterService {
     {
         $isPaid = $filter === 'paid';
 
-        $bills = Bill::with('reading')
-            ->whereHas('reading', function ($query) use ($zone, $date, $search) {
+        $bills = Bill::with(['reading', 'client']) // Include client relationship
+            ->where('isPaid', $isPaid)
+            ->whereHas('reading', function ($query) use ($zone, $date) {
                 $query->where('isReRead', false);
 
                 if (!empty($zone) && $zone !== 'all') {
@@ -313,12 +314,15 @@ class MeterService {
                     $query->whereYear('created_at', $year)
                         ->whereMonth('created_at', $month);
                 }
-
-                if (!empty($search)) {
-                    $query->where('account_no', 'like', "%$search%");
-                }
             })
-            ->where('isPaid', $isPaid)
+            ->when(!empty($search), function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('reading', fn ($sub) => $sub->where('account_no', 'like', "%$search%"))
+                    ->orWhereHas('reading.concessionaire.user', fn ($sub) =>
+                        $sub->where('name', 'like', "%$search%")
+                    );
+                });
+            })
             ->get();
 
         if ($zone === 'all') {
@@ -349,7 +353,6 @@ class MeterService {
 
         return $grouped[0] ?? [];
     }
-
 
 
     public function locate(array $payload) {
@@ -535,6 +538,17 @@ class MeterService {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no ruling set. Please add first."
+            ];
+        }
+
+        $other_deductions = $this->paymentBreakdownService::getData();
+        $penalties = $this->paymentBreakdownService::getPenalty();
+
+        if ((empty($other_deductions) || count($other_deductions) === 0)
+            && (empty($penalties) || count($penalties) === 0)) {
+            return [
+                'status' => 'error',
+                'message' => "We've noticed that there are no payment breakdowns or penalties set. Please add first."
             ];
         }
 

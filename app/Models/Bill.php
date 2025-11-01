@@ -58,4 +58,18 @@ class Bill extends Model
     public function discount() {
         return $this->hasMany(BillDiscount::class, 'bill_id', 'id');
     }
+
+    public function client()
+    {
+        return $this->hasOneThrough(
+            User::class,
+            ConcessionerAccount::class,
+            'account_no',       // Foreign key on ConcessionerAccount
+            'id',               // Foreign key on User
+            'reading_id',       // Local key on Bill (via Reading relationship)
+            'user_id'           // Local key on ConcessionerAccount
+        );
+    }
+
+
 }

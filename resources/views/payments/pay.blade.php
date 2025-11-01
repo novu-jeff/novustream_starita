@@ -506,6 +506,7 @@
                                             {{-- Optional additional display if needed --}}
                                         </div>
 
+                                        <input type="hidden" name="payment_type" id="payment_type" value="">
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                            <button type="button" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" id="payCashBtn">Pay Cash</button>

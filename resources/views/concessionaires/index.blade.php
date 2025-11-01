@@ -4,7 +4,7 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Our Concessionaires</h1>
+                <h1>Concessionaires List</h1>
                 <div class="d-flex align-items-center gap-3">
                     <div class="dropdown">
                         <a href="{{ route('import') }}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
@@ -42,19 +42,19 @@
                     <div class="col-12 col-md-4 mb-3">
                         <label class="mb-1">Search</label>
                         <div class="position-relative">
-                            <input 
-                                type="text" 
-                                name="search" 
-                                id="search" 
-                                class="form-control pe-5" 
-                                value="{{ $toSearch }}" 
+                            <input
+                                type="text"
+                                name="search"
+                                id="search"
+                                class="form-control pe-5"
+                                value="{{ $toSearch }}"
                                 placeholder=""
                             >
 
                             @if(!empty($toSearch))
-                                <button 
-                                    type="button" 
-                                    id="clear-search" 
+                                <button
+                                    type="button"
+                                    id="clear-search"
                                     class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
                                     style="border: none; background: none; font-size: 1.2rem;"
                                     aria-label="Clear search"
@@ -84,7 +84,7 @@
                                 <td>{{ $user->accounts->pluck('address')->implode(', ') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <a href="{{ route('concessionaires.edit', ['concessionaire' => $user->id]) }}" 
+                                        <a href="{{ route('concessionaires.edit', ['concessionaire' => $user->id]) }}"
                                             class="btn btn-primary text-white text-uppercase fw-bold"
                                             data-id="{{ $user->id }}">
                                             <i class="bx bx-edit"></i>
