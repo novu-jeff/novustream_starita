@@ -104,20 +104,20 @@
                                                         <!-- Days Due (From) -->
                                                         <div class="col-12 col-md-3 mb-3">
                                                             <label class="form-label">Days Due (From)</label>
-                                                            <input type="text" name="penalty[from][]" class="form-control text-uppercase @error("penalty.from.$index") is-invalid @enderror" value="{{ $from }}">
+                                                            <input type="text" name="penalty[from][]" class="form-control text-uppercase @error("penalty.from.$index") is-invalid @enderror" value="1" readonly>
                                                             @error("penalty.from.$index")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                         </div>
 
                                                         <!-- Days Due (To) -->
                                                         <div class="col-12 col-md-3 mb-3">
                                                             <label class="form-label">Days Due (To)</label>
-                                                            <input type="text" name="penalty[to][]" class="form-control text-uppercase @error("penalty.to.$index") is-invalid @enderror" value="{{ $toValues[$index] ?? '' }}">
+                                                            <input type="text" name="penalty[to][]" class="form-control text-uppercase @error("penalty.to.$index") is-invalid @enderror" value="31" readonly>
                                                             @error("penalty.to.$index")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                         </div>
 
                                                         <!-- Amount Type -->
                                                         <div class="col-12 col-md-3 mb-3">
-                                                            <label class="form-label">Amount Type</label>
+                                                            <label class="form-label">Amount Typesss</label>
                                                             <select name="penalty[amount_type][]" class="form-select text-uppercase amount-type-select @error("penalty.to.$index") is-invalid @enderror" data-index="{{ $index }}">
                                                                 <option value=""> - CHOOSE -</option>
                                                                 <option value="fixed" {{ ($amountTypeValues[$index] ?? '') === 'fixed' ? 'selected' : '' }}>Fixed Amount</option>
@@ -312,122 +312,152 @@
 
 @section('script')
     <script>
-        $(function () {
+    $(function () {
 
-            @if (session('alert'))
-                setTimeout(() => {
-                    let alertData = @json(session('alert'));
-                    alert(alertData.status, alertData.message);
-                }, 100);
-            @endif
+        @if (session('alert'))
+            setTimeout(() => {
+                let alertData = @json(session('alert'));
+                alert(alertData.status, alertData.message);
+            }, 100);
+        @endif
 
-            $('#add-row-breakdown').click(function () {
-                let row = `
-                    <div class="mb-2 d-flex align-items-start gap-3 w-100 breakdown-rows">
-                        <div class="row w-100">
-                            <!-- Days Due (From) -->
-                            <div class="col-12 col-md-3 mb-3">
-                                <label class="form-label">Days Due (From)</label>
-                                <input type="text" name="penalty[from][]" class="form-control text-uppercase">
-                            </div>
+        $('#add-row-breakdown').click(function () {
+            let row = `
+                <div class="mb-2 d-flex align-items-start gap-3 w-100 breakdown-rows">
+                    <div class="row w-100">
+                        <!-- Days Due (From) -->
+                        <div class="col-12 col-md-3 mb-3">
+                            <label class="form-label">Days Due (From)</label>
+                            <input type="text" name="penalty[from][]" class="form-control text-uppercase" value="1" readonly>
+                        </div>
 
-                            <!-- Days Due (To) -->
-                            <div class="col-12 col-md-3 mb-3">
-                                <label class="form-label">Days Due (To)</label>
-                                <input type="text" name="penalty[to][]" class="form-control text-uppercase">
-                            </div>
+                        <!-- Days Due (To) -->
+                        <div class="col-12 col-md-3 mb-3">
+                            <label class="form-label">Days Due (To)</label>
+                            <input type="text" name="penalty[to][]" class="form-control text-uppercase" value="31" readonly>
+                        </div>
 
-                            <!-- Amount Type -->
-                            <div class="col-12 col-md-3 mb-3">
-                                <label class="form-label">Amount Type</label>
-                                <select name="penalty[amount_type][]" class="form-select text-uppercase amount-type-select">
-                                    <option value=""> - CHOOSE -</option>
-                                    <option value="fixed">Fixed Amount</option>
-                                    <option value="percentage">Percentage</option>
-                                </select>
-                            </div>
+                        <!-- Amount Type -->
+                        <div class="col-12 col-md-3 mb-3">
+                            <label class="form-label">Amount Type</label>
+                            <select name="penalty[amount_type][]" class="form-select text-uppercase amount-type-select">
+                                <option value=""> - CHOOSE -</option>
+                                <option value="fixed">Fixed Amount</option>
+                                <option value="percentage">Percentage</option>
+                            </select>
+                        </div>
 
-                            <!-- Amount -->
-                            <div class="col-12 col-md-3 mb-3">
-                                <label class="form-label">Amount</label>
-                                <input type="text" name="penalty[amount][]" class="form-control text-uppercase">
-                            </div>
+                        <!-- Amount -->
+                        <div class="col-12 col-md-3 mb-3">
+                            <label class="form-label">Amount</label>
+                            <input type="text" name="penalty[amount][]" class="form-control text-uppercase" placeholder="Example: 0.20">
                         </div>
                     </div>
-                `;
 
-                $('#breakdown-rows').append(row);
+                    <!-- Remove Button -->
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-danger mt-3 remove-row-breakdown">
+                            <i class='bx bx-x'></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            $('#breakdown-rows').append(row);
+        });
+
+        // Add new service row (unchanged)
+        $('#add-row-service').click(function () {
+            let propertyTypes = @json($property_types);
+            let options = `<option value=""> - CHOOSE - </option>`;
+            propertyTypes.forEach(type => {
+                options += `<option value="${type.id}">${type.name}</option>`;
             });
 
-            $('#add-row-service').click(function () {
-                let propertyTypes = @json($property_types);
-                let options = `<option value=""> - CHOOSE - </option>`;
-                propertyTypes.forEach(type => {
-                    options += `<option value="${type.id}">${type.name}</option>`;
-                });
-
-                let row = `
-                    <div class="mb-2 d-flex align-items-start gap-3 w-100 service-rows">
-                        <div class="row w-100">
-                            <!-- Property Type -->
-                            <div class="col-12 col-md-6 mb-3">
-                                <label for="property_type" class="form-label">Property Type</label>
-                                <select name="service_fee[property_type][]" class="form-select text-uppercase">
-                                    ${options}
-                                </select>
-                            </div>
-
-                            <!-- Amount -->
-                            <div class="col-12 col-md-6 mb-3">
-                                <label for="amount" class="form-label">Amount</label>
-                                <input type="text" name="service_fee[amount][]" class="form-control text-uppercase">
-                            </div>
+            let row = `
+                <div class="mb-2 d-flex align-items-start gap-3 w-100 service-rows">
+                    <div class="row w-100">
+                        <!-- Property Type -->
+                        <div class="col-12 col-md-6 mb-3">
+                            <label for="property_type" class="form-label">Property Type</label>
+                            <select name="service_fee[property_type][]" class="form-select text-uppercase">
+                                ${options}
+                            </select>
                         </div>
 
-                        <!-- Remove Button -->
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-danger mt-3 remove-row-service">
-                                <i class='bx bx-x'></i>
-                            </button>
+                        <!-- Amount -->
+                        <div class="col-12 col-md-6 mb-3">
+                            <label for="amount" class="form-label">Amount</label>
+                            <input type="text" name="service_fee[amount][]" class="form-control text-uppercase">
                         </div>
                     </div>
-                `;
 
-                $('#service-rows').append(row);
-            });
+                    <!-- Remove Button -->
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-danger mt-3 remove-row-service">
+                            <i class='bx bx-x'></i>
+                        </button>
+                    </div>
+                </div>
+            `;
 
+            $('#service-rows').append(row);
+        });
 
-            $(document).on('click', '.remove-row-breakdown', function () {
-                $(this).closest('.breakdown-rows').remove();
-            });
+        // Remove rows
+        $(document).on('click', '.remove-row-breakdown', function () {
+            $(this).closest('.breakdown-rows').remove();
+        });
+        $(document).on('click', '.remove-row-service', function () {
+            $(this).closest('.service-rows').remove();
+        });
 
-            $(document).on('click', '.remove-row-service', function () {
-                console.log(123);
-                $(this).closest('.service-rows').remove();
-            });
-
-            function toggleFields() {
-                const type = $('#type').val();
-                if (type === 'percentage') {
-                    $('.percentage-of-field').show();
-                    $('#amount').attr('placeholder', 'ex. 0.12');
-                } else {
-                    $('.percentage-of-field').hide();
-                    $('#amount').attr('placeholder', 'Fixed Amount');
-                }
+        // Update placeholder dynamically on change
+        $(document).on('change', '.amount-type-select', function () {
+            const amountInput = $(this).closest('.row').find('.amount-input');
+            if ($(this).val() === 'percentage') {
+                amountInput.attr('placeholder', 'Example: 0.20');
+            } else {
+                amountInput.attr('placeholder', 'Fixed Amount');
             }
+        });
 
-            if ("{{ old('type', $data->type ?? '') }}" === "percentage") {
+        // Set placeholders for existing rows on page load
+        $('.breakdown-rows').each(function () {
+            const select = $(this).find('.amount-type-select');
+            const input = $(this).find('.amount-input');
+            if (select.val() === 'percentage') {
+                input.attr('placeholder', 'Example: 0.20');
+            } else {
+                input.attr('placeholder', 'Fixed Amount');
+            }
+        });
+
+        // Toggle fields for regular/discount forms
+        function toggleFields() {
+            const type = $('#type').val();
+            if (type === 'percentage') {
                 $('.percentage-of-field').show();
+                $('#amount').attr('placeholder', 'Example: 0.20');
             } else {
                 $('.percentage-of-field').hide();
+                $('#amount').attr('placeholder', 'Fixed Amount');
             }
+        }
 
-            $('#type').on('change', function () {
-                toggleFields();
-            });
+        if ("{{ old('type', $data->type ?? '') }}" === "percentage") {
+            $('.percentage-of-field').show();
+            $('#amount').attr('placeholder', 'Example: 0.20');
+        } else {
+            $('.percentage-of-field').hide();
+            $('#amount').attr('placeholder', 'Fixed Amount');
+        }
 
+        $('#type').on('change', function () {
             toggleFields();
         });
-    </script>
+
+        toggleFields();
+    });
+</script>
+
 @endsection

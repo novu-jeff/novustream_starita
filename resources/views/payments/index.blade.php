@@ -51,7 +51,7 @@
                         <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
                     </div>
                     <div class="col-12 col-md-3">
-                        <label class="mb-1">Search <span class="text-muted ms-1">[account no]</span></label>
+                        <label class="mb-1">Search <span class="text-muted ms-1">[account no | name]</span></label>
                         <div class="position-relative">
                             <input
                                 type="text"
@@ -82,6 +82,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Account No</th>
+                                <th>Name</th>
                                 <th>Zone</th>
                                 <th>Billing Period</th>
                                 <th>Reading Date</th>
@@ -96,6 +97,7 @@
                                 <tr>
                                     <td>{{ $index + 1 }}</td>
                                     <td>{{ $row->reading->account_no ?? 'N/A' }}</td>
+                                    <td>{{ $row->reading?->concessionaire?->user?->name ?? 'N/A' }}</td>
                                     <td>{{ $row->reading->zone ?? 'N/A' }}</td>
                                     <td>
                                         @if ($row->bill_period_from && $row->bill_period_to)

@@ -49,6 +49,7 @@
                         <thead>
                             <tr>
                                 <th>Ticket No</th>
+                                <th>Concessionnaire</th>
                                 <th>Status</th>
                                 <th>Date Submitted</th>
                                 <th style="width: 120px">Action</th>
@@ -71,13 +72,13 @@
         @if (session('alert'))
             setTimeout(() => {
                 let alertData = @json(session('alert'));
-                
+
                 alert(alertData.status, alertData.message);
             }, 100);
         @endif
 
         const url = '{{ route(Route::currentRouteName()) }}';
-        const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'concessionaire'); 
+        const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'concessionaire');
 
         let table = $('table').DataTable({
             processing: true,
@@ -85,9 +86,10 @@
             ajax: url,
             columns: [
                 { data: 'ticket_no', name: 'ticket_no' },
+                { data: 'concessionnaire_name', name: 'concessionnaire_name' }, // New column
                 { data: 'status', name: 'status' },
                 { data: 'created_at', name: 'created_at'},
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                { data: 'actions', name: 'actions', orderable: false, searchable: false }
             ],
             responsive: true,
             order: [[0, 'asc']],
@@ -200,7 +202,7 @@
                 $(this).remove();
             });
 
-        }  
+        }
 
     })
 </script>

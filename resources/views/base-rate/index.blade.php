@@ -80,41 +80,54 @@
 
 @section('script')
     <script>
-        $(function () {
+    $(function () {
+        // Restore the last selected property type from localStorage
+        const savedPropertyType = localStorage.getItem('selected_property_type');
+        if (savedPropertyType) {
+            $('#property_type').val(savedPropertyType);
+        }
 
-            @if (session('alert'))
-                setTimeout(() => {
-                    let alertData = @json(session('alert'));
-                    alert(alertData.status, alertData.message);
-                }, 100);
-            @endif
+        // Trigger change event once restored (to reload table on load)
+        $('#property_type').trigger('change');
 
-            const url = '{{ route(Route::currentRouteName()) }}';
-
-            let table = $('table').DataTable({
-                processing: true,
-                serverSide: true,
-                ajax: {
-                    url: url,
-                    data: function (d) {
-                        d.property_type = $('#property_type').val();
-                    }
-                },
-                columns: [
-                    { data: 'rate', name: 'rate' },
-                    { data: 'status', name: 'status' },
-                    { data: 'month_day', name: 'month_day' },
-                    { data: 'year', name: 'year' },
-                ],
-                responsive: true,
-                order: [[2, 'desc'], [1, 'desc']],
-                scrollX: true
-            });
-
-            $('#property_type').change(function () {
-                table.ajax.reload();
-            });
-
+        // Save the selected property type to localStorage when changed
+        $('#property_type').change(function () {
+            const selectedValue = $(this).val();
+            localStorage.setItem('selected_property_type', selectedValue);
+            table.ajax.reload();
         });
-    </script>
+
+        // Alert and DataTable initialization code remains unchanged
+        @if (session('alert'))
+            setTimeout(() => {
+                let alertData = @json(session('alert'));
+                alert(alertData.status, alertData.message);
+            }, 100);
+        @endif
+
+        const url = '{{ route(Route::currentRouteName()) }}';
+
+        let table = $('table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: url,
+                data: function (d) {
+                    d.property_type = $('#property_type').val();
+                }
+            },
+            columns: [
+                { data: 'rate', name: 'rate' },
+                { data: 'status', name: 'status' },
+                { data: 'month_day', name: 'month_day' },
+                { data: 'year', name: 'year' },
+            ],
+            responsive: true,
+            order: [[2, 'desc'], [1, 'desc']],
+            scrollX: true
+        });
+
+    });
+</script>
+
 @endsection

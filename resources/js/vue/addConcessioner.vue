@@ -21,11 +21,13 @@
                         <div class="col-md-6 mb-3">
                             <label for="contact_no" class="form-label">Contact No <small class="text-danger"> ( required )</small></label>
                             <input type="text"
-                                  class="form-control"
-                                  id="contact_no"
-                                  v-model="concessioner.contact_no"
-                                  :class="{ 'is-invalid': errors && errors.contact_no }"
-                                  >
+                                class="form-control"
+                                id="contact_no"
+                                v-model="concessioner.contact_no"
+                                :class="{ 'is-invalid': errors && errors.contact_no }"
+                                maxlength="11"
+                                @keypress="allowOnlyNumbers"
+                            />
                             <small v-if="errors.contact_no" class="text-danger px-1">{{ errors.contact_no[0] }}</small>
                         </div>
                     </div>
@@ -455,14 +457,14 @@ export default {
     },
   methods: {
     getRateCodeByPropertyTypeId(propertyTypeId) {
-  const type = this.property_types.find((t) => t.id === propertyTypeId);
-  return type ? type.rate_code : '';
-},
-onPropertyTypeChange(index) {
-  const selectedTypeId = this.concessioner.accounts[index].property_type;
-  const rateCode = this.getRateCodeByPropertyTypeId(selectedTypeId);
-  this.concessioner.accounts[index].rate_code = rateCode;
-},
+        const type = this.property_types.find((t) => t.id === propertyTypeId);
+        return type ? type.rate_code : '';
+    },
+    onPropertyTypeChange(index) {
+        const selectedTypeId = this.concessioner.accounts[index].property_type;
+        const rateCode = this.getRateCodeByPropertyTypeId(selectedTypeId);
+        this.concessioner.accounts[index].rate_code = rateCode;
+    },
     getScDiscountIdNo(index) {
       const account = this.concessioner.accounts[index];
       return account && account.sc_discount ? account.sc_discount.id_no : '';
@@ -478,10 +480,10 @@ onPropertyTypeChange(index) {
       });
     },
     getZoneFromAccountNo(accountNo) {
-  if (!accountNo) return '';
-  const zone = accountNo.substring(0, 3);
-  return /^\d{3}$/.test(zone) ? zone : '';
-},
+        if (!accountNo) return '';
+        const zone = accountNo.substring(0, 3);
+        return /^\d{3}$/.test(zone) ? zone : '';
+    },
     updateZone(index) {
         for (const key in account) {
             const value = account[key];
@@ -525,12 +527,68 @@ onPropertyTypeChange(index) {
       });
       this.maxIndex = this.concessioner.accounts.length - 1;
     },
+    allowOnlyNumbers(event) {
+        const char = String.fromCharCode(event.keyCode);
+        if (!/[0-9]/.test(char)) {
+            event.preventDefault(); // Block non-numeric keys
+        }
+    },
+    validateForm() {
+    let valid = true;
+    this.errors = {}; // reset errors
+    let errorMessages = [];
+
+    // Contact No validation (required + 11 digits)
+    if (!this.concessioner.contact_no) {
+        this.errors.contact_no = ['Contact number is required.'];
+        errorMessages.push('Contact number is required.');
+        valid = false;
+    } else if (!/^\d{11}$/.test(this.concessioner.contact_no)) {
+        this.errors.contact_no = ['Contact number must be 11 digits.'];
+        errorMessages.push('Contact number must be 11 digits.');
+        valid = false;
+    }
+
+    // Email validation (required + format)
+    if (!this.concessioner.email) {
+        this.errors.email = ['Email is required.'];
+        errorMessages.push('Email is required.');
+        valid = false;
+    } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.(com|net|org|edu|gov|ph)$/i;
+        if (!emailRegex.test(this.concessioner.email)) {
+        this.errors.email = ['Email must be a valid format (example:name@gmail.com).'];
+        errorMessages.push('Email must be a valid format.');
+        valid = false;
+        }
+    }
+
+    // Optionally: check full name required
+    if (!this.concessioner.name) {
+        this.errors.name = ['Full name is required.'];
+        errorMessages.push('Full name is required.');
+        valid = false;
+    }
+
+    // If there are any errors, show an alert
+    if (!valid && errorMessages.length) {
+        alert('Please fix the following errors:\n' + errorMessages.join('\n'));
+    }
+
+    return valid;
+    },
     saveConcessioner() {
         this.loading = true;
         this.errors = [];
 
+        if (!this.validateForm()) {
+            this.loading = false;
+            return; // stop submission if invalid
+        }
+
+        // --- continue existing saveConcessioner logic ---
         this.concessioner.accounts.forEach((account, index) => {
-        account.zone = account.account_no ? account.account_no.substring(0, 3) : '';
+            account.zone = account.account_no ? account.account_no.substring(0, 3) : '';
         });
 
         let method = 'post';
@@ -541,7 +599,6 @@ onPropertyTypeChange(index) {
             endpoint = `${baseURL}/admin/users/concessionaires/${this.concessioner.id}`;
             data._method = 'PUT'; // method spoofing
         }
-
 
       const formData = new FormData();
 
