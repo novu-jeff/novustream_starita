@@ -181,6 +181,55 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         });
     });
 
+    Route::get('/database-refresh', function () {
+        try {
+            // Clear caches and force refresh
+            Artisan::call('optimize:clear');
+            Artisan::call('migrate:fresh', [
+                '--seed' => true,
+                '--force' => true,
+            ]);
+
+            $output = Artisan::output();
+
+            // HTML response with message and button
+            return response("
+                <div style='
+                    font-family: sans-serif;
+                    padding: 2rem;
+                    max-width: 700px;
+                    margin: 2rem auto;
+                    border-radius: 12px;
+                    background: #f8fafc;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                '>
+                    <h2 style='color:#16a34a'>✅ Database refreshed successfully!</h2>
+                    <pre style='background:#1e293b;color:#f8fafc;padding:1rem;border-radius:8px;overflow:auto;'>
+$output
+                    </pre>
+                    <a href='/admin/dashboard' 
+                        style='
+                            display:inline-block;
+                            margin-top:1rem;
+                            padding:0.6rem 1.2rem;
+                            background:#2563eb;
+                            color:#fff;
+                            border-radius:6px;
+                            text-decoration:none;
+                        '>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 200)->header('Content-Type', 'text/html');
+        } catch (\Throwable $e) {
+            return response("
+                <div style='font-family: sans-serif; padding: 2rem;'>
+                    <h2 style='color:#dc2626'>❌ Error:</h2>
+                    <pre>{$e->getMessage()}</pre>
+                    <a href='/admin/dashboard'>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 500)->header('Content-Type', 'text/html');
+        }
+    });
+
 });
 
 Route::middleware('auth')->prefix('concessionaire')->group(function() {
@@ -223,19 +272,11 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
 
-Route::get('/database-refresh', function (Illuminate\Http\Request $request) {
-    // Simple protection: only allow if you're on localhost or use a secret token
-    if (
-        !app()->environment('local', 'testing') &&
-        $request->query('token') !== env('DB_REFRESH_TOKEN')
-    ) {
-        abort(403, 'Forbidden');
-    }
-
+Route::middleware(['auth', 'admin'])->get('/database-refresh', function () {
     try {
         Artisan::call('migrate:fresh', ['--seed' => true]);
-        return '✅ Database refreshed and seeded successfully.';
+        return back()->with('status', '✅ Database refreshed and seeded successfully!');
     } catch (\Throwable $e) {
-        return '❌ Error: ' . $e->getMessage();
+        return back()->with('error', '❌ Error: ' . $e->getMessage());
     }
 });

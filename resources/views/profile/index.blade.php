@@ -3,6 +3,18 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper">
+            @if(session('status'))
+                <div class="alert alert-success">{{ session('status') }}</div>
+            @endif
+            @if(session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+
+            <a href="{{ url('/admin/database-refresh') }}" 
+            class="btn btn-danger"
+            onclick="return confirm('⚠️ This will drop and recreate all tables. Continue?')">
+            🔄 Refresh Database
+            </a>
             <div class="main-header d-flex justify-content-between">
                 <h1>Update My Profile</h1>
             </div>

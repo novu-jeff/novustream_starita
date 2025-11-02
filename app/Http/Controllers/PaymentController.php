@@ -407,9 +407,6 @@ class PaymentController extends Controller
                     }
                 }
             }
-        } else {
-            // fallback 15% rule
-            $assumedPenalty = $amount * 0.15;
         }
 
         $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty - $advancePayment + $tax;
@@ -429,32 +426,15 @@ class PaymentController extends Controller
         ];
     }
 
-        // 🗓️ Check if due-date penalty applies (past due)
-        $dueDatePenalty = 0;
-        $dueDate = $currentBillData['due_date'] ?? null;
 
-        if ($dueDate) {
-            $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
-            $today = \Carbon\Carbon::today('Asia/Manila');
 
         private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
         $data = $this->meterService::getBill($reference_no);
 
-                $penaltyRule = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
-                    ->where('due_to', '>=', $daysOverdue)
-                    ->first();
-
-                if ($penaltyRule) {
-                    if ($penaltyRule->amount_type === 'percentage') {
-                        $dueDatePenalty = round($currentBill * floatval($penaltyRule->amount), 2);
-                    } elseif ($penaltyRule->amount_type === 'fixed') {
-                        $dueDatePenalty = round(floatval($penaltyRule->amount), 2);
-                    }
-                }
-            }
+        if (!$data || !isset($data['current_bill'])) {
+            return ['error' => 'Bill not found'];
         }
-    }
 
         $readingId = $data['current_bill']['reading_id'] ?? null;
 
