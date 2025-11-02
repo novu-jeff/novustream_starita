@@ -16,11 +16,11 @@ return new class extends Migration
 
             // Add HitPay tracking fields (optional if not yet present)
             if (!Schema::hasColumn('bill', 'hitpay_reference')) {
-                $table->string('hitpay_reference')->nullable()->after('payment_method');
+                $table->string('hitpay_reference')->nullable();
             }
 
             if (!Schema::hasColumn('bill', 'hitpay_payment_id')) {
-                $table->string('hitpay_payment_id')->nullable()->after('hitpay_reference');
+                $table->string('hitpay_payment_id')->nullable();
             }
         });
     }

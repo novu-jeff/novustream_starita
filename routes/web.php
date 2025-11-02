@@ -19,6 +19,7 @@ use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ReportsController;
+use Illuminate\Support\Facades\Artisan;
 
 /*
 |--------------------------------------------------------------------------
@@ -221,3 +222,20 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
+
+Route::get('/database-refresh', function (Illuminate\Http\Request $request) {
+    // Simple protection: only allow if you're on localhost or use a secret token
+    if (
+        !app()->environment('local', 'testing') &&
+        $request->query('token') !== env('DB_REFRESH_TOKEN')
+    ) {
+        abort(403, 'Forbidden');
+    }
+
+    try {
+        Artisan::call('migrate:fresh', ['--seed' => true]);
+        return '✅ Database refreshed and seeded successfully.';
+    } catch (\Throwable $e) {
+        return '❌ Error: ' . $e->getMessage();
+    }
+});
