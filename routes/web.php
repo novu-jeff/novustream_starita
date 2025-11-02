@@ -271,12 +271,3 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
-
-Route::middleware(['auth', 'admin'])->get('/database-refresh', function () {
-    try {
-        Artisan::call('migrate:fresh', ['--seed' => true]);
-        return back()->with('status', '✅ Database refreshed and seeded successfully!');
-    } catch (\Throwable $e) {
-        return back()->with('error', '❌ Error: ' . $e->getMessage());
-    }
-});
