@@ -3,8 +3,8 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper">
-            <div class="inner-content mt-5 pb-5 mb-5">
-                <div class="d-md-flex justify-content-center pb-5 gap-5">
+            <div class="inner-content">
+                <div class="d-md-flex justify-content-center gap-5">
                     <div class="mb-5" style="width: 100%">
                         <div class="card shadow border-0 p-2 pb-0 px-3" style="border-radius: 20px;">
                             <div class="card-body">
@@ -25,6 +25,7 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
+
                                     <div class="col-md-6 mb-3">
                                         <label for="filter" class="form-label">Filter</label>
                                         <select name="filter" id="filter" class="form-select dropdown-toggle">
@@ -39,20 +40,21 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
+
                                     <div class="col-md-6 mb-3">
                                         <label for="search_by" class="form-label">Search By</label>
                                         <select name="search_by" id="search_by" class="form-select dropdown-toggle text-uppercase">
-                                        <option value="name">Name</option>
-                                        <option value="account_no">Account No</option>
-                                        <option value="meter_serial_no">Meter No</option>
-                                        <option value="read">Read Accounts</option>
-                                        <option value="unread">Unread Accounts</option>
-                                    </select>
-
+                                            <option value="name">Name</option>
+                                            <option value="account_no">Account No</option>
+                                            <option value="meter_serial_no">Meter No</option>
+                                            <option value="read">Read Accounts</option>
+                                            <option value="unread">Unread Accounts</option>
+                                        </select>
                                         @error('search_by')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
+
                                     <div class="col-md-12 mb-3">
                                         <label for="search" class="form-label">Search</label>
                                         <input type="text" name="search" id="search" class="form-control text-uppercase" placeholder="Tap to search...">
@@ -65,27 +67,26 @@
                         </div>
                     </div>
                     <div class="mb-5" style="width: 100%">
-                        <div class="concessionaire-result">
+                        <div class="concessionaire-result position-sticky top-0 bg-white z-2 py-2">
 
                         </div>
-                        <div class="concessionaire-list">
+                        <div class="concessionaire-list" style="max-height: calc(100vh - 300px); overflow-y: auto;">
 
-                        </d iv>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
-        <div class="modal fade " id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered text-uppercase" da>
+        <div class="modal fade" id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered text-uppercase">
                 <div class="modal-content text-uppercase">
                     <div class="modal-header px-4 text-uppercase">
                         <h5 class="modal-title text-uppercase" id="accountModalLabel"></h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4 text-uppercase">
-                        <div id="accountModalBody">
-
-                        </div>
+                        <div id="accountModalBody"></div>
                     </div>
                 </div>
             </div>
@@ -179,6 +180,10 @@
                                     <label class="form-check-label" for="is_high_consumption_no">No</label>
                                 </div>
                             </div>
+                            <div class="col-md-12 mb-3" id="highConsumptionNoteWrapper" style="display: none;">
+                                <label for="high_consumption_note" class="form-label">Remarks / Notes (if marked as High Consumption)</label>
+                                <textarea id="high_consumption_note" class="form-control h-extend" placeholder="Enter remarks..."></textarea>
+                            </div>
                         </div>
                         <div class="text-end mt-4">
                             <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold" id="proceedButton">Proceed</button>
@@ -257,19 +262,50 @@
                 `);
 
                 data.forEach((account, index) => {
-                    const status = account.status;
-                    const isActive = account.user?.isActive == 1;
+                    const status = account.status; // from concessioner_accounts table
+                    const statusColors = {
+                        AB: '#ffffff', // ACTIVE (white)
+                        BL: '#ffe0b2', // FOR DISCONNECTION (light orange)
+                        ID: '#f8d7da', // DISCONNECTED (light red)
+                        IV: '#cff4fc', // FOR RECONNECTION (light blue)
+                    };
+
+                    const statusNames = {
+                        AB: 'ACTIVE BILLED',
+                        BL: 'BLACK LISTED',
+                        ID: 'INACTIVE DELINQUENT',
+                        IV: 'INACTIVE DISCONNECTION	'
+                    };
+
+                    const bgColor = statusColors[status] || '#ffffff';
+                    const statusName = statusNames[status] || 'UNKNOWN';
+
+                    const dotColors = {
+                        AB: '#28a745', // ACTIVE
+                        BL: '#ef2121ff', // FOR DISCONNECTION
+                        ID: '#dc3545', // DISCONNECTED
+                        IV: '#155101ff', // FOR RECONNECTION
+                    };
+
+                    const dotColor = dotColors[status] || '#6c757d';
 
                     const cardStyle = `
-                        background-color: ${isActive ? '#fff' : '#ffffffff'};
+                        background-color: ${bgColor};
                         cursor: pointer;
+                        position: relative;
                     `;
 
-                    const textColor = isActive ? '' : 'color: #000000ff;';
-
-                    const dot = isActive
-                        ? `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #28a745;"></div>`
-                        : `<div style="width: 12px; height: 12px; border-radius: 50%; position: absolute; top: 18px; right: 25px; background-color: #ff1a1aff;"></div>`;
+                    const dot = `
+                        <div style="
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 50%;
+                            position: absolute;
+                            top: 18px;
+                            right: 25px;
+                            background-color: ${dotColor};
+                        " title="${statusName}"></div>
+                    `;
 
                     const html = `
                         <div class="card shadow mb-3 account-card"
@@ -277,13 +313,14 @@
                             data-index="${offset + index}"
                             style="${cardStyle}"
                             data-account='${JSON.stringify(account)}'>
-                            <div class="card-body" style="${textColor}">
+                            <div class="card-body">
                                 ${dot}
                                 <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
                                 <hr class="my-2 mb-2">
                                 <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
                                 <h4>${account.user ? account.user.name : 'N/A'}</h4>
                                 <h5 class="fw-normal text-capitalize">${account.address ?? 'N/A'}</h5>
+                                <div class="mt-2 small text-muted fw-bold text-uppercase">${statusName}</div>
                             </div>
                         </div>
                     `;
@@ -495,6 +532,10 @@
                                 <label class="form-check-label" for="is_high_consumption_no">No</label>
                             </div>
                         </div>
+                        <div class="col-md-12 mb-3" id="highConsumptionNoteWrapper" style="display: none;">
+                            <label for="high_consumption_note" class="form-label">Remarks / Notes (if marked as High Consumption)</label>
+                            <textarea id="high_consumption_note" class="form-control h-extend" placeholder="Enter remarks..."></textarea>
+                        </div>
                     </div>
                     <div class="text-end mt-4">
                         <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold d-none" id="proceedButton">Proceed</button>
@@ -550,6 +591,8 @@
                 is_high_consumption: is_high_consumption,
                 isReRead: isReRead,
                 reference_no: reference_no,
+                is_high_consumption,
+                high_consumption_note: $('#high_consumption_note').val(),
             };
 
             $.ajax({
@@ -620,6 +663,15 @@
             const $list = $(this);
             if ($list.scrollTop() + $list.innerHeight() >= $list[0].scrollHeight - 20) {
                 fetchAccountData(true);
+            }
+        });
+
+        $(document).on('change', 'input[name="is_high_consumption"]', function() {
+            if ($(this).val() === 'yes') {
+                $('#highConsumptionNoteWrapper').show();
+            } else {
+                $('#highConsumptionNoteWrapper').hide();
+                $('#high_consumption_note').val('');
             }
         });
 

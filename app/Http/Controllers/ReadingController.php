@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Log;
-use App\Models\Zone; // make sure this is at the top
+use App\Models\Zones; // make sure this is at the top
 use App\Models\PaymentDiscount;
 use App\Models\BillDiscount;
 use App\Models\Discount;
@@ -72,7 +72,7 @@ class ReadingController extends Controller
             $assignedZoneIds = explode(',', $user->zone_assigned);
 
             // Convert IDs to zone codes (e.g. 2 -> "021")
-            $assignedZones = Zone::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
+            $assignedZones = Zones::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
             $payload['zones'] = $assignedZones;
 
             if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
@@ -132,15 +132,15 @@ class ReadingController extends Controller
         if ($user->user_type === 'technician') {
             if (empty($user->zone_assigned)) {
                 // Treat as admin if no zones assigned
-                $zones = Zone::all();
+                $zones = Zones::all();
                 $showAllOption = true;
             } else {
                 $assignedZoneIds = explode(',', $user->zone_assigned);
-                $zones = Zone::whereIn('id', $assignedZoneIds)->get();
+                $zones = Zones::whereIn('id', $assignedZoneIds)->get();
                 $showAllOption = false;
             }
         } else {
-            $zones = Zone::all();
+            $zones = Zones::all();
             $showAllOption = true;
         }
 
@@ -242,7 +242,7 @@ class ReadingController extends Controller
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
         ];
 
-        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+        return view('reading.invoice', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
 
@@ -260,7 +260,7 @@ class ReadingController extends Controller
         // Restrict zones if user is a technician
         if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $assignedZoneIds = explode(',', $user->zone_assigned);
-            $assignedZones = Zone::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
+            $assignedZones = Zones::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
             $zonesQuery->whereIn('zone', $assignedZones);
         }
 
@@ -363,7 +363,8 @@ class ReadingController extends Controller
         'present_reading' => 'required|integer|min:0',
         'is_high_consumption' => 'required|in:yes,no',
         'isReRead' => 'required|in:true,false',
-        'reference_no' => 'nullable|exists:bill,reference_no'
+        'reference_no' => 'nullable|exists:bill,reference_no',
+        'high_consumption_note' => 'nullable|string|max:255',
     ]);
 
 
@@ -418,9 +419,14 @@ class ReadingController extends Controller
             throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
-        $propertyTypeId = DB::table('property_types')
-            ->where('name', $account->property_type)
-            ->value('id');
+$propertyTypeId = DB::table('property_types')
+    ->whereRaw("
+        LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
+    ", [
+        strtolower(str_replace(['"', "'"], '', $account->property_type))
+    ])
+    ->value('id');
+
 
         if (!$propertyTypeId) {
             return response()->json([
@@ -483,7 +489,8 @@ class ReadingController extends Controller
                 'amount' => $amount,
                 'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
-                'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
+                'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
+                'high_consumption_note' => $payload['high_consumption_note'] ?? null,
             ]
         );
 
@@ -550,6 +557,7 @@ class ReadingController extends Controller
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount
         ]);
+
 
         // Generate payment QR
         $paymentPayload = [

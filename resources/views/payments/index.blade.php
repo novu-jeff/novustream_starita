@@ -51,7 +51,7 @@
                         <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
                     </div>
                     <div class="col-12 col-md-3">
-                        <label class="mb-1">Search <span class="text-muted ms-1">[account no]</span></label>
+                        <label class="mb-1">Search <span class="text-muted ms-1">[account no | name]</span></label>
                         <div class="position-relative">
                             <input
                                 type="text"
@@ -82,6 +82,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Account No</th>
+                                <th>Name</th>
                                 <th>Zone</th>
                                 <th>Billing Period</th>
                                 <th>Reading Date</th>
@@ -96,6 +97,7 @@
                                 <tr>
                                     <td>{{ $index + 1 }}</td>
                                     <td>{{ $row->reading->account_no ?? 'N/A' }}</td>
+                                    <td>{{ $row->reading?->concessionaire?->user?->name ?? 'N/A' }}</td>
                                     <td>{{ $row->reading->zone ?? 'N/A' }}</td>
                                     <td>
                                         @if ($row->bill_period_from && $row->bill_period_to)
@@ -130,7 +132,7 @@
                                                     <i class="bx bx-credit-card-alt"></i>
                                                 </a>
                                             @else
-                                                <a target="_blank" href="{{ route('reading.show', $row->reference_no) }}"
+                                                <a target="_blank" href="{{ route('reading.orshow', $row->reference_no) }}"
                                                 class="btn btn-primary text-white text-uppercase fw-bold"
                                                 id="show-btn" data-id="{{ $row->id }}">
                                                     <i class="bx bx-receipt"></i>
@@ -179,6 +181,20 @@
             $('#search').val('');
             updateUrl();
         });
+
+        $('#download-summary').on('click', function() {
+        const type = $('#print').val();
+        const date = $('#date').val();
+        const zone = $('#zone_no').val() === 'all' ? '' : $('#zone_no').val();
+
+        if (!type) {
+            alert('Please select summary type');
+            return;
+        }
+
+        const url = `/admin/reports/download?type=${type}&date=${date}&zone=${zone}`;
+        window.location.href = url;
+    });
     });
 </script>
 @endsection

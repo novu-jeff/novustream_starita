@@ -18,6 +18,8 @@ use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\ReportsController;
+use Illuminate\Support\Facades\Artisan;
 
 /*
 |--------------------------------------------------------------------------
@@ -70,8 +72,48 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::get('reading/bill/{reference_no}', [ReadingController::class, 'show'])
         ->name('reading.show');
 
+    Route::get('reading/invoice/{reference_no}', [ReadingController::class, 'invoice'])
+        ->name('reading.invoice');
+
+    Route::get('/reading/or/{reference_no}', [ReadingController::class, 'orShow'])
+        ->name('reading.orshow');
+
+    Route::get('/reports/download', [ReportsController::class, 'downloadSummary'])
+    ->name('reports.download');
+
     Route::get('reading/reports', [ReadingController::class, 'report'])
         ->name('reading.report');
+
+    Route::get('/reports/download', [ReportsController::class, 'filterAndDownload'])
+        ->name('reports.download');
+
+    Route::get('/reports/download', [ReportsController::class, 'downloadSummary'])
+        ->name('reports.download');
+
+    Route::get('/reports/downloadable-files', [ReportsController::class, 'downloadFilesIndex'])
+        ->name('reports.download-index');
+
+    Route::get('/reports/download/ageing/detailed', [ReportsController::class, 'downloadAgeingDetailed'])
+        ->name('reports.download.ageing.detailed');
+
+    Route::get('/reports/download/penalty/detailed', [ReportsController::class, 'downloadPenaltyDetailed'])
+        ->name('reports.download.penalty.detailed');
+
+    Route::get('/reports/download/franchise-tax/detailed', [ReportsController::class, 'downloadFranchiseTaxDetailed'])
+        ->name('reports.download.franchise-tax.detailed');
+
+    Route::get('/reports/download/disconnected-concessionaires', [ReportsController::class, 'downloadDisconnectedConcessionaires'])
+        ->name('reports.download.disconnected-concessionaires');
+
+    Route::get('/reports/download/ageing/summary', [ReportsController::class, 'downloadAgeingSummary'])
+        ->name('reports.download.ageing.summary');
+
+    Route::get('/reports/download/penalty/summary', [ReportsController::class, 'downloadPenaltySummary'])
+        ->name('reports.download.penalty.summary');
+
+    Route::get('/reports/download-options', [ReportsController::class, 'downloadFilesIndex'])->name('reports.download.index');
+    Route::post('/reports/download-generate', [ReportsController::class, 'generateFile'])->name('reports.download.generate');
+
 
     Route::prefix('users')->group(function() {
 
@@ -137,6 +179,55 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             Route::put('/edit/{ticket}', [SupportTicketController::class, 'update'])
                 ->name('admin.support-ticket.update');
         });
+    });
+
+    Route::get('/database-refresh', function () {
+        try {
+            // Clear caches and force refresh
+            Artisan::call('optimize:clear');
+            Artisan::call('migrate:fresh', [
+                '--seed' => true,
+                '--force' => true,
+            ]);
+
+            $output = Artisan::output();
+
+            // HTML response with message and button
+            return response("
+                <div style='
+                    font-family: sans-serif;
+                    padding: 2rem;
+                    max-width: 700px;
+                    margin: 2rem auto;
+                    border-radius: 12px;
+                    background: #f8fafc;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                '>
+                    <h2 style='color:#16a34a'>✅ Database refreshed successfully!</h2>
+                    <pre style='background:#1e293b;color:#f8fafc;padding:1rem;border-radius:8px;overflow:auto;'>
+$output
+                    </pre>
+                    <a href='/admin/dashboard' 
+                        style='
+                            display:inline-block;
+                            margin-top:1rem;
+                            padding:0.6rem 1.2rem;
+                            background:#2563eb;
+                            color:#fff;
+                            border-radius:6px;
+                            text-decoration:none;
+                        '>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 200)->header('Content-Type', 'text/html');
+        } catch (\Throwable $e) {
+            return response("
+                <div style='font-family: sans-serif; padding: 2rem;'>
+                    <h2 style='color:#dc2626'>❌ Error:</h2>
+                    <pre>{$e->getMessage()}</pre>
+                    <a href='/admin/dashboard'>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 500)->header('Content-Type', 'text/html');
+        }
     });
 
 });

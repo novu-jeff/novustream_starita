@@ -17,6 +17,7 @@
                 <thead>
                     <tr>
                         <th>Ticket No</th>
+                        <th>Concessionnaire</th>
                         <th>Status</th>
                         <th>Date Submitted</th>
                         <th style="width: 120px">Action</th>
@@ -45,8 +46,15 @@
             ajax: url,
             columns: [
                 { data: 'id', name: 'id' },
+                { data: 'concessionnaire_name', name: 'concessionnaire_name' },
                 { data: 'name', name: 'name' },
                 { data: 'description', name: 'description' },
+                {
+                    data: 'action',
+                    name: 'action',
+                    orderable: false,
+                    searchable: false
+                }
             ],
             responsive: true,
             order: [[0, 'asc']],
@@ -64,16 +72,16 @@
         $(document).on('click', '.view-btn', function() {
 
             alert();
-            
+
             const id = $(this).data('id');
-            const url = `{{ route('support-ticket.show', ['ticket' => '__id__']) }}`.replace('__id__', id);            
-            
+            const url = `{{ route('support-ticket.show', ['ticket' => '__id__']) }}`.replace('__id__', id);
+
             show(url)
                 .then(function(response) {
                     if(response.status == 'success') {
                         view(response.data)
                     }
-                }) 
+                })
                 .catch(function(error) {
                     Swal.fire({
                         title: 'Error occured',
@@ -143,7 +151,7 @@
                 $(this).remove();
             });
 
-        }  
+        }
 
         function resetAllFields() {
             $('input, textarea, select').each(function(){

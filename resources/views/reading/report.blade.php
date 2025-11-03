@@ -25,11 +25,17 @@
                 <h1>All Meter Readings</h1>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
+<<<<<<< HEAD
                 <div class="d-flex flex-wrap align-items-end gap-3 mb-4">
 
                     <!-- Show Entries -->
                     <div style="flex: 0 0 80px;">
                         <label class="mb-1">Show Entries</label>
+=======
+                <div class="row align-items-end gy-2 gx-3 mb-4">
+                    <div class="col-md-1">
+                        <label class="form-label mb-1">Show Entries</label>
+>>>>>>> 883d53890d1a80e799e7560ece1ae4ad62407c7b
                         <select name="entries" id="entries" class="form-select text-uppercase">
                             @foreach([10, 25, 50, 100, 200, 250, 350, 400, 450, 500] as $entry)
                                 <option value="{{ $entry }}" {{ $entries == $entry ? 'selected' : '' }}>
@@ -39,9 +45,14 @@
                         </select>
                     </div>
 
+<<<<<<< HEAD
                     <!-- Zone -->
                     <div style="flex: 0 0 200px;">
                         <label class="mb-1">Zone</label>
+=======
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">Zone</label>
+>>>>>>> 883d53890d1a80e799e7560ece1ae4ad62407c7b
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase">
                             <option value="all" {{ $zone === 'all' ? 'selected' : '' }}>All Zones</option>
                             @foreach($zones as $targetedZone)
@@ -52,6 +63,7 @@
                         </select>
                     </div>
 
+<<<<<<< HEAD
                     <!-- Reading Month -->
                     <div style="flex: 0 0 170px;">
                         <label class="mb-1">Reading Month</label>
@@ -70,6 +82,17 @@
                                 value="{{ $toSearch }}"
                                 placeholder=""
                             >
+=======
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">Reading Month</label>
+                        <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
+                        <div class="position-relative">
+                            <input type="text" name="search" id="search" class="form-control pe-5" value="{{ $toSearch }}">
+>>>>>>> 883d53890d1a80e799e7560ece1ae4ad62407c7b
                             @if(!empty($toSearch))
                                 <button
                                     type="button"
@@ -77,9 +100,7 @@
                                     class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
                                     style="border: none; background: none; font-size: 1.2rem;"
                                     aria-label="Clear search"
-                                >
-                                    &times;
-                                </button>
+                                >&times;</button>
                             @endif
                         </div>
                     </div>

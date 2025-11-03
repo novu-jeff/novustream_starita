@@ -7,7 +7,7 @@
     <title>Print Bill {{$reference_no}}</title>
 </head>
 <body>
-    
+
     <div class="print-controls" style="display: grid; justify-content: center; margin: 50px 0 50px 0; gap: 12px;">
 
         @php
@@ -17,26 +17,26 @@
             $backUrl = ($previousUrl !== $currentUrl) ? $previousUrl : $fallbackUrl;
         @endphp
 
-        <a href="{{ $backUrl }}" 
+        <a href="{{ $backUrl }}"
             style="border: 1px solid #32667e; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;">
             <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
         </a>
 
-        <button 
-            class="download-js" 
-            data-target="#bill" 
-            data-filename="{{$data['current_bill']->reference_no}}" 
+        <button
+            class="download-js"
+            data-target="#bill"
+            data-filename="{{$data['current_bill']->reference_no}}"
             style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 18px;" class='bx bxs-download'></i> Download
         </button>
 
-        <button 
-            class="print-js" 
+        <button
+            class="print-js"
             style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
             <i style="font-size: 18px;" class='bx bxs-printer'></i> Print
         </button>
 
-        <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}" 
+        <a href="{{route('payments.pay', ['reference_no' => $data['current_bill']->reference_no])}}"
             style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;">
             <i style="font-size: 18px;" class='bx bx-wallet'></i> Pay Now
         </a>
@@ -51,15 +51,15 @@
                         </div>
                     @endif
                     @php
-                        $logoPath = env('APP_PRODUCT') === 'novustream' 
-                                    ? public_path('images/novustreamlogodarken.png') 
+                        $logoPath = env('APP_PRODUCT') === 'novustream'
+                                    ? public_path('images/novustreamlogodarken.png')
                                     : public_path('images/novusurgelogodarken.png');
 
                         $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                     @endphp
 
                     <div style="text-align: center; margin-top: 0; margin-bottom: 10px; padding-bottom: 10px;">
-                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" 
+                        <img src="{{ asset(env('APP_PRODUCT') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}"
                             alt="logo" class="web-logo">
                         <img src="{{ $base64 }}" alt="logo" class="print-logo">
                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">VAT Reg TIN: 218-595-528-000</p>
@@ -68,7 +68,7 @@
                     <div style="text-align:center; text-transform: uppercase; font-size: 14px; margin: 10px 0 10px 0;">
                         <div style="font-weight: 800;">{{$data['current_bill']->reference_no}}</div>
                     </div>
-                    <div style="width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                    <div style="width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                     <div>
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 8px; margin-top: 10px;">Service Information</h6>
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
@@ -87,10 +87,10 @@
                             <div style="display: flex; justify-content: space-between;">
                                 <div>Type</div>
                                 <div style="width: calc(100% - 150px); text-align: end">{{$data['client']['property_types']['name'] ?? ''}}</div>
-                            </div>                
+                            </div>
                         </div>
                     </div>
-                    <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                     <div>
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 0px; margin-top: 10px;">Billing Summary</h6>
                         <div style="text-align: center; font-size: 10px; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 20px;">
@@ -106,7 +106,7 @@
                             </div>
                         </div>
                     </div>
-                    <div style="width: 100%; height: 1px; margin: 0px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                    <div style="width: 100%; height: 1px; margin: 0px 0 10px 0; border-bottom: 1px dashed black;"></div>
                     <div>
                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 10px; margin-top: 10px;">Billing Details</h6>
                         <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
@@ -127,7 +127,7 @@
                             </div>
                         </div>
                     </div>
-                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                    <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                     <div>
                         <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Meter Reading Information</h6>
                         <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
@@ -147,11 +147,11 @@
                                 <div>Consumption</div>
                                 <div>{{$data['current_bill']->reading->consumption ?? 'N/A'}}</div>
                             </div>
-                        </div>                            
+                        </div>
                     </div>
                     <div>
                         @if($data['previous_payment'])
-                            <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                            <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">Last Payment</h6>
                                 <div style="text-transform: uppercase; width: 100%; font-size: 10px; display: flex; flex-direction: column; gap: 1px;">
                                     <div style="display: flex; justify-content: space-between;">
@@ -166,10 +166,10 @@
                                         <div>Amount</div>
                                         <div>PHP {{number_format($data['previous_payment']->amount, 2)}}</div>
                                     </div>
-                                </div>      
+                                </div>
                             </div>
                         @endif
-                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                         <div style="display: flex; justify-content: center; gap: 35px; align-items: center;">
                             <div>
                                 {!! $qr_code !!}
@@ -181,17 +181,17 @@
                                     <li>Choose a merchant on NovuPay.</li>
                                     <li>Pay the total amount due.</li>
                                     <li>Keep your receipt.</li>
-                                </ol>                            
+                                </ol>
                             </div>
                         </div>
                     </div>
-                </div>                    
+                </div>
             </div>
         </div>
     </div>
     <style>
 
-        body * {    
+        body * {
             font-family: Verdana, Geneva, Tahoma, sans-serif;
             font-size: 13px;
         }
@@ -208,11 +208,11 @@
         }
 
         @media print {
-            
+
             @page {
                 margin: 0mm 5mm 0mm 0mm;
             }
-    
+
             body * {
                 padding: 0px !important;
                 box-shadow: none !important;
@@ -221,11 +221,11 @@
                 font-weight: 800;
                 font-family: monospace;
             }
-    
+
             header, .print-controls {
                 display: none !important;
             }
-    
+
             .isPaid {
                 display: none;
                 visibility: hidden;
@@ -244,7 +244,7 @@
                 margin: 0 auto 10px auto !important;
                 display: block !important;
             }
-            
+
         }
     </style>
 </body>
