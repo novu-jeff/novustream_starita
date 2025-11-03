@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Facades\DB;
 use App\Models\PaymentBreakdownPenalty;
 
 class AccountOverviewController extends Controller
@@ -60,11 +61,31 @@ class AccountOverviewController extends Controller
             ->first()
             : '';
 
+        $statement['total'] = !empty($statement['transactions'])
+            ? array_sum(array_map(function($bill) {
+                $amount = $bill['amount'] ?? 0;
+                $penalty = $bill['computed_penalty'] ?? ($bill['penalty'] ?? 0);
+                $discount = $bill['discount'] ?? 0;
+                $advance = $bill['advances'] ?? 0;
+
+                // Total after adding penalty and subtracting discounts & advances
+                return ($amount + $penalty) - ($discount + $advance);
+            }, $statement['transactions']))
+            : 0;
+
         $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
         $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
 
         return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
+    }
+
+    public function getBillColumns()
+    {
+        // Fetch the first 50 rows from the bill table
+        $bills = DB::table('bill')->limit(50)->get();
+
+        return $bills;
     }
 
             public function bills(Request $request, ?string $reference_no = null)
@@ -234,11 +255,75 @@ class AccountOverviewController extends Controller
             }
             return '<span class="text-muted">No Reference</span>';
         })
-        ->rawColumns(['status', 'actions'])
+       ->addColumn('pay', function ($row) {
+    $reference_no = is_array($row) ? ($row['reference_no'] ?? null) : ($row->reference_no ?? null);
+
+    if (empty($reference_no)) {
+        return '<span class="text-muted">No Reference</span>';
+    }
+
+    return '<div class="d-flex align-items-center gap-2">
+        <button type="button"
+            class="btn btn-success text-white text-uppercase fw-bold pay-now-btn"
+            data-reference="' . e($reference_no) . '"
+            data-id="' . e($row['id'] ?? '') . '">
+            <i class="bx bx-credit-card"></i> Pay Now
+        </button>
+    </div>';
+})
+
+        ->rawColumns(['status', 'actions', 'pay'])
         ->make(true);
 }
 
     }
+
+    public function payOnline(Request $request, string $reference_no)
+{
+    // Get the current authenticated user's accounts
+    $userId = Auth::id();
+    $clientData = $this->clientService::getData($userId);
+    $accounts = $clientData->accounts ?? [];
+
+    // Check if reference_no belongs to this user's accounts
+    $validReference = false;
+    foreach ($accounts as $account) {
+        $bill = $this->meterService::getBill($reference_no);
+        if ($bill && $bill['current_bill']['account_no'] == $account->account_no) {
+            $validReference = true;
+            break;
+        }
+    }
+
+    if (!$validReference) {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => 'Invalid bill reference for your account.'
+        ]);
+    }
+
+    // Prepare payload for online payment
+    $payload = [
+        'payor' => $clientData->name ?? 'Customer',
+        'email' => $clientData->email ?? 'customer@example.com',
+        'account_no' => $bill['current_bill']['account_no'],
+        'amount' => $bill['current_bill']['amount'] ?? 0,
+    ];
+
+    // Call PaymentController logic
+    $paymentController = new \App\Http\Controllers\PaymentController();
+    $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
+
+    if (!$hitpayData || empty($hitpayData['url'])) {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => 'Failed to initiate online payment.'
+        ]);
+    }
+
+    return redirect($hitpayData['url']);
+}
+
 
     private function computeBillPenalty(array $bill): array
 {
