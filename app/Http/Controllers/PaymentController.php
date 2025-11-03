@@ -593,7 +593,8 @@ class PaymentController extends Controller
         }
 
         // Prepare HitPay payload
-        $amount = number_format((float)$billData['amount'] + (float)$billData['penalty'], 2, '.', '');
+        $amount = number_format((float)$billData['amount'], 2, '.', '');
+        $amount_with_penalty = number_format((float)$billData['amount'] + (float)$billData['penalty'], 2, '.', '');
         $hitpay_fee = 20;
         $novupay_fee = 10;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
@@ -670,28 +671,37 @@ class PaymentController extends Controller
                 return null;
             }
 
-            $amount = number_format(
-                (float)$billData['amount'] + (float)$billData['penalty'],
-                2,
-                '.',
-                ''
-            );
-             $hitpay_fee = 20;
+            $amount = number_format((float)$billData['amount'], 2, '.', '');
+            $hitpay_fee = 20;
             $novupay_fee = 10;
-            // $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
             $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-            $final_amount = $amount + $additional_service_fee;
+            $final_amount = (float)$amount + $additional_service_fee;
 
-            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
-            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
+            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
+            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+
+            // 🧾 Purpose formatting
+            $purpose = "Account #: {$account_no}\nAmount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}";
+
+            // ⚙️ Default payment methods (include QRPH if allowed)
+            $paymentMethods = ['gcash', 'qrph'];
+
+            // 🚫 If total amount < 800, remove QRPH from payment options
+            if ($final_amount < 800) {
+                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== 'qrph');
+                \Log::info('Removed QRPH (amount < 800)', [
+                    'reference_no' => $reference_no,
+                    'amount' => $final_amount
+                ]);
+            }
 
             $hitpayPayload = [
                 'amount' => $final_amount,
                 'currency' => 'PHP',
                 'email' => $email,
-                'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no}\nConvenience Fee: PHP {$additional_service_fee}",
+                'purpose' => $purpose,
                 'reference_number' => $reference_no,
                 'redirect_url' => env('HITPAY_REDIRECT_URL'),
                 'webhook' => env('HITPAY_WEBHOOK_URL'),
@@ -700,12 +710,16 @@ class PaymentController extends Controller
                 'name' => $payor,
                 'add_admin_fee' => true,
                 'admin_fee' => '15.00',
+                'payment_methods' => array_values($paymentMethods),
             ];
+
+            // dd($hitpayPayload);
 
             $response = \Http::withHeaders([
                 'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
             ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
-
+            
+            // dd($response->body());
             if ($response->failed()) {
                 \Log::error('HitPay API request failed', ['body' => $response->body()]);
                 return null;

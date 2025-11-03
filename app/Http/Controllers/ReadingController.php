@@ -210,7 +210,8 @@ class ReadingController extends Controller
         $novupay_fee = 10;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-        $final_amount = $assumed_amount_after_due + $additional_service_fee;
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
 
         // 🧾 Build payment payload
         $paymentPayload = [
@@ -223,14 +224,20 @@ class ReadingController extends Controller
             ],
         ];
 
+
         // 🧩 Generate HitPay checkout URL (your logic)
         $hitpayData = app(\App\Http\Controllers\PaymentController::class)
             ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        // dd($reference_no, $paymentPayload);
+        // dd($hitpayData);
+
+         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
 
         if ($hitpayData && !empty($hitpayData['url'])) {
             $url = $hitpayData['url']; // ✅ HitPay checkout link
         } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
         }
 
         // 🧾 Generate QR code (HitPay or fallback NovuPay)
