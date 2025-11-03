@@ -104,14 +104,14 @@
                                                         <!-- Days Due (From) -->
                                                         <div class="col-12 col-md-3 mb-3">
                                                             <label class="form-label">Days Due (From)</label>
-                                                            <input type="text" name="penalty[from][]" class="form-control text-uppercase @error("penalty.from.$index") is-invalid @enderror" value="1" readonly>
+                                                            <input type="text" name="penalty[from][]" class="form-control text-uppercase @error("penalty.from.$index") is-invalid @enderror" value="{{ $from }}">
                                                             @error("penalty.from.$index")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                         </div>
 
                                                         <!-- Days Due (To) -->
                                                         <div class="col-12 col-md-3 mb-3">
                                                             <label class="form-label">Days Due (To)</label>
-                                                            <input type="text" name="penalty[to][]" class="form-control text-uppercase @error("penalty.to.$index") is-invalid @enderror" value="31" readonly>
+                                                            <input type="text" name="penalty[to][]" class="form-control text-uppercase @error("penalty.to.$index") is-invalid @enderror" value="{{ $toValues[$index] ?? '' }}">
                                                             @error("penalty.to.$index")<div class="invalid-feedback">{{ $message }}</div>@enderror
                                                         </div>
 
@@ -321,6 +321,7 @@
             }, 100);
         @endif
 
+        // Add new penalty row
         $('#add-row-breakdown').click(function () {
             let row = `
                 <div class="mb-2 d-flex align-items-start gap-3 w-100 breakdown-rows">
@@ -328,13 +329,13 @@
                         <!-- Days Due (From) -->
                         <div class="col-12 col-md-3 mb-3">
                             <label class="form-label">Days Due (From)</label>
-                            <input type="text" name="penalty[from][]" class="form-control text-uppercase" value="1" readonly>
+                            <input type="text" name="penalty[from][]" class="form-control text-uppercase">
                         </div>
 
                         <!-- Days Due (To) -->
                         <div class="col-12 col-md-3 mb-3">
                             <label class="form-label">Days Due (To)</label>
-                            <input type="text" name="penalty[to][]" class="form-control text-uppercase" value="31" readonly>
+                            <input type="text" name="penalty[to][]" class="form-control text-uppercase">
                         </div>
 
                         <!-- Amount Type -->
@@ -350,7 +351,7 @@
                         <!-- Amount -->
                         <div class="col-12 col-md-3 mb-3">
                             <label class="form-label">Amount</label>
-                            <input type="text" name="penalty[amount][]" class="form-control text-uppercase" placeholder="Example: 0.20">
+                            <input type="text" name="penalty[amount][]" class="form-control text-uppercase amount-input" placeholder="Fixed Amount">
                         </div>
                     </div>
 

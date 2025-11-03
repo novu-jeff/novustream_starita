@@ -53,6 +53,7 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
 
+
 Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -139,6 +140,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('payments.pay');
         Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
+        Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
+    ->name('account-overview.pay-online');
+
+
+
     });
 
     Route::prefix('settings')->group(function() {

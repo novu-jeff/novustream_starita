@@ -81,7 +81,7 @@
                                     { data: 'address', name: 'address' },
                                     { data: 'property_type', name: 'property_type' },
                                     { data: 'date_connected', name: 'date_connected' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false },
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -118,11 +118,17 @@
                                 <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
+                                <th>Pay</th>
                             </tr>
                         </thead>
                         <tbody>
                         </tbody>
                     </table>
+                    <form id="paymentForm" method="POST" action="">
+    @csrf
+    <input type="hidden" name="payment_type" id="payment_type" value="">
+</form>
+
                 </div>
                 @section('script')
                     <script>
@@ -146,7 +152,8 @@
                                     { data: 'amount', name: 'amount' },
                                     { data: 'due_date', name: 'due_date' },
                                     { data: 'status', name: 'status' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false },
+                                    { data: 'pay', name: 'pay', orderable: false, searchable: false }
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -156,6 +163,7 @@
                     </script>
                 @endsection
             @endif
+
 
             @if($viewer == 'receipt')
                 <div style="padding-bottom: 50px; margin-top: 50px">
@@ -507,5 +515,29 @@
 
         }
     </style>
+<!-- jQuery first -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Custom script -->
+<script>
+$(function () {
+    $(document).on('click', '.pay-now-btn', function() {
+    const reference = $(this).data('reference');
+    if (!reference) return;
+
+    alert('Note: Online payments have a service fee.');
+
+    $('#payment_type').val('online');
+
+    const url = "{{ url('admin/payments/process') }}/" + reference;
+    $('#paymentForm').attr('action', url);
+
+    $('#paymentForm').submit();
+});
+
+});
+</script>
+
+
 @endsection
 

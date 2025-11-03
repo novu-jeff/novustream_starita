@@ -176,12 +176,20 @@
                                     <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due:
                                         <h3 class="ms-2">
                                             @if($statement['total'] != 0)
-                                                PHP {{number_format($statement['total'] ?? 0, 2)}}
+                                                PHP {{ number_format($statement['total'] ?? 0, 2) }}
                                             @else
                                                 PHP 0.00
                                             @endif
                                         </h3>
                                     </div>
+                                    @foreach($statement['transactions'] as $bill)
+    @if(!$bill['isPaid'])
+        <form action="{{ route('account-overview.pay-online', $bill['reference_no']) }}" method="POST">
+            @csrf
+            <button type="submit" class="btn btn-primary">Pay Online</button>
+        </form>
+    @endif
+@endforeach
                                     <div class="mt-4 pt-2" style="font-size: 14px;">
                                         <div style="display:none;" id="statement-content">
                                             @forelse($statement['transactions'] as $key => $transactions)
