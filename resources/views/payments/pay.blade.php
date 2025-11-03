@@ -201,7 +201,7 @@
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['total'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears, 2)}}</div>
+                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['amount'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears, 2)}}</div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -228,11 +228,19 @@
                                                     $discount = (float) $data['current_bill']['discount'];
                                                 }
                                             }
+                                        $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                        $dueDate = isset($data['current_bill']['due_date'])
+                                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                            : null;
+
+                                        $today = \Carbon\Carbon::today();
+
+                                        $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                         @endphp
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                               ₱ {{ number_format($data['current_bill']['amount_after_due'] - $discount, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount'] + $applicablePenalty - $discount, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -354,7 +362,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['amount'] + ($applicablePenalty) ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">

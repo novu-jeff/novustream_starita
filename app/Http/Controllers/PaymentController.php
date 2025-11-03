@@ -718,7 +718,7 @@ class PaymentController extends Controller
             $response = \Http::withHeaders([
                 'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
             ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
-            
+
             // dd($response->body());
             if ($response->failed()) {
                 \Log::error('HitPay API request failed', ['body' => $response->body()]);
