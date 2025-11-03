@@ -144,7 +144,7 @@
                                             @forelse($discounts as $discount)
                                                 <div style="display: flex; justify-content: space-between;">
                                                     <div style="text-transform: uppercase">{{$discount['name']}}</div>
-                                                    <div style="text-transform: uppercase">- ₱ {{$discount['amount']}}</div>
+                                                    <div style="text-transform: uppercase">- ({{$discount['amount']}})</div>
                                                 </div>
                                             @empty
 
@@ -234,13 +234,13 @@
                                             : null;
 
                                         $today = \Carbon\Carbon::today();
-
+                                        $prevUnpaid = ($data['current_bill']['previous_unpaid'] ?? 0);
                                         $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                         @endphp
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                               ₱ {{ number_format($data['current_bill']['amount'] + $penalty - $discount, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount'] + $prevUnpaid + $penalty - $discount, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -354,6 +354,7 @@
                                     $today = \Carbon\Carbon::today();
 
                                     $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                    $prevUnpaid = ($data['current_bill']['previous_unpaid'] ?? 0);
                                     $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
                                     $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
@@ -362,7 +363,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['amount'] - ($discount) - ($advancePayment) + ($applicablePenalty) ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['amount'] - ($discount) - ($advancePayment) + ($applicablePenalty) + $prevUnpaid ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -425,13 +426,22 @@
                                             <div class="text-end">
                                                 <label for="total_charges" class="form-label">Current Billing</label>
                                                  @php
-                                                    $current_billing = (float)$data['current_bill']['amount'] - (float) $data['current_bill']['previous_unpaid'];
+                                                    $current_billing = (float)$data['current_bill']['amount'];
                                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'];
                                                     $advancePayment = (float) $data['current_bill']['advances'] ?? 0;
 
                                                     if($hasAdvancePayment) {
                                                         $current_billing =  $current_billing + $advancePayment;
                                                     }
+                                                    $penalty = $data['current_bill']['penalty'];
+                                                    $dueDate = isset($data['current_bill']['due_date'])
+                                                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                                        : null;
+
+                                                    $today = \Carbon\Carbon::today();
+
+                                                    $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                                    $prevUnpaid = $data['current_bill']['previous_unpaid'];
                                                 @endphp
                                                 <h2 class="fw-bold">PHP {{number_format($current_billing, 2)}}</h2>
                                             </div>

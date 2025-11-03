@@ -113,9 +113,9 @@ class PreviousBillingImport implements
             'reference_no'     => $get(['reference_no']),
             'bill_period_from' => $billing_from,
             'bill_period_to'   => $billing_to,
-            'previous_unpaid'  => $this->cleanAmount($get(['unpaid', 'arrears']) ?? 0),
-            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0),
-            'amount'           => $amount,
+            'previous_unpaid'  => $this->cleanAmount($get(['arrears']) ?? 0), // <-- arrears
+            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0), // <-- penalty stays
+            'amount'           => $this->cleanAmount($get(['current_bill']) ?? 0), // <-- current bill
             'amount_paid'      => $this->cleanAmount($get(['amount_paid']) ?? 0),
             'change'           => $this->cleanAmount($get(['change']) ?? 0),
             'isPaid'           => !empty($get(['amount_paid'])) ? 1 : 0,

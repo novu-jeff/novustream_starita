@@ -259,6 +259,14 @@ class PaymentController extends Controller
             }
         }
 
+        // Replace or add this inside the pay() method
+        $currentBillId = $data['current_bill']['id'] ?? null;
+
+        if ($currentBillId) {
+            // Load the Bill model with its discount relation
+            $bill = \App\Models\Bill::with('discount')->find($currentBillId);
+            $data['current_bill']['discounts'] = $bill ? $bill->discount : collect();
+        }
 
         $data = $this->meterService::getBill($reference_no);
 

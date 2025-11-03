@@ -510,14 +510,16 @@ $propertyTypeId = DB::table('property_types')
 
         $totalDiscount = 0;
 
-        if ($discountRecord && $discountRecord->discount_type_id) {
-            $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
+        $ruling = DB::table('global_ruling')->first();
+        $consumptionLimit = $ruling->snr_dc_rule ?? 0;
 
-            if ($discountRecord->discount_type_id == 1) {
+        if ($discountRecord && $discountRecord->discount_type_id) {
+
+            // Only apply senior discount if consumption <= snr_dc_rule
+            if ($discountRecord->discount_type_id == 1 && $consumption <= $consumptionLimit) {
                 $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
 
                 if ($seniorDiscount) {
-                    //calculate baseAmount based on percentage_of
                     $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
 
                     $seniorAmount = $seniorDiscount->type === 'fixed'
