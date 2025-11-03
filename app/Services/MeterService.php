@@ -860,7 +860,7 @@ class MeterService {
     private function generateReferenceNo()
     {
         $prefix = env('REF_PREFIX', 'NST-STA');
-        $technicianId = auth()->id() ?? '0'; // fallback if not logged in
+        $technicianId = auth()->id() ?? '0';
 
         do {
             $time = time();
