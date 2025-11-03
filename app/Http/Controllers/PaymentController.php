@@ -564,6 +564,7 @@ class PaymentController extends Controller
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
+        dd($payload);
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
