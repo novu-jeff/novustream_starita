@@ -173,12 +173,6 @@
                                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">₱ {{number_format($data['current_bill']['amount'], 2)}}</div>
                                         </div>
 
-                                        <!-- @if($prevPenalty > 0)
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <div style="text-transform: uppercase">Previous Penalty</div>
-                                                <div style="text-transform: uppercase">+ ₱ {{ number_format($prevPenalty, 2) }}</div>
-                                            </div>
-                                        @endif -->
                                         @if($arrearsStack->isNotEmpty())
                                             <div class="d-flex flex-column">
                                                 <div class="mb-1">Arrears months:</div>
@@ -446,13 +440,6 @@
                                                 </div>
                                             @endif
 
-                                            <!-- @if($prevPenalty > 0)
-                                                <div class="text-end">
-                                                    <h6 class="text-danger" style="font-size: 12px;">
-                                                        + PHP {{ number_format($prevPenalty, 2) }} (PREVIOUS PENALTY)
-                                                    </h6>
-                                                </div>
-                                            @endif -->
 
                                             @if($applicablePenalty > 0)
                                                 <div class="text-end">

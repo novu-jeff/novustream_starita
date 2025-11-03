@@ -632,6 +632,8 @@ class PaymentController extends Controller
 
         $hitpayData = $response->json();
 
+        // dd($hitpayData);
+
         // ✅ Now update the Bill record with HitPay references
         $bill->update([
             'payment_method' => 'online',

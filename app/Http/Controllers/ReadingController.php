@@ -242,7 +242,7 @@ class ReadingController extends Controller
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
         ];
 
-        return view('reading.invoice', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
 
