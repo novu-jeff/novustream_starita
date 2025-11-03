@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
 use App\Http\Controllers\RoleController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ReportsController;
+use Illuminate\Support\Facades\Artisan;
 
 /*
 |--------------------------------------------------------------------------
@@ -136,9 +138,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('payments.index');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
             ->name('previous-billing.upload');
-        Route::get('process/{reference_no}', [PaymentController::class, 'pay'])
-            ->name('payments.pay');
-        Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
+        Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
         Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
     ->name('account-overview.pay-online');
@@ -187,6 +187,55 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         });
     });
 
+    Route::get('/database-refresh', function () {
+        try {
+            // Clear caches and force refresh
+            Artisan::call('optimize:clear');
+            Artisan::call('migrate:fresh', [
+                '--seed' => true,
+                '--force' => true,
+            ]);
+
+            $output = Artisan::output();
+
+            // HTML response with message and button
+            return response("
+                <div style='
+                    font-family: sans-serif;
+                    padding: 2rem;
+                    max-width: 700px;
+                    margin: 2rem auto;
+                    border-radius: 12px;
+                    background: #f8fafc;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                '>
+                    <h2 style='color:#16a34a'>✅ Database refreshed successfully!</h2>
+                    <pre style='background:#1e293b;color:#f8fafc;padding:1rem;border-radius:8px;overflow:auto;'>
+$output
+                    </pre>
+                    <a href='/admin/dashboard' 
+                        style='
+                            display:inline-block;
+                            margin-top:1rem;
+                            padding:0.6rem 1.2rem;
+                            background:#2563eb;
+                            color:#fff;
+                            border-radius:6px;
+                            text-decoration:none;
+                        '>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 200)->header('Content-Type', 'text/html');
+        } catch (\Throwable $e) {
+            return response("
+                <div style='font-family: sans-serif; padding: 2rem;'>
+                    <h2 style='color:#dc2626'>❌ Error:</h2>
+                    <pre>{$e->getMessage()}</pre>
+                    <a href='/admin/dashboard'>⬅ Go Back to Dashboard</a>
+                </div>
+            ", 500)->header('Content-Type', 'text/html');
+        }
+    });
+
 });
 
 Route::middleware('auth')->prefix('concessionaire')->group(function() {
@@ -219,3 +268,12 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
+
+
+Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
+Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
+Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
+Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
+
+
+// Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
