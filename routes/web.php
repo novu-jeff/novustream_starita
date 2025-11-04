@@ -21,6 +21,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
+use App\Http\Controllers\OfflineDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -283,3 +284,7 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 Route::post('/readings', [OfflineSyncController::class, 'store']);
 Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
+
+Route::get('/admin/offline/download', [OfflineDataController::class, 'download'])
+    ->name('offline.download')
+    ->middleware('auth');

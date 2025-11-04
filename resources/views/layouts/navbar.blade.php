@@ -34,7 +34,12 @@
 					⟳ Sync Now
 				</button>
 				<button id="installAppBtn" style="display:none;">📲 Install App</button>
-
+				<div class="d-flex justify-content-end mb-3">
+					<button id="downloadOfflineData" class="btn btn-success">
+						<i class="bx bx-download"></i> Download Offline Data
+					</button>
+				</div>
+				@endcanany
 				<script>
 				let deferredPrompt;
 				window.addEventListener('beforeinstallprompt', (e) => {
@@ -52,7 +57,7 @@
 				}
 				});
 				</script>
-				@endcan
+				
 				@canany(['admin', 'cashier'])
 					<a href="{{route('payments.index')}}"> Payments </a>
                     <a href="{{route('reports.download-index')}}"> Files </a>
