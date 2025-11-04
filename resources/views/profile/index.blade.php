@@ -18,6 +18,7 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>Update My Profile</h1>
             </div>
+            
             <div class="inner-content mt-5 pb-5">
                 @php
                     $prefix = Auth::guard('admins')->check() ? 'admin' : 'concessionaire';
@@ -85,6 +86,7 @@
                 }, 100);
             @endif
         });
+        $('#syncNowBtn').on('click', syncOfflineReadings);
     </script>
 @endsection
 

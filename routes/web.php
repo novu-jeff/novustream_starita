@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\OfflineSyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -277,3 +278,8 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
+
+// Offline Sync Routes
+
+Route::post('/readings', [OfflineSyncController::class, 'store']);
+Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
