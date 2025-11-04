@@ -523,7 +523,7 @@ $propertyTypeId = DB::table('property_types')
 
             BillDiscount::create([
                 'bill_id' => $bill->id,
-                'name' => 'Franchise Discount',
+                'name' => 'Franchise Tax',
                 'description' => ($discountRate * 100) . '%',
                 'amount' => $hardcodedAmount,
             ]);

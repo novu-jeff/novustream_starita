@@ -23,9 +23,46 @@
 
     <!-- Scripts -->
     @vite(['resources/sass/app.scss', 'resources/sass/dashboard.scss', 'resources/js/app.js'])
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#004aad">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
 </head>
 <body>
+    @if(auth()->user() && auth()->user()->user_type === 'technician')
+        <div id="connection-status" 
+            style="display:flex;justify-content:center;align-items:center;gap:8px;
+                    background:#004aad;color:white;text-align:center;
+                    padding:6px 10px;font-weight:600;position:sticky;top:0;z-index:9999;">
+            <span id="status-dot" 
+                style="width:10px;height:10px;border-radius:50%;background:#4caf50;
+                        display:inline-block;transition:background 0.3s ease;"></span>
+            <span id="status-text">Online</span>
+        </div>
+    @endif
+    <script>
+    window.addEventListener('load', () => {
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
+    const bar = document.getElementById('connection-status');
+
+    function updateStatus() {
+        if (navigator.onLine) {
+        dot.style.background = '#4caf50'; // green
+        text.textContent = 'Online';
+        bar.style.background = '#004aad';
+        } else {
+        dot.style.background = '#ff9800'; // orange
+        text.textContent = 'Offline - Readings will sync later';
+        bar.style.background = '#ff9800';
+        }
+    }
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+    });
+    </script>
     <div id="app">
         <main>
             @include('layouts.navbar')

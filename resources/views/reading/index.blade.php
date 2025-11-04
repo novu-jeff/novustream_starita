@@ -100,6 +100,52 @@
 @endsection
 
 @section('script')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+<script>
+localforage.config({ name: 'StaritaOfflineReadings' });
+const STORAGE_KEY = 'offline_readings';
+
+async function saveOfflineReading(payload) {
+  const existing = (await localforage.getItem(STORAGE_KEY)) || [];
+  existing.push({
+    ...payload,
+    synced: false,
+    saved_at: new Date().toISOString(),
+  });
+  await localforage.setItem(STORAGE_KEY, existing);
+  console.log('[OFFLINE] Reading saved locally:', payload);
+  alert('✅ Saved locally! Will sync when online.');
+}
+
+async function syncOfflineReadings() {
+  if (!navigator.onLine) return;
+  const stored = (await localforage.getItem(STORAGE_KEY)) || [];
+  const unsynced = stored.filter((r) => !r.synced);
+  if (!unsynced.length) return;
+
+  for (const r of unsynced) {
+    try {
+      const res = await fetch('{{ route("reading.store") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify(r)
+      });
+      if (res.ok) {
+        console.log('[SYNCED]', r.account_no);
+        r.synced = true;
+      }
+    } catch (err) {
+      console.warn('[SYNC FAILED]', r.account_no, err);
+    }
+  }
+
+  await localforage.setItem(STORAGE_KEY, stored);
+}
+window.addEventListener('online', syncOfflineReadings);
+</script>
 <script>
     let selectedAccountNo = null;
     let offset = 0;
@@ -567,7 +613,72 @@
             $(this).val('');
         });
 
-        $(document).on('click', '#proceedButton', function () {
+        // $(document).on('click', '#proceedButton', function () {
+        //     const presentReading = $('#present_reading').val();
+        //     const previousReading = $('#previous_reading').val();
+        //     const readingMonth = $('#reading_month').val();
+        //     const is_high_consumption = $('input[name="is_high_consumption"]:checked').val();
+
+        //     if (!selectedAccountNo) {
+        //         alert('error', 'Account number is missing.');
+        //         return;
+        //     }
+
+        //     // if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
+        //     //     alert('error', 'Present reading must be greater than previous reading.');
+        //     //     return;
+        //     // }
+
+        //     const postData = {
+        //         reading_month: readingMonth,
+        //         account_no: selectedAccountNo,
+        //         previous_reading: previousReading,
+        //         present_reading: presentReading,
+        //         is_high_consumption: is_high_consumption,
+        //         isReRead: isReRead,
+        //         reference_no: reference_no,
+        //         is_high_consumption,
+        //         high_consumption_note: $('#high_consumption_note').val(),
+        //     };
+
+        //     $.ajax({
+        //         url: '{{ route("reading.store") }}',
+        //         type: 'POST',
+        //         data: JSON.stringify(postData),
+        //         contentType: 'application/json',
+        //         headers: {
+        //             'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        //         },
+        //         success: function (response) {
+        //             alert(response.status, response.message);
+        //             $('#accountModal').modal('hide');
+        //             if (response.redirect_url) {
+        //                 fetchRecentReading(recentReading);
+        //                 setTimeout(() => {
+        //                     window.open(
+        //                         response.redirect_url,
+        //                         'popupWindow',
+        //                         'width=800,height=800,resizable=no,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
+        //                     );
+        //                 }, 2000);
+        //             } else {
+        //                 offset = 0;
+        //                 hasMoreData = true;
+        //                 fetchAccountData();
+        //             }
+        //         },
+        //         error: function (xhr) {
+        //             let errorMsg = 'An error occurred.';
+        //             if (xhr.responseJSON && xhr.responseJSON.message) {
+        //                 errorMsg = xhr.responseJSON.message;
+        //             }
+        //             alert('error', errorMsg);
+        //         }
+        //     });
+        // });
+
+        $(document).on('click', '#proceedButton', async function () {
+            console.log('✅ Proceed clicked');
             const presentReading = $('#present_reading').val();
             const previousReading = $('#previous_reading').val();
             const readingMonth = $('#reading_month').val();
@@ -578,22 +689,23 @@
                 return;
             }
 
-            // if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
-            //     alert('error', 'Present reading must be greater than previous reading.');
-            //     return;
-            // }
-
             const postData = {
                 reading_month: readingMonth,
                 account_no: selectedAccountNo,
                 previous_reading: previousReading,
                 present_reading: presentReading,
-                is_high_consumption: is_high_consumption,
-                isReRead: isReRead,
-                reference_no: reference_no,
                 is_high_consumption,
+                isReRead,
+                reference_no,
                 high_consumption_note: $('#high_consumption_note').val(),
             };
+
+            if (!navigator.onLine) {
+                console.log('🌐 Offline, saving locally...');
+                await saveOfflineReading(postData);
+                $('#accountModal').modal('hide');
+                return;
+            }
 
             $.ajax({
                 url: '{{ route("reading.store") }}',
@@ -604,17 +716,15 @@
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
                 success: function (response) {
+                    console.log('✅ Online response', response);
                     alert(response.status, response.message);
                     $('#accountModal').modal('hide');
                     if (response.redirect_url) {
-                        fetchRecentReading(recentReading);
                         setTimeout(() => {
-                            window.open(
-                                response.redirect_url,
-                                'popupWindow',
+                            window.open(response.redirect_url, 'popupWindow',
                                 'width=800,height=800,resizable=no,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
                             );
-                        }, 2000);
+                        }, 1000);
                     } else {
                         offset = 0;
                         hasMoreData = true;
@@ -622,11 +732,8 @@
                     }
                 },
                 error: function (xhr) {
-                    let errorMsg = 'An error occurred.';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMsg = xhr.responseJSON.message;
-                    }
-                    alert('error', errorMsg);
+                    console.warn('❌ AJAX error', xhr.status);
+                    alert('error', xhr.responseJSON?.message || 'Request failed.');
                 }
             });
         });
@@ -678,5 +785,16 @@
         fetchAccountData();
         fetchRecentReading();
     });
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/serviceworker.js').then(function (reg) {
+            console.log('ServiceWorker registered', reg);
+        }).catch(function (err) {
+            console.log('ServiceWorker registration failed:', err);
+        });
+    });
+}
 </script>
 @endsection
