@@ -235,12 +235,13 @@
 
                                         $today = \Carbon\Carbon::today();
                                         $prevUnpaid = ($data['current_bill']['previous_unpaid'] ?? 0);
+                                        $advances = ($data['current_bill']['advances'] ?? 0);
                                         $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                         @endphp
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                               ₱ {{ number_format($data['current_bill']['amount'] + $prevUnpaid + $penalty - $discount, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount'] + $prevUnpaid + $penalty - $discount - $advances, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>

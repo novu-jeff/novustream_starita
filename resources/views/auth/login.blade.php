@@ -168,9 +168,6 @@
           <p class="fs-6">Email: <a href="mailto:dpo@novulutions.com">dpo@novulutions.com</a> </p>
         </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary">Close</button>
-      </div>
     </div>
   </div>
 </div>

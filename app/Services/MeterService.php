@@ -552,6 +552,14 @@ class MeterService {
             ];
         }
 
+        $discounts = PaymentDiscount::all();
+        if ($discounts->isEmpty()) {
+            return [
+                'status' => 'error',
+                'message' => "We've noticed that there are no senior or franchise discounts. Please add first."
+            ];
+        }
+
         if (is_null($concessionaire)) {
             return [
                 'status' => 'error',
