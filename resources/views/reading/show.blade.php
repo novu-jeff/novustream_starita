@@ -161,13 +161,11 @@
                         </div>
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div>
-
                             @php
                                 $breakdown = collect($data['current_bill']['breakdown']);
                                 $arrears = $breakdown->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
                                 $deductions = $breakdown->reject(fn($item) => $item['name'] === 'Previous Balance')->values();
                             @endphp
-
 
                             @forelse($deductions as $deduction)
                                 @php
@@ -203,6 +201,25 @@
                                 </div>
                             @endif
                         </div>
+                        @php
+                            $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                            $discount = 0;
+                                if (isset($data['current_bill']['discount'])) {
+                                    if (is_array($data['current_bill']['discount'])) {
+                                        $discount = collect($data['current_bill']['discount'])->sum('amount');
+                                    } else {
+                                        $discount = (float) $data['current_bill']['discount'];
+                                    }
+                                }
+                            $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                            $dueDate = isset($data['current_bill']['due_date'])
+                                ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                : null;
+
+                            $today = \Carbon\Carbon::today();
+
+                            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                        @endphp
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
@@ -210,16 +227,23 @@
                                 {{number_format($data['current_bill']['amount'], 2)}}
                             </div>
                         </div>
-                        @if($arrears != 0)
+
+                        @php
+                            $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                            $advances = $data['current_bill']['advances'];
+
+
+                        @endphp
+                        @if($prevUnpaid != 0)
                             <div style="display: flex; justify-content: space-between;">
                                 <div style="text-transform: uppercase;">Arrears:</div>
-                                <div style="text-transform: uppercase;">{{$arrears}}</div>
+                                <div style="text-transform: uppercase;">{{$prevUnpaid}}</div>
                             </div>
                         @endif
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format(abs((float) $data['current_bill']['amount'] - (float) $arrears - (float) $totalDiscount - (float) ($franchise->amount ?? 0)), 2) }}</div>
+                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format(abs((float) $data['current_bill']['amount'] + (float) $prevUnpaid - (float) $discount - (float) $advances - (float) ($franchise->amount ?? 0)), 2) }}</div>
                         </div>
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -240,7 +264,7 @@
                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                {{number_format($data['current_bill']['assumed_amount_after_due'], 2)}}
+                                {{number_format($data['current_bill']['assumed_amount_after_due'] + $prevUnpaid - $advances - $discount, 2)}}
                             </div>
                         </div>
                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -253,7 +277,7 @@
                                         {{$prevConsump['month']}}
                                     </div>
                                     <div>
-                                        {{$prevConsump['value']}}
+                                        {{ !empty($prevConsump['value']) && $prevConsump['value'] != 0 ? $prevConsump['value'] : 'NA' }}
                                     </div>
                                 </div>
                             @endforeach
