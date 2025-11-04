@@ -306,6 +306,7 @@ class PaymentController extends Controller
 
         // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
         $amount = (float)($currentBill['amount'] ?? 0);
+        $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
         $discount = (float)($currentBill['discount'] ?? 0);
         $tax = (float) ($currentBill['tax'] ?? 0);
         $currentDay = now()->day;
@@ -316,7 +317,7 @@ class PaymentController extends Controller
 
         // ✅ Always ensure defaults
         $assumedPenalty = 0;
-        $assumedAmountAfterDue = $amount;
+        $assumedAmountAfterDue = $amount_afterDue;
 
         // 🔹 Try to compute based on dynamic penalty config
         if ($penaltyEntry) {
@@ -508,8 +509,8 @@ class PaymentController extends Controller
         $data = $result['data'];
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
-        $change = (float) $payload['payment_amount'] - $amount;
+        $amountPay = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['previous_unpaid'];
+        $change = (float) $payload['payment_amount'] - $amountPay;
         $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
 
         $saveChange = ($change != 0 && $forAdvancePayment);

@@ -500,7 +500,7 @@ $propertyTypeId = DB::table('property_types')
             ['reference_no' => $reference_no],
             [
                 'account_no' => $account_no,
-                'amount' => $amount,
+                'amount' => $amount + $penaltyAmount,
                 'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
