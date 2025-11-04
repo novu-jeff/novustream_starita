@@ -118,7 +118,7 @@
                                             ? \Carbon\Carbon::parse($row->bill_period_to)->format('M d, Y')
                                             : 'N/A' }}
                                     </td>
-                                    <td>₱{{ number_format((float)($row->amount ?? 0), 2) }}</td>
+                                    <td>₱{{ number_format((float)($row->total ?? 0), 2) }}</td>
                                     <td>
                                         {{ !empty($row->due_date)
                                             ? \Carbon\Carbon::parse($row->due_date)->format('M d, Y')
