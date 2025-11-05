@@ -252,6 +252,103 @@ class ReadingController extends Controller
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
+    public function orShow(string $reference_no)
+    {
+        $data = $this->meterService::getBill($reference_no);
+
+        if (isset($data['status']) && $data['status'] == 'error') {
+            if (empty($data['client']['account_no'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'No concessionaire found'
+                ]);
+            }
+
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
+        }
+
+        // Get base amount from bill
+        $amount = (float)($data['current_bill']['amount'] ?? 0);
+        $discount = (float)($data['current_bill']['discount'] ?? 0);
+
+        // Get today's penalty config
+        $currentDay = now()->day;
+
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $assumed_penalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumed_penalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback penalty if no match
+            $assumed_penalty = $amount * 0.15;
+        }
+
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        // Append to data array for Blade
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+        // 💰 Add service fees (same as pay())
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+
+        // 🧩 Generate HitPay checkout URL (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        // dd($reference_no, $paymentPayload);
+        // dd($hitpayData);
+
+         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
+
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
+        } else {
+            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+        }
+
+        // 🧾 Generate QR code (HitPay or fallback NovuPay)
+        $qr_code = $this->generateService::qr_code($url, 80);
+
+        // 🔹 Reread status
+        $isReRead = [
+            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
+        ];
+
+        return view('reading.orshow', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+    }
+
 
 
     public function report(Request $request)
@@ -426,13 +523,13 @@ class ReadingController extends Controller
             throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
-$propertyTypeId = DB::table('property_types')
-    ->whereRaw("
-        LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
-    ", [
-        strtolower(str_replace(['"', "'"], '', $account->property_type))
-    ])
-    ->value('id');
+        $propertyTypeId = DB::table('property_types')
+            ->whereRaw("
+                LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
+            ", [
+                strtolower(str_replace(['"', "'"], '', $account->property_type))
+            ])
+            ->value('id');
 
 
         if (!$propertyTypeId) {
@@ -477,16 +574,6 @@ $propertyTypeId = DB::table('property_types')
             ->first();
 
         $penaltyAmount = 0;
-
-        if ($penaltyEntry) {
-            $penaltyBase = $amount - ($computed['bill']['discount'] ?? 0);
-
-            if ($penaltyEntry->amount_type === 'percentage') {
-                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
-            } elseif ($penaltyEntry->amount_type === 'fixed') {
-                $penaltyAmount = floatval($penaltyEntry->amount);
-            }
-        }
 
         // Save bill
         $bill = Bill::updateOrCreate(
@@ -583,7 +670,25 @@ $propertyTypeId = DB::table('property_types')
 
         }
 
+        $total = $billData['total'];
+        $prevUnpaid = $billData['previous_unpaid'];
+        $discounted = $totalDiscount;
+
+        $totalAmountPenalty = $total - $prevUnpaid - $discounted;
+
+        if ($penaltyEntry) {
+            $penaltyBase = ($totalAmountPenalty ?? 0);
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $penaltyAmount = floatval($penaltyEntry->amount);
+            }
+        }
+
         $bill->update([
+            'penalty' => $penaltyAmount,
+            'amount' => $amount + $penaltyAmount,
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount
         ]);
