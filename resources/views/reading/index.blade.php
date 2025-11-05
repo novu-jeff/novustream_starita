@@ -262,35 +262,31 @@
 
                 data.forEach((account, index) => {
                     const status = account.status; // from concessioner_accounts table
+                    console.log('Account Status:', status);
                     const statusColors = {
-                        0: '#fff3cd', // NEW CONCESSIONAIRE (light yellow)
-                        1: '#ffffff', // ACTIVE (white)
-                        2: '#ffe0b2', // FOR DISCONNECTION (light orange)
-                        3: '#f8d7da', // DISCONNECTED (light red)
-                        4: '#cff4fc', // FOR RECONNECTION (light blue)
-                        5: '#e2e3e5'  // WRITTEN OFF (gray)
+                        AB: '#ffffff', // ACTIVE (white)
+                        BL: '#ffe0b2', // FOR DISCONNECTION (light orange)
+                        ID: '#f8d7da', // DISCONNECTED (light red)
+                        IV: '#cff4fc', // FOR RECONNECTION (light blue)
                     };
 
                     const statusNames = {
-                        0: 'NEW CONCESSIONAIRE',
-                        1: 'ACTIVE',
-                        2: 'FOR DISCONNECTION',
-                        3: 'DISCONNECTED',
-                        4: 'FOR RECONNECTION',
-                        5: 'WRITTEN OFF'
+                        AB: 'ACTIVE BILLED',
+                        BL: 'BLACK LISTED',
+                        ID: 'INACTIVE DELINQUENT',
+                        IV: 'INACTIVE DISCONNECTION	'
                     };
 
                     const bgColor = statusColors[status] || '#ffffff';
                     const statusName = statusNames[status] || 'UNKNOWN';
 
                     const dotColors = {
-                        0: '#ffc107', // NEW
-                        1: '#28a745', // ACTIVE
-                        2: '#ff9800', // FOR DISCONNECTION
-                        3: '#dc3545', // DISCONNECTED
-                        4: '#0dcaf0', // FOR RECONNECTION
-                        5: '#6c757d'  // WRITTEN OFF
+                        AB: '#28a745', // ACTIVE
+                        BL: '#ef2121ff', // FOR DISCONNECTION
+                        ID: '#dc3545', // DISCONNECTED
+                        IV: '#155101ff', // FOR RECONNECTION
                     };
+
 
                     const dotColor = dotColors[status] || '#6c757d';
 
@@ -708,13 +704,78 @@ if (!document.querySelector('#statusBar')) {
     </div>
   `);
 }
+function showNotify(type, message, opts = {}) {
+  // type: 'success' | 'error' | 'info'
+  if (window.Notyf) {
+    const notyf = new Notyf({ duration: opts.duration || 3000, ripple: true });
+    if (type === 'success') notyf.success(message);
+    else if (type === 'error') notyf.error(message);
+    else notyf.open({ type: 'info', message });
+  } else if (window.toastr) {
+    if (type === 'success') toastr.success(message);
+    else if (type === 'error') toastr.error(message);
+    else toastr.info(message);
+  } else {
+    // fallback
+    try { console.log(`[NOTIFY:${type}]`, message); } catch(e) {}
+    if (opts.silent) return;
+    alert(message);
+  }
+}
+// --- Auto-sync & reload on reconnect ------------------------------------------------
+async function handleOnlineReconnect() {
+  console.log('[NETWORK] Detected online status');
 
-window.addEventListener('online', () => {
-  const bar = document.querySelector('#statusBar');
-  bar.textContent = '🟢 Online';
-  bar.style.background = '#32cd32';
-  syncOfflineReadings();
-});
+  // small delay to let network stabilize
+  await new Promise(r => setTimeout(r, 800));
+
+  // attempt to sync offline readings if function exists
+  if (typeof syncOfflineReadings === 'function') {
+    try {
+      showNotify('info', 'Connection restored — syncing offline readings...');
+      await syncOfflineReadings();
+      showNotify('success', 'Offline readings synced successfully.');
+    } catch (err) {
+      console.error('[SYNC] Error during automatic sync', err);
+      showNotify('error', 'Sync failed. Connect again or check console.');
+      // still continue to reload so the page shows current online UI
+    }
+  } else {
+    console.warn('[SYNC] syncOfflineReadings() not found — skipping sync.');
+  }
+
+  // reload to reflect online state / fresh data
+  // small delay to ensure user sees the toast
+  setTimeout(() => {
+    console.log('[NETWORK] Reloading page to reflect online state');
+    location.reload();
+  }, 30000);
+}
+
+// register listener once
+window.addEventListener('online', handleOnlineReconnect);
+// Ensure any UI elements that trigger download call this function
+$(document).off('click', '#downloadOffline').on('click', '#downloadOffline', downloadOfflineData);
+$(document).off('click', '#downloadOfflineData').on('click', '#downloadOfflineData', downloadOfflineData);
+
+// --- Notify user when manual sync is done (if caller uses syncOfflineReadings directly) ---
+async function triggerSyncAndNotify() {
+  if (typeof syncOfflineReadings !== 'function') {
+    showNotify('error', 'Sync routine not available.');
+    return;
+  }
+  showNotify('info', 'Syncing offline readings...');
+  try {
+    await syncOfflineReadings();
+    showNotify('success', 'Offline readings synced.');
+  } catch (err) {
+    console.error('[MANUAL SYNC]', err);
+    showNotify('error', 'Sync failed. See console.');
+  }
+}
+
+// optional: attach to a button (if you have a sync button)
+$(document).off('click', '#syncOfflineNow').on('click', '#syncOfflineNow', triggerSyncAndNotify);
 
 window.addEventListener('offline', async () => {
   const bar = document.querySelector('#statusBar');
@@ -796,28 +857,47 @@ window.addEventListener('offline', async () => {
    📦 DOWNLOAD + AUTO-CACHE OFFLINE DATA
    =========================================================== */
 async function downloadOfflineData() {
+  // Reusable notifier
+  const notify = (type, msg) => {
+    if (window.Notyf) {
+      const n = new Notyf({ duration: 3000, ripple: true });
+      if (type === 'success') n.success(msg);
+      else if (type === 'error') n.error(msg);
+      else n.open({ type: 'info', message: msg });
+    } else {
+      // fallback to alert()
+      alert(msg);
+    }
+  };
+
   try {
+    notify('info', '📥 Downloading offline data… please wait.');
+
     const res = await fetch('{{ route("offline.download") }}');
-    // console.table(res);
+    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
     const data = await res.json();
-    console.table(data.accounts);
 
-    // Store separately for easier offline access
-    await localforage.setItem('offline_accounts', data.accounts);
-    await localforage.setItem('offline_previous', data.previous_readings);
-    await localforage.setItem('offline_rates', data.rates);
-    await localforage.setItem('offline_meta', {
-      property_types: data.property_types,
-      discounts: data.discounts,
-      discount_types: data.discount_types,
-      penalties: data.penalties
-    });
+    console.table(data.accounts || []);
+    console.log('[OFFLINE] Data structure:', data);
 
-    console.log('[OFFLINE] Data saved locally:', data);
-    alert('✅ Offline data downloaded successfully!');
+    // 🧠 Store each section separately for modular access later
+    await Promise.all([
+      localforage.setItem('offline_accounts', data.accounts),
+      localforage.setItem('offline_previous', data.previous_readings),
+      localforage.setItem('offline_rates', data.rates),
+      localforage.setItem('offline_meta', {
+        property_types: data.property_types,
+        discounts: data.discounts,
+        discount_types: data.discount_types,
+        penalties: data.penalties
+      })
+    ]);
+
+    console.log('[OFFLINE] ✅ Data saved locally:', data);
+    notify('success', '✅ Offline data downloaded successfully!');
   } catch (err) {
-    console.error('[OFFLINE] Download failed:', err);
-    alert('❌ Failed to download offline data.');
+    console.error('[OFFLINE] ❌ Download failed:', err);
+    notify('error', '❌ Failed to download offline data. Please check your connection.');
   }
 }
 
@@ -883,6 +963,99 @@ async function loadOfflineAccounts() {
       </div>`;
     container.insertAdjacentHTML('beforeend', html);
   });
+}
+
+/* ===========================================================
+   🔍 OFFLINE SEARCH HANDLER (MATCHES REAL CARD LAYOUT)
+   =========================================================== */
+$(document).on('input', '#search', async function () {
+  const query = $(this).val().trim().toLowerCase();
+  const searchBy = $('#search_by').val() || 'name';
+  const zone = $('#zone').val();
+  var cons_result = $('.concessionaire-result div').text();
+
+  if (navigator.onLine) return; // Skip if online (handled by API)
+
+  console.log('[OFFLINE SEARCH] Searching offline cache for:', query);
+
+  const offlineAccounts = await localforage.getItem('offline_accounts') || [];
+  const accounts = offlineAccounts.accounts || offlineAccounts; // handle either format
+
+  if (!accounts?.length) {
+    console.warn('[OFFLINE SEARCH] No cached accounts found.');
+    return $('#accountsContainer').html(`
+      <p class="text-center text-muted py-4">⚠️ No offline data available. Please download offline data first.</p>
+    `);
+  }
+
+  const results = accounts.filter(acc => {
+    const matchZone = zone === 'ALL' || !zone || acc.zone === zone;
+    if (!matchZone) return false;
+
+    if (!query) return true; // show all if empty
+
+    const searchField =
+      searchBy === 'account_no'
+        ? acc.account_no
+        : searchBy === 'address'
+        ? acc.address
+        : acc.name;
+
+    return searchField?.toLowerCase().includes(query);
+  });  
+
+  cons_result = results.length;
+
+  console.log(`[OFFLINE SEARCH] Found ${results.length} matches.`);
+  renderOfflineResults(results);
+});
+
+/* ===========================================================
+   🧩 RENDER OFFLINE RESULTS (MATCHES ORIGINAL CARD DESIGN)
+   =========================================================== */
+function renderOfflineResults(accounts) {
+  const container = $('.concessionaire-list');
+  container.empty();
+
+  // Update result count dynamically
+  const resultText = `${accounts.length} Concessionaire${accounts.length !== 1 ? 's' : ''} Found`;
+  $('.concessionaire-result div').text(resultText);
+  if (!accounts.length) {
+    container.html('<p class="text-center text-muted py-4">No accounts found.</p>');
+    return;
+  }
+
+  accounts.slice(0, 100).forEach(acc => {
+    const zoneColor = '#6c757d'; // gray default, could change if you have zone-color mapping
+
+    container.append(`
+      <div class="card mb-2 account-card" 
+           data-account='${JSON.stringify(acc)}'
+           data-account-no="${acc.account_no}">
+        <div class="card-body position-relative">
+
+          <div style="
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            top: 18px;
+            right: 25px;
+            background-color: ${zoneColor};
+          " title="${acc.zone || 'UNKNOWN'}"></div>
+
+          <h5 class="card-title mb-0 fw-normal">Account No: ${acc.account_no}</h5>
+          <hr class="my-2 mb-2">
+          <h5 class="fw-normal">Meter No: ${acc.meter_serial_no || '-'}</h5>
+          <h4>${acc.name || 'N/A'}</h4>
+          <h5 class="fw-normal text-capitalize">${acc.address || '-'}</h5>
+          <div class="mt-2 small text-muted fw-bold text-uppercase">${acc.zone || 'UNKNOWN'}</div>
+        </div>
+      </div>
+    `);
+  });
+
+  console.log('[OFFLINE SEARCH] Rendered', accounts.length, 'offline results.');
 }
 /* ===========================================================
    🧠 OFFLINE CLICK HANDLER (Final Clean Version)
@@ -1254,6 +1427,15 @@ async function selectOfflineAccount(accountNo) {
   selectedAccountNo = accountNo;
 
   console.log(`[OFFLINE] Prefilled previous reading for ${accountNo}: ${prevReading}`);
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/serviceworker.js')
+      .then(reg => console.log('[SW] Registered ✅', reg))
+      .catch(err => console.error('[SW] Failed ❌', err));
+  });
 }
 </script>
 @endsection

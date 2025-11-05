@@ -1,12 +1,15 @@
-const CACHE_NAME = "starita-reader-v2";
+const CACHE_NAME = "starita-reader-v3";
 const OFFLINE_URL = "/offline.html";
 
 // list essential app shell assets to cache on install
 const ASSETS_TO_CACHE = [
     "/",
     "/admin/reading",
+    "/offline.html",
     "/manifest.json",
     "/favicon.ico",
+    "/images/srwd_qr.png",
+    "/images/client.png",
     "/android-chrome-192x192.png",
     "/android-chrome-512x512.png",
     "/build/assets/app.css",
@@ -48,36 +51,38 @@ self.addEventListener("activate", (event) => {
     self.clients.claim();
 });
 
-// FETCH — serve from cache first, then network, then fallback
+// FETCH — smart cache-first handling
 self.addEventListener("fetch", (event) => {
     const { request } = event;
     if (request.method !== "GET") return;
 
-    // If navigation (HTML page) and offline — show fallback
-    if (request.mode === "navigate") {
+    // HTML Navigation requests (refresh, new tab)
+    if (request.mode === "navigate" || (request.headers.get("accept")?.includes("text/html"))) {
         event.respondWith(
             (async () => {
                 try {
-                    const preload = await event.preloadResponse;
-                    if (preload) return preload;
+                    // ✅ Try network first (when online)
                     const networkResponse = await fetch(request);
+                    const cache = await caches.open(CACHE_NAME);
+                    cache.put(request, networkResponse.clone());
                     return networkResponse;
                 } catch (err) {
                     console.warn("[SW] Offline fallback triggered:", err);
+                    // ✅ Fallback to cached /admin/reading or offline.html
                     const cache = await caches.open(CACHE_NAME);
-                    const cachedOffline = await cache.match(OFFLINE_URL);
-                    return cachedOffline;
+                    const cachedPage = await cache.match("/admin/reading") || await cache.match(OFFLINE_URL);
+                    return cachedPage;
                 }
             })()
         );
         return;
     }
 
-    // For assets or API requests — cache-first, then network fallback
+    // Non-HTML requests — Cache-first, then network
     event.respondWith(
         caches.match(request).then((cached) => {
             if (cached) {
-                // return cached immediately, update in background
+                // Update in background
                 fetch(request).then((response) => {
                     if (response && response.status === 200) {
                         caches.open(CACHE_NAME).then((cache) => cache.put(request, response));
@@ -86,7 +91,7 @@ self.addEventListener("fetch", (event) => {
                 return cached;
             }
 
-            // otherwise, try network and cache the response
+            // Try network, then fallback to offline.html
             return fetch(request)
                 .then((response) => {
                     if (!response || response.status !== 200) return response;

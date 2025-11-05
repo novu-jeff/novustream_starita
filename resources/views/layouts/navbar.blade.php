@@ -29,15 +29,17 @@
 					</div>
 				@endcan
 				@canany(['technician'])
-				<button id="syncNowBtn"
-						style="position:fixed;bottom:20px;left:20px;background:#1976d2;color:white;border:none;border-radius:5px;padding:10px 15px;">
-					⟳ Sync Now
-				</button>
-				<button id="installAppBtn" style="display:none;">📲 Install App</button>
-				<div class="d-flex justify-content-end mb-3">
-					<button id="downloadOfflineData" class="btn btn-success">
-						<i class="bx bx-download"></i> Download Offline Data
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Offline Mode
 					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><button id="downloadOfflineData" class="btn btn-success">
+								<i class="bx bx-download"></i> Download Offline Data
+							</button>
+						</li>
+						<li><button id="installAppBtn" style="display:block;">📲 Install App</button></li>
+					</ul>
 				</div>
 				@endcanany
 				<script>
