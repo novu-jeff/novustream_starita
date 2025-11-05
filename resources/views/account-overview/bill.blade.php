@@ -290,6 +290,32 @@
                                         $discounts = $data['current_bill']['discount'];
                                         $totalDiscount = collect($discounts)->sum('amount');
                                     @endphp
+                                    @php
+                                        $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                                        $discount = 0;
+                                            if (isset($data['current_bill']['discount'])) {
+                                                if (is_array($data['current_bill']['discount'])) {
+                                                    $discount = collect($data['current_bill']['discount'])->sum('amount');
+                                                } else {
+                                                    $discount = (float) $data['current_bill']['discount'];
+                                                }
+                                            }
+                                        $penalty = (float)($data['current_bill']['penalty'] ?? 0);
+                                        $dueDate = isset($data['current_bill']['due_date'])
+                                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                            : null;
+
+                                        $today = \Carbon\Carbon::today();
+
+                                        $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                    @endphp
+
+                                    @php
+                                        $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                                        $advances = $data['current_bill']['advances'];
+
+
+                                    @endphp
 
                                     @forelse($discounts as $discount)
                                         <div style="display: flex; justify-content: space-between;">
@@ -323,7 +349,7 @@
                                 <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                     <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
                                     <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">
-                                        {{ number_format(abs((float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount - (float) ($franchise->amount ?? 0)), 2) }}
+                                        {{number_format($data['current_bill']['total'] - $data['current_bill']['previous_unpaid'], 2)}}
                                     </div>
                                 </div>
                                 @if($arrears != 0)
@@ -335,7 +361,7 @@
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
+                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format(abs((float) $data['current_bill']['total'] - (float) $discount - (float) $advances - (float) ($franchise->amount ?? 0)), 2) }} </div>
                                 </div>
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -350,13 +376,13 @@
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase;">Penalty Amt: </div>
                                     <div style="text-transform: uppercase;">
-                                        {{ number_format($data['current_bill']['computed_penalty'], 2) }}
+                                        {{ number_format($data['current_bill']['penalty'], 2) }}
                                     </div>
                                 </div>
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                        {{ number_format($data['current_bill']['computed_amount_after_due'], 2) }}
+                                        {{number_format($data['current_bill']['amount_after_due'] - $penalty - $advances - $discount, 2)}}
                                     </div>
                                 </div>
                                 <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>

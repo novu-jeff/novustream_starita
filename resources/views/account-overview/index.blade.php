@@ -183,13 +183,13 @@
                                         </h3>
                                     </div>
                                     @foreach($statement['transactions'] as $bill)
-    @if(!$bill['isPaid'])
-        <form action="{{ route('account-overview.pay-online', $bill['reference_no']) }}" method="POST">
-            @csrf
-            <button type="submit" class="btn btn-primary">Pay Online</button>
-        </form>
-    @endif
-@endforeach
+                                        @if(!$bill['isPaid'])
+                                            <form action="{{ route('account-overview.pay-online', $bill['reference_no']) }}" method="POST">
+                                                @csrf
+                                                <button type="submit" class="btn btn-primary">Pay Online</button>
+                                            </form>
+                                        @endif
+                                    @endforeach
                                     <div class="mt-4 pt-2" style="font-size: 14px;">
                                         <div style="display:none;" id="statement-content">
                                             @forelse($statement['transactions'] as $key => $transactions)

@@ -28,6 +28,31 @@
 						</ul>
 					</div>
 				@endcan
+				@canany(['technician'])
+				<button id="syncNowBtn"
+						style="position:fixed;bottom:20px;left:20px;background:#1976d2;color:white;border:none;border-radius:5px;padding:10px 15px;">
+					⟳ Sync Now
+				</button>
+				<button id="installAppBtn" style="display:none;">📲 Install App</button>
+
+				<script>
+				let deferredPrompt;
+				window.addEventListener('beforeinstallprompt', (e) => {
+				e.preventDefault();
+				deferredPrompt = e;
+				document.getElementById('installAppBtn').style.display = 'block';
+				});
+
+				document.getElementById('installAppBtn').addEventListener('click', async () => {
+				if (deferredPrompt) {
+					deferredPrompt.prompt();
+					const choice = await deferredPrompt.userChoice;
+					console.log('User choice:', choice);
+					deferredPrompt = null;
+				}
+				});
+				</script>
+				@endcan
 				@canany(['admin', 'cashier'])
 					<a href="{{route('payments.index')}}"> Payments </a>
                     <a href="{{route('reports.download-index')}}"> Files </a>

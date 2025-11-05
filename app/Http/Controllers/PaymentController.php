@@ -259,6 +259,14 @@ class PaymentController extends Controller
             }
         }
 
+        // Replace or add this inside the pay() method
+        $currentBillId = $data['current_bill']['id'] ?? null;
+
+        if ($currentBillId) {
+            // Load the Bill model with its discount relation
+            $bill = \App\Models\Bill::with('discount')->find($currentBillId);
+            $data['current_bill']['discounts'] = $bill ? $bill->discount : collect();
+        }
 
         $data = $this->meterService::getBill($reference_no);
 
@@ -297,7 +305,8 @@ class PaymentController extends Controller
         }
 
         // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
-        $amount = (float)($currentBill['amount'] ?? 0);
+        $amount = (float)($currentBill['total'] ?? 0);
+        $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
         $discount = (float)($currentBill['discount'] ?? 0);
         $tax = (float) ($currentBill['tax'] ?? 0);
         $currentDay = now()->day;
@@ -308,7 +317,7 @@ class PaymentController extends Controller
 
         // ✅ Always ensure defaults
         $assumedPenalty = 0;
-        $assumedAmountAfterDue = $amount;
+        $assumedAmountAfterDue = $amount_afterDue;
 
         // 🔹 Try to compute based on dynamic penalty config
         if ($penaltyEntry) {
@@ -324,7 +333,7 @@ class PaymentController extends Controller
             $assumedPenalty = $amount * 0.10;
         }
 
-        $assumedAmountAfterDue = $amount + $assumedPenalty + $previousUnpaid + $tax;
+        $assumedAmountAfterDue = $amount + $previousUnpaid + $tax - $discount;
 
         $data['current_bill']['assumed_penalty'] = $assumedPenalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
@@ -367,7 +376,7 @@ class PaymentController extends Controller
 
     private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
     {
-
+        // 1. amount -> total
         $currentBill = (float) ($currentBillData['total'] ?? 0);
         $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
         $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
@@ -408,8 +417,8 @@ class PaymentController extends Controller
                 }
             }
         }
-
-        $totalDue = $arrears + ($currentBill - $discount) + $dueDatePenalty - $advancePayment + $tax;
+        // 2. removed arrears
+        $totalDue = ($currentBill - $discount) + $dueDatePenalty - $advancePayment + $tax;
         $totalDue = max(0, round($totalDue, 2));
 
         return [
@@ -499,9 +508,9 @@ class PaymentController extends Controller
 
         $data = $result['data'];
         $now = Carbon::now()->format('Y-m-d H:i:s');
-
-        $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
-        $change = (float) $payload['payment_amount'] - $amount;
+        // 3. amount -> total and removed + previous_unpaid
+        $amountPay = (float) $data['current_bill']['total'];
+        $change = (float) $payload['payment_amount'] - $amountPay;
         $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
 
         $saveChange = ($change != 0 && $forAdvancePayment);
@@ -564,7 +573,6 @@ class PaymentController extends Controller
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
-        dd($payload);
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
@@ -585,6 +593,7 @@ class PaymentController extends Controller
 
         // ✅ Define $bill model properly
         $bill = \App\Models\Bill::find($billData['id']);
+        // dd($result);
         if (!$bill) {
             return back()->with('alert', [
                 'status' => 'error',
@@ -593,21 +602,26 @@ class PaymentController extends Controller
         }
 
         // Prepare HitPay payload
-        $amount = number_format((float)$billData['amount'] + (float)$billData['penalty'], 2, '.', '');
+        $amount = number_format((float)$billData['total'], 2, '.', '');
+        $discount = number_format((float)$billData['discount'], 2, '.', '');
+        $advancePayment = number_format((float)$billData['advances'], 2, '.', '');
+        $amount_with_penalty = number_format((float)$billData['total'] + (float)$billData['penalty'], 2, '.', '');
         $hitpay_fee = 20;
         $novupay_fee = 10;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
-        $final_amount = $amount + $additional_service_fee;
+        $final_amount = $amount + $additional_service_fee - $advancePayment - $discount;
 
         $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
         $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
         $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+        $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
+
 
         $hitpayPayload = [
             'amount' => $amount + 30,
             'currency' => 'PHP',
             'email' => $email,
-            'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no} ----- Convenience Fee: PHP {$additional_service_fee}",
+            'purpose' => $purpose,
             'reference_number' => $reference_no,
             'redirect_url' => env('HITPAY_REDIRECT_URL'),
             'webhook' => env('HITPAY_WEBHOOK_URL'),
@@ -632,6 +646,8 @@ class PaymentController extends Controller
         }
 
         $hitpayData = $response->json();
+
+        // dd($hitpayData);
 
         // ✅ Now update the Bill record with HitPay references
         $bill->update([
@@ -668,28 +684,46 @@ class PaymentController extends Controller
                 return null;
             }
 
-            $amount = number_format(
-                (float)$billData['amount'] + (float)$billData['penalty'],
-                2,
-                '.',
-                ''
-            );
-             $hitpay_fee = 20;
+            $amount = number_format((float)$billData['amount'], 2, '.', '');
+            if($amount <= 2000) {
+                $hitpay_fee = 20;
+            }else {
+                $hitpay_fee = ($amount * 0.01);
+            }
             $novupay_fee = 10;
-            // $bill_amount = $data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount'] ?? 0;
             $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-            $final_amount = $amount + $additional_service_fee;
+            $final_amount = (float)$amount + $additional_service_fee;
 
-            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Customer');
-            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'jeff@novulutions.com');
+            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
+            $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
+
+            // 🧾 Purpose formatting
+            $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
+
+            // ⚙️ Default payment methods (include QRPH if allowed)
+            // $paymentMethods = ["gcash","gcash_qr","qrph_netbank","upay_bayd","upay_ecpy","upay_instapay","upay_online","upay_pchc","upay_plwn","xpay_card"];
+            $paymentMethods = ['gcash', 'qrph_netbank'];
+            // dd($final_amount, $paymentMethods);
+
+            // 🚫 If total amount < 800, remove QRPH from payment options
+            if ($final_amount < 800) {
+                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "qrph_netbank");
+                \Log::info('Removed QRPH (amount < 800)', [
+                    'reference_no' => $reference_no,
+                    'amount' => $final_amount
+                ]);
+            // removed gcash since it is costing us 2.5% unlike qrph which is only 1% or 20php per transaction
+            } else {
+                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "gcash");
+            }
 
             $hitpayPayload = [
                 'amount' => $final_amount,
                 'currency' => 'PHP',
                 'email' => $email,
-                'purpose' => "Sta. Rita Water District. Payment for Account # {$account_no}\nConvenience Fee: PHP {$additional_service_fee}",
+                'purpose' => $purpose,
                 'reference_number' => $reference_no,
                 'redirect_url' => env('HITPAY_REDIRECT_URL'),
                 'webhook' => env('HITPAY_WEBHOOK_URL'),
@@ -698,12 +732,16 @@ class PaymentController extends Controller
                 'name' => $payor,
                 'add_admin_fee' => true,
                 'admin_fee' => '15.00',
+                'payment_methods' => array_values($paymentMethods),
             ];
+
+            // dd($hitpayPayload);
 
             $response = \Http::withHeaders([
                 'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
             ])->post(env('HITPAY_API_URL') . '/payment-requests', $hitpayPayload);
 
+            // dd($response->body());
             if ($response->failed()) {
                 \Log::error('HitPay API request failed', ['body' => $response->body()]);
                 return null;
