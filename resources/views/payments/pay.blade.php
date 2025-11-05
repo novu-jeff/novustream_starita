@@ -75,15 +75,15 @@
                                             <div style="text-align: center; text-transform: uppercase;">
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Bill Date</div>
-                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
+                                                    <div>11/04/2025</div>
                                                 </div>
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Period</div>
-                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
+                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y')}} TO 11/04/2025</div>
                                                 </div>
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
-                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
+                                                    <div>11/18/2025</div>
                                                 </div>
                                                 <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                                     <ul style="list-style: none !important">
@@ -93,7 +93,7 @@
                                                 </div> -->
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Disconnection Date</div>
-                                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
+                                                    <div>11/25/2025</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -210,7 +210,7 @@
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Penalty Date: </div>
                                             <div style="text-transform: uppercase;">
-                                                {{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()->format('m/d/Y') }}
+                                                11/25/2025
                                             </div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
@@ -239,8 +239,8 @@
                                         $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                         @endphp
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
+                                            <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
+                                            <div style="text-transform: uppercase; font-size: 20px;">
                                                ₱ {{ number_format($data['current_bill']['amount'] - $discount - $advances, 2) }}
                                             </div>
                                         </div>

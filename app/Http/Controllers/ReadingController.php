@@ -438,7 +438,7 @@ class ReadingController extends Controller
 
     public function store(Request $request) {
         $payload = $request->all();
-
+        \Log::info('SYNC PAYLOAD', $request->all());
         if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
             session()->forget('recent_reading');
             return response()->json([
@@ -467,7 +467,14 @@ class ReadingController extends Controller
         'present_reading' => 'required|integer|min:0',
         'is_high_consumption' => 'required|in:yes,no',
         'isReRead' => 'required|in:true,false',
-        'reference_no' => 'nullable|exists:bill,reference_no',
+        'reference_no' => [
+            'nullable',
+            function ($attribute, $value, $fail) use ($payload) {
+                if (!empty($payload['from_offline']) && !str_starts_with($value, 'NST-SRWD')) {
+                    $fail('Invalid offline reference format.');
+                }
+            },
+        ],
         'high_consumption_note' => 'nullable|string|max:255',
     ]);
 
@@ -759,48 +766,6 @@ class ReadingController extends Controller
             return $amountNoDot;
         }
     }
-
-    // private function generatePaymentQR(string $reference_no, array $payload) {
-
-    //     // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
-    //     $api = 'http://localhost/api/v1/save/transaction';
-
-    //     $ch = curl_init($api);
-    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    //     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    //     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    //         'Content-Type: application/json'
-    //     ]);
-    //     curl_setopt($ch, CURLOPT_POST, true);
-    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-
-    //     $response = curl_exec($ch);
-    //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    //     $curlError = curl_errno($ch) ? curl_error($ch) : null;
-    //     curl_close($ch);
-
-    //     $decodedResponse = json_decode($response, true);
-
-    //     if(is_null($decodedResponse)) {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    //     if ($httpCode == 200) {
-
-    //         if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-    //             return true;
-    //         } else {
-    //             Log::error('error: ' . $decodedResponse);
-    //             return false;
-    //         }
-
-    //     } else {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    // }
 
     // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)

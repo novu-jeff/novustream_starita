@@ -25,7 +25,6 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
-
                                     <div class="col-md-6 mb-3">
                                         <label for="filter" class="form-label">Filter</label>
                                         <select name="filter" id="filter" class="form-select dropdown-toggle">
@@ -40,21 +39,20 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
-
                                     <div class="col-md-6 mb-3">
                                         <label for="search_by" class="form-label">Search By</label>
                                         <select name="search_by" id="search_by" class="form-select dropdown-toggle text-uppercase">
-                                            <option value="name">Name</option>
-                                            <option value="account_no">Account No</option>
-                                            <option value="meter_serial_no">Meter No</option>
-                                            <option value="read">Read Accounts</option>
-                                            <option value="unread">Unread Accounts</option>
-                                        </select>
+                                        <option value="name">Name</option>
+                                        <option value="account_no">Account No</option>
+                                        <option value="meter_serial_no">Meter No</option>
+                                        <option value="read">Read Accounts</option>
+                                        <option value="unread">Unread Accounts</option>
+                                    </select>
+
                                         @error('search_by')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
-
                                     <div class="col-md-12 mb-3">
                                         <label for="search" class="form-label">Search</label>
                                         <input type="text" name="search" id="search" class="form-control text-uppercase" placeholder="Tap to search...">
@@ -74,19 +72,20 @@
 
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
-        <div class="modal fade" id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered text-uppercase">
+        <div class="modal fade " id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered text-uppercase" da>
                 <div class="modal-content text-uppercase">
                     <div class="modal-header px-4 text-uppercase">
                         <h5 class="modal-title text-uppercase" id="accountModalLabel"></h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4 text-uppercase">
-                        <div id="accountModalBody"></div>
+                        <div id="accountModalBody">
+
+                        </div>
                     </div>
                 </div>
             </div>
@@ -100,52 +99,6 @@
 @endsection
 
 @section('script')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
-<script>
-localforage.config({ name: 'StaritaOfflineReadings' });
-const STORAGE_KEY = 'offline_readings';
-
-async function saveOfflineReading(payload) {
-  const existing = (await localforage.getItem(STORAGE_KEY)) || [];
-  existing.push({
-    ...payload,
-    synced: false,
-    saved_at: new Date().toISOString(),
-  });
-  await localforage.setItem(STORAGE_KEY, existing);
-  console.log('[OFFLINE] Reading saved locally:', payload);
-  alert('✅ Saved locally! Will sync when online.');
-}
-
-async function syncOfflineReadings() {
-  if (!navigator.onLine) return;
-  const stored = (await localforage.getItem(STORAGE_KEY)) || [];
-  const unsynced = stored.filter((r) => !r.synced);
-  if (!unsynced.length) return;
-
-  for (const r of unsynced) {
-    try {
-      const res = await fetch('{{ route("reading.store") }}', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify(r)
-      });
-      if (res.ok) {
-        console.log('[SYNCED]', r.account_no);
-        r.synced = true;
-      }
-    } catch (err) {
-      console.warn('[SYNC FAILED]', r.account_no, err);
-    }
-  }
-
-  await localforage.setItem(STORAGE_KEY, stored);
-}
-window.addEventListener('online', syncOfflineReadings);
-</script>
 <script>
     let selectedAccountNo = null;
     let offset = 0;
@@ -187,9 +140,9 @@ window.addEventListener('online', syncOfflineReadings);
                     $('#accountModal .modal-title').html('Proceed Re-Reading');
 
                     let modalContent = `
-                        <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${response.account_no}</p>
-                        <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${response.name ?? 'N/A'}</p>
-                        <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${response.address ?? 'N/A'}</p>
+                        <p class="mb-1" offline-accountNo><strong class="text-uppercase">Account No:</strong> ${response.account_no}</p>
+                        <p class="mb-1 offline-name"><strong class="text-uppercase">Name:</strong> ${response.name ?? 'N/A'}</p>
+                        <p class="mb-1" offline-address><strong class="text-uppercase">Address:</strong> ${response.address ?? 'N/A'}</p>
                         `
                         if(sc_expired_date != null) {
                             modalContent += `<div class="text-uppercase fw-bold mt-3  text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div`
@@ -309,6 +262,7 @@ window.addEventListener('online', syncOfflineReadings);
 
                 data.forEach((account, index) => {
                     const status = account.status; // from concessioner_accounts table
+                    console.log('Account Status:', status);
                     const statusColors = {
                         AB: '#ffffff', // ACTIVE (white)
                         BL: '#ffe0b2', // FOR DISCONNECTION (light orange)
@@ -332,6 +286,7 @@ window.addEventListener('online', syncOfflineReadings);
                         ID: '#dc3545', // DISCONNECTED
                         IV: '#155101ff', // FOR RECONNECTION
                     };
+
 
                     const dotColor = dotColors[status] || '#6c757d';
 
@@ -613,72 +568,7 @@ window.addEventListener('online', syncOfflineReadings);
             $(this).val('');
         });
 
-        // $(document).on('click', '#proceedButton', function () {
-        //     const presentReading = $('#present_reading').val();
-        //     const previousReading = $('#previous_reading').val();
-        //     const readingMonth = $('#reading_month').val();
-        //     const is_high_consumption = $('input[name="is_high_consumption"]:checked').val();
-
-        //     if (!selectedAccountNo) {
-        //         alert('error', 'Account number is missing.');
-        //         return;
-        //     }
-
-        //     // if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
-        //     //     alert('error', 'Present reading must be greater than previous reading.');
-        //     //     return;
-        //     // }
-
-        //     const postData = {
-        //         reading_month: readingMonth,
-        //         account_no: selectedAccountNo,
-        //         previous_reading: previousReading,
-        //         present_reading: presentReading,
-        //         is_high_consumption: is_high_consumption,
-        //         isReRead: isReRead,
-        //         reference_no: reference_no,
-        //         is_high_consumption,
-        //         high_consumption_note: $('#high_consumption_note').val(),
-        //     };
-
-        //     $.ajax({
-        //         url: '{{ route("reading.store") }}',
-        //         type: 'POST',
-        //         data: JSON.stringify(postData),
-        //         contentType: 'application/json',
-        //         headers: {
-        //             'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        //         },
-        //         success: function (response) {
-        //             alert(response.status, response.message);
-        //             $('#accountModal').modal('hide');
-        //             if (response.redirect_url) {
-        //                 fetchRecentReading(recentReading);
-        //                 setTimeout(() => {
-        //                     window.open(
-        //                         response.redirect_url,
-        //                         'popupWindow',
-        //                         'width=800,height=800,resizable=no,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
-        //                     );
-        //                 }, 2000);
-        //             } else {
-        //                 offset = 0;
-        //                 hasMoreData = true;
-        //                 fetchAccountData();
-        //             }
-        //         },
-        //         error: function (xhr) {
-        //             let errorMsg = 'An error occurred.';
-        //             if (xhr.responseJSON && xhr.responseJSON.message) {
-        //                 errorMsg = xhr.responseJSON.message;
-        //             }
-        //             alert('error', errorMsg);
-        //         }
-        //     });
-        // });
-
-        $(document).on('click', '#proceedButton', async function () {
-            console.log('✅ Proceed clicked');
+        $(document).on('click', '#proceedButton', function () {
             const presentReading = $('#present_reading').val();
             const previousReading = $('#previous_reading').val();
             const readingMonth = $('#reading_month').val();
@@ -689,23 +579,22 @@ window.addEventListener('online', syncOfflineReadings);
                 return;
             }
 
+            // if (!presentReading || isNaN(presentReading) || Number(presentReading) <= Number(previousReading)) {
+            //     alert('error', 'Present reading must be greater than previous reading.');
+            //     return;
+            // }
+
             const postData = {
                 reading_month: readingMonth,
                 account_no: selectedAccountNo,
                 previous_reading: previousReading,
                 present_reading: presentReading,
+                is_high_consumption: is_high_consumption,
+                isReRead: isReRead,
+                reference_no: reference_no,
                 is_high_consumption,
-                isReRead,
-                reference_no,
                 high_consumption_note: $('#high_consumption_note').val(),
             };
-
-            if (!navigator.onLine) {
-                console.log('🌐 Offline, saving locally...');
-                await saveOfflineReading(postData);
-                $('#accountModal').modal('hide');
-                return;
-            }
 
             $.ajax({
                 url: '{{ route("reading.store") }}',
@@ -716,15 +605,17 @@ window.addEventListener('online', syncOfflineReadings);
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
                 success: function (response) {
-                    console.log('✅ Online response', response);
                     alert(response.status, response.message);
                     $('#accountModal').modal('hide');
                     if (response.redirect_url) {
+                        fetchRecentReading(recentReading);
                         setTimeout(() => {
-                            window.open(response.redirect_url, 'popupWindow',
+                            window.open(
+                                response.redirect_url,
+                                'popupWindow',
                                 'width=800,height=800,resizable=no,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
                             );
-                        }, 1000);
+                        }, 2000);
                     } else {
                         offset = 0;
                         hasMoreData = true;
@@ -732,8 +623,11 @@ window.addEventListener('online', syncOfflineReadings);
                     }
                 },
                 error: function (xhr) {
-                    console.warn('❌ AJAX error', xhr.status);
-                    alert('error', xhr.responseJSON?.message || 'Request failed.');
+                    let errorMsg = 'An error occurred.';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    alert('error', errorMsg);
                 }
             });
         });
@@ -786,15 +680,762 @@ window.addEventListener('online', syncOfflineReadings);
         fetchRecentReading();
     });
 </script>
+
+<!-- Offline Mode Logic -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+<script>
+/* ===========================================================
+   ⚙️ STARITA OFFLINE MODE ENHANCEMENT
+   =========================================================== */
+localforage.config({ name: 'StaritaOfflineReadings' });
+const STORAGE_KEY = 'offline_readings';
+const MASTER_KEY = 'offline_master_data';
+
+/* ===========================================================
+   🌐 ONLINE/OFFLINE STATUS BAR
+   =========================================================== */
+if (!document.querySelector('#statusBar')) {
+  document.body.insertAdjacentHTML('afterbegin', `
+    <div id="statusBar" style="
+      position:fixed;top:0;left:0;width:100%;
+      text-align:center;padding:6px;font-weight:bold;
+      color:white;z-index:9999;background:#32cd32;">
+      🟢 Online
+    </div>
+  `);
+}
+function showNotify(type, message, opts = {}) {
+  // type: 'success' | 'error' | 'info'
+  if (window.Notyf) {
+    const notyf = new Notyf({ duration: opts.duration || 3000, ripple: true });
+    if (type === 'success') notyf.success(message);
+    else if (type === 'error') notyf.error(message);
+    else notyf.open({ type: 'info', message });
+  } else if (window.toastr) {
+    if (type === 'success') toastr.success(message);
+    else if (type === 'error') toastr.error(message);
+    else toastr.info(message);
+  } else {
+    // fallback
+    try { console.log(`[NOTIFY:${type}]`, message); } catch(e) {}
+    if (opts.silent) return;
+    alert(message);
+  }
+}
+// --- Auto-sync & reload on reconnect ------------------------------------------------
+async function handleOnlineReconnect() {
+  console.log('[NETWORK] Detected online status');
+
+  // small delay to let network stabilize
+  await new Promise(r => setTimeout(r, 800));
+
+  // attempt to sync offline readings if function exists
+  if (typeof syncOfflineReadings === 'function') {
+    try {
+      showNotify('info', 'Connection restored — syncing offline readings...');
+      await syncOfflineReadings();
+      showNotify('success', 'Offline readings synced successfully.');
+    } catch (err) {
+      console.error('[SYNC] Error during automatic sync', err);
+      showNotify('error', 'Sync failed. Connect again or check console.');
+      // still continue to reload so the page shows current online UI
+    }
+  } else {
+    console.warn('[SYNC] syncOfflineReadings() not found — skipping sync.');
+  }
+
+  // reload to reflect online state / fresh data
+  // small delay to ensure user sees the toast
+  setTimeout(() => {
+    console.log('[NETWORK] Reloading page to reflect online state');
+    location.reload();
+  }, 30000);
+}
+
+// register listener once
+window.addEventListener('online', handleOnlineReconnect);
+// Ensure any UI elements that trigger download call this function
+$(document).off('click', '#downloadOffline').on('click', '#downloadOffline', downloadOfflineData);
+$(document).off('click', '#downloadOfflineData').on('click', '#downloadOfflineData', downloadOfflineData);
+
+// --- Notify user when manual sync is done (if caller uses syncOfflineReadings directly) ---
+async function triggerSyncAndNotify() {
+  if (typeof syncOfflineReadings !== 'function') {
+    showNotify('error', 'Sync routine not available.');
+    return;
+  }
+  showNotify('info', 'Syncing offline readings...');
+  try {
+    await syncOfflineReadings();
+    showNotify('success', 'Offline readings synced.');
+  } catch (err) {
+    console.error('[MANUAL SYNC]', err);
+    showNotify('error', 'Sync failed. See console.');
+  }
+}
+
+// optional: attach to a button (if you have a sync button)
+$(document).off('click', '#syncOfflineNow').on('click', '#syncOfflineNow', triggerSyncAndNotify);
+
+window.addEventListener('offline', async () => {
+  const bar = document.querySelector('#statusBar');
+  bar.textContent = '🔴 Offline Mode';
+  bar.style.background = '#ff4d4d';
+  await loadOfflineAccounts();
+});
+
+/* ===========================================================
+   💾 OFFLINE SAVE / SYNC HELPERS
+   =========================================================== */
+    async function saveOfflineReading(payload) {
+        const existing = (await localforage.getItem(STORAGE_KEY)) || [];
+        existing.push({ ...payload, synced: false, saved_at: new Date().toISOString() });
+        await localforage.setItem(STORAGE_KEY, existing);
+        alert('✅ Reading saved locally (offline mode). Will sync automatically.');
+    }
+
+    async function syncOfflineReadings() {
+    if (!navigator.onLine) return;
+    const stored = (await localforage.getItem(STORAGE_KEY)) || [];
+    const unsynced = stored.filter(r => !r.synced);
+    if (!unsynced.length) return;
+
+    console.log(`[SYNC] Attempting to sync ${unsynced.length} records...`);
+
+    for (const r of unsynced) {
+        const payload = {
+        account_no: r.account_no,
+        present_reading: r.present_reading,
+        previous_reading: r.previous_reading,
+        consumption: r.consumption,
+        reading_month: r.reading_month,
+        reference_no: r.reference_no,
+        is_high_consumption: r.is_high_consumption || 'no',
+        isReRead: r.isReRead || 'false',
+        reader_name: '{{ Auth::user()->name ?? "Offline Reader" }}',
+        zone: r.zone || 'UNKNOWN',
+        property_types_id: r.property_types_id || 1,
+        created_at: r.saved_at || new Date().toISOString(),
+        from_offline: true
+        };
+
+        try {
+        const res = await fetch('{{ route("reading.store") }}', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const text = await res.text();
+        let json = {};
+        try { json = JSON.parse(text); } catch {
+            console.warn('[SYNC] Non-JSON response:', text.slice(0, 200));
+            continue;
+        }
+
+        if (json.status === 'success') {
+            r.synced = true;
+            console.log('[SYNC OK]', payload.account_no);
+            if (json.redirect_url)
+            window.open(json.redirect_url, '_blank', 'width=800,height=800');
+        } else {
+            console.warn('[SYNC FAIL]', json.message || json);
+        }
+        } catch (err) {
+        console.error('[SYNC ERROR]', err);
+        }
+    }
+
+    await localforage.setItem(STORAGE_KEY, stored);
+    console.log('[SYNC COMPLETE]');
+    }
+
+/* ===========================================================
+   📦 DOWNLOAD + AUTO-CACHE OFFLINE DATA
+   =========================================================== */
+async function downloadOfflineData() {
+  // Reusable notifier
+  const notify = (type, msg) => {
+    if (window.Notyf) {
+      const n = new Notyf({ duration: 3000, ripple: true });
+      if (type === 'success') n.success(msg);
+      else if (type === 'error') n.error(msg);
+      else n.open({ type: 'info', message: msg });
+    } else {
+      // fallback to alert()
+      alert(msg);
+    }
+  };
+
+  try {
+    notify('info', '📥 Downloading offline data… please wait.');
+
+    const res = await fetch('{{ route("offline.download") }}');
+    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+    const data = await res.json();
+
+    console.table(data.accounts || []);
+    console.log('[OFFLINE] Data structure:', data);
+
+    // 🧠 Store each section separately for modular access later
+    await Promise.all([
+      localforage.setItem('offline_accounts', data.accounts),
+      localforage.setItem('offline_previous', data.previous_readings),
+      localforage.setItem('offline_rates', data.rates),
+      localforage.setItem('offline_meta', {
+        property_types: data.property_types,
+        discounts: data.discounts,
+        discount_types: data.discount_types,
+        penalties: data.penalties
+      })
+    ]);
+
+    console.log('[OFFLINE] ✅ Data saved locally:', data);
+    notify('success', '✅ Offline data downloaded successfully!');
+  } catch (err) {
+    console.error('[OFFLINE] ❌ Download failed:', err);
+    notify('error', '❌ Failed to download offline data. Please check your connection.');
+  }
+}
+
+/* AUTO-CACHE every fetchAccountData() call */
+(function patchFetchAccountData() {
+  const oldFetch = window.fetchAccountData;
+  if (typeof oldFetch !== 'function') return;
+  window.fetchAccountData = function (...args) {
+    const zone = $('#zone_no').val();
+    const filter = $('#filter').val();
+    const searchBy = $('#search_by').val();
+    const search = $('#search').val();
+    const params = { zone, filter, search_by: searchBy, search };
+    oldFetch.apply(this, args);
+    // after small delay, grab DOM data and cache
+    setTimeout(() => {
+      const accounts = [];
+      $('.account-card').each(function () {
+        try {
+          const acc = $(this).data('account');
+          if (acc) accounts.push(acc);
+        } catch {}
+      });
+      if (accounts.length > 0) {
+        localforage.setItem(MASTER_KEY, { accounts });
+        console.log(`[AUTO-CACHE] Saved ${accounts.length} accounts for offline use.`);
+      }
+    }, 1200);
+  };
+})();
+
+/* ===========================================================
+   📂 LOAD CACHED DATA WHEN OFFLINE
+   =========================================================== */
+async function loadOfflineAccounts() {
+  console.log('[OFFLINE] Loading cached accounts...');
+  const data = await localforage.getItem(MASTER_KEY);
+  const container = document.querySelector('.concessionaire-list');
+  const result = document.querySelector('.concessionaire-result');
+
+  if (!data || !data.accounts?.length) {
+    container.innerHTML = `<div class="alert alert-warning text-center">⚠️ No offline data found. Please go online and refresh or click "Download Offline Data".</div>`;
+    return;
+  }
+
+  result.innerHTML = `<div class="text-uppercase fw-bold text-muted mb-2">Accounts Found: ${data.accounts.length}</div>`;
+  container.innerHTML = '';
+
+  data.accounts.forEach(acc => {
+    const html = `
+      <div class="card shadow mb-3 account-card"
+           data-account='${JSON.stringify(acc)}'
+           style="cursor:pointer;position:relative;background:#fff;">
+        <div class="card-body">
+          <div style="width:12px;height:12px;border-radius:50%;position:absolute;top:18px;right:25px;background:#28a745;"></div>
+          <h5 class="card-title mb-0 fw-normal">Account No: ${acc.account_no}</h5>
+          <hr class="my-2 mb-2">
+          <h5 class="fw-normal">Meter No: ${acc.meter_serial_no || '-'}</h5>
+          <h4>${(acc.name || acc.user?.name || 'N/A').toUpperCase()}</h4>
+          <h5 class="fw-normal text-capitalize">${acc.address || ''}</h5>
+          <div class="mt-2 small text-muted fw-bold text-uppercase">ACTIVE</div>
+        </div>
+      </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+  });
+}
+
+/* ===========================================================
+   🔍 OFFLINE SEARCH HANDLER (MATCHES REAL CARD LAYOUT)
+   =========================================================== */
+$(document).on('input', '#search', async function () {
+  const query = $(this).val().trim().toLowerCase();
+  const searchBy = $('#search_by').val() || 'name';
+  const zone = $('#zone').val();
+  var cons_result = $('.concessionaire-result div').text();
+
+  if (navigator.onLine) return; // Skip if online (handled by API)
+
+  console.log('[OFFLINE SEARCH] Searching offline cache for:', query);
+
+  const offlineAccounts = await localforage.getItem('offline_accounts') || [];
+  const accounts = offlineAccounts.accounts || offlineAccounts; // handle either format
+
+  if (!accounts?.length) {
+    console.warn('[OFFLINE SEARCH] No cached accounts found.');
+    return $('#accountsContainer').html(`
+      <p class="text-center text-muted py-4">⚠️ No offline data available. Please download offline data first.</p>
+    `);
+  }
+
+  const results = accounts.filter(acc => {
+    const matchZone = zone === 'ALL' || !zone || acc.zone === zone;
+    if (!matchZone) return false;
+
+    if (!query) return true; // show all if empty
+
+    const searchField =
+      searchBy === 'account_no'
+        ? acc.account_no
+        : searchBy === 'address'
+        ? acc.address
+        : acc.name;
+
+    return searchField?.toLowerCase().includes(query);
+  });  
+
+  cons_result = results.length;
+
+  console.log(`[OFFLINE SEARCH] Found ${results.length} matches.`);
+  renderOfflineResults(results);
+});
+
+/* ===========================================================
+   🧩 RENDER OFFLINE RESULTS (MATCHES ORIGINAL CARD DESIGN)
+   =========================================================== */
+function renderOfflineResults(accounts) {
+  const container = $('.concessionaire-list');
+  container.empty();
+
+  // Update result count dynamically
+  const resultText = `${accounts.length} Concessionaire${accounts.length !== 1 ? 's' : ''} Found`;
+  $('.concessionaire-result div').text(resultText);
+  if (!accounts.length) {
+    container.html('<p class="text-center text-muted py-4">No accounts found.</p>');
+    return;
+  }
+
+  accounts.slice(0, 100).forEach(acc => {
+    const zoneColor = '#6c757d'; // gray default, could change if you have zone-color mapping
+
+    container.append(`
+      <div class="card mb-2 account-card" 
+           data-account='${JSON.stringify(acc)}'
+           data-account-no="${acc.account_no}">
+        <div class="card-body position-relative">
+
+          <div style="
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            top: 18px;
+            right: 25px;
+            background-color: ${zoneColor};
+          " title="${acc.zone || 'UNKNOWN'}"></div>
+
+          <h5 class="card-title mb-0 fw-normal">Account No: ${acc.account_no}</h5>
+          <hr class="my-2 mb-2">
+          <h5 class="fw-normal">Meter No: ${acc.meter_serial_no || '-'}</h5>
+          <h4>${acc.name || 'N/A'}</h4>
+          <h5 class="fw-normal text-capitalize">${acc.address || '-'}</h5>
+          <div class="mt-2 small text-muted fw-bold text-uppercase">${acc.zone || 'UNKNOWN'}</div>
+        </div>
+      </div>
+    `);
+  });
+
+  console.log('[OFFLINE SEARCH] Rendered', accounts.length, 'offline results.');
+}
+/* ===========================================================
+   🧠 OFFLINE CLICK HANDLER (Final Clean Version)
+   =========================================================== */
+$(document).on('click', '.account-card', async function () {
+  if (navigator.onLine) {
+    console.log('[OFFLINE] User is online — skipping offline handler.');
+    return;
+  }
+
+  console.log('[OFFLINE] Account card clicked — starting offline flow.');
+
+  try {
+    // Load cached offline data (array of accounts)
+    const cachedAccounts = await localforage.getItem('offline_accounts');
+    console.log(`[DEBUG] Loaded ${cachedAccounts?.length || 0} offline accounts from cache.`);
+
+    if (!cachedAccounts || !cachedAccounts.length) {
+      alert('❌ No offline data found. Please download offline data first.');
+      console.warn('[DEBUG] offline_accounts not found or empty.');
+      return;
+    }
+
+    // Get account number from the clicked card
+    const accountDataAttr = $(this).data('account');
+    const accountNo =
+      accountDataAttr?.account_no ||
+      $(this).attr('data-account-no') ||
+      null;
+
+    if (!accountNo) {
+      alert('⚠️ Account number missing — cannot open offline modal.');
+      console.warn('[DEBUG] Missing account_no on clicked element.');
+      return;
+    }
+
+    console.log('[DEBUG] Looking for account:', accountNo);
+
+    // Find matching account in offline data
+    const account = cachedAccounts.find(a => a.account_no === accountNo);
+
+    if (!account) {
+      alert('❌ Account not found in offline data.');
+      console.warn('[DEBUG] Account not found. First few cached:', cachedAccounts.slice(0, 3));
+      return;
+    }
+
+    const prevReading = Number(account.previous_reading ?? 0);
+    console.log('[DEBUG] Found account:', account);
+    console.log('[DEBUG] Previous reading:', prevReading);
+
+    openOfflineModal(account, prevReading);
+
+  } catch (err) {
+    console.error('[OFFLINE] Error handling offline account:', err);
+    alert('⚠️ Something went wrong loading offline data.');
+  }
+});
+
+/* ===========================================================
+   📄 MODAL BUILDER
+   =========================================================== */
+function openOfflineModal(account, prevReading = 0) {
+  const today = new Date().toISOString().split('T')[0];
+
+  const modalContent = `
+    <p class="offline-accountNo"><strong>Account No:</strong> ${account.account_no}</p>
+    <p><strong>Name:</strong> <span class="offline-name">${account.name || 'N/A'}</span></p>
+    <p ><strong>Address:</strong> <span class="offline-address">${account.address || 'N/A'}</span></p>
+    <hr>
+
+    <div class="row mt-3">
+      <div class="col-md-12 mb-3">
+        <label class="form-label">Reading Month</label>
+        <input type="date" class="form-control h-extend" id="reading_month" value="${today}">
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Previous Reading</label>
+        <input type="number" class="form-control h-extend" id="previous_reading" value="${prevReading}" readonly>
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Present Reading</label>
+        <input type="number" class="form-control h-extend" id="present_reading" placeholder="Enter reading">
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label">Consumption</label>
+        <input type="text" class="form-control h-extend" id="consumption" value="0" readonly>
+      </div>
+    </div>
+
+    <div class="text-end mt-4">
+      <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold" id="proceedOffline">
+        Save Offline
+      </button>
+    </div>
+  `;
+
+  $('#accountModalBody').html(modalContent);
+  $('#accountModal').modal('show');
+
+  // Live consumption calculator
+  $(document).off('input', '#present_reading').on('input', '#present_reading', function () {
+    const present = Number($(this).val()) || 0;
+    const previous = Number($('#previous_reading').val()) || 0;
+    const consumption = Math.max(present - previous, 0);
+    $('#consumption').val(consumption);
+  });
+}
+/* Save offline */
+$(document).off('click', '#proceedOffline').on('click', '#proceedOffline', async function () {
+  const present = parseFloat($('#present_reading').val()) || 0;
+  const previous = parseFloat($('#previous_reading').val()) || 0;
+  const month = $('#reading_month').val();
+  const consumption = Math.max(present - previous, 0);
+  const adminId = '{{ Auth::id() ?? 0 }}';
+  const refNo = `NST-SRWD-0${adminId}-${Date.now()}`;
+  const name = $('.offline-name').text() || '';
+  const address = $('.offline-address').text() || '';
+
+  if (!selectedAccountNo) return alert('No account selected.');
+  if (present <= previous) return alert('Present reading must be greater than previous.');
+
+
+  const payload = {
+    account_no: selectedAccountNo,
+    name: name,
+    address: address,
+    reading_month: month,
+    previous_reading: previous,
+    present_reading: present,
+    consumption,
+    is_high_consumption: 'no',
+    isReRead: 'false',
+    reference_no: refNo,
+    synced: false,
+    saved_at: new Date().toISOString()
+  };
+
+  await saveOfflineReading(payload);
+  $('#accountModal').modal('hide');
+
+  // Show offline SOA preview immediately
+  console.log('[OFFLINE SOA] Opening preview for', payload);
+  openOfflineSOA(payload);
+});
+
+/* ===========================================================
+   🧾 OFFLINE SOA PREVIEW
+   =========================================================== */
+   async function openOfflineSOA(data) {
+    console.log('[OFFLINE SOA] Generating SOA for:', data);
+    const today = new Date();
+    const readingDate = new Date(data.reading_month);
+    const billDate = today.toLocaleDateString('en-PH');
+    
+    // Calculate disconnection and penalty dates
+    const disconnectionDate = new Date(readingDate);
+    disconnectionDate.setDate(disconnectionDate.getDate() + 15);
+    const penaltyDate = new Date(disconnectionDate);
+    penaltyDate.setDate(penaltyDate.getDate() + 1);
+
+    const refNo = data.reference_no || 'NST-SRWD-00' + Date.now();
+    const logoUrl = '{{ asset("images/client.png") }}';
+    const qrUrl = '{{ asset("images/srwd_qr.png") }}';
+    const reader = '{{ Auth::user()->name ?? "Offline Reader" }}';
+    // 💧 Compute Basic Charge & Billing Amounts
+    const offlineMasters = await localforage.getItem('offline_master_data');
+    console.log('[OFFLINE SOA] Loaded offline accounts for rate lookup:', offlineMasters?.length || 0);
+    const rates = offlineMasters?.rates || [];
+    console.log('[OFFLINE SOA] Loaded rates for calculation:', rates.length || 0);
+    const propertyTypeId = data.property_types_id || 1;
+    console.log('[OFFLINE SOA] Using property type ID:', propertyTypeId);
+    const consumption = Number(data.consumption || 0);
+    console.log('[OFFLINE SOA] Consumption for calculation:', consumption);
+    // Find the matching rate for the property type and consumption
+    let matchedRate = rates
+    .filter(r => r.property_types_id == propertyTypeId && r.cu_m <= consumption)
+    .sort((a, b) => b.cu_m - a.cu_m)[0];
+
+    // If no match, fallback to highest available for that property type
+    if (!matchedRate) {
+    matchedRate = rates
+        .filter(r => r.property_types_id == propertyTypeId)
+        .sort((a, b) => b.cu_m - a.cu_m)[0];
+    }
+
+    const basicCharge = matchedRate ? Number(matchedRate.amount) : 0;
+    const amountDue = basicCharge; // for now assume no discounts/unpaid
+    const penaltyAmt = amountDue * 0.10;
+    const amountAfterDue = amountDue + penaltyAmt;
+
+    // 🧾 For template rendering
+    const formatPeso = v => Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Offline SOA ${refNo}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <style>
+        body { font-family: Verdana, Geneva, Tahoma, sans-serif; font-size: 12px; background: #fff; }
+        .soa-wrapper {
+            position: relative;
+            max-width: 450px;
+            margin: 20px auto;
+            padding: 25px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.15);
+        }
+        .header { text-align:center; }
+        .header img { width:90px; margin-bottom:8px; }
+        .header p { margin:0; font-size:12px; text-transform:uppercase; }
+        .title { text-align:center; font-weight:700; font-size:18px; margin:10px 0; text-transform:uppercase; }
+        .divider { border-bottom:1px dashed #000; margin:8px 0; }
+        .row-line { display:flex; justify-content:space-between; margin:2px 0; text-transform:uppercase; font-size:13px; }
+        .highlight { font-weight:800; font-size:18px; }
+        .offline-badge {
+            position:absolute; top:10px; right:10px;
+            border:1px solid red; color:red; font-weight:700;
+            padding:3px 8px; border-radius:3px; font-size:10px;
+            text-transform:uppercase;
+        }
+        .watermark {
+            position:fixed; top:45%; left:0; right:0; text-align:center;
+            opacity:0.08; font-size:60px; transform:rotate(-25deg);
+            pointer-events:none;
+        }
+        .emp {
+            background:#000; color:#fff;
+            text-align:center; padding:6px;
+            font-size:12px; font-weight:600;
+            text-transform:uppercase;
+        }
+        @media print {
+            .no-print { display:none !important; }
+        }
+        </style>
+    </head>
+    <body>
+        <div class="watermark">OFFLINE COPY</div>
+
+        <div class="text-center mb-3 no-print">
+        <button class="btn btn-primary btn-sm me-2" onclick="window.print()">Print</button>
+        <button class="btn btn-secondary btn-sm" onclick="window.close()">Close</button>
+        </div>
+
+        <div class="soa-wrapper">
+        <div class="offline-badge">Offline</div>
+
+        <div class="header">
+            <img src="${logoUrl}" alt="Logo">
+            <p>Republic of the Philippines</p>
+            <p style="font-size:15px;font-weight:700;">Sta. Rita Water District</p>
+            <p>Zone 6 Dila-Dila, Santa Rita, Pampanga</p>
+            <p>Facebook Page: Sta. Rita Water District</p>
+            <p>Cell No. 0917-103-2421 | 0917-104-7196</p>
+            <p>TIN 261-304-832-000 Non VAT</p>
+        </div>
+
+        <div class="title">Statement of Account</div>
+        <div class="divider"></div>
+
+        <div style="text-transform:uppercase;">
+            <div class="row-line"><div><strong>Account No.</strong></div><div><strong>${data.account_no}</strong></div></div>
+            <div class="row-line"><div><strong>NAME: ${data.name || 'N/A'}</strong></div></div>
+            <div class="row-line"><div>ADDRESS: ${data.address || 'N/A'}</div></div>
+            <div class="row-line"><div>Meter No:</div><div>${data.meter_serial_no || '---'}</div></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="text-center fw-bold" style="margin:5px 0;">CURRENT BILLING INFO</div>
+        <div class="divider"></div>
+
+        <div>
+            <div class="row-line"><div>Bill Date</div><div>11/04/2025</div></div>
+            <div class="row-line"><div>Period</div><div>10/03/2025 TO 11/04/2025</div></div>
+            <div class="row-line"><div>Due Date</div><div></div>11/18/2025</div>
+            <div class="row-line"><div>Disconnection Date</div><div>11/25/2025</div></div>
+        </div>
+
+        <div class="divider"></div>
+        <div>
+            <div class="row-line"><div>Previous Reading</div><div>${data.previous_reading}</div></div>
+            <div class="row-line"><div>Present Reading</div><div>${data.present_reading}</div></div>
+            <div class="row-line highlight"><div>Cub. M Used</div><div>${data.consumption}</div></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="row-line"><div>Basic Charge</div><div>${formatPeso(basicCharge)}</div></div>
+        <div class="row-line highlight"><div>Current Billing:</div><div>${formatPeso(amountDue)}</div></div>
+        <div class="divider"></div>
+        <div class="row-line highlight"><div>Amount Due:</div><div>${formatPeso(amountDue)}</div></div>
+
+        <div class="divider"></div>
+        <div class="row-line"><div>Payment After Due Date</div><div></div></div>
+        <div class="row-line"><div>Penalty Date</div><div>11/19/2025</div></div>
+        <div class="row-line"><div>Penalty Amt</div><div>${formatPeso(penaltyAmt)}</div></div>
+        <div class="row-line highlight"><div>Amount After Due:</div><div>${formatPeso(amountAfterDue)}</div></div>
+
+        <div class="divider"></div>
+        <div class="text-center fw-bold" style="margin:5px 0;">6 Months Consumption History</div>
+        <div class="d-flex justify-content-between text-center" style="font-size:12px;">
+            <div>SEP<br>NA</div><div>AUG<br>NA</div><div>JUL<br>NA</div><div>JUN<br>NA</div><div>MAY<br>NA</div><div>APR<br>NA</div>
+        </div>
+
+        <div class="divider"></div>
+        <p class="text-center fw-bold" style="font-size:12px;">
+            Two (2) months of non-payment of bills mean AUTOMATIC DISCONNECTION
+        </p>
+
+        <div class="divider"></div>
+        <div class="row-line"><div>Bill No:</div><div>${refNo}</div></div>
+        <div class="row-line"><div>Meter Reader</div><div>${reader}</div></div>
+        <div class="row-line"><div>Time Stamp:</div><div>${today.toString()}</div></div>
+
+        <div class="divider"></div>
+        <div class="text-center mt-2">
+            <img src="${qrUrl}" alt="QR" width="90" /><br>
+            <h6 style="font-weight:bold;text-transform:uppercase;">Pay Now</h6>
+            <ol style="font-size:10px;text-transform:uppercase;display:inline-block;text-align:left;margin:0;padding-left:18px;">
+            <li>Scan the QR code.</li>
+            <li>Login to your account.</li>
+            <li>Pay the total amount due.</li>
+            <li>Keep your receipt.</li>
+            </ol>
+        </div>
+
+        <div class="divider"></div>
+        <div class="emp">This is NOT valid as Official Receipt</div>
+        </div>
+    </body>
+    </html>
+    `;
+
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.title = `Offline SOA ${refNo}`;
+    w.document.close();
+    setTimeout(() => w.print(), 600);
+    }
+/* ===========================================================
+   🧩 ADD MANUAL DOWNLOAD BUTTON
+   =========================================================== */
+$(document).ready(function () {
+  if (!$('#downloadOfflineData').length) {
+    $('.inner-content').prepend(`
+      <div class="text-end mb-3">
+        <button id="downloadOfflineData" class="btn btn-success">
+          <i class="bx bx-download"></i> Download Offline Data
+        </button>
+      </div>
+    `);
+  }
+});
+$(document).on('click', '#downloadOfflineData', downloadOfflineData);
+
+async function selectOfflineAccount(accountNo) {
+  const previousCache = (await localforage.getItem('offline_previous')) || {};
+  const prevReading = previousCache[accountNo] ?? 0;
+
+  $('#previous_reading').val(prevReading);
+  selectedAccountNo = accountNo;
+
+  console.log(`[OFFLINE] Prefilled previous reading for ${accountNo}: ${prevReading}`);
+}
+</script>
 <script>
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/serviceworker.js').then(function (reg) {
-            console.log('ServiceWorker registered', reg);
-        }).catch(function (err) {
-            console.log('ServiceWorker registration failed:', err);
-        });
-    });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/serviceworker.js')
+      .then(reg => console.log('[SW] Registered ✅', reg))
+      .catch(err => console.error('[SW] Failed ❌', err));
+  });
 }
 </script>
 @endsection
