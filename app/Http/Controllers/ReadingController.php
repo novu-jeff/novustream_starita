@@ -232,13 +232,22 @@ class ReadingController extends Controller
         // dd($hitpayData);
 
          // 🔗 Determine payment URL (HitPay or fallback NovuPay)
-
+        $billData = $data['current_bill'] ?? null;
         if ($hitpayData && !empty($hitpayData['url'])) {
             $url = $hitpayData['url']; // ✅ HitPay checkout link
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['id'] ?? 'N/A',
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
+            }
         } else {
             // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
             $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
         }
+
 
         // 🧾 Generate QR code (HitPay or fallback NovuPay)
         $qr_code = $this->generateService::qr_code($url, 80);
