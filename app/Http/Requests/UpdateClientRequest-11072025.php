@@ -50,24 +50,24 @@ class UpdateClientRequest extends FormRequest
         $id = $this->route('concessionaire');
 
         return [
-            'name' => 'nullable|string|max:255',
-            'email' => 'nullable|string',
-            'password' => 'nullable|min:8|confirmed',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $id,
+            'password' => 'required|min:8|confirmed',
             'confirm_password' => 'nullable|same:password',
-            'contact_no' => 'nullable|string',
+            'contact_no' => 'required|string',
 
-            'accounts' => 'nullable|array',
+            'accounts' => 'required|array',
             'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',
-            'accounts.*.account_no' => 'nullable|string',
-            'accounts.*.address' => 'nullable|string|max:255',
-            'accounts.*.property_type' => 'nullable|exists:property_types,id',
-            'accounts.*.rate_code' => 'nullable|numeric|gt:0',
-            'accounts.*.status' => ['nullable', Rule::in($validStatusCodes)],
-            'accounts.*.sc_no' => 'nullable|string',
+            'accounts.*.account_no' => 'required|string',
+            'accounts.*.address' => 'required|string|max:255',
+            'accounts.*.property_type' => 'required|exists:property_types,id',
+            'accounts.*.rate_code' => 'required|numeric|gt:0',
+            'accounts.*.status' => ['required', Rule::in($validStatusCodes),],
+            'accounts.*.sc_no' => 'required|string',
             'accounts.*.meter_brand' => 'nullable|string|max:256',
-            'accounts.*.meter_serial_no' => 'nullable|string',
-            'accounts.*.date_connected' => 'nullable|date',
-            'accounts.*.sequence_no' => 'nullable|string',
+            'accounts.*.meter_serial_no' => 'required|string',
+            'accounts.*.date_connected' => 'required|date',
+            'accounts.*.sequence_no' => 'required|string',
 
             'accounts.*.meter_type' => 'nullable|string|max:120',
             'accounts.*.meter_wire' => 'nullable|string|max:120',
@@ -77,7 +77,6 @@ class UpdateClientRequest extends FormRequest
             'accounts.*.isErcSealed' => 'nullable|boolean',
             'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048',
         ];
-
     }
 
     /**

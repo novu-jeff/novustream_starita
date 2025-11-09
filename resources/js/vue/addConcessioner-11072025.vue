@@ -397,7 +397,6 @@ export default {
   data() {
     return {
       loading: false,
-      disableValidation: true,
       concessioner: {
         name: '',
         contact_no: '',
@@ -535,10 +534,6 @@ export default {
         }
     },
     validateForm() {
-      if (this.disableValidation) {
-        this.errors = {};
-        return true;
-      }
     let valid = true;
     this.errors = {}; // reset errors
     let errorMessages = [];
@@ -580,8 +575,8 @@ export default {
         alert('Please fix the following errors:\n' + errorMessages.join('\n'));
     }
 
-    //return valid;
-    return true;
+    return valid;
+    //return true;
     },
     saveConcessioner() {
         this.loading = true;
