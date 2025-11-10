@@ -552,6 +552,14 @@ class MeterService {
             ];
         }
 
+        $discounts = PaymentDiscount::all();
+        if ($discounts->isEmpty()) {
+            return [
+                'status' => 'error',
+                'message' => "We've noticed that there are no senior or franchise discounts. Please add first."
+            ];
+        }
+
         if (is_null($concessionaire)) {
             return [
                 'status' => 'error',
@@ -861,20 +869,20 @@ class MeterService {
         return $result->toArray();
     }
 
-    private function generateReferenceNo() {
-
-        $prefix = env('REF_PREFIX');
+    private function generateReferenceNo()
+    {
+        $prefix = env('REF_PREFIX', 'NST-STA');
+        $technicianId = auth()->id() ?? '0';
 
         do {
             $time = time();
-            $combined = $prefix . '-' . $time;
-            $exists = Bill::where('reference_no', $combined)
-                ->exists();
+            $combined = "{$prefix}-0{$technicianId}-{$time}";
+
+            $exists = Bill::where('reference_no', $combined)->exists();
 
             if ($exists) {
                 sleep(1);
             }
-
         } while ($exists);
 
         return $combined;

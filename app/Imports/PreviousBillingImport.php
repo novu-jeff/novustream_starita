@@ -95,7 +95,7 @@ class PreviousBillingImport implements
         ]);
 
         $currentBillValue = $get(['current_bill']);
-        $arrearsValue = $get(['arrears', 'unpaid']);
+        $arrearsValue = $get(['arrears']);
 
         $amount = null;
         if ($currentBillValue !== null && $currentBillValue !== '') {
@@ -108,13 +108,23 @@ class PreviousBillingImport implements
             $amount = $this->cleanAmount($row['arrears']) + $this->cleanAmount($row['current_bill']);
         }
 
+        $total   = $this->cleanAmount($get(['current_bill']) ?? 0);
+        $penalty = $this->cleanAmount($get(['penalty']) ?? 0);
+        $arrears = $this->cleanAmount($get(['arrears']) ?? 0);
+        $currentBill = $this->cleanAmount($get(['current_bill']) ?? 0);
+
+        // Compute `amount` as total + penalty
+        $amount = $total + $penalty + $arrears;
+        $current_bills = $currentBill + $arrears;
+
         $bill = Bill::create([
             'reading_id'       => $reading_id,
             'reference_no'     => $get(['reference_no']),
             'bill_period_from' => $billing_from,
             'bill_period_to'   => $billing_to,
-            'previous_unpaid'  => $this->cleanAmount($get(['unpaid', 'arrears']) ?? 0),
-            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0),
+            'previous_unpaid'  => 0, // <-- arrears
+            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0), // <-- penalty stays
+            'total'            => $current_bills,
             'amount'           => $amount,
             'amount_paid'      => $this->cleanAmount($get(['amount_paid']) ?? 0),
             'change'           => $this->cleanAmount($get(['change']) ?? 0),

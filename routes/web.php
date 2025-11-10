@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\OfflineSyncController;
+use App\Http\Controllers\OfflineDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +56,7 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 // Handle register form
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
+
 
 Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
@@ -139,6 +142,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('previous-billing.upload');
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
+        Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
+    ->name('account-overview.pay-online');
+
+
+
     });
 
     Route::prefix('settings')->group(function() {
@@ -271,3 +279,12 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
+
+// Offline Sync Routes
+
+Route::post('/readings', [OfflineSyncController::class, 'store']);
+Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
+
+Route::get('/admin/offline/download', [OfflineDataController::class, 'download'])
+    ->name('offline.download')
+    ->middleware('auth');

@@ -64,3 +64,6 @@ Route::prefix('v1')->group(function() {
 });
 
 
+Route::post('/offline/reading-sync', [ReadingController::class, 'store'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
+    ->name('api.reading.sync');

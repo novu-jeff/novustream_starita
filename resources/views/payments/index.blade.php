@@ -118,7 +118,7 @@
                                             ? \Carbon\Carbon::parse($row->bill_period_to)->format('M d, Y')
                                             : 'N/A' }}
                                     </td>
-                                    <td>₱{{ number_format((float)($row->amount ?? 0), 2) }}</td>
+                                    <td>₱{{ number_format((float)($row->total ?? 0), 2) }}</td>
                                     <td>
                                         {{ !empty($row->due_date)
                                             ? \Carbon\Carbon::parse($row->due_date)->format('M d, Y')
@@ -132,7 +132,7 @@
                                                     <i class="bx bx-credit-card-alt"></i>
                                                 </a>
                                             @else
-                                                <a target="_blank" href="{{ route('reading.orshow', $row->reference_no) }}"
+                                                <a target="_blank" href="{{ route('reading.show', $row->reference_no) }}"
                                                 class="btn btn-primary text-white text-uppercase fw-bold"
                                                 id="show-btn" data-id="{{ $row->id }}">
                                                     <i class="bx bx-receipt"></i>

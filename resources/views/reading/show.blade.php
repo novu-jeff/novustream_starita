@@ -304,15 +304,56 @@
                             <div style="text-align: center; text-transform: uppercase;">
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Bill Date</div>
-                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
+                                    <div>11/04/2025</div>
                                 </div>
+                                    @php
+                                        use Carbon\Carbon;
+
+                                        $zone = $data['current_bill']['reading']['zone'] ?? null;
+                                        $zoneCode = substr($zone, 0, 3);
+
+                                        $books = [
+                                            '061' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
+                                            '071' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
+                                            '081' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
+                                            '091' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
+                                            '101' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
+                                            '111' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
+                                        ];
+
+                                        $date = '';
+                                        $due_date = '';
+                                        $disconnection_date = '';
+
+                                        // ✅ Determine date range
+                                        if (array_key_exists($zoneCode, $books)) {
+                                            $from = Carbon::parse($books[$zoneCode]['from'])->format('m/d/Y');
+                                            $to   = Carbon::parse($books[$zoneCode]['to'])->format('m/d/Y');
+                                            $date = "$from TO $to";
+                                        } else {
+                                            $date = '10/04/2025 TO 11/05/2025';
+                                        }
+
+                                        // ✅ Assign due and disconnection dates based on zone group
+                                        if (in_array($zoneCode, ['061', '071', '081'])) {
+                                            $due_date = Carbon::parse('2025-11-19')->format('m/d/Y');
+                                            $disconnection_date = Carbon::parse('2025-11-26')->format('m/d/Y');
+                                        } elseif (in_array($zoneCode, ['091', '101', '111'])) {
+                                            $due_date = Carbon::parse('2025-11-20')->format('m/d/Y');
+                                            $disconnection_date = Carbon::parse('2025-11-27')->format('m/d/Y');
+                                        } else {
+                                            $due_date = Carbon::parse('2025-11-21')->format('m/d/Y');
+                                            $disconnection_date = Carbon::parse('2025-11-28')->format('m/d/Y');
+                                        }
+                                    @endphp
+
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Period</div>
-                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
+                                    <div>{{$date}}</div>    
                                 </div>
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Due Date</div>
-                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
+                                    <div>{{$due_date}}</div>
                                 </div>
                                 <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                     <ul style="list-style: none !important">
@@ -322,7 +363,7 @@
                                 </div> -->
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Disconnection Date</div>
-                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
+                                    <div>{{$disconnection_date}}</div>
                                 </div>
                             </div>
                         </div>
@@ -343,13 +384,11 @@
                         </div>
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div>
-
                             @php
                                 $breakdown = collect($data['current_bill']['breakdown']);
                                 $arrears = $breakdown->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
                                 $deductions = $breakdown->reject(fn($item) => $item['name'] === 'Previous Balance')->values();
                             @endphp
-
 
                             @forelse($deductions as $deduction)
                                 @php
@@ -371,6 +410,7 @@
                             @endphp
 
                             @forelse($discounts as $discount)
+
                                 <div style="display: flex; justify-content: space-between;">
                                     <div style="text-transform: uppercase">{{$discount['name']}}</div>
                                     <div style="text-transform: uppercase">- ({{$discount['amount']}})</div>
@@ -385,23 +425,50 @@
                                 </div>
                             @endif
                         </div>
+                        @php
+                            $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                            $discount = 0;
+                                if (isset($data['current_bill']['discount'])) {
+                                    if (is_array($data['current_bill']['discount'])) {
+                                        $discount = collect($data['current_bill']['discount'])->sum('amount');
+                                    } else {
+                                        $discount = (float) $data['current_bill']['discount'];
+                                    }
+                                }
+                            $penalty = (float)($data['current_bill']['penalty'] ?? 0);
+                            $dueDate = isset($data['current_bill']['due_date'])
+                                ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                : null;
+
+                            $today = \Carbon\Carbon::today();
+
+                            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                        @endphp
+
+                        @php
+                            $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                            $advances = $data['current_bill']['advances'];
+
+
+                        @endphp
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">
-                                {{ number_format(abs((float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount - (float) ($franchise->amount ?? 0)), 2) }}
+                                {{number_format($data['current_bill']['total'] - $data['current_bill']['previous_unpaid'], 2)}}
                             </div>
                         </div>
-                        @if($arrears != 0)
+
+                        @if($prevUnpaid != 0)
                             <div style="display: flex; justify-content: space-between;">
                                 <div style="text-transform: uppercase;">Arrears:</div>
-                                <div style="text-transform: uppercase;">{{$arrears}}</div>
+                                <div style="text-transform: uppercase;">{{$prevUnpaid}}</div>
                             </div>
                         @endif
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
+                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format(abs((float) $data['current_bill']['total'] - (float) $discount - (float) $advances - (float) ($franchise->amount ?? 0)), 2) }}</div>
                         </div>
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -410,19 +477,19 @@
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Penalty Date: </div>
                             <div style="text-transform: uppercase;">
-                                {{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}
+                                11/19/2025
                             </div>
                         </div>
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Penalty Amt: </div>
                             <div style="text-transform: uppercase;">
-                                {{number_format($data['current_bill']['assumed_penalty'], 2)}}
+                                {{number_format($data['current_bill']['penalty'], 2)}}
                             </div>
                         </div>
                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
-                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
-                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                {{number_format($data['current_bill']['assumed_amount_after_due'], 2)}}
+                            <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
+                            <div style="text-transform: uppercase; font-size: 20px;">
+                                {{number_format($data['current_bill']['amount'] - $advances - $discount, 2)}}
                             </div>
                         </div>
                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -435,7 +502,7 @@
                                         {{$prevConsump['month']}}
                                     </div>
                                     <div>
-                                        {{$prevConsump['value']}}
+                                        {{ !empty($prevConsump['value']) && $prevConsump['value'] != 0 ? $prevConsump['value'] : 'NA' }}
                                     </div>
                                 </div>
                             @endforeach

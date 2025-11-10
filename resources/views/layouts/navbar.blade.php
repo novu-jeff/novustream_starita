@@ -28,6 +28,38 @@
 						</ul>
 					</div>
 				@endcan
+				@canany(['technician'])
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Offline Mode
+					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><button id="downloadOfflineData" class="btn btn-success">
+								<i class="bx bx-download"></i> Download Offline Data
+							</button>
+						</li>
+						<li><button id="installAppBtn" style="display:block;">📲 Install App</button></li>
+					</ul>
+				</div>
+				@endcanany
+				<script>
+				let deferredPrompt;
+				window.addEventListener('beforeinstallprompt', (e) => {
+				e.preventDefault();
+				deferredPrompt = e;
+				document.getElementById('installAppBtn').style.display = 'block';
+				});
+
+				document.getElementById('installAppBtn').addEventListener('click', async () => {
+				if (deferredPrompt) {
+					deferredPrompt.prompt();
+					const choice = await deferredPrompt.userChoice;
+					console.log('User choice:', choice);
+					deferredPrompt = null;
+				}
+				});
+				</script>
+				
 				@canany(['admin', 'cashier'])
 					<a href="{{route('payments.index')}}"> Payments </a>
                     <a href="{{route('reports.download-index')}}"> Files </a>

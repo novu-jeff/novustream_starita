@@ -210,7 +210,8 @@ class ReadingController extends Controller
         $novupay_fee = 10;
         $additional_service_fee = $hitpay_fee + $novupay_fee;
 
-        $final_amount = $assumed_amount_after_due + $additional_service_fee;
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
 
         // 🧾 Build payment payload
         $paymentPayload = [
@@ -223,14 +224,126 @@ class ReadingController extends Controller
             ],
         ];
 
+
         // 🧩 Generate HitPay checkout URL (your logic)
         $hitpayData = app(\App\Http\Controllers\PaymentController::class)
             ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        // dd($reference_no, $paymentPayload);
+        // dd($hitpayData);
+
+         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
+        $billData = $data['current_bill'] ?? null;
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['id'] ?? 'N/A',
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
+            }
+        } else {
+            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+        }
+
+
+        // 🧾 Generate QR code (HitPay or fallback NovuPay)
+        $qr_code = $this->generateService::qr_code($url, 80);
+
+        // 🔹 Reread status
+        $isReRead = [
+            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
+        ];
+
+        return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+    }
+
+    public function orShow(string $reference_no)
+    {
+        $data = $this->meterService::getBill($reference_no);
+
+        if (isset($data['status']) && $data['status'] == 'error') {
+            if (empty($data['client']['account_no'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'No concessionaire found'
+                ]);
+            }
+
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
+        }
+
+        // Get base amount from bill
+        $amount = (float)($data['current_bill']['amount'] ?? 0);
+        $discount = (float)($data['current_bill']['discount'] ?? 0);
+
+        // Get today's penalty config
+        $currentDay = now()->day;
+
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $assumed_penalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumed_penalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback penalty if no match
+            $assumed_penalty = $amount * 0.15;
+        }
+
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        // Append to data array for Blade
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+        // 💰 Add service fees (same as pay())
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+
+        // 🧩 Generate HitPay checkout URL (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        // dd($reference_no, $paymentPayload);
+        // dd($hitpayData);
+
+         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
 
         if ($hitpayData && !empty($hitpayData['url'])) {
             $url = $hitpayData['url']; // ✅ HitPay checkout link
         } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
         }
 
         // 🧾 Generate QR code (HitPay or fallback NovuPay)
@@ -242,7 +355,7 @@ class ReadingController extends Controller
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
         ];
 
-        return view('reading.invoice', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+        return view('reading.orshow', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
 
@@ -334,7 +447,7 @@ class ReadingController extends Controller
 
     public function store(Request $request) {
         $payload = $request->all();
-
+        \Log::info('SYNC PAYLOAD', $request->all());
         if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
             session()->forget('recent_reading');
             return response()->json([
@@ -363,7 +476,14 @@ class ReadingController extends Controller
         'present_reading' => 'required|integer|min:0',
         'is_high_consumption' => 'required|in:yes,no',
         'isReRead' => 'required|in:true,false',
-        'reference_no' => 'nullable|exists:bill,reference_no',
+        'reference_no' => [
+            'nullable',
+            function ($attribute, $value, $fail) use ($payload) {
+                if (!empty($payload['from_offline']) && !str_starts_with($value, 'NST-SRWD')) {
+                    $fail('Invalid offline reference format.');
+                }
+            },
+        ],
         'high_consumption_note' => 'nullable|string|max:255',
     ]);
 
@@ -419,13 +539,13 @@ class ReadingController extends Controller
             throw new \Exception('Present reading must be greater than or equal to previous reading.');
         }
 
-$propertyTypeId = DB::table('property_types')
-    ->whereRaw("
-        LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
-    ", [
-        strtolower(str_replace(['"', "'"], '', $account->property_type))
-    ])
-    ->value('id');
+        $propertyTypeId = DB::table('property_types')
+            ->whereRaw("
+                LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
+            ", [
+                strtolower(str_replace(['"', "'"], '', $account->property_type))
+            ])
+            ->value('id');
 
 
         if (!$propertyTypeId) {
@@ -471,22 +591,12 @@ $propertyTypeId = DB::table('property_types')
 
         $penaltyAmount = 0;
 
-        if ($penaltyEntry) {
-            $penaltyBase = $amount - ($computed['bill']['discount'] ?? 0);
-
-            if ($penaltyEntry->amount_type === 'percentage') {
-                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
-            } elseif ($penaltyEntry->amount_type === 'fixed') {
-                $penaltyAmount = floatval($penaltyEntry->amount);
-            }
-        }
-
         // Save bill
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
             [
                 'account_no' => $account_no,
-                'amount' => $amount,
+                'amount' => $amount + $penaltyAmount,
                 'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
@@ -501,16 +611,39 @@ $propertyTypeId = DB::table('property_types')
             // ->whereDate('expired_date', '>=', $today)
             ->first();
 
+        $hardcodedDiscounts = [
+            '011-22-011450' => 0.02, // 2%
+            '091-22-092230' => 0.05, // 5%
+            '111-22-111720' => 0.02, // 2%
+        ];
+        // 1. Apply discount if account is eligible
         $totalDiscount = 0;
+        $discountRecord = Discount::where('account_no', $account->account_no)->first();
+
+        if (isset($hardcodedDiscounts[$account_no])) {
+            $discountRate = $hardcodedDiscounts[$account_no];
+            $hardcodedAmount = round($basicCharge * $discountRate, 2);
+
+            BillDiscount::create([
+                'bill_id' => $bill->id,
+                'name' => 'Franchise Tax',
+                'description' => ($discountRate * 100) . '%',
+                'amount' => $hardcodedAmount,
+            ]);
+
+            $totalDiscount += $hardcodedAmount;
+        }
+
+        $ruling = DB::table('global_ruling')->first();
+        $consumptionLimit = $ruling->snr_dc_rule ?? 0;
 
         if ($discountRecord && $discountRecord->discount_type_id) {
-            $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
 
-            if ($discountRecord->discount_type_id == 1) {
+            // Only apply senior discount if consumption <= snr_dc_rule
+            if ($discountRecord->discount_type_id == 1 && $consumption <= $consumptionLimit) {
                 $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
 
                 if ($seniorDiscount) {
-                    //calculate baseAmount based on percentage_of
                     $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
 
                     $seniorAmount = $seniorDiscount->type === 'fixed'
@@ -553,7 +686,25 @@ $propertyTypeId = DB::table('property_types')
 
         }
 
+        $total = $billData['total'];
+        $prevUnpaid = $billData['previous_unpaid'];
+        $discounted = $totalDiscount;
+
+        $totalAmountPenalty = $total - $prevUnpaid - $discounted;
+
+        if ($penaltyEntry) {
+            $penaltyBase = ($totalAmountPenalty ?? 0);
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $penaltyAmount = floatval($penaltyEntry->amount);
+            }
+        }
+
         $bill->update([
+            'penalty' => $penaltyAmount,
+            'amount' => $amount + $penaltyAmount,
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount
         ]);
@@ -624,48 +775,6 @@ $propertyTypeId = DB::table('property_types')
             return $amountNoDot;
         }
     }
-
-    // private function generatePaymentQR(string $reference_no, array $payload) {
-
-    //     // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
-    //     $api = 'http://localhost/api/v1/save/transaction';
-
-    //     $ch = curl_init($api);
-    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    //     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    //     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    //         'Content-Type: application/json'
-    //     ]);
-    //     curl_setopt($ch, CURLOPT_POST, true);
-    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-
-    //     $response = curl_exec($ch);
-    //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    //     $curlError = curl_errno($ch) ? curl_error($ch) : null;
-    //     curl_close($ch);
-
-    //     $decodedResponse = json_decode($response, true);
-
-    //     if(is_null($decodedResponse)) {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    //     if ($httpCode == 200) {
-
-    //         if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-    //             return true;
-    //         } else {
-    //             Log::error('error: ' . $decodedResponse);
-    //             return false;
-    //         }
-
-    //     } else {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    // }
 
     // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)
