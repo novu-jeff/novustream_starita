@@ -35,7 +35,10 @@ class Bill extends Model
         'paid_by_reference_no',
         'cashier_id',
         'isChangeForAdvancePayment',
-        'high_consumption_note'
+        'high_consumption_note',
+        'hitpay_reference',
+        'hitpay_payment_id',
+        'initiated_at',
     ];
 
     protected $casts = [
