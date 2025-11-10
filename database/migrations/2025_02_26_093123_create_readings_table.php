@@ -51,6 +51,10 @@ return new class extends Migration
                 ->default(0);
             $table->string('amount_paid')
                 ->nullable();
+            $table->string('partial_payment')
+                ->nullable();
+            $table->boolean('isPartial')
+                ->default(false);
             $table->string('change')
                 ->nullable();
             $table->boolean('isPaid')

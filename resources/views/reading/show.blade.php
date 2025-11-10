@@ -186,8 +186,8 @@
         $discount = (float) $discount;
     }
 
-    $assumed_penalty = (float) ($cb['assumed_penalty'] ?? 0);
-    $total = round($amount + $arrears + $assumed_penalty - $discount, 2);
+    $penalty = (float) ($cb['penalty'] ?? 0);
+    $total = round($amount + $arrears + $penalty - $discount, 2);
 
     $pesos = intval(floor($total));
     $centavos = intval(round(($total - $pesos) * 100));
@@ -243,8 +243,6 @@
                 </button>
             @endif
         @endif
-<<<<<<< HEAD
-=======
         <div style="padding-bottom: 50px">
             <div id="bill" style="margin-top: 30px">
                 <div class="bill-container">
@@ -349,7 +347,7 @@
 
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Period</div>
-                                    <div>{{$date}}</div>    
+                                    <div>{{$date}}</div>
                                 </div>
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Due Date</div>
@@ -599,7 +597,6 @@
                 </div>
             </div>
         </div>
->>>>>>> 883d53890d1a80e799e7560ece1ae4ad62407c7b
     </div>
 <div class="container controls">
   <div class="d-flex justify-content-center gap-3">
@@ -687,17 +684,17 @@
             </tr>
           @endif
 
-          @if($assumed_penalty > 0)
+          @if($penalty > 0)
             <tr style="line-height: 5px;">
               <td>Penalty</td>
               <td></td>
-              <td class="text-end">₱ {{ number_format($assumed_penalty, 2) }}</td>
+              <td class="text-end">₱ {{ number_format($penalty, 2) }}</td>
             </tr>
           @endif
 
           {{-- Blank rows --}}
           @php
-            $filled = 1 + ($arrears > 0 ? 1 : 0) + ($assumed_penalty > 0 ? 1 : 0);
+            $filled = 1 + ($arrears > 0 ? 1 : 0) + ($penalty > 0 ? 1 : 0);
             $blank = 6 - $filled;
           @endphp
           @for($i = 0; $i < $blank; $i++)
@@ -828,9 +825,9 @@
   @endif
 
   {{-- Penalty --}}
-  @if($assumed_penalty > 0)
+  @if($penalty > 0)
     <div style="position:absolute; top:8.2cm; left:0.7cm; font-size:10px;">Penalty</div>
-    <div style="position:absolute; top:8.2cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($assumed_penalty,2) }}</div>
+    <div style="position:absolute; top:8.2cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($penalty,2) }}</div>
   @endif
 
   {{-- Discount --}}

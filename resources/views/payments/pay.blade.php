@@ -336,7 +336,7 @@
                                 @php
                                     $total = (float)($data['current_bill']['total'] ?? 0);
                                     $dbPenalty = (float)($data['current_bill']['penalty'] ?? 0);
-                                    $computedPenalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                    $computedPenalty = (float)($data['current_bill']['penalty'] ?? 0);
                                     $totalPenalty = $dbPenalty + $computedPenalty;
                                     $currentBill = (float)($data['current_bill']['amount'] ?? 0);
                                     $discount = 0;
@@ -347,7 +347,7 @@
                                                 $discount = (float) $data['current_bill']['discount'];
                                             }
                                         }
-                                    $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                    $penalty = (float)($data['current_bill']['penalty'] ?? 0);
                                     $dueDate = isset($data['current_bill']['due_date'])
                                         ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
                                         : null;
@@ -358,7 +358,7 @@
                                     $prevUnpaid = ($data['current_bill']['previous_unpaid'] ?? 0);
                                     $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
-                                    $netCurrentBill = max(0, $currentBill - $discount - $advancePayment + $prevPenalty);
+                                    $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
                                 @endphp
 
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
@@ -401,9 +401,11 @@
 
                                             $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
 
+                                            $partialPayment = $data['current_bill']['partial_payment'];
+
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
-                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty - $prevUnpaid ;
+                                            $totalDue = $arrears + $netCurrentBill + $applicablePenalty - $partialPayment;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -460,6 +462,11 @@
                                                 </div>
                                             @endif
 
+                                            @if($partialPayment > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($partialPayment, 2) }} (PARTIAL PAYMENT)</h6>
+                                                </div>
+                                            @endif
 
                                             @if($applicablePenalty > 0)
                                                 <div class="text-end">
@@ -664,14 +671,21 @@
                 let formattedChange = 'PHP ' + change.toFixed(2);
 
                 $('#changeAmount').text(formattedChange);
+                $('#isForAdvances').empty();
 
-                if (value < total) {
-                    $('#isForAdvances').empty();
-                } else if (value === total) {
+                if (value < total && value > 0) {
+                    // Show partial payment checkbox
+                    $('#isForAdvances').html(`
+                        <div class="form-check text-end">
+                            <input type="checkbox" id="partial_payment" name="partial_payment" class="form-check-input mb-1" value="1">
+                            <label for="partial_payment" class="form-label mb-0 fw-bold">Process as Partial Payment</label>
+                        </div>
+                    `);
+                }
+                else if (value === total) {
                     $('#changeAmount').text('PHP 0.00');
-                    $('#isForAdvances').empty();
-                } else {
-                    $('#changeAmount').text(formattedChange);
+                }
+                else if (value > total) {
                     $('#isForAdvances').html(`
                         <input type="checkbox" id="for_advances" name="for_advances" class="form-check-input mb-1" value="true">
                         <label for="for_advances" class="form-label mb-0">Save Change to Advance Payment</label>

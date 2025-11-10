@@ -247,131 +247,121 @@ class PaymentController extends Controller
 
 
     public function pay(Request $request, string $reference_no)
-    {
-        if ($request->getMethod() == 'POST') {
-            $payload = $request->all();
+{
+    if ($request->getMethod() == 'POST') {
+        $payload = $request->all();
 
-            switch ($payload['payment_type']) {
-                case 'cash':
-                    return $this->processCashPayment($reference_no, $payload);
-                case 'online':
-                    return $this->processOnlinePayment($reference_no, $payload);
-            }
+        switch ($payload['payment_type']) {
+            case 'cash':
+                return $this->processCashPayment($reference_no, $payload);
+            case 'online':
+                return $this->processOnlinePayment($reference_no, $payload);
         }
-
-        // Replace or add this inside the pay() method
-        $currentBillId = $data['current_bill']['id'] ?? null;
-
-        if ($currentBillId) {
-            // Load the Bill model with its discount relation
-            $bill = \App\Models\Bill::with('discount')->find($currentBillId);
-            $data['current_bill']['discounts'] = $bill ? $bill->discount : collect();
-        }
-
-        $data = $this->meterService::getBill($reference_no);
-
-        if (isset($data['status']) && $data['status'] === 'error') {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => $data['message']
-            ]);
-        }
-
-        // ⚙️ Validate reading
-        $currentBill = $data['current_bill'] ?? null;
-        if (!$currentBill || !isset($currentBill['reading_id'])) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'No reading found for this bill.'
-            ]);
-        }
-
-        $reading = \App\Models\Reading::find($currentBill['reading_id']);
-        if (!$reading) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Reading not found.'
-            ]);
-        }
-
-        // 🧾 Compute arrears stack (from co-dev)
-        $arrearsStack = collect();
-        $previousUnpaid = (float)($currentBill['previous_unpaid'] ?? 0);
-        if ($previousUnpaid > 0) {
-            $arrearsMonth = \Carbon\Carbon::parse($currentBill['bill_period_from'])
-                ->subMonth()
-                ->format('F');
-            $arrearsStack[$arrearsMonth] = $previousUnpaid;
-        }
-
-        // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
-        $amount = (float)($currentBill['total'] ?? 0);
-        $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
-        $discount = (float)($currentBill['discount'] ?? 0);
-        $tax = (float) ($currentBill['tax'] ?? 0);
-        $currentDay = now()->day;
-
-        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
-            ->where('due_to', '>=', $currentDay)
-            ->first();
-
-        // ✅ Always ensure defaults
-        $assumedPenalty = 0;
-        $assumedAmountAfterDue = $amount_afterDue;
-
-        // 🔹 Try to compute based on dynamic penalty config
-        if ($penaltyEntry) {
-            $penaltyBase = $amount - $discount;
-
-            if ($penaltyEntry->amount_type === 'percentage') {
-                $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
-            } elseif ($penaltyEntry->amount_type === 'fixed') {
-                $assumedPenalty = floatval($penaltyEntry->amount);
-            }
-        } else {
-            // fallback 10%
-            $assumedPenalty = $amount * 0.10;
-        }
-
-        $assumedAmountAfterDue = $amount + $previousUnpaid + $tax - $discount;
-
-        $data['current_bill']['assumed_penalty'] = $assumedPenalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
-
-        // 💰 Add service fees
-        $hitpay_fee = 20;
-        $novupay_fee = 10;
-        $additional_service_fee = $hitpay_fee + $novupay_fee;
-
-        $final_amount = $assumedAmountAfterDue + $additional_service_fee;
-
-        // 🧾 Build payment payload
-        $paymentPayload = [
-            'reference_no' => $reference_no,
-            'amount' => $final_amount,
-            'customer' => [
-                'name' => $data['client']['name'] ?? '',
-                'account_no' => $data['client']['account_no'] ?? '',
-                'address' => $data['client']['address'] ?? '',
-            ],
-        ];
-
-        // 🔹 Generate HitPay checkout link (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
-        } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-        }
-
-        // 🔹 Generate QR code (HitPay or fallback NovuPay)
-        $qr_code = $this->generateService::qr_code($url, 80);
-
-        return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
     }
 
+    $data = $this->meterService::getBill($reference_no);
+
+    if (isset($data['status']) && $data['status'] === 'error') {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => $data['message']
+        ]);
+    }
+
+    // ⚙️ Validate reading
+    $currentBill = $data['current_bill'] ?? null;
+    if (!$currentBill || !isset($currentBill['reading_id'])) {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => 'No reading found for this bill.'
+        ]);
+    }
+
+    $reading = \App\Models\Reading::find($currentBill['reading_id']);
+    if (!$reading) {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => 'Reading not found.'
+        ]);
+    }
+
+    // 🔹 Deduct previous partial payment (important new part)
+    if (!empty($currentBill['isPartial']) && $currentBill['isPartial'] == 1) {
+        $partialAmount = floatval($currentBill['partial_payment'] ?? 0);
+        $remaining = floatval($currentBill['total'] ?? 0);
+
+        if ($remaining < 0) $remaining = 0;
+
+        // Update total due shown to user
+        $data['current_bill']['total'] = $remaining;
+    }
+
+    // 🧾 Compute arrears stack
+    $arrearsStack = collect();
+    $previousUnpaid = (float)($currentBill['previous_unpaid'] ?? 0);
+    if ($previousUnpaid > 0) {
+        $arrearsMonth = \Carbon\Carbon::parse($currentBill['bill_period_from'])
+            ->subMonth()
+            ->format('F');
+        $arrearsStack[$arrearsMonth] = $previousUnpaid;
+    }
+
+    // 🧮 Use dynamic penalty computation
+    $amount = (float)($data['current_bill']['total'] ?? 0);
+    $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
+    $discount = (float)($currentBill['discount'] ?? 0);
+    $tax = (float)($currentBill['tax'] ?? 0);
+    $currentDay = now()->day;
+
+    $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+        ->where('due_to', '>=', $currentDay)
+        ->first();
+
+    $assumedPenalty = 0;
+    $assumedAmountAfterDue = $amount_afterDue;
+
+    if ($penaltyEntry) {
+        $penaltyBase = $amount - $discount;
+        if ($penaltyEntry->amount_type === 'percentage') {
+            $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
+        } elseif ($penaltyEntry->amount_type === 'fixed') {
+            $assumedPenalty = floatval($penaltyEntry->amount);
+        }
+    } else {
+        $assumedPenalty = $amount * 0.10; // fallback
+    }
+
+    $assumedAmountAfterDue = $amount + $previousUnpaid + $tax - $discount;
+
+    $data['current_bill']['assumed_penalty'] = $assumedPenalty;
+    $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+
+    // 💰 Add service fees
+    $hitpay_fee = 20;
+    $novupay_fee = 10;
+    $additional_service_fee = $hitpay_fee + $novupay_fee;
+    $final_amount = $assumedAmountAfterDue + $additional_service_fee;
+
+    // 🧾 Build payment payload
+    $paymentPayload = [
+        'reference_no' => $reference_no,
+        'amount' => $final_amount,
+        'customer' => [
+            'name' => $data['client']['name'] ?? '',
+            'account_no' => $data['client']['account_no'] ?? '',
+            'address' => $data['client']['address'] ?? '',
+        ],
+    ];
+
+    // 🔹 Generate HitPay checkout link (your logic)
+    $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+        ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+    $url = $hitpayData['url'] ?? env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    $qr_code = $this->generateService::qr_code($url, 80);
+
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
+}
 
 
     private function calculateTotalDue(array $currentBillData, ?array $payload = null, float $fullArrears = 0): array
@@ -379,7 +369,7 @@ class PaymentController extends Controller
         // 1. amount -> total
         $currentBill = (float) ($currentBillData['total'] ?? 0);
         $arrears = $fullArrears ?: (float) ($currentBillData['previous_unpaid'] ?? 0);
-        $prevPenalty = (float) ($currentBillData['penalty'] ?? 0);
+        $penalty = (float) ($currentBillData['penalty'] ?? 0);
 
         $discount = 0;
         if (isset($payload['discount'])) {
@@ -393,6 +383,7 @@ class PaymentController extends Controller
         }
 
         $advancePayment = (float) ($currentBillData['advances'] ?? 0);
+        $partialPayment = (float) ($currentBillData['partial_payment'] ?? 0);
         $dueDatePenalty = 0;
         $dueDate = $currentBillData['due_date'] ?? null;
         $tax = (float) ($currentBillData['tax'] ?? 0);
@@ -410,15 +401,15 @@ class PaymentController extends Controller
 
                 if ($penaltyRule) {
                     if ($penaltyRule->amount_type === 'percentage') {
-                        $dueDatePenalty = round($currentBill * floatval($penaltyRule->amount), 2);
+                        $dueDatePenalty = round($penalty, 2);
                     } elseif ($penaltyRule->amount_type === 'fixed') {
-                        $dueDatePenalty = round(floatval($penaltyRule->amount), 2);
+                        $dueDatePenalty = round(0, 2);
                     }
                 }
             }
         }
         // 2. removed arrears
-        $totalDue = ($currentBill - $discount) + $dueDatePenalty - $advancePayment + $tax;
+        $totalDue = $currentBill - $discount + $dueDatePenalty - $advancePayment - $partialPayment;
         $totalDue = max(0, round($totalDue, 2));
 
         return [
@@ -495,61 +486,79 @@ class PaymentController extends Controller
     }
 
 
-    public function processCashPayment(string $reference_no, array $payload) {
-
-        $result = $this->getBill($reference_no, $payload, true);
-
-        if (isset($result['error'])) {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => $result['error']
-            ]);
-        }
-
-        $data = $result['data'];
-        $now = Carbon::now()->format('Y-m-d H:i:s');
-        // 3. amount -> total and removed + previous_unpaid
-        $amountPay = (float) $data['current_bill']['total'];
-        $change = (float) $payload['payment_amount'] - $amountPay;
-        $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
-
-        $saveChange = ($change != 0 && $forAdvancePayment);
-
-        $currentBill = Bill::find($data['current_bill']['id']);
-
-        if ($currentBill) {
-            $currentBill->update([
-                'isPaid' => true,
-                'amount_paid' => $payload['payment_amount'],
-                'change' => $change,
-                'payor_name' => $payload['payor'],
-                'date_paid' => $now,
-                'isChangeForAdvancePayment' => $saveChange,
-                'payment_method' => 'cash',
-            ]);
-        }
-
-        if (!empty($data['unpaid_bills'])) {
-            foreach ($data['unpaid_bills'] as $unpaid_bill) {
-                $unpaidBill = Bill::find($unpaid_bill['id']);
-                if ($unpaidBill) {
-                    $unpaidBill->update([
-                        'payor_name' => $payload['payor'],
-                        'date_paid' => $now,
-                        'isPaid' => true,
-                        'amount_paid' => $payload['payment_amount'],
-                        'change' => $change,
-                        'paid_by_reference_no' => $reference_no,
-                    ]);
-                }
-            }
-        }
-
+ public function processCashPayment(string $reference_no, array $payload)
+{
+    $result = $this->getBill($reference_no, $payload, false); // don't validate yet
+    if (isset($result['error'])) {
         return redirect()->back()->with('alert', [
-            'status' => 'success',
-            'message' => 'Bill has been paid'
+            'status' => 'error',
+            'message' => $result['error']
         ]);
     }
+
+    $data = $result['data'];
+    $now = Carbon::now()->format('Y-m-d H:i:s');
+
+    // ✅ Use computed total due from getBill() (includes arrears, tax, discounts, penalties, etc.)
+    $amountPay = (float) $result['total_due'];
+    $paymentAmount = (float) $payload['payment_amount'];
+    $change = $paymentAmount - $amountPay;
+
+    $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
+    $isPartialPayment = isset($payload['partial_payment']) && $payload['partial_payment'];
+    $saveChange = ($change > 0 && $forAdvancePayment);
+
+    // 🚫 Validate insufficient cash (only if NOT partial)
+    if (!$isPartialPayment && $paymentAmount < $amountPay) {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => "Cash payment is insufficient. Total due is PHP " . number_format($amountPay, 2)
+        ]);
+    }
+
+    $currentBill = Bill::find($data['current_bill']['id']);
+    if ($currentBill) {
+        $previousPartial = floatval($currentBill->partial_payment ?? 0);
+        $newPartial = $previousPartial + floatval($paymentAmount);
+
+        $currentBill->update([
+            'isPaid' => !$isPartialPayment && $paymentAmount >= $amountPay,
+            'partial_payment' => $newPartial,
+            'change' => $change > 0 ? $change : 0,
+            'payor_name' => $payload['payor'],
+            'date_paid' => $now,
+            'isChangeForAdvancePayment' => $saveChange,
+            'payment_method' => 'cash',
+            'isPartial' => $isPartialPayment,
+        ]);
+    }
+
+    // ✅ Mark previous unpaid bills only if full payment
+    if (!$isPartialPayment && !empty($data['unpaid_bills'])) {
+        foreach ($data['unpaid_bills'] as $unpaid_bill) {
+            $unpaidBill = Bill::find($unpaid_bill['id']);
+            if ($unpaidBill) {
+                $unpaidBill->update([
+                    'isPaid' => true,
+                    'payor_name' => $payload['payor'],
+                    'date_paid' => $now,
+                    'amount_paid' => $paymentAmount,
+                    'change' => $change,
+                    'paid_by_reference_no' => $reference_no,
+                ]);
+            }
+        }
+    }
+
+    return redirect()->back()->with('alert', [
+        'status' => 'success',
+        'message' => $isPartialPayment
+            ? 'Partial payment has been recorded.'
+            : 'Bill has been fully paid.'
+    ]);
+}
+
+
 
     public function processOnlinePaymentOld(string $reference_no, array $payload)
     {
