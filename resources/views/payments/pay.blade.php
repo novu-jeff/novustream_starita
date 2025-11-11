@@ -357,7 +357,7 @@
                                     $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
                                     $prevUnpaid = ($data['current_bill']['previous_unpaid'] ?? 0);
                                     $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
-                                    $partialPayment = $data['current_bill']['partial_payment'];
+                                    $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
                                     $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
                                 @endphp
