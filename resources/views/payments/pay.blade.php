@@ -402,7 +402,7 @@
 
                                             $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
 
-                                            $partialPayment = $data['current_bill']['partial_payment'];
+                                            $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
 
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
