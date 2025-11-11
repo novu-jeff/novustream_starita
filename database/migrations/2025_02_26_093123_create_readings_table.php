@@ -112,6 +112,25 @@ return new class extends Migration
             $table->string('amount');
             $table->timestamps();
         });
+        Schema::create('partial_payments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('reading_id')
+                ->constrained('readings')
+                ->onCascade('delete');
+            $table->decimal('partial_payment', 10, 2);
+            $table->decimal('remaining_balance', 10, 2);
+            $table->timestamps();
+        });
+
+        Schema::create('advance_payments', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('reading_id')
+                ->constrained('readings')
+                ->onCascade('delete');
+            $table->string('account_no');
+            $table->decimal('amount', 10, 2);
+            $table->timestamps();
+        });
     }
 
     /**
@@ -123,5 +142,7 @@ return new class extends Migration
         Schema::dropIfExists('bill_breakdown');
         Schema::dropIfExists('bill');
         Schema::dropIfExists('readings');
+        Schema::dropIfExists('advance_payments');
+        Schema::dropIfExists('partial_payments');
     }
 };
