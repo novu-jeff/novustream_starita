@@ -541,7 +541,6 @@ class PaymentController extends Controller
                 'reading_id' => $currentBill->reading_id,
                 'partial_payment' => $paymentAmount,
                 'remaining_balance' => max($remainingBalance, 0),
-                'date' => Carbon::now()->toDateString(),
             ]);
         } else {
             $currentBill->update([
