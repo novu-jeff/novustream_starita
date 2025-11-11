@@ -38,6 +38,9 @@ class Bill extends Model
         'high_consumption_note',
         'partial_payment',
         'isPartial',
+        'hitpay_reference',
+        'hitpay_payment_id',
+        'initiated_at',
     ];
 
     protected $casts = [

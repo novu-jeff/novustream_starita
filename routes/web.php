@@ -288,3 +288,18 @@ Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
 Route::get('/admin/offline/download', [OfflineDataController::class, 'download'])
     ->name('offline.download')
     ->middleware('auth');
+
+
+Route::get('/payment/test-status', function () {
+    return view('payments.status', [
+        'payload' => [
+            'title' => 'Test Payment',
+            'message' => 'This is a sample payment status screen.',
+            'amount' => '123.45',
+            'reference_no' => 'NOV-PELCO-TEST',
+            'status' => 'paid',
+            'date_paid' => now()->format('M d, Y h:i A'),
+            'payment_id' => 'PAY-TEST-001'
+        ]
+    ]);
+});
