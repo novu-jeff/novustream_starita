@@ -702,6 +702,26 @@ class ReadingController extends Controller
             }
         }
 
+        // Hardcoded accounts exempted from penalties
+        $penaltyExemptAccounts = [
+            '011-22-011450', // San Basilio High School
+            '031-22-030360', // San Basilio Brgy Hall
+            '031-22-030220', // San Basilio Health Center
+            '011-22-011350', // San Basilio Covered Court
+            '081-22-082580', // Dila-Dila Gym
+            '081-22-082560', // Dila-Dila Sports Center
+            '081-22-082570', // Dila-Dila Daycare
+            '101-22-102580', // Dila-Dila Senior Citizen
+            '081-22-080980', // Dila-Dila Brgy Hall
+            '111-22-111720', // Holy Family Elementary School
+            '091-22-092230', // Material Recovery Facilities
+        ];
+
+        // Check if account is exempted from penalty
+        if (in_array($account_no, $penaltyExemptAccounts)) {
+            $penaltyAmount = 0;
+        }
+
         $bill->update([
             'penalty' => $penaltyAmount,
             'amount' => $amount + $penaltyAmount,

@@ -122,56 +122,15 @@
                             <div style="text-align: center; text-transform: uppercase;">
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Bill Date</div>
-                                    <div>11/04/2025</div>
+                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
                                 </div>
-                                    @php
-                                        use Carbon\Carbon;
-
-                                        $zone = $data['current_bill']['reading']['zone'] ?? null;
-                                        $zoneCode = substr($zone, 0, 3);
-
-                                        $books = [
-                                            '061' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
-                                            '071' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
-                                            '081' => ['from' => '2025-10-03', 'to' => '2025-11-05'],
-                                            '091' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
-                                            '101' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
-                                            '111' => ['from' => '2025-10-06', 'to' => '2025-11-06'],
-                                        ];
-
-                                        $date = '';
-                                        $due_date = '';
-                                        $disconnection_date = '';
-
-                                        // ✅ Determine date range
-                                        if (array_key_exists($zoneCode, $books)) {
-                                            $from = Carbon::parse($books[$zoneCode]['from'])->format('m/d/Y');
-                                            $to   = Carbon::parse($books[$zoneCode]['to'])->format('m/d/Y');
-                                            $date = "$from TO $to";
-                                        } else {
-                                            $date = '10/04/2025 TO 11/05/2025';
-                                        }
-
-                                        // ✅ Assign due and disconnection dates based on zone group
-                                        if (in_array($zoneCode, ['061', '071', '081'])) {
-                                            $due_date = Carbon::parse('2025-11-19')->format('m/d/Y');
-                                            $disconnection_date = Carbon::parse('2025-11-26')->format('m/d/Y');
-                                        } elseif (in_array($zoneCode, ['091', '101', '111'])) {
-                                            $due_date = Carbon::parse('2025-11-20')->format('m/d/Y');
-                                            $disconnection_date = Carbon::parse('2025-11-27')->format('m/d/Y');
-                                        } else {
-                                            $due_date = Carbon::parse('2025-11-21')->format('m/d/Y');
-                                            $disconnection_date = Carbon::parse('2025-11-28')->format('m/d/Y');
-                                        }
-                                    @endphp
-
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Period</div>
-                                    <div>{{$date}}</div>    
+                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                                 </div>
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Due Date</div>
-                                    <div>{{$due_date}}</div>
+                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                 </div>
                                 <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                     <ul style="list-style: none !important">
@@ -181,7 +140,7 @@
                                 </div> -->
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Disconnection Date</div>
-                                    <div>{{$disconnection_date}}</div>
+                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
                                 </div>
                             </div>
                         </div>
@@ -295,7 +254,7 @@
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Penalty Date: </div>
                             <div style="text-transform: uppercase;">
-                                11/19/2025
+                                {{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()->format('m/d/Y') }}
                             </div>
                         </div>
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">

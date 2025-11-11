@@ -615,6 +615,14 @@ class MeterService {
             })
             ->sum('amount') ?? 0;
 
+        $partialPaymentTotal = \App\Models\PartialPayment::whereHas('reading', function ($query) use ($payload) {
+            $query->where('account_no', $payload['account_no'])
+            ->where('isReRead', false);
+        })->sum('partial_payment');
+
+
+        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+
         $total_amount = $unpaidAmount + $rate;
 
         $other_deductions = $this->paymentBreakdownService::getData();
@@ -762,7 +770,7 @@ class MeterService {
             'reference_no' => $generatedReferenceNo,
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
-            'previous_unpaid' => $unpaidAmount,
+            'previous_unpaid' => $remainingUnpaid,
             'total' => $total,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,

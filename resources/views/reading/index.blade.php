@@ -1002,7 +1002,7 @@ $(document).on('input', '#search', async function () {
         : acc.name;
 
     return searchField?.toLowerCase().includes(query);
-  });  
+  });
 
   cons_result = results.length;
 
@@ -1029,7 +1029,7 @@ function renderOfflineResults(accounts) {
     const zoneColor = '#6c757d'; // gray default, could change if you have zone-color mapping
 
     container.append(`
-      <div class="card mb-2 account-card" 
+      <div class="card mb-2 account-card"
            data-account='${JSON.stringify(acc)}'
            data-account-no="${acc.account_no}">
         <div class="card-body position-relative">
@@ -1213,7 +1213,7 @@ $(document).off('click', '#proceedOffline').on('click', '#proceedOffline', async
     const today = new Date();
     const readingDate = new Date(data.reading_month);
     const billDate = today.toLocaleDateString('en-PH');
-    
+
     // Calculate disconnection and penalty dates
     const disconnectionDate = new Date(readingDate);
     disconnectionDate.setDate(disconnectionDate.getDate() + 15);
