@@ -546,6 +546,7 @@ class PaymentController extends Controller
             } else {
                 $currentBill->update([
                     'amount_paid' => $totalAmountPaid + $paymentAmount,
+                    'partial_payment' => null,
                     'isPaid' => 1,
                     'isPartial' => 0,
                     'change' => $change > 0 ? $change : 0,
@@ -593,6 +594,7 @@ class PaymentController extends Controller
                                 'isPartial' => 1,
                                 'amount_paid' => $bill->amount_paid + $remainingPayment,
                                 'payor_name' => $payload['payor'],
+                                'partial_payment' => null,
                                 'date_paid' => $now,
                                 'paid_by_reference_no' => $reference_no,
                             ]);

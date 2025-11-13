@@ -513,7 +513,7 @@
 
   {{-- Collecting Officer signature --}}
   <div style="position:absolute; bottom:2.0cm; right:1.6cm; text-align:center; width:5.0cm; font-size:10px;">
-    <div style="border-top:1px solid #000; font-weight:700;">{{ strtoupper($cashier) }}</div>
+    <div style="border-bottom:1px solid #000; font-weight:700;">{{ strtoupper($cashier) }}</div>
     <div style="font-size:9px;">Collecting Officer</div>
   </div>
 

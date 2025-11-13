@@ -25,6 +25,7 @@ use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
+use App\Models\PartialPayment;
 
 
 class ReadingController extends Controller
@@ -526,6 +527,7 @@ class ReadingController extends Controller
         }
     }
 
+
     DB::beginTransaction();
 
     try {
@@ -578,6 +580,24 @@ class ReadingController extends Controller
 
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
+
+        $partialPaymentTotal = PartialPayment::whereHas('reading.bill', function ($query) use ($payload) {
+            $query->where('account_no', $payload['account_no'])
+                ->where('isPaid', false);
+        })->sum('partial_payment');
+
+        $unpaidAmount = Bill::with('reading')
+            ->where('isPaid', false)
+            ->whereNotNull('amount')
+            ->whereHas('reading', function ($query) use ($payload) {
+                $query->where('account_no', $payload['account_no'])
+                    ->where('isReRead', false);
+            })
+            ->sum('amount') ?? 0;
+
+        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+
+        $newAmount = $amount - $partialPaymentTotal;
 
         // $penaltyRate = 0.15;
         // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
@@ -724,9 +744,9 @@ class ReadingController extends Controller
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $amount + $penaltyAmount,
+            'amount' => $totalAmount + $penaltyAmount,
             'discount' => $totalDiscount,
-            'amount_after_due' => $bill->amount + $penaltyAmount
+            'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);
 
 

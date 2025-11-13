@@ -265,7 +265,17 @@
                 { data: 'due_from', name: 'due_from' },
                 { data: 'due_to', name: 'due_to' },
                 { data: 'amount_type', name: 'amount_type' },
-                { data: 'amount', name: 'amount' },
+                {
+                    data: 'amount',
+                    name: 'amount',
+                    render: function (data, type, row) {
+                        if (data === null || data === undefined || data === '') return '';
+                            const numeric = parseFloat(data.toString().replace(/[^0-9.-]/g, ''));
+                        if (isNaN(numeric)) return data;
+                            const percent = numeric < 1 ? numeric * 100 : numeric;
+                        return percent.toFixed(0) + '%';
+                    }
+                },
             ],
             responsive: true,
             order: [[0, 'desc']],
@@ -292,7 +302,17 @@
             columns: [
                 { data: 'name', name: 'name' },
                 { data: 'eligible', name: 'eligible' },
-                { data: 'amount', name: 'amount' },
+                {
+                    data: 'amount',
+                    name: 'amount',
+                    render: function (data, type, row) {
+                        if (data === null || data === undefined || data === '') return '';
+                            const numeric = parseFloat(data.toString().replace(/[^0-9.-]/g, ''));
+                        if (isNaN(numeric)) return data;
+                            const percent = numeric < 1 ? numeric * 100 : numeric;
+                        return percent.toFixed(0) + '%';
+                    }
+                },
                 { data: 'actions', name: 'actions', orderable: false, searchable: false }
             ],
             responsive: true,

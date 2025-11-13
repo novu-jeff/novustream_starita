@@ -606,6 +606,16 @@ class MeterService {
             ];
         }
 
+        // Get the last bill (most recent) for the account
+        $lastBill = Bill::with('reading')
+            ->whereHas('reading', function ($query) use ($payload) {
+                $query->where('account_no', $payload['account_no'])
+                    ->where('isReRead', false);
+            })
+            ->latest('bill_period_to')
+            ->first();
+
+        // Calculate unpaid amount only for bills not marked as paid
         $unpaidAmount = Bill::with('reading')
             ->where('isPaid', false)
             ->whereNotNull('amount')
@@ -615,15 +625,25 @@ class MeterService {
             })
             ->sum('amount') ?? 0;
 
+        // Total partial payments made (linked to same account)
         $partialPaymentTotal = \App\Models\PartialPayment::whereHas('reading', function ($query) use ($payload) {
             $query->where('account_no', $payload['account_no'])
-            ->where('isReRead', false);
+                ->where('isReRead', false);
         })->sum('partial_payment');
 
+        // 🧠 Check if the previous billing is already fully paid
+        $previousBillPaid = false;
+        if ($lastBill && $lastBill->isPaid) {
+            $previousBillPaid = true;
+        }
 
-        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
-
-        $total_amount = $unpaidAmount + $rate;
+        // ✅ Apply partial deduction only if previous bill is NOT yet paid
+        if ($previousBillPaid) {
+            $remainingUnpaid = 0;
+            $partialPaymentTotal = 0; // reset to avoid affecting current bill
+        } else {
+            $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+        }
 
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
@@ -708,7 +728,8 @@ class MeterService {
             }
         }
 
-        $overall_total = $total - $totalDiscount - $advances;
+        $total = collect($deductions)->sum('amount');
+        $overall_total = $total;
         $arrears = collect($deductions)->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
         $penaltyAmount = 0;
@@ -771,13 +792,13 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $total,
+            'total' => $total - $partialPaymentTotal,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $overall_total,
+            'amount' => $overall_total - $partialPaymentTotal,
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,

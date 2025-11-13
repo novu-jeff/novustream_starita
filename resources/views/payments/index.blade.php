@@ -132,7 +132,7 @@
                                                     <i class="bx bx-credit-card-alt"></i>
                                                 </a>
                                             @else
-                                                <a target="_blank" href="{{ route('reading.show', $row->reference_no) }}"
+                                                <a target="_blank" href="{{ route('reading.orshow', $row->reference_no) }}"
                                                 class="btn btn-primary text-white text-uppercase fw-bold"
                                                 id="show-btn" data-id="{{ $row->id }}">
                                                     <i class="bx bx-receipt"></i>
