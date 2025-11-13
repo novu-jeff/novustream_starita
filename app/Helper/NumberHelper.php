@@ -4,14 +4,6 @@ namespace App\Helper;
 
 class NumberHelper
 {
-<<<<<<< HEAD
-    public static function convertToWords($number)
-    {
-        $f = new \NumberFormatter("en", \NumberFormatter::SPELLOUT);
-        $words = ucfirst($f->format($number));
-        return $words . ' pesos only';
-    }
-=======
     public static function convertToWords($amount)
 {
     $f = new \NumberFormatter("en", \NumberFormatter::SPELLOUT);
@@ -30,5 +22,4 @@ class NumberHelper
 }
 
 
->>>>>>> 883d53890d1a80e799e7560ece1ae4ad62407c7b
 }

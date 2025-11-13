@@ -147,7 +147,7 @@ class ReportsController extends Controller
 
                         $rows[] = [
                             'account_number' => $reading->account_no,
-                            'name' => optional($reading->concessionaire->user)->name ?? 'N/A',
+                            'name' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
                             'current' => $current,
                             '1_30' => $oneTo30,
                             '31_60' => $thirtyOneTo60,
@@ -156,7 +156,6 @@ class ReportsController extends Controller
                             'total' => $current + $oneTo30 + $thirtyOneTo60 + $sixtyOneTo90 + $over90,
                         ];
                     }
-
                     $result[$report] = $rows;
                     break;
 
@@ -253,7 +252,7 @@ class ReportsController extends Controller
                     ->get();
 
                 $grouped = $readings->groupBy(function($reading) {
-                    return optional($reading->concessionaire->propertyType)->name
+                    return optional(optional($reading->concessionaire)->propertyType)->name
                         ?? optional($reading->concessionaire)->property_type
                         ?? 'UNCLASSIFIED';
                 });
@@ -386,7 +385,7 @@ class ReportsController extends Controller
                     if (!$bill) continue;
 
                     $accountNo = $reading->account_no;
-                    $name = optional($reading->concessionaire->user)->name ?? 'N/A';
+                    $name = optional(optional($reading->concessionaire)->user)->name ?? 'N/A';
                     $penalty = floatval($bill->penalty ?? 0);
                     $amount = floatval($bill->amount ?? 0);
 
@@ -452,8 +451,8 @@ class ReportsController extends Controller
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
-                $grouped = $readings->groupBy(function ($reading) {
-                    return optional($reading->concessionaire->propertyType)->name
+                $grouped = $readings->groupBy(function($reading) {
+                    return optional(optional($reading->concessionaire)->propertyType)->name
                         ?? optional($reading->concessionaire)->property_type
                         ?? 'UNCLASSIFIED';
                 });
@@ -542,7 +541,7 @@ class ReportsController extends Controller
                     if (!$bill) continue;
 
                     $accountNo = $reading->account_no;
-                    $name = optional($reading->concessionaire->user)->name ?? 'N/A';
+                    $name = optional(optional($reading->concessionaire)->user)->name ?? 'N/A';
                     $tax = floatval($bill->tax ?? 0); // 👈 franchise tax only
 
                     $dueDate = Carbon::parse($bill->due_date);
@@ -606,7 +605,7 @@ class ReportsController extends Controller
 
                 // Group readings by property type / classification
                 $grouped = $readings->groupBy(function($reading) {
-                    return optional($reading->concessionaire->propertyType)->name
+                    return optional(optional($reading->concessionaire)->propertyType)->name
                         ?? optional($reading->concessionaire)->property_type
                         ?? 'UNCLASSIFIED';
                 });
