@@ -688,41 +688,37 @@ class PaymentController extends Controller
             : Carbon::now()->addDays($days_before_due)->format('Y-m-d H:i:s');
 
             // dd($billData);
-
+            $rateCode = $result['data']['client']['rate_code'] ?? null;
             $amount = number_format((float)$billData['total'], 2, '.', '');
-            if($amount <= 2000) {
-                $hitpay_fee = 20;
-            }else {
-                $hitpay_fee = ($amount * 0.01);
-            }
-            $novupay_fee = 10;
-            $additional_service_fee = $hitpay_fee + $novupay_fee;
-
-            $final_amount = (float)$amount + $additional_service_fee;
-
             $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
             $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
 
-            // 🧾 Purpose formatting
-            $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
-
             // ⚙️ Default payment methods (include QRPH if allowed)
             // $paymentMethods = ["gcash","gcash_qr","qrph_netbank","upay_bayd","upay_ecpy","upay_instapay","upay_online","upay_pchc","upay_plwn","xpay_card"];
-            $paymentMethods = ['gcash', 'qrph_netbank', 'upay_online'];
-            // dd($final_amount, $paymentMethods);
+            $qrph_fee  = $amount <= 2000 ? 20 : ($amount * 0.01);
+            $gcash_fee = $amount * 0.023;
 
-            // 🚫 If total amount < 800, remove QRPH from payment options
-            if ($final_amount < 800) {
-                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "qrph_netbank");
-                // \Log::info('Removed QRPH (amount < 800)', [
-                //     'reference_no' => $reference_no,
-                //     'amount' => $final_amount
-                // ]);
-            // removed gcash since it is costing us 2.5% unlike qrph which is only 1% or 20php per transaction
-            } else {
-                $paymentMethods = array_filter($paymentMethods, fn($m) => $m !== "gcash");
+            $novupay_fee = 25;
+            if(Str::contains($rateCode, '12')){
+                $novupay_fee = 10;
             }
+
+            // Select fee based on amount
+            if ($amount < 800) {
+                $selected_fee = $gcash_fee;
+                $paymentMethods = ['gcash'];
+            } else {
+                $selected_fee = $qrph_fee;
+                $paymentMethods = ['qrph_netbank', 'upay_online'];
+            }
+
+            $hitpay_fee = round($selected_fee, 1);
+            $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+            $final_amount = round($amount + $additional_service_fee, 2);
+            // 🧾 Purpose formatting
+            $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
 
             $hitpayPayload = [
                 'amount' => $final_amount,
