@@ -148,7 +148,7 @@
 
         <div class="border-top my-3 pt-3">
           <h6 class="fw-bold text-primary">7. Your Rights</h6>
-          <p>You can access, update, delete, or opt out of communications by contacting us at <a href="mailto:contact@novulutions.com">contact@novulutions.com</a>.</p>
+          <p>You can access, update, delete, or opt out of communications by contacting us at <a href="mailto:dpo@novulutions.com">dpo@novulutions.com</a>.</p>
         </div>
 
         <div class="border-top my-3 pt-3">
@@ -163,7 +163,7 @@
 
         <div class="border-top my-3 pt-3">
           <h6 class="fw-bold text-primary">10. Contact Us</h6>
-          <p>If you have questions, reach us at <a href="mailto:contact@novulutions.com">contact@novulutions.com</a>.</p>
+          <p>If you have questions, reach us at <a href="mailto:dpo@novulutions.com">dpo@novulutions.com</a>.</p>
           <p class="fs-6">Address: 35th Floor, Eco Tower, Bonifacio Global City, 9th Ave. Corner 32nd St. Bonifacio Global City</p>
           <p class="fs-6">Email: <a href="mailto:dpo@novulutions.com">dpo@novulutions.com</a> </p>
         </div>

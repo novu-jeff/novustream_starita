@@ -69,20 +69,6 @@
                             @endif
                         </div>
                     </div>
-
-                    <!-- Report Type -->
-                    <div style="flex: 0 0 280px;">
-                        <label class="mb-1">Report Type</label>
-                        <select class="form-select ">
-                            <option hidden>Select to download</option>
-                            <option>Billing summary by rate and classification</option>
-                            <option>Penalty Summary Report</option>
-                        </select>
-                    </div>
-                    <!-- Download Button -->
-                    <div>
-                        <button class="btn btn-primary text-uppercase px-4">Download</button>
-                    </div>
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
                     <thead>
