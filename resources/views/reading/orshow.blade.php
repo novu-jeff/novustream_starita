@@ -168,6 +168,8 @@
     // --- Normalize and compute values ---
     $cb = $data['current_bill'] ?? [];
     $amount = (float) ($cb['amount'] ?? 0);
+    $total = (float) ($cb['total'] ?? 0);
+    $penalty = (float) ($cb['penalty'] ?? 0);
 
     $arrears = $cb['arrears'] ?? 0;
     if (is_array($arrears)) {
@@ -175,6 +177,14 @@
     } elseif (is_string($arrears)) {
         $arrears = (float) $arrears;
     }
+
+    $dueDate = isset($data['current_bill']['due_date'])
+        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+        : null;
+
+    $today = \Carbon\Carbon::today();
+
+    $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
 
     $discount = $cb['discount'] ?? 0;
     if (is_array($discount)) {
@@ -188,7 +198,7 @@
     }
 
     $assumed_penalty = (float) ($cb['assumed_penalty'] ?? 0);
-    $total = round($amount + $arrears + $assumed_penalty - $discount, 2);
+    $totalAmount = round($total + $arrears + $applicablePenalty - $discount, 2);
 
     $pesos = intval(floor($total));
     $centavos = intval(round(($total - $pesos) * 100));
@@ -325,7 +335,7 @@
           <tr style="line-height: 2px;">
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($amount, 2) }}</td>
+            <td class="text-end">₱ {{ number_format($total, 2) }}</td>
           </tr>
 
           {{-- Conditionally show Arrears and Penalty --}}
@@ -337,17 +347,17 @@
             </tr>
           @endif
 
-          @if($assumed_penalty > 0)
+          @if($applicablePenalty > 0)
             <tr style="line-height: 2px;">
               <td>Penalty</td>
               <td></td>
-              <td class="text-end">₱ {{ number_format($assumed_penalty, 2) }}</td>
+              <td class="text-end">₱ {{ number_format($applicablePenalty, 2) }}</td>
             </tr>
           @endif
 
           {{-- Blank rows --}}
           @php
-            $filled = 1 + ($arrears > 0 ? 1 : 0) + ($assumed_penalty > 0 ? 1 : 0);
+            $filled = 1 + ($arrears > 0 ? 1 : 0) + ($applicablePenalty > 0 ? 1 : 0);
             $blank = 6 - $filled;
           @endphp
           @for($i = 0; $i < $blank; $i++)
@@ -367,7 +377,7 @@
           <tr class="fw-bold" style="line-height: 2px;">
             <td>TOTAL</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($total, 2) }}</td>
+            <td class="text-end">₱ {{ number_format($totalAmount, 2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -483,7 +493,7 @@
     WB {{ $bill_month }}
   </div>
   <div style="position:absolute; top:7.0cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">
-    ₱ {{ number_format($amount,2) }}
+    ₱ {{ number_format($total,2) }}
   </div>
 
   {{-- Arrears --}}
@@ -495,7 +505,7 @@
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
     <div style="position:absolute; top:8.2cm; left:0.7cm; font-size:10px;">Penalty</div>
-    <div style="position:absolute; top:8.2cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($assumed_penalty,2) }}</div>
+    <div style="position:absolute; top:8.2cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
   {{-- Discount --}}
@@ -504,7 +514,7 @@
 
   {{-- Total --}}
   <div style="position:absolute; top:10.6cm; left:0.7cm; font-size:11px; font-weight:700;">TOTAL</div>
-  <div style="position:absolute; top:10.6cm; right:0.8cm; width:3.0cm; font-size:11px; font-weight:700; text-align:right;">₱ {{ number_format($total,2) }}</div>
+  <div style="position:absolute; top:10.6cm; right:0.8cm; width:3.0cm; font-size:11px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
   <div style="position:absolute; top:12.5cm; left:0.9cm; right:0.9cm; font-size:10px; text-align:center; font-style:italic;">
