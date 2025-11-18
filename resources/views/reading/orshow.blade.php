@@ -200,11 +200,8 @@
     $assumed_penalty = (float) ($cb['assumed_penalty'] ?? 0);
     $totalAmount = round($total + $arrears + $applicablePenalty - $discount, 2);
 
-    $pesos = intval(floor($total));
-    $centavos = intval(round(($total - $pesos) * 100));
-    $fmt = new \NumberFormatter("en", \NumberFormatter::SPELLOUT);
-    $pesos_words = ucfirst($fmt->format($pesos));
-    $amount_in_words = "{$pesos_words} Pesos & " . str_pad($centavos, 2, '0', STR_PAD_LEFT) . "/100";
+    // Use helper that falls back when the PHP intl extension is not available
+    $amount_in_words = \App\Helper\NumberHelper::convertToWords($totalAmount);
 
     $receipt_no = $receipt_no ?? ('436' . str_pad(rand(0,9999), 4, '0', STR_PAD_LEFT));
     $cashier = auth()->user()->name ?? ($cb['collecting_officer'] ?? 'NA');
@@ -386,8 +383,8 @@
       <div class="mt-2 border-top border-dark pt-1">
         <div class="fw-bold" style="font-size: 13px;">Amount in Words</div>
             <div class="border border-dark p-1 fst-italic text-center" style="font-size: 10px; min-height: 20px;">
-                {{ App\Helper\NumberHelper::convertToWords(2986.00) }}
-            </div>
+            {{ $amount_in_words }}
+          </div>
       </div>
 
       {{-- Payment methods --}}
