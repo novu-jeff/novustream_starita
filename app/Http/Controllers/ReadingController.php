@@ -45,7 +45,7 @@ class ReadingController extends Controller
             $method = $request->route()->getActionMethod();
 
             if (!in_array($method, ['show'])) {
-                if (!Gate::any(['admin', 'technician'])) {
+                if (!Gate::any(['admin', 'technician', 'cashier'])) {
                     abort(403, 'Unauthorized');
                 }
             }
