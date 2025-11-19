@@ -47,7 +47,7 @@ class ReadingController extends Controller
             $method = $request->route()->getActionMethod();
 
             if (!in_array($method, ['show'])) {
-                if (!Gate::any(['admin', 'technician'])) {
+                if (!Gate::any(['admin', 'technician', 'cashier'])) {
                     abort(403, 'Unauthorized');
                 }
             }
@@ -264,6 +264,8 @@ class ReadingController extends Controller
 
     public function orShow(string $reference_no)
     {
+        // dd('HERE', auth()->user()->role);
+
         $data = $this->meterService::getBill($reference_no);
 
         if (isset($data['status']) && $data['status'] == 'error') {
