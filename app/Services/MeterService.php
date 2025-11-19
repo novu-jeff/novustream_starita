@@ -272,7 +272,6 @@ class MeterService {
                 });
             })
             ->get();
-
         if ($isAll) {
             return $readings->values();
         }
