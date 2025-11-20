@@ -678,6 +678,7 @@ class PaymentController extends Controller
             }
 
             $billData = $result['data']['current_bill'] ?? null;
+            // dd($billData);
             if (!$billData) {
                 \Log::error('Missing bill data for HitPay', ['reference_no' => $reference_no]);
                 return null;
@@ -689,7 +690,15 @@ class PaymentController extends Controller
 
             // dd($billData);
             $rateCode = $result['data']['client']['rate_code'] ?? null;
-            $amount = number_format((float)$billData['total'], 2, '.', '');
+            $amount = (float) $billData['total'];
+            $discount = !empty($billData['discount'][0]['amount'])
+                ? (float) $billData['discount'][0]['amount']
+                : 0;
+
+            $amount = $amount - $discount;
+
+            // dd($amount, $discount);
+
             $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
             $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
