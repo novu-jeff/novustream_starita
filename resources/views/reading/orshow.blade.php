@@ -386,7 +386,7 @@
       <div class="mt-2 border-top border-dark pt-1">
         <div class="fw-bold" style="font-size: 13px;">Amount in Words</div>
             <div class="border border-dark p-1 fst-italic text-center" style="font-size: 10px; min-height: 20px;">
-                {{ App\Helper\NumberHelper::convertToWords(2986.00) }}
+                {{ App\Helper\NumberHelper::convertToWords($totalAmount) }}
             </div>
       </div>
 

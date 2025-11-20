@@ -4,13 +4,13 @@ namespace App\Helper;
 
 class NumberHelper
 {
-    public static function convertToWords($amount)
+    public static function convertToWords($totalAmount)
 {
     $f = new \NumberFormatter("en", \NumberFormatter::SPELLOUT);
 
     // Split amount into whole pesos and centavos
-    $pesos = floor($amount);
-    $centavos = round(($amount - $pesos) * 100);
+    $pesos = floor($totalAmount);
+    $centavos = round(($totalAmount - $pesos) * 100);
 
     // Convert pesos to words and capitalize each word
     $words = ucwords($f->format($pesos));
