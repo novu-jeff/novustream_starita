@@ -83,19 +83,17 @@
                                                 </div>
                                                 @php
                                                 $zone = $data['current_bill']['reading']['zone'];
+                                                $zone = str_replace('BOOK ', '', strtoupper(trim($zone)));
 
-                                                if (in_array($zone, ['BOOK 011', 'BOOK 021', 'BOOK 031', 'BOOK 041', 'BOOK 051'])) {
+                                                if (in_array($zone, ['011', '021', '031', '041', '051'])) {
                                                     $dueDate = '11/18/2025';
-                                                } else if (in_array($zone, ['BOOK 061', 'BOOK 071', 'BOOK 081'])) {
+                                                } else if (in_array($zone, ['061', '071', '081'])) {
                                                     $dueDate = '11/19/2025';
-                                                } else if (in_array($zone, ['BOOK 091', 'BOOK 010', 'BOOK 111'])) {
+                                                } else if (in_array($zone, ['091', '010', '111'])) {
                                                     $dueDate = '11/20/2025';
                                                 } else {
                                                     $dueDate = null;
                                                 }
-
-                                                dd($zone);
-
                                                 @endphp
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
@@ -225,15 +223,16 @@
                                         </div>
                                         @php
                                         $zone = $data['current_bill']['reading']['zone'];
+                                        $zone = str_replace('BOOK ', '', strtoupper(trim($zone)));
 
-                                        if (in_array($zone, ['BOOK 011', 'BOOK 021', 'BOOK 031', 'BOOK 041', 'BOOK 051'])) {
-                                            $penaltyDate = '11/19/2025';
-                                        } else if (in_array($zone, ['BOOK 061', 'BOOK 071', 'BOOK 081'])) {
-                                            $penaltyDate = '11/20/2025';
-                                        } else if (in_array($zone, ['BOOK 091', 'BOOK 010', 'BOOK 111'])) {
-                                            $penaltyDate = '11/21/2025';
+                                        if (in_array($zone, ['011', '021', '031', '041', '051'])) {
+                                            $dueDate = '11/19/2025';
+                                        } else if (in_array($zone, ['061', '071', '081'])) {
+                                            $dueDate = '11/20/2025';
+                                        } else if (in_array($zone, ['091', '010', '111'])) {
+                                            $dueDate = '11/21/2025';
                                         } else {
-                                            $penaltyDate = null;
+                                            $dueDate = null;
                                         }
 
                                         @endphp
