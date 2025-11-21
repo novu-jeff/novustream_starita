@@ -226,13 +226,13 @@
                                         $zone = str_replace('BOOK ', '', strtoupper(trim($zone)));
 
                                         if (in_array($zone, ['011', '021', '031', '041', '051'])) {
-                                            $dueDate = '11/19/2025';
+                                            $penaltyDate = '11/19/2025';
                                         } else if (in_array($zone, ['061', '071', '081'])) {
-                                            $dueDate = '11/20/2025';
+                                            $penaltyDate = '11/20/2025';
                                         } else if (in_array($zone, ['091', '010', '111'])) {
-                                            $dueDate = '11/21/2025';
+                                            $penaltyDate = '11/21/2025';
                                         } else {
-                                            $dueDate = null;
+                                            $penaltyDate = null;
                                         }
 
                                         @endphp
