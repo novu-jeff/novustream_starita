@@ -94,6 +94,8 @@
                                                     $dueDate = null;
                                                 }
 
+                                                dd($zone);
+
                                                 @endphp
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
