@@ -409,6 +409,12 @@
                                         <h3>Bill Breakdown:</h3>
 
                                         @php
+                                            $userDiscount = $data['current_bill']['reading']['account_no'];
+                                            if (in_array($userDiscount, ['061-12-065391', '091-12-092000'])) {
+                                                $temporaryDiscount = 0.25;
+                                            } else {
+                                                $temporaryDiscount = null;
+                                            }
                                             $currentBill = (float)($data['current_bill']['total'] ?? 0);
                                             $arrears = (float)($data['current_bill']['previous_unpaid'] ?? 0);
                                             $penalty = (float)($data['current_bill']['penalty'] ?? 0);
@@ -436,6 +442,8 @@
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
                                             $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
+                                            $temporaryDiscounts = $totalDue * $temporaryDiscount;
+                                            $totalDue = $totalDue - $temporaryDiscounts;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -483,6 +491,12 @@
                                             @if($discount > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($discount, 2) }} (DISCOUNT)</h6>
+                                                </div>
+                                            @endif
+
+                                            @if($temporaryDiscount > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($temporaryDiscounts, 2) }} (LEAKAGE DISCOUNT)</h6>
                                                 </div>
                                             @endif
 
