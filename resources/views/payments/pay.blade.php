@@ -81,9 +81,23 @@
                                                     <div>Period</div>
                                                     <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y')}} TO 11/04/2025</div>
                                                 </div>
+                                                @php
+                                                $zone = $data['current_bill']['reading']['zone'];
+
+                                                if (in_array($zone, ['BOOK 011', 'BOOK 021', 'BOOK 031', 'BOOK 041', 'BOOK 051'])) {
+                                                    $dueDate = '11/18/2025';
+                                                } else if (in_array($zone, ['BOOK 061', 'BOOK 071', 'BOOK 081'])) {
+                                                    $dueDate = '11/19/2025';
+                                                } else if (in_array($zone, ['BOOK 091', 'BOOK 010', 'BOOK 111'])) {
+                                                    $dueDate = '11/20/2025';
+                                                } else {
+                                                    $dueDate = null;
+                                                }
+
+                                                @endphp
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
-                                                    <div>11/18/2025</div>
+                                                    <div>{{$dueDate}}</div>
                                                 </div>
                                                 <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                                     <ul style="list-style: none !important">
@@ -207,10 +221,24 @@
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
                                             <div style="text-transform: uppercase;"></div>
                                         </div>
+                                        @php
+                                        $zone = $data['current_bill']['reading']['zone'];
+
+                                        if (in_array($zone, ['BOOK 011', 'BOOK 021', 'BOOK 031', 'BOOK 041', 'BOOK 051'])) {
+                                            $penaltyDate = '11/19/2025';
+                                        } else if (in_array($zone, ['BOOK 061', 'BOOK 071', 'BOOK 081'])) {
+                                            $penaltyDate = '11/20/2025';
+                                        } else if (in_array($zone, ['BOOK 091', 'BOOK 010', 'BOOK 111'])) {
+                                            $penaltyDate = '11/21/2025';
+                                        } else {
+                                            $penaltyDate = null;
+                                        }
+
+                                        @endphp
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Penalty Date: </div>
                                             <div style="text-transform: uppercase;">
-                                                11/25/2025
+                                                {{$penaltyDate}}
                                             </div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
