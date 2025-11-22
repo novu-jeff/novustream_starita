@@ -89,7 +89,7 @@
                                                     $dueDate = '11/18/2025';
                                                 } else if (in_array($zone, ['061', '071', '081'])) {
                                                     $dueDate = '11/19/2025';
-                                                } else if (in_array($zone, ['091', '010', '111'])) {
+                                                } else if (in_array($zone, ['091', '101', '111'])) {
                                                     $dueDate = '11/20/2025';
                                                 } else {
                                                     $dueDate = null;
@@ -229,7 +229,7 @@
                                             $penaltyDate = '11/19/2025';
                                         } else if (in_array($zone, ['061', '071', '081'])) {
                                             $penaltyDate = '11/20/2025';
-                                        } else if (in_array($zone, ['091', '010', '111'])) {
+                                        } else if (in_array($zone, ['091', '101', '111'])) {
                                             $penaltyDate = '11/21/2025';
                                         } else {
                                             $penaltyDate = null;
@@ -394,7 +394,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($applicablePenalty) - $partialPayment ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($penalty) - $partialPayment ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -441,7 +441,7 @@
 
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
-                                            $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
+                                            $totalDue = $netCurrentBill + $penalty - $partialPayment;
                                             $temporaryDiscounts = $totalDue * $temporaryDiscount;
                                             $totalDue = $totalDue - $temporaryDiscounts;
                                         @endphp
@@ -512,10 +512,10 @@
                                                 </div>
                                             @endif
 
-                                            @if($applicablePenalty > 0)
+                                            @if($penalty > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-danger" style="font-size: 12px;">
-                                                        + PHP {{ number_format($applicablePenalty, 2) }} (DUE DATE PENALTY)
+                                                        + PHP {{ number_format($penalty, 2) }} (DUE DATE PENALTY)
                                                     </h6>
                                                 </div>
                                             @endif
