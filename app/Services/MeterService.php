@@ -630,18 +630,21 @@ class MeterService {
                 ->where('isReRead', false);
         })->sum('partial_payment');
 
-        // 🧠 Check if the previous billing is already fully paid
-        $previousBillPaid = false;
-        if ($lastBill && $lastBill->isPaid) {
-            $previousBillPaid = true;
-        }
+        $hasUnpaidBill = Bill::with('reading')
+            ->where('isPaid', false)
+            ->whereHas('reading', function ($q) use ($payload) {
+                $q->where('account_no', $payload['account_no'])
+                ->where('isReRead', false);
+            })
+            ->exists();
 
-        // ✅ Apply partial deduction only if previous bill is NOT yet paid
-        if ($previousBillPaid) {
-            $remainingUnpaid = 0;
-            $partialPaymentTotal = 0; // reset to avoid affecting current bill
-        } else {
+        if ($hasUnpaidBill) {
+            // There are unpaid months → apply arrears
             $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+        } else {
+            // All previous months paid → no arrears
+            $remainingUnpaid = 0;
+            $partialPaymentTotal = 0;
         }
 
         $other_deductions = $this->paymentBreakdownService::getData();
