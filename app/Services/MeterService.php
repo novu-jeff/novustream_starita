@@ -636,7 +636,13 @@ class MeterService {
 
         $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
 
-
+        dd(
+    ["remaining" => $remainingUnpaid,
+    "amount" => $unpaidAmount,
+    "partial" => $partialPaymentTotal,
+    "bill_id" => $latestUnpaidBill?->id,
+    "reading_ids" => $readingIds,]
+);
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
