@@ -606,12 +606,18 @@ class MeterService {
             ];
         }
 
-        // 1. Collect reading IDs
+        $lastBill = Bill::with('reading')
+            ->whereHas('reading', function ($query) use ($payload) {
+                $query->where('account_no', $payload['account_no'])
+                    ->where('isReRead', false);
+            })
+            ->latest('bill_period_to')
+            ->first();
+
         $readingIds = Reading::where('account_no', trim($payload['account_no']))
             ->where('isReRead', 0)
             ->pluck('id');
 
-        // 2. Get only unpaid OR partial bills, but sorted by newest first
         $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
             ->where(function ($q) {
                 $q->where('isPaid', 0)
@@ -620,16 +626,16 @@ class MeterService {
             ->orderBy('bill_period_to', 'desc')
             ->first();
 
-        // Default arrears = 0
-        $arrears = 0;
+        $unpaidAmount = 0;
+        $partialPaymentTotal = 0;
 
         if ($latestUnpaidBill) {
-            $amount = (float) ($latestUnpaidBill->amount ?? 0);
-            $partial = (float) ($latestUnpaidBill->partial_payment ?? 0);
-
-            // arrears = amount - partial payment
-            $arrears = max($amount - $partial, 0);
+            $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
+            $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
         }
+
+        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+
 
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
