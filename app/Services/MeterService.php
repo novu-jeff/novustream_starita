@@ -18,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PDO;
 use App\Models\PaymentDiscount;
+use App\Models\PartialPayment;
 
 class MeterService {
 
@@ -605,46 +606,29 @@ class MeterService {
             ];
         }
 
-        // Get the last bill (most recent) for the account
-        $lastBill = Bill::with('reading')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
+        // 1. Collect reading IDs
+        $readingIds = Reading::where('account_no', trim($payload['account_no']))
+            ->where('isReRead', 0)
+            ->pluck('id');
+
+        // 2. Get only unpaid OR partial bills, but sorted by newest first
+        $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+            ->where(function ($q) {
+                $q->where('isPaid', 0)
+                ->orWhere('isPartial', 1);
             })
-            ->latest('bill_period_to')
+            ->orderBy('bill_period_to', 'desc')
             ->first();
 
-        // Calculate unpaid amount only for bills not marked as paid
-        $unpaidAmount = Bill::with('reading')
-            ->where('isPaid', false)
-            ->whereNotNull('amount')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
-            })
-            ->sum('amount') ?? 0;
+        // Default arrears = 0
+        $arrears = 0;
 
-        // Total partial payments made (linked to same account)
-        $partialPaymentTotal = \App\Models\PartialPayment::whereHas('reading', function ($query) use ($payload) {
-            $query->where('account_no', $payload['account_no'])
-                ->where('isReRead', false);
-        })->sum('partial_payment');
+        if ($latestUnpaidBill) {
+            $amount = (float) ($latestUnpaidBill->amount ?? 0);
+            $partial = (float) ($latestUnpaidBill->partial_payment ?? 0);
 
-        $hasUnpaidBill = Bill::with('reading')
-            ->where('isPaid', false)
-            ->whereHas('reading', function ($q) use ($payload) {
-                $q->where('account_no', $payload['account_no'])
-                ->where('isReRead', false);
-            })
-            ->exists();
-
-        if ($hasUnpaidBill) {
-            // There are unpaid months → apply arrears
-            $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
-        } else {
-            // All previous months paid → no arrears
-            $remainingUnpaid = 0;
-            $partialPaymentTotal = 0;
+            // arrears = amount - partial payment
+            $arrears = max($amount - $partial, 0);
         }
 
         $other_deductions = $this->paymentBreakdownService::getData();
