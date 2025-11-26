@@ -476,7 +476,7 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:4.8cm; right:4.5cm; font-size:12px;">
+  <div style="position:absolute; top:5.3cm; right:4.8cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
@@ -496,18 +496,12 @@
   </div> -->
 
   {{-- Table: WB (Nature) main --}}
-  <div style="position:absolute; top:8.25cm; font-size:10px;">
+  <div style="position:absolute; top:8.5cm; font-size:10px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:8.15cm; right:2.7cm; width:3.0cm; font-size:12px; text-align:right;">
+  <div style="position:absolute; top:8.5cm; right:2.7cm; width:3.0cm; font-size:12px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
-
-  {{-- Arrears --}}
-  @if($arrears > 0)
-    <div style="position:absolute; top:8.6cm; font-size:10px;">Arrears</div>
-    <div style="position:absolute; top:8.6cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
-  @endif
 
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
@@ -515,16 +509,22 @@
     <div style="position:absolute; top:9.2cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
+  {{-- Arrears --}}
+  @if($arrears > 0)
+    <div style="position:absolute; top:9.9cm; font-size:10px;">Arrears</div>
+    <div style="position:absolute; top:9.9cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
+  @endif
+
   {{-- Discount --}}
-  <div style="position:absolute; top:12.15cm; font-size:10px;">Less: Senior Discount</div>
-  <div style="position:absolute; top:12.1cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($discount,2) }}</div>
+  <div style="position:absolute; top:12.2cm; font-size:10px;">Less: Senior Discount</div>
+  <div style="position:absolute; top:12.2cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($discount,2) }}</div>
 
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
   <div style="position:absolute; top:12.8cm; right:2.8cm; width:3.0cm; font-size:12px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
-  <div style="position:absolute; left: 0.5cm; top:13.9cm; font-size:10px; text-align:center; font-style:italic;">
+  <div style="position:absolute; left: 0.5cm; top:14.5cm; font-size:10px; text-align:center; font-style:italic;">
     {{ $amount_in_words }}
   </div>
 
