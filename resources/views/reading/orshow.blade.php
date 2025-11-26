@@ -481,7 +481,7 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:6.1cm; right:1.5cm; font-size:12px;">
+  <div style="position:absolute; top:5.95cm; right:1.5cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
@@ -504,14 +504,14 @@
   <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:10px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:9.3cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">
+  <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
 
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
-    <div style="position:absolute; top:10.2cm; left: 1.5cm; font-size:10px;">Penalty</div>
-    <div style="position:absolute; top:10cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
+    <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:10px;">Penalty</div>
+    <div style="position:absolute; top:9.9cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
   {{-- Arrears --}}
@@ -522,11 +522,11 @@
 
   {{-- Discount --}}
   <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:10px;">Less: Senior Discount</div>
-  <div style="position:absolute; top:13.2cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
+  <div style="position:absolute; top:13.1cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
 
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
-  <div style="position:absolute; top:13.8cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  <div style="position:absolute; top:13.7cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
   <div style="position:absolute; left: 1.4cm; top:15.2cm; font-size:11px; text-align:center; ">
