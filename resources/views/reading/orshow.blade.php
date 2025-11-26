@@ -481,7 +481,7 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:5.95cm; right:1.5cm; font-size:12px;">
+  <div style="position:absolute; top:6cm; right:1.5cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
