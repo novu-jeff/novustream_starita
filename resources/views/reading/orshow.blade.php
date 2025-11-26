@@ -22,7 +22,7 @@
 
     @font-face {
         font-family: 'EpsonFX';
-        src: url('/fonts/Dotrice-Regular.otf') format('woff');
+        src: url('/fonts/DotMatrix-Regular.otf') format('woff');
         font-weight: normal;
         font-style: normal;
     }
