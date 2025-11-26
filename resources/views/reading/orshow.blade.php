@@ -501,16 +501,16 @@
   </div> -->
 
   {{-- Table: WB (Nature) main --}}
-  <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:12px;">
+  <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:13px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">
+  <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
 
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
-    <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:12px;">Penalty</div>
+    <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:14px;">Penalty</div>
     <div style="position:absolute; top:9.9cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
