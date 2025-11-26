@@ -93,7 +93,7 @@ body {
 	}
 
 	@media (max-width: 1200px) {
-		display: none; 
+		display: none;
 		transition: all ease 0.3s;
 		&.active {
 			display: block !important;
@@ -148,13 +148,13 @@ body {
 		font-size: 13px !important;
 		text-transform: uppercase !important;
 	}
- 
+
 	.dropdown-item {
 		font-weight: 600 !important;
 		font-size: 12px !important;
 		text-transform: uppercase !important;
 	}
-	
+
 	@media (max-width: 1200px) {
 		display: block !important;
 		position: relative;
@@ -264,7 +264,7 @@ body {
 }
 
 .close-icon {
-	display: none; 
+	display: none;
 
 	@media (max-width: 1200px) {
 		display: block !important;
@@ -286,7 +286,7 @@ body {
 	height: 44px;
 	border-radius: 50%;
 	overflow: hidden;
-	
+
 	img {
 		display: block;
 		max-width: 100%;

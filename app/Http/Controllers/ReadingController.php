@@ -737,6 +737,7 @@ class ReadingController extends Controller
             '081-22-080980', // Dila-Dila Brgy Hall
             '111-22-111720', // Holy Family Elementary School
             '091-22-092230', // Material Recovery Facilities
+            '061-22-060250', // VDLR Parish
         ];
 
         // Check if account is exempted from penalty
