@@ -15,6 +15,13 @@
     <link href="https://fonts.cdnfonts.com/css/dot-matrix" rel="stylesheet">
 
   <style>
+    @font-face {
+        font-family: 'EpsonFX';
+        src: url('/fonts/Web437_EpsonMGA_Mono.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+    }
+
     @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
     /* Page fixed size for 4" x 8.5" (10.16cm x 21.59cm) */
     .receipt-sheet {
@@ -22,7 +29,7 @@
       height: 21.59cm;
       box-sizing: border-box;
       background: white;
-      font-family: 'Dot Matrix';
+      font-family: 'EpsonFX';
       color: #000;
       position: relative;
       margin: 0 auto;
@@ -509,20 +516,20 @@
   @endif
 
   {{-- Discount --}}
-  <div style="position:absolute; top:12.1cm; font-size:10px;">Less: Senior Discount</div>
+  <div style="position:absolute; top:12.15cm; font-size:10px;">Less: Senior Discount</div>
   <div style="position:absolute; top:12.1cm; right:2.8cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($discount,2) }}</div>
 
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
-  <div style="position:absolute; top:13cm; right:2.8cm; width:3.0cm; font-size:12px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  <div style="position:absolute; top:12.8cm; right:2.8cm; width:3.0cm; font-size:12px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
-  <div style="position:absolute; left: 2cm; top:14cm; font-size:10px; text-align:center; font-style:italic;">
+  <div style="position:absolute; left: 1.3cm; top:13.7cm; font-size:10px; text-align:center; font-style:italic;">
     {{ $amount_in_words }}
   </div>
 
   {{-- Collecting Officer signature --}}
-  <div style="position:absolute; bottom:3.0cm; right:1.6cm; text-align:center; width:5.0cm; font-size:10px;">
+  <div style="position:absolute; bottom:3.3cm; right:1.6cm; text-align:center; width:5.0cm; font-size:10px;">
     <div style="font-weight:700;">{{ strtoupper($cashier) }}</div>
   </div>
 
