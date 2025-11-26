@@ -17,7 +17,7 @@
   <style>
     @font-face {
         font-family: 'EpsonFX';
-        src: url('/fonts/Web437_EpsonMGA_Mono.woff') format('woff');
+        src: url('/fonts/Web437_EpsonMGA_Alt-2y.woff') format('woff');
         font-weight: normal;
         font-style: normal;
     }
@@ -476,7 +476,7 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:3.6cm; right:4.5cm; font-size:12px;">
+  <div style="position:absolute; top:4.8cm; right:4.5cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
@@ -496,10 +496,10 @@
   </div> -->
 
   {{-- Table: WB (Nature) main --}}
-  <div style="position:absolute; top:8.0cm; font-size:10px;">
+  <div style="position:absolute; top:8.25cm; font-size:10px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:8.0cm; right:2.7cm; width:3.0cm; font-size:12px; text-align:right;">
+  <div style="position:absolute; top:8.15cm; right:2.7cm; width:3.0cm; font-size:12px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
 
@@ -524,12 +524,12 @@
   <div style="position:absolute; top:12.8cm; right:2.8cm; width:3.0cm; font-size:12px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
-  <div style="position:absolute; left: 1.3cm; top:13.7cm; font-size:10px; text-align:center; font-style:italic;">
+  <div style="position:absolute; left: 0.5cm; top:13.9cm; font-size:10px; text-align:center; font-style:italic;">
     {{ $amount_in_words }}
   </div>
 
   {{-- Collecting Officer signature --}}
-  <div style="position:absolute; bottom:3.3cm; right:1.6cm; text-align:center; width:5.0cm; font-size:10px;">
+  <div style="position:absolute; bottom:3.4cm; right:1.9cm; text-align:center; width:5.0cm; font-size:10px;">
     <div style="font-weight:700;">{{ strtoupper($cashier) }}</div>
   </div>
 
