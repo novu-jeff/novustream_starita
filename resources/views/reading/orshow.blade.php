@@ -481,17 +481,17 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:6.1cm; right:2.2cm; font-weight:700; font-size:12px;">
+  <div style="position:absolute; top:6.1cm; right:2.2cm; font-weight:700; font-size:13px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
   {{-- Agency --}}
-  <div style="position:absolute; font-weight:700; left: 1.5cm; top:7.0cm; font-size:12px;">
+  <div style="position:absolute; font-weight:700; left: 1.5cm; top:7.0cm; font-size:13px;">
     SANTA RITA WATER DISTRICT
   </div>
 
   {{-- Payor --}}
-  <div style="position:absolute; font-weight:700; left: 1.5cm; top:7.7cm; font-size:12px; text-transform:uppercase;">
+  <div style="position:absolute; font-weight:700; left: 1.5cm; top:7.7cm; font-size:13px; text-transform:uppercase;">
     {{ $data['client']['name'] ?? 'N/A' }} {{ !empty($data['client']['account_no']) ? ' | '.$data['client']['account_no'] : '' }}
   </div>
 
