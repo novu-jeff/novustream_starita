@@ -215,7 +215,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
                     <pre style='background:#1e293b;color:#f8fafc;padding:1rem;border-radius:8px;overflow:auto;'>
 $output
                     </pre>
-                    <a href='/admin/dashboard' 
+                    <a href='/admin/dashboard'
                         style='
                             display:inline-block;
                             margin-top:1rem;
