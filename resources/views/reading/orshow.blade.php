@@ -220,7 +220,7 @@
 
     $receipt_no = $receipt_no ?? ('436' . str_pad(rand(0,9999), 4, '0', STR_PAD_LEFT));
     $cashier = auth()->user()->name ?? ($cb['collecting_officer'] ?? 'NA');
-    $bill_month = !empty($cb['bill_period_from']) ? \Carbon\Carbon::parse($cb['bill_period_from'])->format('M Y') : '';
+    $bill_month = !empty($cb['bill_period_to']) ? \Carbon\Carbon::parse($cb['bill_period_to'])->format('M Y') : '';
     $account_no = $cb['account_no'] ?? $cb['account_number'] ?? '011-12-011110';
     $datePaid = $cb['date_paid'] ?? \Carbon\Carbon::now()->format('Y-m-d');
 
