@@ -22,7 +22,7 @@
 
     @font-face {
         font-family: 'EpsonFX';
-        src: url('/fonts/Dotrice-Regular.otf') format('woff');
+        src: url('/fonts/Web437_EpsonMGA_Mono.woff') format('woff');
         font-weight: normal;
         font-style: normal;
     }
@@ -481,17 +481,17 @@
   </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:6.1cm; right:1.3cm; font-size:12px; font-weight:800;">
+  <div style="position:absolute; top:6.1cm; right:1.5cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
   {{-- Agency --}}
-  <div style="position:absolute; left: 1.5cm; top:7.0cm; font-size:12px; font-weight:800;">
+  <div style="position:absolute; left: 1.5cm; top:7.0cm; font-size:12px;">
     SANTA RITA WATER DISTRICT
   </div>
 
   {{-- Payor --}}
-  <div style="position:absolute; left: 1.5cm; top:7.7cm; font-size:11px; text-transform:uppercase; font-weight:800;">
+  <div style="position:absolute; left: 1.5cm; top:7.7cm; font-size:11px; text-transform:uppercase;">
     {{ $data['client']['name'] ?? 'N/A' }} {{ !empty($data['client']['account_no']) ? ' | '.$data['client']['account_no'] : '' }}
   </div>
 
@@ -501,41 +501,41 @@
   </div> -->
 
   {{-- Table: WB (Nature) main --}}
-  <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:10px; font-weight:800;">
+  <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:10px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:9.3cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; font-weight:800;">
+  <div style="position:absolute; top:9.3cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
 
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
-    <div style="position:absolute; top:10.2cm; left: 1.5cm; font-size:10px; font-weight:800;">Penalty</div>
-    <div style="position:absolute; top:10cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; font-weight:800;">₱ {{ number_format($applicablePenalty,2) }}</div>
+    <div style="position:absolute; top:10.2cm; left: 1.5cm; font-size:10px;">Penalty</div>
+    <div style="position:absolute; top:10cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
   {{-- Arrears --}}
   @if($arrears > 0)
-    <div style="position:absolute; top:10.9cm; left: 1.5cm; font-size:10px; font-weight:800;">Arrears</div>
-    <div style="position:absolute; top:10.7cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; font-weight:800;">₱ {{ number_format($arrears,2) }}</div>
+    <div style="position:absolute; top:10.9cm; left: 1.5cm; font-size:10px;">Arrears</div>
+    <div style="position:absolute; top:10.7cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
   @endif
 
   {{-- Discount --}}
-  <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:10px; font-weight:800;">Less: Senior Discount</div>
-  <div style="position:absolute; top:13.2cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; font-weight:800;">₱ {{ number_format($discount,2) }}</div>
+  <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:10px;">Less: Senior Discount</div>
+  <div style="position:absolute; top:13.2cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
 
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
-  <div style="position:absolute; top:13.8cm; right:1.3cm; width:3.0cm; font-size:12px; font-weight:800; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  <div style="position:absolute; top:13.8cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
-  <div style="position:absolute; left: 1.5cm; top:15.3cm; font-size:12px; text-align:center; font-weight:800;">
+  <div style="position:absolute; left: 1.4cm; top:15.2cm; font-size:11px; text-align:center; ">
     {{ $amount_in_words }}
   </div>
 
   {{-- Collecting Officer signature --}}
-  <div style="position:absolute; bottom:2.4cm; right:1.1cm; text-align:center; width:5.0cm; font-size:10px; font-weight:800;">
-    <div style="font-weight:700;">{{ strtoupper($cashier) }}</div>
+  <div style="position:absolute; bottom:2.4cm; right:1.1cm; text-align:center; width:5.0cm; font-size:10px; ">
+    <div style="font-weight:500;">{{ strtoupper($cashier) }}</div>
   </div>
 
 </div> <!-- #receipt-overlay -->
