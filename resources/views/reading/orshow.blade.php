@@ -30,15 +30,25 @@
     @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
     /* Page fixed size for 4" x 8.5" (10.16cm x 21.59cm) */
     .receipt-sheet {
-      width: 10.16cm;
-      height: 21.59cm;
-      box-sizing: border-box;
-      background: white;
-      font-family: 'EpsonFX';
-      color: #000;
-      position: relative;
-      margin: 0 auto;
-      padding : 0;
+        width: 10.16cm;
+        height: 21.59cm;
+        box-sizing: border-box;
+        background: white;
+
+        /* dot matrix font */
+        font-family: 'EpsonFX', monospace;
+
+        /* IMPORTANT: force crisp pixel rendering */
+        -webkit-font-smoothing: none;
+        -moz-osx-font-smoothing: grayscale;
+        font-smooth: never;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+
+        color: #000;
+        position: relative;
+        margin: 0 auto;
+        padding: 0;
     }
 
     /* Outer thin page border when viewing (optional) */
