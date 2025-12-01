@@ -33,4 +33,14 @@ class UserAccounts extends Model
         return $this->hasMany(Reading::class, 'account_no', 'account_no');
     }
 
+    public function discount()
+    {
+        return $this->hasOne(Discount::class, 'account_no', 'account_no');
+    }
+
+    public function property_types_by_name() {
+        return $this->hasOne(PropertyTypes::class, 'name', 'property_type');
+    }
+
+
 }

@@ -46,6 +46,8 @@ class OfflineDataController extends Controller
             })
             ->get();
 
+        
+
         // ✅ Compute unpaid + previous_reading BEFORE mapping to array
         $previousReadings = [];
 
@@ -59,6 +61,14 @@ class OfflineDataController extends Controller
 
         // ✅ Now transform to clean arrays for frontend
         $accounts = $accounts->map(function ($acc) use ($previousReadings) {
+            // dd([
+            //     'prop_type_raw' => $acc->property_type,
+            //     'from_id_relation' => $acc->property_types?->toArray(),
+            //     'from_name_relation' => $acc->property_types_by_name?->toArray(),
+            // ]);
+
+
+
             // \Log::info('[DEBUG OFFLINE] Account structure:', $acc->toArray());
             $unpaid = Bill::whereHas('reading', function ($q) use ($acc) {
                     $q->where('account_no', $acc->account_no);
@@ -72,8 +82,8 @@ class OfflineDataController extends Controller
                 'address'          => $acc->address,
                 'meter_serial_no'  => $acc->meter_serial_no,
                 'zone'             => $acc->zone,
-                'property_types_id'=> $acc->property_types_id,
-                'discount_type'    => $acc->discount_type,
+                'property_type_id'       => $acc->property_types_by_name->id ?? null,
+                'discount_type'    => $acc->discount->discount_type_id ?? 0,
                 'previous_reading' => $previousReadings[$acc->account_no] ?? 0,
                 'unpaid_amount'    => $unpaid,
             ];
