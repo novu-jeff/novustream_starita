@@ -270,7 +270,7 @@
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px;">
-                                               ₱ {{ number_format($data['current_bill']['amount'] - $discount - $advances, 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount'], 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -410,7 +410,7 @@
 
                                         @php
                                             $userDiscount = $data['current_bill']['reading']['account_no'];
-                                            if (in_array($userDiscount, ['061-12-065391', '091-12-092000'])) {
+                                            if (in_array($userDiscount, ['061-12-065391', '091-12-092000', '061-12-064897'])) {
                                                 $temporaryDiscount = 0.25;
                                             } else {
                                                 $temporaryDiscount = null;
