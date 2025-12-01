@@ -198,7 +198,7 @@
                             @if(!empty($data['current_bill']['advances']))
                                 <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                     <div>Advances</div>
-                                    <div>- ({{$data['current_bill']['advances']}})</div>
+                                    <div>- ({{number_format($data['current_bill']['advances'], 2)}})</div>
                                 </div>
                             @endif
                         </div>
