@@ -710,6 +710,8 @@ class ReadingController extends Controller
 
         $total = $billData['total'];
         $prevUnpaid = $billData['previous_unpaid'];
+        $advances = $billData['advances'];
+
         $discounted = $totalDiscount;
 
         $totalAmountPenalty = $total - $prevUnpaid - $discounted;
@@ -747,7 +749,7 @@ class ReadingController extends Controller
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $totalAmount + $penaltyAmount,
+            'amount' => $totalAmount + $penaltyAmount - $discounted - $advances,
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);
