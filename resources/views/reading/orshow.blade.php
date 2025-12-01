@@ -12,18 +12,33 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
     @vite(['resources/js/app.js'])
+    <link href="https://fonts.cdnfonts.com/css/dot-matrix" rel="stylesheet">
 
   <style>
+
+    @page {
+        margin: 0;
+    }
+
+    @font-face {
+        font-family: 'EpsonFX';
+        src: url('/fonts/Web437_EpsonMGA_Mono.woff') format('woff');
+        font-weight: normal;
+        font-style: normal;
+    }
+
+    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
     /* Page fixed size for 4" x 8.5" (10.16cm x 21.59cm) */
     .receipt-sheet {
       width: 10.16cm;
       height: 21.59cm;
       box-sizing: border-box;
       background: white;
-      font-family: "Times New Roman", serif;
+      font-family: 'EpsonFX', monospace;
       color: #000;
       position: relative;
       margin: 0 auto;
+      padding : 0;
     }
 
     /* Outer thin page border when viewing (optional) */
@@ -205,7 +220,7 @@
 
     $receipt_no = $receipt_no ?? ('436' . str_pad(rand(0,9999), 4, '0', STR_PAD_LEFT));
     $cashier = auth()->user()->name ?? ($cb['collecting_officer'] ?? 'NA');
-    $bill_month = !empty($cb['bill_period_from']) ? \Carbon\Carbon::parse($cb['bill_period_from'])->format('M Y') : '';
+    $bill_month = !empty($cb['bill_period_to']) ? \Carbon\Carbon::parse($cb['bill_period_to'])->format('M Y') : '';
     $account_no = $cb['account_no'] ?? $cb['account_number'] ?? '011-12-011110';
     $datePaid = $cb['date_paid'] ?? \Carbon\Carbon::now()->format('Y-m-d');
 
@@ -461,67 +476,66 @@
   {{-- NOTE: positions are in cm and intended to match the full receipt above. If you need to calibrate, tweak the top/left/right values by +/- 0.05cm. --}}
 
   {{-- OR Number (top-right) --}}
-  <div style="position:absolute; top:0.9cm; right:0.7cm; font-weight:700; font-size:13px;">
+  <!-- <div style="position:absolute; top:0.9cm; right:0.7cm; font-weight:700; font-size:13px;">
     {{ $receipt_no }}
-  </div>
+  </div> -->
 
   {{-- Date (below OR no.) --}}
-  <div style="position:absolute; top:1.6cm; right:0.7cm; font-size:9px;">
+  <div style="position:absolute; top:6cm; right:1.5cm; font-size:12px;">
     {{ \Carbon\Carbon::parse($datePaid)->format('F d, Y') }}
   </div>
 
   {{-- Agency --}}
-  <div style="position:absolute; top:3.9cm; left:1.2cm; font-size:11px;">
+  <div style="position:absolute; left: 1.5cm; top:7.0cm; font-size:12px;">
     SANTA RITA WATER DISTRICT
   </div>
 
   {{-- Payor --}}
-  <div style="position:absolute; top:4.4cm; left:1.2cm; right:1.2cm; font-size:11px; text-transform:uppercase;">
+  <div style="position:absolute; left: 1.5cm; top:7.7cm; font-size:11px; text-transform:uppercase;">
     {{ $data['client']['name'] ?? 'N/A' }} {{ !empty($data['client']['account_no']) ? ' | '.$data['client']['account_no'] : '' }}
   </div>
 
-  {{-- Account No --}}
-  <div style="position:absolute; top:4.9cm; left:1.2cm; font-size:11px;">
+  <!-- {{-- Account No --}}
+  <div style="position:absolute; top:4.9cm; font-size:11px;">
     {{ $account_no }}
-  </div>
+  </div> -->
 
   {{-- Table: WB (Nature) main --}}
-  <div style="position:absolute; top:7.0cm; left:0.7cm; font-size:10px;">
+  <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:13px;">
     WB {{ $bill_month }}
   </div>
-  <div style="position:absolute; top:7.0cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">
+  <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
     ₱ {{ number_format($total,2) }}
   </div>
 
-  {{-- Arrears --}}
-  @if($arrears > 0)
-    <div style="position:absolute; top:7.6cm; left:0.7cm; font-size:10px;">Arrears</div>
-    <div style="position:absolute; top:7.6cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
-  @endif
-
   {{-- Penalty --}}
   @if($assumed_penalty > 0)
-    <div style="position:absolute; top:8.2cm; left:0.7cm; font-size:10px;">Penalty</div>
-    <div style="position:absolute; top:8.2cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
+    <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:14px;">Penalty</div>
+    <div style="position:absolute; top:9.9cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
+  @endif
+
+  {{-- Arrears --}}
+  @if($arrears > 0)
+    <div style="position:absolute; top:10.9cm; left: 1.5cm; font-size:12px;">Arrears</div>
+    <div style="position:absolute; top:10.7cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
   @endif
 
   {{-- Discount --}}
-  <div style="position:absolute; top:10.1cm; left:0.7cm; font-size:10px;">Less: Senior Discount</div>
-  <div style="position:absolute; top:10.1cm; right:0.8cm; width:3.0cm; font-size:10px; text-align:right;">₱ {{ number_format($discount,2) }}</div>
+  <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:12px;">Less: Senior Discount</div>
+  <div style="position:absolute; top:13.1cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
 
   {{-- Total --}}
-  <div style="position:absolute; top:10.6cm; left:0.7cm; font-size:11px; font-weight:700;">TOTAL</div>
-  <div style="position:absolute; top:10.6cm; right:0.8cm; width:3.0cm; font-size:11px; font-weight:700; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
+  <div style="position:absolute; top:13.8cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
 
   {{-- Amount in words --}}
-  <div style="position:absolute; top:12.5cm; left:0.9cm; right:0.9cm; font-size:10px; text-align:center; font-style:italic;">
+  <div style="position:absolute; left: 1.4cm; top:15.2cm; font-size:11px; text-align:center; ">
     {{ $amount_in_words }}
   </div>
 
   {{-- Collecting Officer signature --}}
-  <div style="position:absolute; bottom:2.0cm; right:1.6cm; text-align:center; width:5.0cm; font-size:10px;">
-    <div style="border-bottom:1px solid #000; font-weight:700;">{{ strtoupper($cashier) }}</div>
-    <div style="font-size:9px;">Collecting Officer</div>
+  <div style="position:absolute; bottom:2.4cm; right:1.1cm; text-align:center; width:5.0cm; font-size:10px; ">
+    <div style="font-weight:500;">{{ strtoupper($cashier) }}</div>
   </div>
 
 </div> <!-- #receipt-overlay -->

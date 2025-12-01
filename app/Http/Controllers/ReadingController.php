@@ -710,6 +710,8 @@ class ReadingController extends Controller
 
         $total = $billData['total'];
         $prevUnpaid = $billData['previous_unpaid'];
+        $advances = $billData['advances'];
+
         $discounted = $totalDiscount;
 
         $totalAmountPenalty = $total - $prevUnpaid - $discounted;
@@ -737,6 +739,7 @@ class ReadingController extends Controller
             '081-22-080980', // Dila-Dila Brgy Hall
             '111-22-111720', // Holy Family Elementary School
             '091-22-092230', // Material Recovery Facilities
+            '061-22-060250', // VDLR Parish
         ];
 
         // Check if account is exempted from penalty
@@ -746,7 +749,7 @@ class ReadingController extends Controller
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $totalAmount + $penaltyAmount,
+            'amount' => $totalAmount + $penaltyAmount - $discounted - $advances,
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);

@@ -20,7 +20,7 @@ class PartialPayment extends Model
 
     public function reading()
     {
-        return $this->belongsTo(\App\Models\Reading::class, 'reading_id');
+        return $this->belongsTo(Reading::class, 'reading_id', 'id');
     }
 
 }
