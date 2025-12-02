@@ -441,7 +441,7 @@
 
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
-                                            $totalDue = $netCurrentBill + $penalty - $partialPayment;
+                                            $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
                                             $temporaryDiscounts = $totalDue * $temporaryDiscount;
                                             $totalDue = $totalDue - $temporaryDiscounts;
                                         @endphp
@@ -512,10 +512,10 @@
                                                 </div>
                                             @endif
 
-                                            @if($penalty > 0)
+                                            @if($applicablePenalty > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-danger" style="font-size: 12px;">
-                                                        + PHP {{ number_format($penalty, 2) }} (DUE DATE PENALTY)
+                                                        + PHP {{ number_format($applicablePenalty, 2) }} (DUE DATE PENALTY)
                                                     </h6>
                                                 </div>
                                             @endif
@@ -577,6 +577,12 @@
                                     <h3 class="ms-2 mb-0 text-center">
                                         Already Paid
                                     </h3>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    <a href="{{ route('reading.orshow', ['reference_no' => $reference_no]) }}"
+                                    style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none;">
+                                        Generate Official Receipt
+                                    </a>
                                 </div>
                             @endif
                         </div>
