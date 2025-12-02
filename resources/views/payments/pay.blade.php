@@ -75,29 +75,15 @@
                                             <div style="text-align: center; text-transform: uppercase;">
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Bill Date</div>
-                                                    <div>11/04/2025</div>
+                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
                                                 </div>
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Period</div>
-                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y')}} TO 11/04/2025</div>
+                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['bill_period_from'])->format('m/d/Y') . ' TO ' . \Carbon\Carbon::parse($data['current_bill']['bill_period_to'])->format('m/d/Y')}}</div>
                                                 </div>
-                                                @php
-                                                $zone = $data['current_bill']['reading']['zone'];
-                                                $zone = str_replace('BOOK ', '', strtoupper(trim($zone)));
-
-                                                if (in_array($zone, ['011', '021', '031', '041', '051'])) {
-                                                    $dueDate = '11/18/2025';
-                                                } else if (in_array($zone, ['061', '071', '081'])) {
-                                                    $dueDate = '11/19/2025';
-                                                } else if (in_array($zone, ['091', '101', '111'])) {
-                                                    $dueDate = '11/20/2025';
-                                                } else {
-                                                    $dueDate = null;
-                                                }
-                                                @endphp
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Due Date</div>
-                                                    <div>{{$dueDate}}</div>
+                                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                                 </div>
                                                 <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
                                                     <ul style="list-style: none !important">
