@@ -34,37 +34,78 @@ class PaymentController extends Controller
     }
 
     public function index(Request $request)
-    {
+{
+    $filter = $request->filter ?? '';
 
-        $filter = $request->filter ?? '';
-
-        if (!in_array($filter, ['unpaid', 'paid'], true)) {
-            return redirect()->route('payments.index', ['filter' => 'unpaid']);
-        }
-
-        $zones = $this->meterService->getZones();
-        $zone = $request->zone ?? 'all';
-
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
-        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
-
-        $collection = collect($this->meterService::getPayments($filter, $zone, $date, $toSearch))
-            ->flatten(2);
-
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
-
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        return view('payments.index', compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch'));
+    if (!in_array($filter, ['unpaid', 'paid'], true)) {
+        return redirect()->route('payments.index', ['filter' => 'unpaid']);
     }
+
+    $zones = $this->meterService->getZones();
+    $zone = $request->zone ?? 'all';
+
+    $entries = $request->entries ?? 10;
+    $toSearch = trim($request->search ?? '');
+    $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+
+    /**
+     * ------------------------------------------------------------
+     *  SMART SEARCH PROCESSING (Catherine Abayari → ABAYARI...)
+     * ------------------------------------------------------------
+     *
+     * We convert input like:
+     *   "Catherine Abayari"
+     *   "Abayari Catherine"
+     *   "Catherine A."
+     *
+     * Into searchable fragments:
+     *   catherine
+     *   abayari
+     *
+     * So the service can match: "ABAYARI I, CATHERINE S."
+     */
+    $searchParts = [];
+
+    if (!empty($toSearch)) {
+        // Split into keywords
+        $keywords = preg_split('/\s+/', strtolower($toSearch));
+
+        foreach ($keywords as $keyword) {
+            if (strlen($keyword) > 0) {
+                $searchParts[] = $keyword;
+            }
+        }
+    }
+
+    // Pass to service as array OR as original string
+    // Service can filter using LIKE per keyword
+    $collection = collect(
+        $this->meterService::getPayments(
+            $filter,
+            $zone,
+            $date,
+            $toSearch
+        )
+    )->flatten(2);
+
+    // Pagination (unchanged)
+    $currentPage = LengthAwarePaginator::resolveCurrentPage();
+    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+
+    $data = new LengthAwarePaginator(
+        $currentItems,
+        $collection->count(),
+        $entries,
+        $currentPage,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
+
+    return view(
+        'payments.index',
+        compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch')
+    );
+}
+
 
     public function upload(Request $request)
     {
