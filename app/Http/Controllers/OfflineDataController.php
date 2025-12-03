@@ -16,15 +16,24 @@ class OfflineDataController extends Controller
 {
     public function download(Request $request)
     {
-        $user = auth()->user();
 
-        if (!$user) {
-            return response()->json(['error' => 'Unauthenticated'], 401);
-        }
+        // STATIC TOKEN AUTHENTICATION
+        // $token = $request->header('X-API-KEY');
 
-        if (!in_array($user->user_type, ['technician', 'admin'])) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        // if ($token !== config('app.offline_api_key')) {
+        //     return response()->json(['error' => 'Unauthorized'], 403);
+        // }
+
+        $user = \App\Models\User::first();
+
+
+        // if (!$user) {
+        //     return response()->json(['error' => 'Unauthenticated'], 401);
+        // }
+
+        // if (!in_array($user->user_type, ['technician', 'admin'])) {
+        //     return response()->json(['error' => 'Unauthorized'], 403);
+        // }
 
         // ✅ Determine technician’s assigned zones
         $zoneIds = $user->zone_assigned ? explode(',', $user->zone_assigned) : [];
@@ -52,12 +61,16 @@ class OfflineDataController extends Controller
         $previousReadings = [];
 
         foreach ($accounts as $acc) {
-            $previous = Reading::where('account_no', $acc->account_no)
+            $latest = Reading::where('account_no', $acc->account_no)
                 ->latest('created_at')
-                ->value('present_reading') ?? 0;
+                ->first();
 
-            $previousReadings[$acc->account_no] = $previous;
+            $previousReadings[$acc->account_no] = [
+                'present_reading' => $latest->present_reading ?? 0,
+                'created_at'      => $latest->created_at ?? null,
+            ];
         }
+
 
         // ✅ Now transform to clean arrays for frontend
         $accounts = $accounts->map(function ($acc) use ($previousReadings) {
@@ -82,11 +95,13 @@ class OfflineDataController extends Controller
                 'address'          => $acc->address,
                 'meter_serial_no'  => $acc->meter_serial_no,
                 'zone'             => $acc->zone,
-                'property_type_id'       => $acc->property_types_by_name->id ?? null,
+                'property_type_id' => $acc->property_types_by_name->id ?? null,
                 'discount_type'    => $acc->discount->discount_type_id ?? 0,
-                'previous_reading' => $previousReadings[$acc->account_no] ?? 0,
+                'previous_reading' => $previousReadings[$acc->account_no]['present_reading'] ?? 0,
                 'unpaid_amount'    => $unpaid,
+                'created_at'      => $previousReadings[$acc->account_no]['created_at'] ?? null,
             ];
+
         });
 
         // ✅ Rates, Property Types, Discounts, Penalties
