@@ -54,21 +54,31 @@
                         <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
                     </div>
 
-                    <div class="col-md-3">
-                        <label class="form-label mb-1">Search <span class="text-muted ms-1">[name | account no]</span></label>
-                        <div class="position-relative">
-                            <input type="text" name="search" id="search" class="form-control pe-5" value="{{ $toSearch }}">
-                            @if(!empty($toSearch))
-                                <button
-                                    type="button"
-                                    id="clear-search"
-                                    class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
-                                    style="border: none; background: none; font-size: 1.2rem;"
-                                    aria-label="Clear search"
-                                >&times;</button>
-                            @endif
-                        </div>
-                    </div>
+                   <div class="col-md-3">
+    <label class="form-label mb-1">Search
+        <span class="text-muted ms-1">[name | account no]</span>
+    </label>
+
+    <div class="position-relative">
+        <input
+            type="text"
+            name="search"
+            id="search"
+            class="form-control pe-5"
+            value="{{ $toSearch }}"
+            placeholder="Search..."
+        >
+
+        <button
+            type="button"
+            id="clear-search"
+            class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted d-none"
+            style="border: none; background: none; font-size: 1.2rem;"
+            aria-label="Clear search"
+        >&times;</button>
+    </div>
+</div>
+
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
                     <thead>
@@ -122,41 +132,61 @@
 
 @section('script')
     <script>
-    $(function () {
+$(function () {
 
-        function updateFilters(page = 1) {
-            const data = {
-                search: $('#search').val(),
-                entries: $('#entries').val(),
-                zone: $('#zone_no').val(),
-                date: $('#date').val(),
-                page
-            };
-
-            $.ajax({
-                url: "{{ route('reading.report') }}",
-                type: "GET",
-                data,
-                success: function(res) {
-                    renderTable(res.data, res.pagination);
-                    window.latestZones = res.zones;
-                    renderZones(window.latestZones, parseInt($('#entries').val()), 1);
-                },
-                error: function(err) {
-                    console.log(err);
-                    alert('Failed to fetch readings.');
-                }
-            });
+    /* ------------------------------
+       Toggle clear button visibility
+    ------------------------------ */
+    function toggleClearButton() {
+        if ($('#search').val().trim() !== '') {
+            $('#clear-search').removeClass('d-none');
+        } else {
+            $('#clear-search').addClass('d-none');
         }
+    }
 
-        function renderTable(rows, pagination) {
-            const tbody = $('table tbody');
-            tbody.empty();
+    /* ------------------------------
+       AJAX filter updater
+    ------------------------------ */
+    function updateFilters(page = 1) {
+        let searchValue = $('#search').val().trim();
+        if (searchValue === '') searchValue = null; // normalize empty strings
 
-            if (!rows.length) {
-                tbody.append('<tr><td colspan="12" class="text-center text-muted">No records found.</td></tr>');
-            } else {
-                rows.forEach(row => {
+        const data = {
+            search: searchValue,
+            entries: $('#entries').val(),
+            zone: $('#zone_no').val(),
+            date: $('#date').val(),
+            page
+        };
+
+        $.ajax({
+            url: "{{ route('reading.report') }}",
+            type: "GET",
+            data,
+            success: function(res) {
+                renderTable(res.data, res.pagination);
+                window.latestZones = res.zones;
+                renderZones(window.latestZones, parseInt($('#entries').val()), 1);
+            },
+            error: function(err) {
+                console.log(err);
+                alert('Failed to fetch readings.');
+            }
+        });
+    }
+
+    /* ------------------------------
+       Render Table
+    ------------------------------ */
+    function renderTable(rows, pagination) {
+        const tbody = $('table tbody');
+        tbody.empty();
+
+        if (!rows.length) {
+            tbody.append('<tr><td colspan="12" class="text-center text-muted">No records found.</td></tr>');
+        } else {
+            rows.forEach(row => {
                 const referenceNo = row.bill?.reference_no ?? null;
                 const link = referenceNo
                     ? `{{ route('reading.show', ':reference_no') }}`.replace(':reference_no', referenceNo)
@@ -175,10 +205,10 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <a href="${link}"
-                                class="btn btn-primary text-white text-uppercase fw-bold"
-                                id="show-btn"
-                                data-id="${row.id}"
-                                ${disabled}>
+                                   class="btn btn-primary text-white text-uppercase fw-bold"
+                                   id="show-btn"
+                                   data-id="${row.id}"
+                                   ${disabled}>
                                     <i class="bx bx-receipt"></i>
                                 </a>
                             </div>
@@ -186,118 +216,144 @@
                     </tr>
                 `);
             });
-            }
-            renderPagination(pagination);
         }
+        renderPagination(pagination);
+    }
 
-        function renderZones(zones) {
-            const container = $('#zones-container');
-            container.empty();
+    /* ------------------------------
+       Render Zones
+    ------------------------------ */
+    function renderZones(zones) {
+        const container = $('#zones-container');
+        container.empty();
 
-            zones.forEach(zone => {
-                container.append(`
-                    <div class="col">
-                        <div class="card h-100 shadow-sm text-center border border-primary-subtle">
-                            <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
-                                <div class="fw-bold text-primary fs-6">
-                                    ${zone.read_count ?? 0} / ${zone.total_accounts}
-                                </div>
-                                <div class="text-uppercase text-muted mt-1 small">
-                                    ${zone.zone} - ${zone.area ?? ''}
-                                </div>
+        zones.forEach(zone => {
+            container.append(`
+                <div class="col">
+                    <div class="card h-100 shadow-sm text-center border border-primary-subtle">
+                        <div class="card-body d-flex flex-column justify-content-center py-3 px-2">
+                            <div class="fw-bold text-primary fs-6">
+                                ${zone.read_count ?? 0} / ${zone.total_accounts}
+                            </div>
+                            <div class="text-uppercase text-muted mt-1 small">
+                                ${zone.zone} - ${zone.area ?? ''}
                             </div>
                         </div>
                     </div>
-                `);
-            });
+                </div>
+            `);
+        });
+    }
+
+    /* ------------------------------
+       Render Pagination
+    ------------------------------ */
+    function renderPagination(pagination) {
+        const wrapper = $('#pagination-wrapper');
+        wrapper.empty();
+
+        if (!pagination || pagination.last_page <= 1) return;
+
+        const totalPages = pagination.last_page;
+        const currentPage = pagination.current_page;
+        const perPage = pagination.per_page;
+        const total = pagination.total;
+
+        const start = (currentPage - 1) * perPage + 1;
+        const end = Math.min(start + perPage - 1, total);
+        wrapper.append(`<div class="mb-2 text-center text-muted">Showing ${start} to ${end} of ${total} results</div>`);
+
+        let html = '<nav><ul class="pagination justify-content-center">';
+
+        // Previous button
+        html += `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a href="#" class="page-link" data-page="${currentPage - 1}">&lsaquo;</a>
+            </li>`;
+
+        const delta = 4;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        // Build page range
+        for (let i = 1; i <= totalPages; i++) {
+            if (
+                i === 1 ||
+                i === 2 ||
+                i === totalPages ||
+                (i >= currentPage - delta && i <= currentPage + delta)
+            ) {
+                range.push(i);
+            }
         }
 
-        function renderPagination(pagination) {
-            const wrapper = $('#pagination-wrapper');
-            wrapper.empty();
-
-            if (!pagination || pagination.last_page <= 1) return;
-
-            const totalPages = pagination.last_page;
-            const currentPage = pagination.current_page;
-            const perPage = pagination.per_page;
-            const total = pagination.total;
-
-            const start = (currentPage - 1) * perPage + 1;
-            const end = Math.min(start + perPage - 1, total);
-            wrapper.append(`<div class="mb-2 text-center text-muted">Showing ${start} to ${end} of ${total} results</div>`);
-
-            let html = '<nav><ul class="pagination justify-content-center">';
-
-            // Previous button
-            html += `
-                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                    <a href="#" class="page-link" data-page="${currentPage - 1}">&lsaquo;</a>
-                </li>`;
-
-            const delta = 4;
-            const range = [];
-            const rangeWithDots = [];
-            let l;
-
-            // Build core page range
-            for (let i = 1; i <= totalPages; i++) {
-                if (
-                    i === 1 ||
-                    i === 2 ||
-                    i === totalPages ||
-                    (i >= currentPage - delta && i <= currentPage + delta)
-                ) {
-                    range.push(i);
+        // Add missing parts
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
                 }
             }
-
-            // Add dots where gaps exist
-            for (let i of range) {
-                if (l) {
-                    if (i - l === 2) {
-                        rangeWithDots.push(l + 1);
-                    } else if (i - l !== 1) {
-                        rangeWithDots.push('...');
-                    }
-                }
-                rangeWithDots.push(i);
-                l = i;
-            }
-
-            rangeWithDots.forEach(i => {
-                if (i === '...') {
-                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-                } else {
-                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-                                <a href="#" class="page-link" data-page="${i}">${i}</a>
-                            </li>`;
-                }
-            });
-
-            html += `
-                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                    <a href="#" class="page-link" data-page="${currentPage + 1}">&rsaquo;</a>
-                </li>`;
-
-            html += '</ul></nav>';
-            wrapper.append(html);
+            rangeWithDots.push(i);
+            l = i;
         }
 
-        // Event listeners
-        $('#search, #entries, #zone_no, #date').on('change keyup', () => updateFilters(1));
-        $('#clear-search').on('click', () => {
-            $('#search').val('');
-            updateFilters(1);
+        rangeWithDots.forEach(i => {
+            if (i === '...') {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            } else {
+                html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a href="#" class="page-link" data-page="${i}">${i}</a>
+                        </li>`;
+            }
         });
 
-        $(document).on('click', '#pagination-wrapper .page-link', function(e) {
-            e.preventDefault();
-            const page = $(this).data('page');
-            if (page > 0) updateFilters(page);
-        });
+        html += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a href="#" class="page-link" data-page="${currentPage + 1}">&rsaquo;</a>
+            </li>
+        `;
 
-        updateFilters();
+        html += '</ul></nav>';
+        wrapper.append(html);
+    }
+
+    /* ------------------------------
+       Event Listeners
+    ------------------------------ */
+
+    // Real-time search
+    $('#search').on('input', function() {
+        toggleClearButton();
+        updateFilters(1);
     });
-    </script>
+
+    // Clear search
+    $('#clear-search').on('click', function() {
+        $('#search').val('');
+        toggleClearButton();
+        updateFilters(1);
+    });
+
+    // Dropdown filters
+    $('#entries, #zone_no, #date').on('change', function() {
+        updateFilters(1);
+    });
+
+    // Pagination click
+    $(document).on('click', '#pagination-wrapper .page-link', function(e) {
+        e.preventDefault();
+        const page = $(this).data('page');
+        if (page > 0) updateFilters(page);
+    });
+
+    // Initial load
+    toggleClearButton();
+    updateFilters();
+});
+</script>
+
 @endsection
