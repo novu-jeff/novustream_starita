@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\OfflineDataController;
 
 
 /*
@@ -67,3 +67,5 @@ Route::prefix('v1')->group(function() {
 Route::post('/offline/reading-sync', [ReadingController::class, 'store'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
     ->name('api.reading.sync');
+
+    Route::get('/offline/download', [OfflineDataController::class, 'download']);
