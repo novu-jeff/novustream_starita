@@ -873,9 +873,9 @@ async function downloadOfflineData() {
   try {
     notify('info', '📥 Downloading offline data… please wait.');
 
-    const res = await fetch('{{ route("offline.download") }}');
-    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-    const data = await res.json();
+    // const res = await fetch('{{ route("offline.download") }}');
+    // if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+    // const data = await res.json();
 
     console.table(data.accounts || []);
     console.log('[OFFLINE] Data structure:', data);

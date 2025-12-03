@@ -316,13 +316,27 @@ class MeterService {
                 }
             })
             ->when(!empty($search), function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->whereHas('reading', fn ($sub) => $sub->where('account_no', 'like', "%$search%"))
-                    ->orWhereHas('reading.concessionaire.user', fn ($sub) =>
-                        $sub->where('name', 'like', "%$search%")
-                    );
-                });
-            })
+
+    // Split user search into keywords
+    $keywords = preg_split('/\s+/', strtolower($search));
+
+    $query->where(function ($q) use ($keywords) {
+
+        foreach ($keywords as $keyword) {
+            $keyword = trim($keyword);
+            if ($keyword === '') continue;
+
+            $q->where(function ($sub) use ($keyword) {
+                $sub->whereHas('reading', fn ($r) =>
+                    $r->where('account_no', 'like', "%$keyword%")
+                )
+                ->orWhereHas('reading.concessionaire.user', fn ($u) =>
+                    $u->whereRaw('LOWER(name) LIKE ?', ["%$keyword%"])
+                );
+            });
+        }
+    });
+})
             ->get();
 
         if ($zone === 'all') {
