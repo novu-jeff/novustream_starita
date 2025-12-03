@@ -303,3 +303,6 @@ Route::get('/payment/test-status', function () {
         ]
     ]);
 });
+
+
+Route::get('/offline/download', [OfflineDataController::class, 'download']);
