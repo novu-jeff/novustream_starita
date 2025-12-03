@@ -380,7 +380,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($penalty) - $partialPayment ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($applicablePenalty) - $partialPayment ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
