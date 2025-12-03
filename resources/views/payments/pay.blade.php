@@ -93,7 +93,7 @@
                                                 </div> -->
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Disconnection Date</div>
-                                                    <div>11/25/2025</div>
+                                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -225,7 +225,7 @@
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Penalty Date: </div>
                                             <div style="text-transform: uppercase;">
-                                                {{$penaltyDate}}
+                                                 {{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()->format('m/d/Y') }}
                                             </div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
@@ -256,7 +256,7 @@
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px;">
-                                               ₱ {{ number_format($data['current_bill']['amount'], 2) }}
+                                               ₱ {{ number_format($data['current_bill']['amount'] - (float) $advancePayment, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -380,7 +380,7 @@
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($penalty) - $partialPayment ?? 0, 2)}}
+                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($applicablePenalty) - $partialPayment ?? 0, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -486,7 +486,7 @@
                                                 </div>
                                             @endif
 
-                                            @if($hasAdvancePayment && $advancePayment > 0)
+                                            @if($advancePayment > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advancePayment, 2) }} (ADVANCE PAYMENT)</h6>
                                                 </div>
