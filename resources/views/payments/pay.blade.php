@@ -196,12 +196,28 @@
                                                 }
                                             }
                                         $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
+                                        $isPaid = (float)($data['current_bill']['isPaid'] ?? 0);
+                                        if($isPaid == 1) {
+                                            $advance = 0;
+                                        } else {
+                                            $advance = $advancePayment;
+                                        }
                                         $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
+                                        $amountDue = (float) $data['current_bill']['total']
+                                                    - (float) $discount
+                                                    - (float) $advance
+                                                    - (float) ($franchise->amount ?? 0);
+
+                                        $amountDue = max(0, $amountDue);
+
+
+                                        $amountAfter = (float) $data['current_bill']['amount'] - (float) $advance;
+                                        $amountAfter = max(0, $amountAfter);
                                         @endphp
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ((float) $data['current_bill']['total'] - (float) $totalDiscount - (float) $advancePayment + (float) $arrears - $data['current_bill']['previous_unpaid'], 2)}}</div>
+                                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ($amountDue, 2)}}</div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -256,7 +272,7 @@
                                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px;">
-                                               ₱ {{ number_format($data['current_bill']['amount'] - (float) $advancePayment, 2) }}
+                                               ₱ {{ number_format($amountAfter, 2) }}
                                             </div>
                                         </div>
                                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -375,12 +391,21 @@
                                     $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
                                     $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
+
+                                    $amountAmountDue = (float) $data['current_bill']['total']
+                                                    - (float) $discount
+                                                    - (float) $advance
+                                                    + (float) $applicablePenalty
+                                                    - (float) $partialPayment
+                                                    - (float) ($franchise->amount ?? 0);
+
+                                    $amountAmountDue = max(0, $amountAmountDue);
                                 @endphp
 
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['total'] - ($discount) - ($advancePayment) + ($applicablePenalty) - $partialPayment ?? 0, 2)}}
+                                        PHP {{number_format($amountAmountDue, 2)}}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -395,12 +420,7 @@
                                         <h3>Bill Breakdown:</h3>
 
                                         @php
-                                            $userDiscount = $data['current_bill']['reading']['account_no'];
-                                            if (in_array($userDiscount, ['061-12-065391', '091-12-092000', '061-12-064897'])) {
-                                                $temporaryDiscount = 0.25;
-                                            } else {
-                                                $temporaryDiscount = null;
-                                            }
+
                                             $currentBill = (float)($data['current_bill']['total'] ?? 0);
                                             $arrears = (float)($data['current_bill']['previous_unpaid'] ?? 0);
                                             $penalty = (float)($data['current_bill']['penalty'] ?? 0);
@@ -428,8 +448,8 @@
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
                                             $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
-                                            $temporaryDiscounts = $totalDue * $temporaryDiscount;
-                                            $totalDue = $totalDue - $temporaryDiscounts;
+
+                                            $forAdvances = $advances - $currentBill;
                                         @endphp
 
                                         <!-- Arrears -->
@@ -480,11 +500,7 @@
                                                 </div>
                                             @endif
 
-                                            @if($temporaryDiscount > 0)
-                                                <div class="text-end">
-                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($temporaryDiscounts, 2) }} (LEAKAGE DISCOUNT)</h6>
-                                                </div>
-                                            @endif
+
 
                                             @if($advancePayment > 0)
                                                 <div class="text-end">
@@ -536,6 +552,14 @@
                                                 @enderror
                                             </div>
                                         </div>
+
+                                        @if($forAdvances > 0)
+                                            <div class="text-end">
+                                                <h6 class="text-primary" style="font-size: 12px;">
+                                                    + PHP {{ number_format($forAdvances, 2) }} (FOR ADVANCES)
+                                                </h6>
+                                            </div>
+                                        @endif
 
                                         <!-- Change -->
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-4">

@@ -451,12 +451,12 @@ class PaymentController extends Controller
             }
         }
 
-        $userDiscount = $currentBillData['reading']['account_no'];
-            if (in_array($userDiscount, ['061-12-065391', '091-12-092000', '061-12-064897'])) {
-                $temporaryDiscount = 0.25;
-            } else {
-                $temporaryDiscount = null;
-            }
+        // $userDiscount = $currentBillData['reading']['account_no'];
+        //     if (in_array($userDiscount, ['061-12-065391', '091-12-092000', '061-12-064897'])) {
+        //         $temporaryDiscount = 0.25;
+        //     } else {
+        //         $temporaryDiscount = null;
+        //     }
 
         // 2. removed arrears
         $totalDue = $currentBill - $discount + $dueDatePenalty - $advancePayment - $partialPayment;
