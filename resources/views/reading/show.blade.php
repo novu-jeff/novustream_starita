@@ -233,6 +233,16 @@
                                 $advance = $advances;
                             }
 
+                            $amountDue = (float) $data['current_bill']['total']
+                                        - (float) $discount
+                                        - (float) $advance
+                                        - (float) ($franchise->amount ?? 0);
+
+                            $amountDue = max(0, $amountDue);
+
+
+                            $amountAfter = (float) $data['current_bill']['amount'] - (float) $advance;
+                            $amountAfter = max(0, $amountAfter);
                         @endphp
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
@@ -251,7 +261,7 @@
                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format(abs((float) $data['current_bill']['total'] - (float) $discount - (float) $advance - (float) ($franchise->amount ?? 0)), 2) }}</div>
+                            <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format($amountDue, 2) }}</div>
                         </div>
                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -272,7 +282,7 @@
                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                             <div style="text-transform: uppercase; font-size: 20px;">
-                                {{number_format($data['current_bill']['amount'] - $advance, 2)}}
+                                {{number_format($amountAfter, 2)}}
                             </div>
                         </div>
                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
