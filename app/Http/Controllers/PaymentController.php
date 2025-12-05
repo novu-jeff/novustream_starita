@@ -460,8 +460,8 @@ class PaymentController extends Controller
 
         // 2. removed arrears
         $totalDue = $currentBill - $discount + $dueDatePenalty - $advancePayment - $partialPayment;
-        $temporaryDiscounts = $totalDue * $temporaryDiscount;
-        $totalDue = $totalDue - $temporaryDiscounts;
+        // $temporaryDiscounts = $totalDue * $temporaryDiscount;
+        // $totalDue = $totalDue - $temporaryDiscounts;
         $totalDue = max(0, round($totalDue, 2));
 
         return [
