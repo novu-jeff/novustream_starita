@@ -938,18 +938,21 @@ class ReportsController extends Controller
                     $reading = $bill->reading;
 
                     $rows[] = [
-                        'account_no'    => $reading->account_no ?? 'N/A',
-                        'zone'          => $reading->zone ?? 'N/A',
-                        'consumer_name' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
-                        'reference_no'  => $bill->reference_no,
-                        'bill_period'   => $bill->bill_period_from . ' - ' . $bill->bill_period_to,
-                        'amount'        => $bill->amount,
-                        'penalty'       => $bill->penalty,
-                        'discount'      => $bill->discount,
-                        'total'         => $bill->total,
-                        'amount_paid'   => $bill->amount_paid,
-                        'payment_method'=> $bill->payment_method ?? 'N/A',
-                        'date_paid'     => $bill->date_paid,
+                        'ACCOUNT NO'    => $reading->account_no ?? 'N/A',
+                        'ZONE'          => $reading->zone ?? 'N/A',
+                        'CONCESSIONAIRE' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
+                        'REFERENCE NO'  => $bill->reference_no,
+                        'BILL PERIOD'   => $bill->bill_period_from . ' - ' . $bill->bill_period_to,
+                        'AMOUNT'        => $bill->amount,
+                        'PENALTY'       => $bill->penalty,
+                        'DISCOUNT'      => $bill->discount,
+                        'TOTAL'         => $bill->total,
+                        'IS PARTIAL'    => $bill->isPartial,
+                        'PARTIAL PAYMENT'   => $bill->partial_payment,
+                        'IS PAID'       => $bill->isPaid,
+                        'AMOUNT PAID'   => $bill->amount_paid,
+                        'PAYMENT METHOD'=> $bill->payment_method ?? 'N/A',
+                        'DATE PAID'     => $bill->date_paid,
                     ];
                 }
 
