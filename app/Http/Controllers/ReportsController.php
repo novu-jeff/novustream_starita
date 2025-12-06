@@ -31,6 +31,7 @@ class ReportsController extends Controller
             'Monthly Billing Summary',
             'Billed Con by Category and Size',
             'Consumption by Category & Size',
+            'All Payments',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -918,6 +919,42 @@ class ReportsController extends Controller
                 $result[$report] = $rows;
                 break;
 
+                case 'All Payments':
+
+                $query = Bill::query()
+                    ->with(['reading.concessionaire.user'])
+                    ->whereNotNull('amount_paid') // only paid bills
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->whereHas('reading', fn($q2) => $q2->where('zone', $zone));
+                    })
+                    ->when($startDate, fn($q) => $q->whereDate('date_paid', '>=', $startDate))
+                    ->when($endDate, fn($q) => $q->whereDate('date_paid', '<=', $endDate))
+                    ->orderBy('date_paid', 'asc')
+                    ->get();
+
+                $rows = [];
+
+                foreach ($query as $bill) {
+                    $reading = $bill->reading;
+
+                    $rows[] = [
+                        'account_no'    => $reading->account_no ?? 'N/A',
+                        'zone'          => $reading->zone ?? 'N/A',
+                        'consumer_name' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
+                        'reference_no'  => $bill->reference_no,
+                        'bill_period'   => $bill->bill_period_from . ' - ' . $bill->bill_period_to,
+                        'amount'        => $bill->amount,
+                        'penalty'       => $bill->penalty,
+                        'discount'      => $bill->discount,
+                        'total'         => $bill->total,
+                        'amount_paid'   => $bill->amount_paid,
+                        'payment_method'=> $bill->payment_method ?? 'N/A',
+                        'date_paid'     => $bill->date_paid,
+                    ];
+                }
+
+                $result[$report] = $rows;
+                break;
 
                 default:
                     $result[$report] = [];
