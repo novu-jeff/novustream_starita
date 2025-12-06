@@ -317,27 +317,36 @@ class MeterService {
             })
             ->when(!empty($search), function ($query) use ($search) {
 
-    // Split user search into keywords
-    $keywords = preg_split('/\s+/', strtolower($search));
+            // Split user search into keywords
+            $keywords = preg_split('/\s+/', strtolower($search));
 
-    $query->where(function ($q) use ($keywords) {
+            $query->where(function ($q) use ($keywords) {
 
-        foreach ($keywords as $keyword) {
-            $keyword = trim($keyword);
-            if ($keyword === '') continue;
+                foreach ($keywords as $keyword) {
+                    $keyword = trim($keyword);
+                    if ($keyword === '') continue;
 
-            $q->where(function ($sub) use ($keyword) {
-                $sub->whereHas('reading', fn ($r) =>
-                    $r->where('account_no', 'like', "%$keyword%")
-                )
-                ->orWhereHas('reading.concessionaire.user', fn ($u) =>
-                    $u->whereRaw('LOWER(name) LIKE ?', ["%$keyword%"])
-                );
+                    $q->where(function ($sub) use ($keyword) {
+                        $sub->whereHas('reading', fn ($r) =>
+                            $r->where('account_no', 'like', "%$keyword%")
+                        )
+                        ->orWhereHas('reading.concessionaire.user', function ($u) use ($keyword) {
+                            $u->whereRaw('LOWER(name) LIKE ?', ["%$keyword%"]) // matches "Orge, Lucivil"
+
+                            // ALSO match "Lucivil Orge"
+                            ->orWhereRaw("
+                                    LOWER(
+                                        CONCAT(
+                                            TRIM(SUBSTRING_INDEX(name, ',', -1)), ' ',
+                                            TRIM(SUBSTRING_INDEX(name, ',', 1))
+                                        )
+                                    ) LIKE ?
+                                ", ["%$keyword%"]);
+                        });
+                    });
+                }
             });
-        }
-    });
-})
-            ->get();
+        })->get();
 
         if ($zone === 'all') {
             if (!empty($date)) {
