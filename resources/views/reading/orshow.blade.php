@@ -185,8 +185,9 @@
     $amount = (float) ($cb['amount'] ?? 0);
     $total = (float) ($cb['total'] ?? 0);
     $penalty = (float) ($cb['penalty'] ?? 0);
+    $advances = (float) ($cb['advances'] ?? 0);
 
-    $arrears = $cb['arrears'] ?? 0;
+    $arrears = $cb['previous_unpaid'] ?? 0;
     if (is_array($arrears)) {
         $arrears = collect($arrears)->sum();
     } elseif (is_string($arrears)) {
@@ -212,8 +213,8 @@
         $discount = (float) $discount;
     }
 
-    $assumed_penalty = (float) ($cb['assumed_penalty'] ?? 0);
-    $totalAmount = round($total + $arrears + $applicablePenalty - $discount, 2);
+    $assumed_penalty = (float) ($cb['penalty'] ?? 0);
+    $totalAmount = round($total + $applicablePenalty - $advances, 2);
 
     // Use helper that falls back when the PHP intl extension is not available
     $amount_in_words = \App\Helper\NumberHelper::convertToWords($totalAmount);
@@ -347,7 +348,7 @@
           <tr style="line-height: 2px;">
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($total, 2) }}</td>
+            <td class="text-end">₱ {{ number_format($total - $arrears, 2) }}</td>
           </tr>
 
           {{-- Conditionally show Arrears and Penalty --}}
@@ -505,11 +506,11 @@
     WB {{ $bill_month }}
   </div>
   <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
-    ₱ {{ number_format($total,2) }}
+    ₱ {{ number_format($total - $arrears,2) }}
   </div>
 
   {{-- Penalty --}}
-  @if($assumed_penalty > 0)
+  @if($applicablePenalty > 0)
     <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:14px;">Penalty</div>
     <div style="position:absolute; top:9.9cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
