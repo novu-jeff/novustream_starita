@@ -168,7 +168,7 @@
     $cb = $data['current_bill'] ?? [];
     $amount = (float) ($cb['amount'] ?? 0);
 
-    $arrears = $cb['arrears'] ?? 0;
+    $arrears = $cb['unpaid_amount'] ?? 0;
     if (is_array($arrears)) {
         $arrears = collect($arrears)->sum();
     } elseif (is_string($arrears)) {

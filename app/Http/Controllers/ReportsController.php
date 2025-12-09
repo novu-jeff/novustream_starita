@@ -31,6 +31,7 @@ class ReportsController extends Controller
             'Monthly Billing Summary',
             'Billed Con by Category and Size',
             'Consumption by Category & Size',
+            'All Payments',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -918,6 +919,45 @@ class ReportsController extends Controller
                 $result[$report] = $rows;
                 break;
 
+                case 'All Payments':
+
+                $query = Bill::query()
+                    ->with(['reading.concessionaire.user'])
+                    ->whereNotNull('amount_paid') // only paid bills
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->whereHas('reading', fn($q2) => $q2->where('zone', $zone));
+                    })
+                    ->when($startDate, fn($q) => $q->whereDate('date_paid', '>=', $startDate))
+                    ->when($endDate, fn($q) => $q->whereDate('date_paid', '<=', $endDate))
+                    ->orderBy('date_paid', 'asc')
+                    ->get();
+
+                $rows = [];
+
+                foreach ($query as $bill) {
+                    $reading = $bill->reading;
+
+                    $rows[] = [
+                        'ACCOUNT NO'    => $reading->account_no ?? 'N/A',
+                        'ZONE'          => $reading->zone ?? 'N/A',
+                        'CONCESSIONAIRE' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
+                        'REFERENCE NO'  => $bill->reference_no,
+                        'BILL PERIOD'   => $bill->bill_period_from . ' - ' . $bill->bill_period_to,
+                        'AMOUNT'        => $bill->amount,
+                        'PENALTY'       => $bill->penalty,
+                        'DISCOUNT'      => $bill->discount,
+                        'TOTAL'         => $bill->total,
+                        'IS PARTIAL'    => $bill->isPartial,
+                        'PARTIAL PAYMENT'   => $bill->partial_payment,
+                        'IS PAID'       => $bill->isPaid,
+                        'AMOUNT PAID'   => $bill->amount_paid,
+                        'PAYMENT METHOD'=> $bill->payment_method ?? 'N/A',
+                        'DATE PAID'     => $bill->date_paid,
+                    ];
+                }
+
+                $result[$report] = $rows;
+                break;
 
                 default:
                     $result[$report] = [];
