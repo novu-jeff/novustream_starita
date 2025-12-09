@@ -342,7 +342,7 @@ class PaymentController extends Controller
     $arrearsStack = collect();
     $previousUnpaid = (float)($currentBill['previous_unpaid'] ?? 0);
     if ($previousUnpaid > 0) {
-        $arrearsMonth = \Carbon\Carbon::parse($currentBill['bill_period_from'])
+        $arrearsMonth = \Carbon\Carbon::parse($currentBill['bill_period_to'])
             ->subMonth()
             ->format('F');
         $arrearsStack[$arrearsMonth] = $previousUnpaid;
