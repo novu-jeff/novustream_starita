@@ -450,7 +450,6 @@ class ReadingController extends Controller
 
     public function store(Request $request) {
         $payload = $request->all();
-        \Log::info('SYNC PAYLOAD', $request->all());
         if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
             session()->forget('recent_reading');
             return response()->json([
