@@ -115,8 +115,14 @@ class MeterService {
 
                 case 'name':
                     if (!empty($filter['search'])) {
-                        $query->whereHas('user', function ($q) use ($filter) {
-                            $q->where('name', 'like', '%' . $filter['search'] . '%');
+                        $search = trim($filter['search']);
+                        $searchParts = preg_split('/\s+/', $search);
+
+                        $query->whereHas('user', function ($q) use ($searchParts) {
+                            foreach ($searchParts as $part) {
+                                $part = strtolower($part);
+                                $q->whereRaw("LOWER(name) LIKE ?", ["%{$part}%"]);
+                            }
                         });
                     }
                     break;
