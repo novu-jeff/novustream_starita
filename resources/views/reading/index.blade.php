@@ -282,9 +282,9 @@
 
                     const dotColors = {
                         AB: '#28a745', // ACTIVE
-                        BL: '#ef2121ff', // FOR DISCONNECTION
-                        ID: '#dc3545', // DISCONNECTED
-                        IV: '#155101ff', // FOR RECONNECTION
+                        BL: '#ef2121ff', // BLACK LISTED
+                        ID: '#dc3545', // INACTIVE DELINQUENT
+                        IV: '#155101ff', // INACTIVE DISCONNECTION
                     };
 
 
@@ -334,6 +334,28 @@
                 if (data.length < limit) {
                     hasMoreData = false;
                 }
+
+                // After appending all cards
+                $('.account-card').off('click').on('click', function () {
+                    const account = $(this).data('account');
+                    const status = account.status;
+
+                    const statusNames = {
+                        AB: 'ACTIVE BILLED',
+                        BL: 'BLACK LISTED',
+                        ID: 'INACTIVE DELINQUENT',
+                        IV: 'INACTIVE DISCONNECTION'
+                    };
+
+                    if (status === 'AB') {
+                        // Account is active, proceed with your normal click action
+                        console.log('Proceed to account:', account.account_no);
+                        // You can redirect or open details modal here
+                    } else {
+                        // Show popup for non-active accounts
+                        alert(`The account is ${statusNames[status] || 'UNKNOWN'}`);
+                    }
+                });
 
                 if (!didScrollToPreviousAccount && recentReading && !append) {
                     setTimeout(() => {
@@ -477,75 +499,76 @@
         });
 
         $(document).on('click', '.account-card', function () {
+    // Parse the data-account JSON correctly
+    const account = JSON.parse($(this).attr('data-account'));
+    const status = account.status;
 
-            const account = $(this).data('account');
-            selectedAccountNo = account.account_no;
+    const statusNames = {
+        AB: 'ACTIVE BILLED',
+        BL: 'BLACK LISTED',
+        ID: 'INACTIVE DELINQUENT',
+        IV: 'INACTIVE DISCONNECTION'
+    };
 
-            $('#accountAlert').empty();
+    if (status !== 'AB') {
+        alert(`The account is ${statusNames[status] || 'UNKNOWN'}`);
+        return; // Stop here for non-AB accounts
+    }
 
-            $.get('{{ route(Route::currentRouteName()) }}', {
-                account_no: account.account_no,
-                isGetPrevious: true,
-            }, function (response) {
-                const previousReading = parseFloat(response.previous_reading ?? 0);
-                const suggestedNextMonth = response.suggestedNextMonth;
-                const sc_expired_date = response.sc_expired_date;
+    // Proceed only if AB
+    selectedAccountNo = account.account_no;
+    $('#accountAlert').empty();
 
-                $('#accountModal .modal-title').html('Proceed Reading');
+    $.get('{{ route(Route::currentRouteName()) }}', {
+        account_no: account.account_no,
+        isGetPrevious: true,
+    }, function (response) {
+        const previousReading = parseFloat(response.previous_reading ?? 0);
+        const suggestedNextMonth = response.suggestedNextMonth;
+        const sc_expired_date = response.sc_expired_date;
 
-                let modalContent = `
-                    <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
-                    <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
-                    <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
-                    `
-                    if(sc_expired_date != null) {
-                        modalContent += `<div class="text-uppercase fw-bold mt-3  text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div`
-                    }
-                modalContent+=`
-                    <hr>
-                    <div class="row mt-3">
-                        @if(env('IS_TEST_READING'))
-                            <div class="col-md-12 mb-3">
-                                <label for="reading_month" class="form-label">Reading Month</label>
-                                <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
-                            </div>
-                        @endif
-                        <div class="col-md-12 mb-3">
-                            <label for="present_reading" class="form-label">Present Reading</label>
-                            <input type="number" class="form-control h-extend" id="present_reading" value="0" placeholder="########">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="previous_reading" class="form-label">Previous Reading</label>
-                            <input type="text" class="form-control restricted h-extend" id="previous_reading" value="${previousReading}" readonly>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="consumption" class="form-label">Consumption</label>
-                            <input type="text" class="form-control restricted h-extend" id="consumption" value="0" readonly>
-                        </div>
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label d-block">Mark as High Consumption</label>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_yes" value="yes">
-                                <label class="form-check-label" for="is_high_consumption_yes">Yes</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_no" value="no" checked>
-                                <label class="form-check-label" for="is_high_consumption_no">No</label>
-                            </div>
-                        </div>
-                        <div class="col-md-12 mb-3" id="highConsumptionNoteWrapper" style="display: none;">
-                            <label for="high_consumption_note" class="form-label">Remarks / Notes (if marked as High Consumption)</label>
-                            <textarea id="high_consumption_note" class="form-control h-extend" placeholder="Enter remarks..."></textarea>
-                        </div>
-                    </div>
-                    <div class="text-end mt-4">
-                        <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold d-none" id="proceedButton">Proceed</button>
-                    </div>
-                `;
-                $('#accountModalBody').html(modalContent);
-                $('#accountModal').modal('show');
-            });
+        $('#accountModal .modal-title').html('Proceed Reading');
+
+        let modalContent = `
+            <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
+            <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
+            <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
+        `;
+
+        if(sc_expired_date != null) {
+            modalContent += `<div class="text-uppercase fw-bold mt-3 text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div>`;
+        }
+
+        modalContent += `
+            <hr>
+            <div class="row mt-3">
+                <div class="col-md-12 mb-3">
+                    <label for="present_reading" class="form-label">Present Reading</label>
+                    <input type="number" class="form-control h-extend" id="present_reading" value="0" placeholder="########">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="previous_reading" class="form-label">Previous Reading</label>
+                    <input type="text" class="form-control restricted h-extend" id="previous_reading" value="${previousReading}" readonly>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="consumption" class="form-label">Consumption</label>
+                    <input type="text" class="form-control restricted h-extend" id="consumption" value="0" readonly>
+                </div>
+            </div>
+            <div class="text-end mt-4">
+                <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold" id="proceedButton">Proceed</button>
+            </div>
+        `;
+
+        $('#accountModalBody').html(modalContent);
+        const modal = new bootstrap.Modal(document.getElementById('accountModal'), {
+            backdrop: 'static',
+            keyboard: false
         });
+        modal.show();
+    });
+});
+
 
         $(document).on('input', '#present_reading', function () {
             const present = parseFloat($(this).val()) || 0;
