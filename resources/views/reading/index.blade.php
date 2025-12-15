@@ -499,76 +499,96 @@
         });
 
         $(document).on('click', '.account-card', function () {
-    // Parse the data-account JSON correctly
-    const account = JSON.parse($(this).attr('data-account'));
-    const status = account.status;
+            // Parse the data-account JSON correctly
+            const account = JSON.parse($(this).attr('data-account'));
+            const status = account.status;
 
-    const statusNames = {
-        AB: 'ACTIVE BILLED',
-        BL: 'BLACK LISTED',
-        ID: 'INACTIVE DELINQUENT',
-        IV: 'INACTIVE DISCONNECTION'
-    };
+            const statusNames = {
+                AB: 'ACTIVE BILLED',
+                BL: 'BLACK LISTED',
+                ID: 'INACTIVE DELINQUENT',
+                IV: 'INACTIVE DISCONNECTION'
+            };
 
-    if (status !== 'AB') {
-        alert(`The account is ${statusNames[status] || 'UNKNOWN'}`);
-        return; // Stop here for non-AB accounts
-    }
+            if (status !== 'AB') {
+                alert(`The account is ${statusNames[status] || 'UNKNOWN'}`);
+                return; // Stop here for non-AB accounts
+            }
 
-    // Proceed only if AB
-    selectedAccountNo = account.account_no;
-    $('#accountAlert').empty();
+            // Proceed only if AB
+            selectedAccountNo = account.account_no;
+            $('#accountAlert').empty();
 
-    $.get('{{ route(Route::currentRouteName()) }}', {
-        account_no: account.account_no,
-        isGetPrevious: true,
-    }, function (response) {
-        const previousReading = parseFloat(response.previous_reading ?? 0);
-        const suggestedNextMonth = response.suggestedNextMonth;
-        const sc_expired_date = response.sc_expired_date;
+            $.get('{{ route(Route::currentRouteName()) }}', {
+                account_no: account.account_no,
+                isGetPrevious: true,
+            }, function (response) {
+                const previousReading = parseFloat(response.previous_reading ?? 0);
+                const suggestedNextMonth = response.suggestedNextMonth;
+                const sc_expired_date = response.sc_expired_date;
 
-        $('#accountModal .modal-title').html('Proceed Reading');
+                $('#accountModal .modal-title').html('Proceed Reading');
 
-        let modalContent = `
-            <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
-            <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
-            <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
-        `;
+                let modalContent = `
+                    <p class="mb-1"><strong class="text-uppercase">Account No:</strong> ${account.account_no}</p>
+                    <p class="mb-1"><strong class="text-uppercase">Name:</strong> ${account.user?.name ?? 'N/A'}</p>
+                    <p class="mb-1"><strong class="text-uppercase">Address:</strong> ${account.address ?? 'N/A'}</p>
+                `;
 
-        if(sc_expired_date != null) {
-            modalContent += `<div class="text-uppercase fw-bold mt-3 text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div>`;
-        }
+                if(sc_expired_date != null) {
+                    modalContent += `<div class="text-uppercase fw-bold mt-3 text-center py-2 px-3 alert alert-warning">Senior citizen discount will be expired on ${sc_expired_date}</div>`;
+                }
 
-        modalContent += `
-            <hr>
-            <div class="row mt-3">
-                <div class="col-md-12 mb-3">
-                    <label for="present_reading" class="form-label">Present Reading</label>
-                    <input type="number" class="form-control h-extend" id="present_reading" value="0" placeholder="########">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="previous_reading" class="form-label">Previous Reading</label>
-                    <input type="text" class="form-control restricted h-extend" id="previous_reading" value="${previousReading}" readonly>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="consumption" class="form-label">Consumption</label>
-                    <input type="text" class="form-control restricted h-extend" id="consumption" value="0" readonly>
-                </div>
-            </div>
-            <div class="text-end mt-4">
-                <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold" id="proceedButton">Proceed</button>
-            </div>
-        `;
+                modalContent+=`
+                    <hr>
+                    <div class="row mt-3">
+                        @if(env('IS_TEST_READING'))
+                            <div class="col-md-12 mb-3">
+                                <label for="reading_month" class="form-label">Reading Month</label>
+                                <input type="date" class="form-control h-extend" id="reading_month" name="reading_month" value="${suggestedNextMonth}" placeholder="########">
+                            </div>
+                        @endif
+                        <div class="col-md-12 mb-3">
+                            <label for="present_reading" class="form-label">Present Reading</label>
+                            <input type="number" class="form-control h-extend" id="present_reading" value="0" placeholder="########">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="previous_reading" class="form-label">Previous Reading</label>
+                            <input type="text" class="form-control restricted h-extend" id="previous_reading" value="${previousReading}" readonly>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="consumption" class="form-label">Consumption</label>
+                            <input type="text" class="form-control restricted h-extend" id="consumption" value="0" readonly>
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label d-block">Mark as High Consumption</label>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_yes" value="yes">
+                                <label class="form-check-label" for="is_high_consumption_yes">Yes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="is_high_consumption" id="is_high_consumption_no" value="no" checked>
+                                <label class="form-check-label" for="is_high_consumption_no">No</label>
+                            </div>
+                        </div>
+                        <div class="col-md-12 mb-3" id="highConsumptionNoteWrapper" style="display: none;">
+                            <label for="high_consumption_note" class="form-label">Remarks / Notes (if marked as High Consumption)</label>
+                            <textarea id="high_consumption_note" class="form-control h-extend" placeholder="Enter remarks..."></textarea>
+                        </div>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button type="button" class="btn btn-primary px-5 py-3 text-uppercase fw-bold d-none" id="proceedButton">Proceed</button>
+                    </div>
+                `;
 
-        $('#accountModalBody').html(modalContent);
-        const modal = new bootstrap.Modal(document.getElementById('accountModal'), {
-            backdrop: 'static',
-            keyboard: false
+                $('#accountModalBody').html(modalContent);
+                const modal = new bootstrap.Modal(document.getElementById('accountModal'), {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                modal.show();
+            });
         });
-        modal.show();
-    });
-});
-
 
         $(document).on('input', '#present_reading', function () {
             const present = parseFloat($(this).val()) || 0;
