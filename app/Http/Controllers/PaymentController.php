@@ -452,7 +452,7 @@ class PaymentController extends Controller
         }
 
         // $userDiscount = $currentBillData['reading']['account_no'];
-        //     if (in_array($userDiscount, ['061-12-065391', '091-12-092000', '061-12-064897'])) {
+        //     if (in_array($userDiscount, ['061-12-064897'])) {
         //         $temporaryDiscount = 0.25;
         //     } else {
         //         $temporaryDiscount = null;
