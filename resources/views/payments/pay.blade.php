@@ -432,6 +432,7 @@
                                                     $discount = (float) $data['current_bill']['discount'];
                                                 }
                                             }
+
                                             $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                             $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
 
