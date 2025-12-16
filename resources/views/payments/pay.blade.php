@@ -502,7 +502,6 @@
                                             @endif
 
 
-
                                             @if($advancePayment > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advancePayment, 2) }} (ADVANCE PAYMENT)</h6>
