@@ -737,6 +737,9 @@ class ReadingController extends Controller
             '111-22-111720', // Holy Family Elementary School
             '091-22-092230', // Material Recovery Facilities
             '061-22-060250', // VDLR Parish
+            '061-12-064897', // Zapanta, Ma.Luisa O | Installment Jan - June
+            '081-12-082940', // RAGON, EVELYN C. | Installment Jan - June
+            '081-12-081760', // SAZON, CLAYTON | Installment Jan - June
         ];
 
         // Check if account is exempted from penalty
