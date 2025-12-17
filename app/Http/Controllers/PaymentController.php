@@ -398,9 +398,16 @@ class PaymentController extends Controller
     // 🔹 Generate HitPay checkout link (your logic)
     $hitpayData = app(\App\Http\Controllers\PaymentController::class)
         ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+    \Log::error('HitPay Data: ' . json_encode($hitpayData));
 
     $url = $hitpayData['url'] ?? env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
     $qr_code = $this->generateService::qr_code($url, 80);
+
+    $url = $hitpayData['url'] 
+        ?? env('NOVUPAY_URL') . '/payment-expired/' . $reference_no;
+
+    $qr_code = $this->generateService::qr_code($url, 80);
+
 
     return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
 }
@@ -736,8 +743,9 @@ class PaymentController extends Controller
             }
             $days_before_due = 15;
             $due_date = !empty($billData['due_date'])
-            ? $billData['due_date']
-            : Carbon::now()->addDays($days_before_due)->format('Y-m-d H:i:s');
+            ? Carbon::parse($billData['due_date'])->endOfDay()->format('Y-m-d H:i:s')
+            : Carbon::now()->addDays($days_before_due)->endOfDay()->format('Y-m-d H:i:s');
+
 
             // dd($billData);
             $rateCode = $result['data']['client']['rate_code'] ?? null;
