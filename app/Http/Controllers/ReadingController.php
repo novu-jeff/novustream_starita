@@ -740,6 +740,7 @@ class ReadingController extends Controller
             '061-12-064897', // Zapanta, Ma.Luisa O | Installment Jan - June
             '081-12-082940', // RAGON, EVELYN C. | Installment Jan - June
             '081-12-081760', // SAZON, CLAYTON | Installment Jan - June
+            '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
         ];
 
         // Check if account is exempted from penalty
