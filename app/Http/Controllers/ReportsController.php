@@ -32,6 +32,7 @@ class ReportsController extends Controller
             'Billed Con by Category and Size',
             'Consumption by Category & Size',
             'All Payments',
+            'Unpaid Bills',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -953,6 +954,48 @@ class ReportsController extends Controller
                         'AMOUNT PAID'   => $bill->amount_paid,
                         'PAYMENT METHOD'=> $bill->payment_method ?? 'N/A',
                         'DATE PAID'     => $bill->date_paid,
+                    ];
+                }
+
+                $result[$report] = $rows;
+                break;
+
+                case 'Unpaid Bills':
+
+                $query = Bill::query()
+                    ->with(['reading.concessionaire.user'])
+                    ->where('isPaid', 0) // ✅ unpaid only
+                    ->whereNull('amount_paid')
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->whereHas('reading', fn ($q2) => $q2->where('zone', $zone));
+                    })
+                    ->when($startDate, fn ($q) => $q->whereDate('created_at', '>=', $startDate))
+                    ->when($endDate, fn ($q) => $q->whereDate('created_at', '<=', $endDate))
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                $rows = [];
+
+                foreach ($query as $bill) {
+                    $reading = $bill->reading;
+
+                    $rows[] = [
+                        'REFERENCE NO'          => $bill->reference_no ?? 'N/A',
+                        'ACCOUNT NO'            => $reading->account_no ?? 'N/A',
+                        'CONCESSIONAIRE'        => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
+
+                        // Consumption
+                        'PREVIOUS CONSUMPTION'  => $reading->previous_reading ?? 0,
+                        'CURRENT CONSUMPTION'   => $reading->present_reading ?? 0,
+                        'CONSUMPTION'           => $reading->consumption ?? 0,
+
+                        // Financials
+                        'PREVIOUS UNPAID'       => $bill->previous_unpaid ?? 0,
+                        'BASIC CHARGE'          => $bill->total - $bill->previous_unpaid ?? 0,
+                        'TOTAL'                 => $bill->total ?? 0,
+                        'DISCOUNT'              => $bill->discount ?? 0,
+                        'PENALTY'               => $bill->penalty ?? 0,
+                        'AMOUNT AFTER DUE'      => $bill->amount ?? 0,
                     ];
                 }
 
