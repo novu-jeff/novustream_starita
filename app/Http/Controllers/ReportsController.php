@@ -963,15 +963,24 @@ class ReportsController extends Controller
                 case 'Unpaid Bills':
 
                 $query = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->join(
+                        'concessioner_accounts',
+                        'concessioner_accounts.account_no',
+                        '=',
+                        'readings.account_no'
+                    )
                     ->with(['reading.concessionaire.user'])
-                    ->where('isPaid', 0) // ✅ unpaid only
-                    ->whereNull('amount_paid')
+                    ->where('bill.isPaid', 0)
+                    ->whereNull('bill.amount_paid')
                     ->when($zone !== 'all', function ($q) use ($zone) {
-                        $q->whereHas('reading', fn ($q2) => $q2->where('zone', $zone));
+                        $q->where('concessioner_accounts.zone', $zone);
                     })
-                    ->when($startDate, fn ($q) => $q->whereDate('created_at', '>=', $startDate))
-                    ->when($endDate, fn ($q) => $q->whereDate('created_at', '<=', $endDate))
-                    ->orderBy('created_at', 'asc')
+                    ->when($startDate, fn ($q) => $q->whereDate('bill.created_at', '>=', $startDate))
+                    ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
+                    ->orderBy('concessioner_accounts.sequence_no', 'asc')
+                    ->orderBy('bill.created_at', 'asc')
+                    ->select('bill.*', 'concessioner_accounts.sequence_no as sequence_no')
                     ->get();
 
                 $rows = [];
@@ -983,19 +992,16 @@ class ReportsController extends Controller
                         'REFERENCE NO'          => $bill->reference_no ?? 'N/A',
                         'ACCOUNT NO'            => $reading->account_no ?? 'N/A',
                         'CONCESSIONAIRE'        => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
-
-                        // Consumption
                         'PREVIOUS CONSUMPTION'  => $reading->previous_reading ?? 0,
                         'CURRENT CONSUMPTION'   => $reading->present_reading ?? 0,
                         'CONSUMPTION'           => $reading->consumption ?? 0,
-
-                        // Financials
                         'PREVIOUS UNPAID'       => $bill->previous_unpaid ?? 0,
                         'BASIC CHARGE'          => $bill->total - $bill->previous_unpaid ?? 0,
                         'TOTAL'                 => $bill->total ?? 0,
                         'DISCOUNT'              => $bill->discount ?? 0,
                         'PENALTY'               => $bill->penalty ?? 0,
                         'AMOUNT AFTER DUE'      => $bill->amount ?? 0,
+                        'SEQUENCE NO'           => $bill->sequence_no ?? 0,
                     ];
                 }
 
