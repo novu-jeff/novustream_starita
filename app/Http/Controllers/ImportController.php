@@ -16,6 +16,8 @@ use App\Imports\RateCodesImport;
 use App\Imports\StatusCodeImport;
 use App\Imports\ClientInformationImport;
 use App\Imports\SettingsImport;
+use App\Imports\SequenceImport;
+
 
 class ImportController extends Controller
 {
@@ -36,6 +38,7 @@ class ImportController extends Controller
         $spreadsheet = IOFactory::load($file->getRealPath());
         $sheetNames = $spreadsheet->getSheetNames();
         $filename = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+        $isSequenceFile = str_contains($filename, 'sequence');
 
         $sheetToProcessMap = [
             'client informations'         => 'client_informations',
@@ -119,101 +122,147 @@ class ImportController extends Controller
         $allMessages = [];
         $importedSheets = [];
 
+        $isSequenceFile = str_contains(
+            strtolower($file->getClientOriginalName()),
+            'sequence'
+        );
+
         foreach ($sheetNames as $index => $sheetName) {
-            $sheetKey = strtolower(trim($sheetName));
 
-            if (in_array($sheetKey, ['sheet1','worksheet'])) {
-                foreach ($sheetToProcessMap as $alias => $processKey) {
-                    if (str_contains($filename, str_replace(' ', '', $alias))) {
-                        $sheetKey = $alias;
-                        break;
-                    }
+    /*
+    |-------------------------------------------------
+    | SEQUENCE FILE HANDLING (by filename)
+    |-------------------------------------------------
+    */
+    if ($isSequenceFile) {
+
+        // Enforce Book ### sheets only
+        if (!preg_match('/^book\s*\d+/i', $sheetName)) {
+            $allMessages[] = [
+                'sheet' => $sheetName,
+                'status' => 'error',
+                'message' => 'Invalid sheet name for sequence file.',
+            ];
+            continue;
+        }
+
+        $processKey = 'sequence';
+        $config = [
+            'expected_headers' => ['account_no', 'sequence_no'],
+            'import_class'     => \App\Imports\SequenceImport::class,
+        ];
+    }
+
+    /*
+    |-------------------------------------------------
+    | NORMAL IMPORT FLOW (existing behavior)
+    |-------------------------------------------------
+    */
+    else {
+        $sheetKey = strtolower(trim($sheetName));
+
+        // Keep your Sheet1 / Worksheet filename fallback
+        if (in_array($sheetKey, ['sheet1','worksheet'])) {
+            foreach ($sheetToProcessMap as $alias => $process) {
+                if (str_contains($filename, str_replace(' ', '', $alias))) {
+                    $sheetKey = $alias;
+                    break;
                 }
-            }
-
-            if (!isset($sheetToProcessMap[$sheetKey])) {
-                $allMessages[] = [
-                    'sheet' => $sheetName,
-                    'status' => 'error',
-                    'message' => 'Unrecognized sheet: ' . $sheetName,
-                ];
-                continue;
-            }
-
-            $processKey = $sheetToProcessMap[$sheetKey];
-            $config = $processConfig[$processKey];
-
-            if (!in_array($processKey, ['client_informations', 'settings'])) {
-                $expectedHeaders = array_map($normalize, $config['expected_headers']);
-                $rawHeaders = $headingData[$index][0] ?? [];
-                $actualHeaders = array_map($normalize, $rawHeaders);
-
-                $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
-
-                if (!empty($missingHeaders)) {
-                    $allMessages[] = [
-                        'sheet' => $sheetName,
-                        'status' => 'error',
-                        'message' => 'Missing headers: ' . implode(', ', $missingHeaders),
-                    ];
-                    continue;
-                }
-            }
-
-            try {
-                $importInstance = new $config['import_class']($sheetName);
-
-                if ($processKey === 'technician_accounts' && method_exists($importInstance, 'setUserType')) {
-                    $importInstance->setUserType('technician');
-                }
-
-                Excel::import(new class($importInstance, $sheetName) implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
-                    private $importInstance;
-                    private $sheetName;
-
-                    public function __construct($importInstance, $sheetName)
-                    {
-                        $this->importInstance = $importInstance;
-                        $this->sheetName = $sheetName;
-                    }
-
-                    public function sheets(): array
-                    {
-                        return [$this->sheetName => $this->importInstance];
-                    }
-                }, $file);
-
-                $importedSheets[] = $sheetName;
-
-                $rowCount = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 0;
-                $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
-                $totalImported = max($rowCount - count($skippedRows), 0);
-
-                if (!empty($skippedRows)) {
-                    $allMessages[] = [
-                        'sheet' => $sheetName,
-                        'status' => 'warning',
-                        'message' => "Total of ($totalImported) records partially imported. " . count($skippedRows) . " skipped.",
-                        'errors' => $skippedRows,
-                    ];
-                } else {
-                    $allMessages[] = [
-                        'sheet' => $sheetName,
-                        'status' => 'success',
-                        'message' => "Total of ($totalImported) records imported successfully.",
-                    ];
-                }
-            } catch (\Exception $e) {
-                Log::error("Import error on sheet '$sheetName': " . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString()
-                ]);
-                $allMessages[] = [
-                    'sheet' => $sheetName,
-                    'status' => 'error',
-                    'message' => 'An error occurred: ' . $e->getMessage(),
-                ];
             }
         }
+
+        if (!isset($sheetToProcessMap[$sheetKey])) {
+            $allMessages[] = [
+                'sheet' => $sheetName,
+                'status' => 'error',
+                'message' => 'Unrecognized sheet: ' . $sheetName,
+            ];
+            continue;
+        }
+
+        $processKey = $sheetToProcessMap[$sheetKey];
+        $config     = $processConfig[$processKey];
+    }
+
+    /*
+    |-------------------------------------------------
+    | HEADER VALIDATION
+    |-------------------------------------------------
+    */
+    if (!in_array($processKey, ['client_informations', 'settings'])) {
+        $expectedHeaders = array_map($normalize, $config['expected_headers']);
+        $rawHeaders      = $headingData[$index][0] ?? [];
+        $actualHeaders   = array_map($normalize, $rawHeaders);
+
+        $missingHeaders = array_diff($expectedHeaders, $actualHeaders);
+
+        if (!empty($missingHeaders)) {
+            $allMessages[] = [
+                'sheet' => $sheetName,
+                'status' => 'error',
+                'message' => 'Missing headers: ' . implode(', ', $missingHeaders),
+            ];
+            continue;
+        }
+    }
+
+    /*
+    |-------------------------------------------------
+    | IMPORT EXECUTION
+    |-------------------------------------------------
+    */
+    try {
+        $importInstance = new $config['import_class']($sheetName);
+
+        if ($processKey === 'technician_accounts' && method_exists($importInstance, 'setUserType')) {
+            $importInstance->setUserType('technician');
+        }
+
+        Excel::import(new class($importInstance, $sheetName)
+            implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
+
+            private $importInstance;
+            private $sheetName;
+
+            public function __construct($importInstance, $sheetName)
+            {
+                $this->importInstance = $importInstance;
+                $this->sheetName = $sheetName;
+            }
+
+            public function sheets(): array
+            {
+                return [$this->sheetName => $this->importInstance];
+            }
+        }, $file);
+
+        $importedSheets[] = $sheetName;
+
+        $rowCount    = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 0;
+        $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
+        $total       = max($rowCount - count($skippedRows), 0);
+
+        $allMessages[] = [
+            'sheet'  => $sheetName,
+            'status' => count($skippedRows) ? 'warning' : 'success',
+            'message'=> "Total of ({$total}) records imported.",
+            'errors' => $skippedRows ?: null,
+        ];
+
+    } catch (\Exception $e) {
+        Log::error("Import error on sheet '{$sheetName}'", [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        $allMessages[] = [
+            'sheet' => $sheetName,
+            'status' => 'error',
+            'message' => 'An error occurred: ' . $e->getMessage(),
+        ];
+    }
+}
+
 
         return response()->json([
             'status' => 'completed',
