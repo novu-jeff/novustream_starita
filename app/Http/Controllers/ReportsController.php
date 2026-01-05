@@ -33,6 +33,7 @@ class ReportsController extends Controller
             'Consumption by Category & Size',
             'All Payments',
             'Unpaid Bills',
+            'Readings',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -1001,6 +1002,46 @@ class ReportsController extends Controller
                         'DISCOUNT'              => $bill->discount ?? 0,
                         'PENALTY'               => $bill->penalty ?? 0,
                         'AMOUNT AFTER DUE'      => $bill->amount ?? 0,
+                        'SEQUENCE NO'           => $bill->sequence_no ?? 0,
+                    ];
+                }
+
+                $result[$report] = $rows;
+                break;
+
+                case 'Readings':
+
+                $query = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->join(
+                        'concessioner_accounts',
+                        'concessioner_accounts.account_no',
+                        '=',
+                        'readings.account_no'
+                    )
+                    ->with(['reading.concessionaire.user'])
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->where('concessioner_accounts.zone', $zone);
+                    })
+                    ->when($startDate, fn ($q) => $q->whereDate('bill.created_at', '>=', $startDate))
+                    ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
+                    ->orderBy('concessioner_accounts.sequence_no', 'asc')
+                    ->orderBy('bill.created_at', 'asc')
+                    ->select('bill.*', 'concessioner_accounts.sequence_no as sequence_no')
+                    ->get();
+
+                $rows = [];
+
+                foreach ($query as $bill) {
+                    $reading = $bill->reading;
+
+                    $rows[] = [
+                        'REFERENCE NO'          => $bill->reference_no ?? 'N/A',
+                        'ACCOUNT NO'            => $reading->account_no ?? 'N/A',
+                        'CONCESSIONAIRE'        => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
+                        'PREVIOUS READING'  => $reading->previous_reading ?? 0,
+                        'CURRENT READING'   => $reading->present_reading ?? 0,
+                        'CONSUMPTION'           => $reading->consumption ?? 0,
                         'SEQUENCE NO'           => $bill->sequence_no ?? 0,
                     ];
                 }
