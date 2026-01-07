@@ -63,13 +63,36 @@ class AccountOverviewController extends Controller
 
         $statement['total'] = !empty($statement['transactions'])
             ? array_sum(array_map(function($bill) {
-                $amount = $bill['amount'] ?? 0;
-                $penalty = $bill['computed_penalty'] ?? ($bill['penalty'] ?? 0);
+                $dueDatePenalty = 0;
+                $penalty = $bill['penalty'] ?? 0;
+                $dueDate = $bill['due_date'] ?? null;
+
+                if ($dueDate) {
+                    $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
+                    $today = \Carbon\Carbon::today('Asia/Manila');
+
+                    if ($today->gt($dueDateCarbon)) {
+                        $daysOverdue = $dueDateCarbon->diffInDays($today);
+
+                        $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
+                            ->where('due_to', '>=', $daysOverdue)
+                            ->first();
+
+                        if ($penaltyRule) {
+                            if ($penaltyRule->amount_type === 'percentage') {
+                                $dueDatePenalty = round($penalty, 2);
+                            } elseif ($penaltyRule->amount_type === 'fixed') {
+                                $dueDatePenalty = round(0, 2);
+                            }
+                        }
+                    }
+                }
+                $amount = $bill['total'] ?? 0;
                 $discount = $bill['discount'] ?? 0;
                 $advance = $bill['advances'] ?? 0;
 
                 // Total after adding penalty and subtracting discounts & advances
-                return ($amount + $penalty) - ($discount + $advance);
+                return ($amount + $dueDatePenalty) - ($discount + $advance);
             }, $statement['transactions']))
             : 0;
 
