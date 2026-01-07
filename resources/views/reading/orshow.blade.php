@@ -214,7 +214,7 @@
     }
 
     $assumed_penalty = (float) ($cb['penalty'] ?? 0);
-    $totalAmount = round($total + $applicablePenalty - $advances, 2);
+    $totalAmount = round($total + $applicablePenalty - $advances - $discount, 2);
 
     // Use helper that falls back when the PHP intl extension is not available
     $amount_in_words = \App\Helper\NumberHelper::convertToWords($totalAmount);
