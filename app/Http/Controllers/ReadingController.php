@@ -634,7 +634,7 @@ class ReadingController extends Controller
                     'prefixes' => ['011','021','031','041','051'],
                     'from' => '2025-12-01',
                     'to'   => '2026-01-03',
-                    'bill_day' => 4,
+                    'bill_day' => 3,
                 ],
                 'B6-B8' => [
                     'prefixes' => ['061','071','081'],
