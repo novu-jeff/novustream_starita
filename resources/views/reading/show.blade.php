@@ -122,7 +122,7 @@
                             <div style="text-align: center; text-transform: uppercase;">
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Bill Date</div>
-                                    <div>{{\Carbon\Carbon::parse($data['current_bill']['created_at'])->format('m/d/Y')}}</div>
+                                    <div>{{ \Carbon\Carbon::parse($data['current_bill']['created_at'], 'UTC')->setTimezone('Asia/Manila')->format('m/d/Y') }}</div>
                                 </div>
                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                     <div>Period</div>
