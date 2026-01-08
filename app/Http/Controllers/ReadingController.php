@@ -640,13 +640,13 @@ class ReadingController extends Controller
                     'prefixes' => ['061','071','081'],
                     'from' => '2025-12-02',
                     'to'   => '2026-01-05',
-                    'bill_day' => 6,
+                    'bill_day' => 5,
                 ],
                 'B9-B11' => [
                     'prefixes' => ['091','101','111'],
                     'from' => '2025-12-03',
                     'to'   => '2026-01-06',
-                    'bill_day' => 7,
+                    'bill_day' => 6,
                 ],
             ];
 
@@ -656,7 +656,7 @@ class ReadingController extends Controller
                     $billPeriodFrom = Carbon::parse($rule['from']);
                     $billPeriodTo   = Carbon::parse($rule['to']);
                     $billDate       = Carbon::create(2026, 1, $rule['bill_day']);
-                    $dueDate        = $billDate->copy()->addDays(14);
+                    $dueDate        = $billDate->copy()->addDays(15);
                     $penaltyDate    = $dueDate->copy()->addDay();
                     $disconnectionDate = $dueDate->copy()->addDays(7);
                     break;
@@ -690,7 +690,7 @@ class ReadingController extends Controller
                 // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
-                'created_at' => $billDate,
+                'created_at' => $billDate->addDay(),
                 'due_date' => $dueDate,
                 'penalty_date' => $penaltyDate,
                 'disconnection_date' => $disconnectionDate,
