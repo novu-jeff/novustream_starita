@@ -634,19 +634,19 @@ class ReadingController extends Controller
                     'prefixes' => ['011','021','031','041','051'],
                     'from' => '2025-12-01',
                     'to'   => '2026-01-03',
-                    'bill_day' => 3,
+                    'bill_day' => '2026-01-03',
                 ],
                 'B6-B8' => [
                     'prefixes' => ['061','071','081'],
                     'from' => '2025-12-02',
                     'to'   => '2026-01-05',
-                    'bill_day' => 5,
+                    'bill_day' => '2026-01-05',
                 ],
                 'B9-B11' => [
                     'prefixes' => ['091','101','111'],
                     'from' => '2025-12-03',
                     'to'   => '2026-01-06',
-                    'bill_day' => 6,
+                    'bill_day' => '2026-01-06',
                 ],
             ];
 
@@ -655,7 +655,7 @@ class ReadingController extends Controller
 
                     $billPeriodFrom = Carbon::parse($rule['from']);
                     $billPeriodTo   = Carbon::parse($rule['to']);
-                    $billDate       = Carbon::create(2026, 1, $rule['bill_day']);
+                    $billDate       = Carbon::parse($rule['bill_day']);
                     $dueDate        = $billDate->copy()->addDays(15);
                     $penaltyDate    = $dueDate->copy()->addDay();
                     $disconnectionDate = $dueDate->copy()->addDays(7);
@@ -690,7 +690,7 @@ class ReadingController extends Controller
                 // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
-                'created_at' => $billDate->addDay(),
+                'created_at' => $billDate,
                 'due_date' => $dueDate,
                 'penalty_date' => $penaltyDate,
                 'disconnection_date' => $disconnectionDate,
@@ -813,6 +813,7 @@ class ReadingController extends Controller
             '091-22-092230', // Material Recovery Facilities
             '061-22-060250', // VDLR Parish
             '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
+            '111-22-110290', // Aetahanan
         ];
 
         // Check if account is exempted from penalty
