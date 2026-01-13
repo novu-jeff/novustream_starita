@@ -182,14 +182,25 @@
                                             @endif
                                         </h3>
                                     </div>
-                                    @foreach($statement['transactions'] as $bill)
-                                        @if(!$bill['isPaid'])
-                                            <form action="{{ route('account-overview.pay-online', $bill['reference_no']) }}" method="POST">
-                                                @csrf
-                                                <button type="submit" class="btn btn-primary">Pay Online</button>
-                                            </form>
-                                        @endif
-                                    @endforeach
+                                    <h3 class="ms-2">
+                                            @php
+                                            $penalty = $statement['current_bill']['computed_penalty'] ?? 0;
+                                            $dueDate = isset($data['current_bill']['due_date'])
+                                                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                                            : null;
+
+                                            $today = \Carbon\Carbon::today();
+
+                                            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                            @endphp
+                                        </h3>
+                                    </div>
+
+                                    @if(!empty($statement['current_bill_qr']))
+                                        <div class="d-flex justify-content-center">
+                                            <a href="{{ $statement['current_bill_qr'] }}" class="btn btn-success w-50 mt-3" target="_blank">Pay Online</a>
+                                        </div>
+                                    @endif
                                     <div class="mt-4 pt-2" style="font-size: 14px;">
                                         <div style="display:none;" id="statement-content">
                                             @forelse($statement['transactions'] as $key => $transactions)

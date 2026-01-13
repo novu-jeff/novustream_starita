@@ -58,8 +58,6 @@ class ImportController extends Controller
             'status code'                 => 'status_code',
             'zones'                       => 'zones',
             'settings'                    => 'settings',
-            'payments'                    => 'payments',
-            'Payments'                    => 'Payments',
         ];
 
         $processConfig = [
@@ -110,10 +108,6 @@ class ImportController extends Controller
             'settings' => [
                 'expected_headers' => ['name','value','description'],
                 'import_class' => SettingsImport::class,
-            ],
-            'payments' => [
-                'expected_headers' => ['account_no', 'amount_paid', 'payor_name', 'payment_reference_no',],
-                'import_class' => \App\Imports\PaymentsImport::class,
             ],
         ];
 
@@ -244,9 +238,9 @@ class ImportController extends Controller
 
         $importedSheets[] = $sheetName;
 
-        $successCount = method_exists($importInstance, 'getSuccessCount') ? $importInstance->getSuccessCount() : 0;
-        $skippedRows  = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
-        $total        = $successCount;
+        $rowCount    = method_exists($importInstance, 'getRowCounter') ? $importInstance->getRowCounter() : 0;
+        $skippedRows = method_exists($importInstance, 'getSkippedRows') ? $importInstance->getSkippedRows() : [];
+        $total       = max($rowCount - count($skippedRows), 0);
 
         $allMessages[] = [
             'sheet'  => $sheetName,
