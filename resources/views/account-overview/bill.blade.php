@@ -118,7 +118,6 @@
                                 <th>Due Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
-                                <th>Pay</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -153,7 +152,6 @@
                                     { data: 'due_date', name: 'due_date' },
                                     { data: 'status', name: 'status' },
                                     { data: 'actions', name: 'actions', orderable: false, searchable: false },
-                                    { data: 'pay', name: 'pay', orderable: false, searchable: false }
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -168,7 +166,7 @@
             @if($viewer == 'receipt')
                 <div style="padding-bottom: 50px padding-top: 50px">
                     <div id="bill" style="margin-top: 30px">
-                        <div class="bill-container">
+                        <div class="bill-container d-flex flex-row align-items-start">
                             <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                                 @if($data['current_bill']['isPaid'] == true)
                                     <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
@@ -475,6 +473,15 @@
                                 </div>
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             </div>
+                            @if($viewer === 'receipt' && !empty($payment_url) && !$data['current_bill']['isPaid'])
+                                <div class="d-flex justify-content-center">
+                                    <a href="{{ $payment_url }}"
+                                    target="_blank"
+                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold">
+                                        <i class="bx bx-credit-card"></i> Pay Online
+                                    </a>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>

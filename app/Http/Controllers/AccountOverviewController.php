@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Gate;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
 use App\Models\PaymentBreakdownPenalty;
+use App\Models\Bill;
 
 class AccountOverviewController extends Controller
 {
@@ -26,82 +27,113 @@ class AccountOverviewController extends Controller
         $this->generateService = $generateService;
     }
 
-    public function index()
-    {
+public function index()
+{
+    $my = Auth::user()->load('property_types', 'accounts.sc_discount');
+    $id = $my->id;
 
-        $my = Auth::user()->load('property_types', 'accounts.sc_discount');
+    $data = $this->clientService::getData($id);
+    $accounts = $data->accounts ?? [];
 
-        $id = $my->id;
+    $statement = [];
+    $statement['transactions'] = [];
 
-        $data = $this->clientService::getData($id);
+    foreach ($accounts as $account) {
+        $bill = $this->meterService::getBills($account->account_no);
 
-        $accounts = $data->accounts ?? [];
+        // Only include unpaid bills
+        if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
+            $bill['account_no'] = $account->account_no;
+            $statement['transactions'][] = $bill;
+        }
+    }
 
-        $statement = [];
+    // Determine the current bill
+    $statement['current_bill'] = collect($statement['transactions'])
+        ->filter(function ($bill) {
+            return ($bill['isPaid'] ?? 0) == 0
+                && (
+                    empty($bill['amount_paid']) ||
+                    floatval($bill['amount_paid']) < floatval($bill['amount'])
+                );
+        })
+        ->sortByDesc('due_date')
+        ->first();
 
-        $statement['transactions'] = [];
-
-        foreach ($accounts as $account) {
-            $bill = $this->meterService::getBills($account->account_no);
-            if (!empty($bill) && $bill['isPaid'] == 0) {
-                $bill['account_no'] = $account->account_no;
-                $statement['transactions'][] = $bill;
-            }
+        if (!empty($statement['current_bill'])) {
+            $statement['current_bill'] =
+                $this->computeBillPenalty($statement['current_bill']);
         }
 
-        $statement['total'] = !empty($statement['transactions'])
-            ? array_sum(array_column($statement['transactions'], 'amount'))
-            : 0;
 
-        $statement['due_date'] = !empty($statement['transactions'])
-            ? collect($statement['transactions'])
+    // Compute total for all transactions
+    $statement['total'] = !empty($statement['transactions'])
+        ? array_sum(array_map(function($bill) {
+            $amount = $bill['total'] ?? 0;
+            $discount = $bill['discount'] ?? 0;
+            $advance = $bill['advances'] ?? 0;
+
+        $penalty = $statement['current_bill']['penalty'] ?? 0;
+        $dueDate = isset($data['current_bill']['due_date'])
+                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                        : null;
+
+        $today = \Carbon\Carbon::today();
+
+        $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+
+            return ($amount + $applicablePenalty) - ($discount + $advance);
+        }, $statement['transactions']))
+        : 0;
+
+    $statement['due_date'] = !empty($statement['transactions'])
+        ? collect($statement['transactions'])
             ->pluck('due_date')
             ->filter()
             ->sortDesc()
             ->first()
-            : '';
+        : '';
 
-        $statement['total'] = !empty($statement['transactions'])
-            ? array_sum(array_map(function($bill) {
-                $dueDatePenalty = 0;
-                $penalty = $bill['penalty'] ?? 0;
-                $dueDate = $bill['due_date'] ?? null;
+    $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
-                if ($dueDate) {
-                    $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
-                    $today = \Carbon\Carbon::today('Asia/Manila');
+    $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
 
-                    if ($today->gt($dueDateCarbon)) {
-                        $daysOverdue = $dueDateCarbon->diffInDays($today);
+    // -----------------------------
+    // Generate online payment URL
+    // -----------------------------
+    $statement['current_bill_qr'] = null;
 
-                        $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
-                            ->where('due_to', '>=', $daysOverdue)
-                            ->first();
+    if (!empty($statement['current_bill'])) {
 
-                        if ($penaltyRule) {
-                            if ($penaltyRule->amount_type === 'percentage') {
-                                $dueDatePenalty = round($penalty, 2);
-                            } elseif ($penaltyRule->amount_type === 'fixed') {
-                                $dueDatePenalty = round(0, 2);
-                            }
-                        }
-                    }
-                }
-                $amount = $bill['total'] ?? 0;
-                $discount = $bill['discount'] ?? 0;
-                $advance = $bill['advances'] ?? 0;
+        $currentBill = $statement['current_bill'];
 
-                // Total after adding penalty and subtracting discounts & advances
-                return ($amount + $dueDatePenalty) - ($discount + $advance);
-            }, $statement['transactions']))
-            : 0;
+        $payload = [
+            'reference_no' => $currentBill['reference_no'] ?? '',
+            'amount' => $currentBill['amount'] ?? 0,
+            'customer' => [
+                'name' => $data->name ?? '',
+                'account_no' => $currentBill['account_no'] ?? '',
+                'address' => $currentBill['address'] ?? '',
+            ],
+        ];
 
-        $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
+        // Call PaymentController to create HitPay payment link
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($currentBill['reference_no'] ?? '', $payload);
 
-        $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
-
-        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $statement['current_bill_qr'] = $hitpayData['url'];
+        } else {
+            $statement['current_bill_qr'] = env('NOVUPAY_URL')
+                . '/payment/merchants/'
+                . ($currentBill['reference_no'] ?? '');
+        }
     }
+
+    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
+}
+
+
 
     public function getBillColumns()
     {
@@ -129,13 +161,84 @@ class AccountOverviewController extends Controller
     // Compute penalties
     $data['current_bill'] = $this->computeBillPenalty($data['current_bill']);
 
-    $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);
+    // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
+        $amount = (float)($currentBill['total'] ?? 0);
+        $amount_afterDue = (float)($currentBill['total'] ?? 0);
+        $discount = (float)($currentBill['discount'] ?? 0);
+        $currentDay = now()->day;
+
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+            ->where('due_to', '>=', $currentDay)
+            ->first();
+
+        $penalty = $statement['current_bill']['penalty'] ?? 0;
+        $dueDate = isset($data['current_bill']['due_date'])
+                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                        : null;
+
+        $today = \Carbon\Carbon::today();
+
+        $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+
+        // ✅ Always ensure defaults
+        $assumedPenalty = 0;
+        $assumedAmountAfterDue = $amount_afterDue + $applicablePenalty;
+
+        // 🔹 Try to compute based on dynamic penalty config
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumedPenalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumedPenalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback 10%
+            $assumedPenalty = $amount * 0.10;
+        }
+
+        $assumedAmountAfterDue = $amount - $discount;
+
+        $data['current_bill']['assumed_penalty'] = $applicablePenalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumedAmountAfterDue;
+
+        // 💰 Add service fees
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $assumedAmountAfterDue + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+    // 🔹 Generate HitPay checkout link (your logic)
+    $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+        ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+    if ($hitpayData && !empty($hitpayData['url'])) {
+        $url = $hitpayData['url']; // ✅ HitPay checkout link
+    } else {
+        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    }
+
+    // $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);
     $qr_code = $this->generateService::qr_code($url, 80);
+    $payment_url = $url;
     $isViewBill = true;
     $account_no = null;
     $viewer = 'receipt';
 
-    return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code'));
+    return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code', 'payment_url'));
 }
 
 
@@ -350,48 +453,27 @@ class AccountOverviewController extends Controller
 
     private function computeBillPenalty(array $bill): array
 {
+    $amount = (float) ($bill['amount'] ?? 0);
+    $penaltyAmount = (float) ($bill['penalty'] ?? 0);
 
-    $amount = $bill['amount'] ?? 0;
     $dueDate = isset($bill['due_date']) ? Carbon::parse($bill['due_date']) : null;
     $today = Carbon::today();
 
-    $penaltyAmount = 0;
     $daysOverdue = 0;
     $penaltyDate = null;
 
     if ($dueDate && $today->gt($dueDate)) {
         $daysOverdue = $dueDate->diffInDays($today);
         $penaltyDate = $dueDate->copy()->addDay();
-
-        // Fetch the penalty rule that matches the days overdue
-        $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
-            ->where('due_to', '>=', $daysOverdue)
-            ->first();
-
-        if ($penaltyRule) {
-            $penaltyBase = $amount;
-
-            if ($penaltyRule->amount_type === 'percentage') {
-                $penaltyAmount = round($penaltyBase * floatval($penaltyRule->amount), 2);
-            } elseif ($penaltyRule->amount_type === 'fixed') {
-                $penaltyAmount = round(floatval($penaltyRule->amount), 2);
-            }
-        }
-
-    } elseif ($dueDate) {
-        $penaltyDate = $dueDate->copy()->addDay();
     }
 
     $bill['computed_penalty'] = $penaltyAmount;
-    $bill['computed_penalty_date'] = $penaltyDate ? $penaltyDate->format('Y-m-d') : null;
+    $bill['computed_penalty_date'] = $penaltyDate?->format('Y-m-d');
     $bill['computed_amount_after_due'] = $amount + $penaltyAmount;
     $bill['days_overdue'] = $daysOverdue;
     $bill['is_overdue'] = $daysOverdue > 0;
 
     return $bill;
 }
-
-
-
 
 }
