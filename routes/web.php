@@ -147,6 +147,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
 
 
+
     });
 
     Route::prefix('settings')->group(function() {
