@@ -729,7 +729,7 @@ class PaymentController extends Controller
     {
         try {
             $result = $this->getBill($reference_no, $payload, false);
-
+            
             if (isset($result['error'])) {
                 \Log::error('HitPay error: ' . $result['error']);
                 return null;
@@ -818,6 +818,7 @@ class PaymentController extends Controller
             }
 
             $data = $response->json();
+            // dd($data);
             return [
                 'id' => $data['id'] ?? null,
                 'url' => $data['url'] ?? null,
