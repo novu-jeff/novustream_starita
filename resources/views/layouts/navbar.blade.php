@@ -2,7 +2,7 @@
 	<div class="header-content responsive-wrapper">
 		<div class="header-logo">
 			<a href="#" class="nav-link text-uppercase fw-bold">
-				<img src="{{ asset(config('app.product') === 'novustream' ? 'images/novustreamlogo.png' : 'images/novusurgelogo.png') }}" alt="" style="width: 100px;">
+				<img src="{{ asset(config('app.product') === 'novustream' ? 'images/poweredByNovulutions.png' : 'images/novusurgelogo.png') }}" alt="" style="width: 100px;">
 			</a>
 		</div>
 		<div class="header-navigation">
@@ -59,7 +59,7 @@
 				}
 				});
 				</script>
-				
+
 				@canany(['admin', 'cashier'])
 					<a href="{{route('payments.index')}}"> Payments </a>
                     <a href="{{route('reports.download-index')}}"> Files </a>
