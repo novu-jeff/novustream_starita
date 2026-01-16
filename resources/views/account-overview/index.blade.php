@@ -1,6 +1,47 @@
 @extends('layouts.app')
 
 @section('content')
+
+@if(session('using_default_password'))
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white justify-content-center">
+                <h5 class="modal-title fw-bold text-uppercase text-center">
+                    Security Notice
+                </h5>
+            </div>
+            <div class="modal-body text-center py-5">
+                <p class="fs-5">
+                    You are using a default password. Please change it now to secure your account.
+                </p>
+
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <a href="{{ route('profile.index', ['user_type' => 'concessionaire']) }}"
+                       class="btn btn-primary fw-bold text-uppercase px-4 py-2">
+                        Change Password
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEl = document.getElementById('changePasswordModal');
+    if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl, {
+            backdrop: 'static',
+            keyboard: false
+        });
+        modal.show();
+    }
+});
+</script>
+@endif
+
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header">

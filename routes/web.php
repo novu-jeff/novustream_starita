@@ -272,6 +272,11 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
 
+Route::middleware(['auth', 'check.default.password'])->prefix('concessionaire')->group(function() {
+    Route::get('my/overview', [AccountOverviewController::class, 'index'])
+        ->name('account-overview.index');
+});
+
 
 Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
 Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
