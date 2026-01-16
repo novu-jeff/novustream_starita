@@ -30,11 +30,11 @@
 </head>
 <body>
     @if(auth()->user() && auth()->user()->user_type === 'technician')
-        <div id="connection-status" 
+        <div id="connection-status"
             style="display:flex;justify-content:center;align-items:center;gap:8px;
                     background:#004aad;color:white;text-align:center;
                     padding:6px 10px;font-weight:600;position:sticky;top:0;z-index:9999;">
-            <span id="status-dot" 
+            <span id="status-dot"
                 style="width:10px;height:10px;border-radius:50%;background:#4caf50;
                         display:inline-block;transition:background 0.3s ease;"></span>
             <span id="status-text">Online</span>

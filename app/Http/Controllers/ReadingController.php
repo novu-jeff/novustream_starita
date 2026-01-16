@@ -814,6 +814,7 @@ class ReadingController extends Controller
             '061-22-060250', // VDLR Parish
             '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
             '111-22-110290', // Aetahanan
+            '111-22-111650' // HOLY FAMILY DAY CARE CENTER
         ];
 
         // Check if account is exempted from penalty
