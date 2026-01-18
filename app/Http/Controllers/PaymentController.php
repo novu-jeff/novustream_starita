@@ -395,16 +395,18 @@ class PaymentController extends Controller
         ],
     ];
 
-    // 🔹 Generate HitPay checkout link (your logic)
-    $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-        ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-    \Log::error('HitPay Data: ' . json_encode($hitpayData));
+    $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
+        ?? $data['current_bill']['hitpay_reference']
+        ?? null;
+    if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
+        $url = self::buildHitpayCompletedUrl($hitpayCompletedId);
+    } else {
+        // 🔹 Generate HitPay checkout link (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
 
-    $url = $hitpayData['url'] ?? env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-    $qr_code = $this->generateService::qr_code($url, 80);
-
-    $url = $hitpayData['url'] 
-        ?? env('NOVUPAY_URL') . '/payment-expired/' . $reference_no;
+        $url = $hitpayData['url'] ?? env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    }
 
     $qr_code = $this->generateService::qr_code($url, 80);
 
@@ -580,6 +582,13 @@ class PaymentController extends Controller
             $previousPartial = floatval($currentBill->partial_payment ?? 0);
             $totalAmountPaid = floatval($currentBill->amount_paid ?? 0);
             $totalBillDue = (float) $result['total_due'];
+            $hitpayFields = [];
+            if (!empty($payload['hitpay_reference']) && empty($currentBill->hitpay_reference)) {
+                $hitpayFields['hitpay_reference'] = $payload['hitpay_reference'];
+            }
+            if (!empty($payload['hitpay_payment_id']) && empty($currentBill->hitpay_payment_id)) {
+                $hitpayFields['hitpay_payment_id'] = $payload['hitpay_payment_id'];
+            }
 
             if ($isPartialPayment) {
                 $currentBill->update([
@@ -592,7 +601,7 @@ class PaymentController extends Controller
                     'date_paid' => $now,
                     'isChangeForAdvancePayment' => 0,
                     'payment_method' => 'cash',
-                ]);
+                ] + $hitpayFields);
 
                 $remainingBalance = $totalBillDue - ($previousPartial + $paymentAmount);
 
@@ -612,7 +621,9 @@ class PaymentController extends Controller
                     'date_paid' => $now,
                     'isChangeForAdvancePayment' => $saveChange,
                     'payment_method' => 'cash',
-                ]);
+                ] + $hitpayFields);
+
+                $this->deleteHitpayPaymentRequest($currentBill);
 
                 $account_no = optional($currentBill->reading)->account_no;
 
@@ -711,6 +722,7 @@ class PaymentController extends Controller
             $bill->update([
                 'payment_method' => 'online',
                 'initiated_at' => now(),
+                'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
                 'hitpay_payment_id' => $hitpayData['id'] ?? null,
             ]);
         }
@@ -728,6 +740,16 @@ class PaymentController extends Controller
     public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
     {
         try {
+            $existingBill = Bill::where('reference_no', $reference_no)->first();
+            if ($existingBill && !empty($existingBill->hitpay_payment_id)) {
+                return [
+                    'id' => $existingBill->hitpay_payment_id,
+                    'url' => self::buildHitpayCheckoutUrl($existingBill->hitpay_payment_id),
+                    'reference' => $existingBill->hitpay_reference,
+                    'reference_number' => $existingBill->hitpay_reference,
+                ];
+            }
+
             $result = $this->getBill($reference_no, $payload, false);
             
             if (isset($result['error'])) {
@@ -742,9 +764,19 @@ class PaymentController extends Controller
                 return null;
             }
             $days_before_due = 15;
-            $due_date = !empty($billData['due_date'])
-            ? Carbon::parse($billData['due_date'])->endOfDay()->format('Y-m-d H:i:s')
-            : Carbon::now()->addDays($days_before_due)->endOfDay()->format('Y-m-d H:i:s');
+            if (!empty($billData['due_date'])) {
+                try {
+                    $due_date = Carbon::parse($billData['due_date']);
+                } catch (\Exception $e) {
+                    $due_date = Carbon::now()->addDays($days_before_due);
+                }
+            } else {
+                $due_date = Carbon::now()->addDays($days_before_due);
+            }
+            if ($due_date->isPast()) {
+                $due_date = Carbon::now()->addDay();
+            }
+            $due_date = $due_date->endOfDay()->format('Y-m-d H:i:s');
 
 
             // dd($billData);
@@ -822,6 +854,8 @@ class PaymentController extends Controller
             return [
                 'id' => $data['id'] ?? null,
                 'url' => $data['url'] ?? null,
+                'reference' => $data['reference'] ?? null,
+                'reference_number' => $data['reference_number'] ?? null,
             ];
         } catch (\Exception $e) {
             \Log::error('createHitpayPaymentRequest exception: ' . $e->getMessage());
@@ -843,7 +877,28 @@ class PaymentController extends Controller
             abort(404, 'Invalid payment reference.');
         }
 
-        // ✅ Step 1: Verify payment details with HitPay
+        // ✅ Step 1: If already paid locally (walk-in), show paid receipt
+        $localBill = \App\Models\Bill::where('hitpay_reference', $hitpay_reference)
+            ->orWhere('reference_no', $hitpay_reference)
+            ->first();
+
+        if ($localBill && $localBill->isPaid) {
+            return view('payments.status', [
+                'payload' => [
+                    'title' => 'Payment Successful',
+                    'message' => 'Payment was already marked as paid.',
+                    'reference_no' => $localBill->reference_no ?? $hitpay_reference,
+                    'status' => 'paid',
+                    'amount' => number_format((float) ($localBill->amount_paid ?? $localBill->amount ?? 0), 2),
+                    'date_paid' => $localBill->date_paid ?? now()->format('M d, Y H:i:s'),
+                    'payment_id' => $localBill->hitpay_payment_id
+                        ?? $localBill->payment_id
+                        ?? null,
+                ]
+            ]);
+        }
+
+        // ✅ Step 2: Verify payment details with HitPay
         $response = \Http::withHeaders([
             'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
         ])->get(env('HITPAY_API_URL') . "/payment-requests/{$hitpay_reference}");
@@ -866,9 +921,14 @@ class PaymentController extends Controller
         \Log::info('HitPay verified payment', $payment);
 
         $status = strtolower($payment['status'] ?? $status);
+        $pendingStatuses = ['pending', 'processing', 'open', 'initiated'];
+        if (in_array($status, $pendingStatuses, true)) {
+            $status = 'pending';
+        }
         $reference_number = $payment['reference_number'] ?? null;
         $amount = (float) ($payment['amount'] ?? 0);
         $payor = $payment['name'] ?? 'Unknown';
+        $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
 
         // ✅ Step 2: Find bill
         $bill = \App\Models\Bill::where('hitpay_reference', $hitpay_reference)
@@ -896,7 +956,7 @@ class PaymentController extends Controller
         }
 
         // ✅ Step 3: Mark bill as paid if successful
-        if (in_array($status, ['completed', 'succeeded', 'success'])) {
+        if (in_array($status, ['completed', 'succeeded', 'success'], true)) {
             $bill->update([
                 'isPaid' => 1,
                 'amount_paid' => $amount,
@@ -913,9 +973,26 @@ class PaymentController extends Controller
                     'status' => $status,
                     'amount' => number_format($amount, 2),
                     'date_paid' => now()->format('M d, Y H:i:s'),
-                    'payment_id' => $payment['id'] ?? uniqid('PAY-'),
+                    'payment_id' => $paymentId ?? uniqid('PAY-'),
                 ]
             ]);
+        } elseif ($status === 'pending' && !$bill->isPaid) {
+            $pendingUpdate = [
+                'isPaid' => 0,
+            ];
+            if (empty($bill->hitpay_reference)) {
+                $pendingUpdate['hitpay_reference'] = $hitpay_reference;
+            }
+            if (!empty($paymentId) && empty($bill->hitpay_payment_id)) {
+                $pendingUpdate['hitpay_payment_id'] = $paymentId;
+            }
+            if (empty($bill->initiated_at)) {
+                $pendingUpdate['initiated_at'] = now();
+            }
+            if (empty($bill->payment_method)) {
+                $pendingUpdate['payment_method'] = 'online';
+            }
+            $bill->update($pendingUpdate);
         }
 
         // ❌ Step 4: Failed or canceled
@@ -931,6 +1008,73 @@ class PaymentController extends Controller
                 'expires_at' => $due_date ?? null,
             ]
         ]);
+    }
+
+    private function deleteHitpayPaymentRequest(Bill $bill): void
+    {
+        $paymentRequestId = $bill->hitpay_payment_id ?? null;
+        if (empty($paymentRequestId)) {
+            \Log::info('HitPay delete skipped (missing hitpay_payment_id)', [
+                'bill_id' => $bill->id,
+                'reference_no' => $bill->reference_no ?? null,
+                'hitpay_reference' => $bill->hitpay_reference ?? null,
+            ]);
+            return;
+        }
+
+        try {
+            $response = \Http::withHeaders([
+                'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            ])->delete(env('HITPAY_API_URL') . "/payment-requests/{$paymentRequestId}");
+
+            if ($response->failed()) {
+                \Log::warning('HitPay delete payment request failed', [
+                    'bill_id' => $bill->id,
+                    'hitpay_payment_id' => $paymentRequestId,
+                    'body' => $response->body(),
+                ]);
+            } else {
+                \Log::info('HitPay payment request deleted', [
+                    'bill_id' => $bill->id,
+                    'hitpay_payment_id' => $paymentRequestId,
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('HitPay delete payment request error: ' . $e->getMessage(), [
+                'bill_id' => $bill->id,
+                'hitpay_payment_id' => $paymentRequestId,
+            ]);
+        }
+    }
+
+    public static function buildHitpayCompletedUrl(?string $paymentRequestId): ?string
+    {
+        if (empty($paymentRequestId)) {
+            return null;
+        }
+
+        $slug = trim((string) env('HITPAY_BUSINESS_SLUG', ''));
+        if ($slug !== '') {
+            $slug = ltrim($slug, '@');
+            return "https://securecheckout.hit-pay.com/payment-request/@{$slug}/{$paymentRequestId}/completed";
+        }
+
+        return "https://securecheckout.hit-pay.com/payment-request/{$paymentRequestId}/completed";
+    }
+
+    public static function buildHitpayCheckoutUrl(?string $paymentRequestId): ?string
+    {
+        if (empty($paymentRequestId)) {
+            return null;
+        }
+
+        $slug = trim((string) env('HITPAY_BUSINESS_SLUG', ''));
+        if ($slug !== '') {
+            $slug = ltrim($slug, '@');
+            return "https://securecheckout.hit-pay.com/payment-request/@{$slug}/{$paymentRequestId}/checkout";
+        }
+
+        return "https://securecheckout.hit-pay.com/payment-request/{$paymentRequestId}/checkout";
     }
 
     public function datatable($query) {
