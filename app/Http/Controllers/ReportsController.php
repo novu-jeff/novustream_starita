@@ -35,7 +35,10 @@ class ReportsController extends Controller
             'Unpaid Bills',
             'Paid Bills',
             'Readings',
+            'Senior Count',
             'List of Active',
+            'Book Summary Report',
+            'List of Inactive',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -1100,6 +1103,41 @@ class ReportsController extends Controller
                 $result[$report] = $rows;
                 break;
 
+                case 'Senior Count':
+
+    $query = DB::table('discount')
+        ->join(
+            'concessioner_accounts',
+            'concessioner_accounts.account_no',
+            '=',
+            'discount.account_no'
+        )
+        ->where('discount.discount_type_id', 1) // Senior Citizen
+        ->whereNotNull('concessioner_accounts.zone')
+        ->groupBy('concessioner_accounts.zone')
+        ->select(
+            'concessioner_accounts.zone as zone',
+            DB::raw('COUNT(DISTINCT discount.account_no) as senior_count'),
+            DB::raw('SUM(bill.amount) as total_amount') // 👈 CHANGE COLUMN IF NEEDED
+        )
+        ->orderBy('concessioner_accounts.zone', 'asc')
+        ->get();
+
+    $rows = [];
+
+    foreach ($query as $row) {
+        $rows[] = [
+            'ZONE'            => $row->zone ?? 'N/A',
+            'NO. OF SENIORS'  => $row->senior_count,
+            'TOTAL AMOUNT'   => number_format($row->total_amount ?? 0, 2),
+        ];
+    }
+
+    $result[$report] = $rows;
+    break;
+
+
+
                 case 'List of Active':
 
                 $query = Bill::query()
@@ -1149,6 +1187,383 @@ class ReportsController extends Controller
 
                 $result[$report] = $rows;
                 break;
+
+                case 'List of Inactive':
+
+$data = ConcessionerAccount::query()
+    ->leftJoin('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->leftJoin('bill', function ($join) {
+        $join->on('bill.reading_id', '=', 'readings.id')
+             ->where('bill.isPaid', 0); // unpaid only
+    })
+    ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
+    ->selectRaw("
+        concessioner_accounts.zone AS zone,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS total_inactive,
+        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS total_unpaid_amount
+    ")
+    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+    })
+    ->groupBy('concessioner_accounts.zone')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+$rows = [];
+
+foreach ($data as $row) {
+    $rows[] = [
+        'ZONE'         => 'ZONE ' . $row->zone,
+        'TOTAL'        => $row->total_inactive,
+        'TOTAL AMOUNT' => $row->total_unpaid_amount,
+    ];
+}
+
+$result[$report] = $rows;
+break;
+
+
+case 'Book Summary Report':
+
+/* ==========================================
+ * BOOKS
+ * ========================================== */
+$bookList = ConcessionerAccount::query()
+    ->select('zone')
+    ->distinct()
+    ->orderBy('zone')
+    ->pluck('zone')
+    ->map(fn ($z) => "ZONE {$z}")
+    ->values();
+
+
+/* ==========================================
+ * PROPERTY CATEGORIES
+ * ========================================== */
+$categories = [
+    'RESIDENTIAL',
+    'GOVERNMENT',
+    'COMMERCIAL & INDUSTRIAL',
+    'COMMERCIAL A',
+    'COMMERCIAL B',
+    'COMMERCIAL C',
+];
+
+/* ==========================================
+ * BARANGAYS
+ * ========================================== */
+$barangays = [
+    'SAN BASILIO',
+    'BECURAN',
+    'DILA-DILA',
+    'SAN MATIAS',
+    'SAN VICENTE',
+];
+
+/* ==========================================
+ * MAIN BOOK SUMMARY DATA
+ * ========================================== */
+$data = Bill::query()
+    ->join('readings', 'bill.reading_id', '=', 'readings.id')
+    ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->join('property_types', 'concessioner_accounts.rate_code', '=', 'property_types.rate_code')
+    // ✅ Filter by date range
+    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+    })
+    ->selectRaw("
+        concessioner_accounts.zone AS zone,
+        CASE
+            WHEN property_types.rate_code = 12 THEN 'RESIDENTIAL'
+            WHEN property_types.rate_code = 22 THEN 'GOVERNMENT'
+            WHEN property_types.rate_code = 32 THEN 'COMMERCIAL & INDUSTRIAL'
+            WHEN property_types.rate_code = 62 THEN 'COMMERCIAL A'
+            WHEN property_types.rate_code = 52 THEN 'COMMERCIAL B'
+            WHEN property_types.rate_code = 42 THEN 'COMMERCIAL C'
+        END AS category,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
+        SUM(readings.consumption) AS cum,
+        SUM(COALESCE(bill.total - bill.previous_unpaid, 0)) AS amt,
+        SUM(COALESCE(bill.penalty, 0)) AS penalty
+    ")
+    ->groupBy('concessioner_accounts.zone', 'category')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+
+/* ==========================================
+ * INITIALIZE BOOK ROWS
+ * ========================================== */
+$books = [];
+
+foreach ($bookList as $book) {
+    $books[$book] = [
+        'ZONE' => $book,
+        'TOTAL AMOUNT PER BOOK' => 0,
+        'TOTAL PENALTY' => 0,
+    ];
+
+    foreach ($categories as $cat) {
+        $books[$book]["{$cat} - NO. OF CONCESSIONAIRES"] = 0;
+        $books[$book]["{$cat} - CUBIC METER"] = 0;
+        $books[$book]["{$cat} - AMOUNT"] = 0;
+    }
+}
+
+/* ==========================================
+ * POPULATE BOOK DATA
+ * ========================================== */
+foreach ($data as $row) {
+    $key = "ZONE {$row->zone}";
+
+    if (!isset($books[$key])) continue;
+
+    $books[$key]["{$row->category} - NO. OF CONCESSIONAIRES"] += $row->cnt;
+    $books[$key]["{$row->category} - CUBIC METER"] += $row->cum;
+    $books[$key]["{$row->category} - AMOUNT"] += $row->amt;
+
+    $books[$key]['TOTAL AMOUNT PER BOOK'] += $row->amt;
+    $books[$key]['TOTAL PENALTY'] += $row->penalty;
+}
+
+
+/* ==========================================
+ * ZONE SUMMARY (AUTHORITATIVE)
+ * ========================================== */
+$zoneSummary = Bill::query()
+    ->join('readings', 'bill.reading_id', '=', 'readings.id')
+    ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->selectRaw('
+        concessioner_accounts.zone AS zone,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
+        SUM(COALESCE(bill.total - bill.previous_unpaid, 0)) AS total_paid,
+        SUM(COALESCE(bill.penalty, 0)) AS total_penalty
+    ')
+    ->where(function ($q) {
+        $q->where('bill.hasPenalty', 1);
+    })->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+    })
+    ->groupBy('concessioner_accounts.zone')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+
+/* ==========================================
+ * SENIOR CITIZEN PENALTY PER ZONE
+ * ========================================== */
+$seniorPenaltyPerZone = Bill::query()
+    ->join('readings', 'bill.reading_id', '=', 'readings.id')
+    ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->where('bill.penalty', '>', 0)               // only bills with penalty
+    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+    })
+    ->selectRaw('
+        concessioner_accounts.zone AS zone,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
+        SUM(bill.penalty) AS total_penalty
+    ')
+    ->groupBy('concessioner_accounts.zone')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+
+/* ==========================================
+ * SENIOR DISCOUNT PER ZONE (FIXED)
+ * ========================================== */
+$seniorDiscountPerZone = Bill::query()
+    ->join('readings', 'bill.reading_id', '=', 'readings.id')
+    ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->join('discount', function ($join) {
+    $join->on('discount.account_no', '=', 'concessioner_accounts.account_no')
+         ->where('discount.discount_type_id', 1); // SENIOR
+    })
+    ->where('bill.discount', '>', 0)
+    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+    })
+    ->selectRaw('
+        concessioner_accounts.zone AS zone,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
+        SUM(CAST(bill.discount AS DECIMAL(10,2))) AS total_discount
+    ')
+    ->groupBy('concessioner_accounts.zone')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+
+
+/* ==========================================
+ * TOTAL ACTIVE PER PROPERTY TYPE
+ * ========================================== */
+$activePerProperty = \DB::table(function($query) use ($startDate, $endDate) {
+    $query->from('bill')
+        ->join('readings', 'bill.reading_id', '=', 'readings.id')
+        ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+        ->where('concessioner_accounts.status', 'AB')
+        ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+            $q->whereBetween('readings.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+        })
+        ->selectRaw('
+            concessioner_accounts.account_no,
+            concessioner_accounts.rate_code,
+            SUM(readings.consumption) AS account_consumption,
+            SUM(COALESCE(bill.total - bill.previous_unpaid, 0)) AS account_amount
+        ')
+        ->groupBy('concessioner_accounts.account_no', 'concessioner_accounts.rate_code');
+}, 'account_summary')
+->join('property_types as pt', 'account_summary.rate_code', '=', 'pt.rate_code')
+->selectRaw("
+    CASE
+        WHEN pt.rate_code = 12 THEN 'RESIDENTIAL'
+        WHEN pt.rate_code = 22 THEN 'GOVERNMENT'
+        WHEN pt.rate_code = 32 THEN 'COMMERCIAL & INDUSTRIAL'
+        WHEN pt.rate_code = 62 THEN 'COMMERCIAL A'
+        WHEN pt.rate_code = 52 THEN 'COMMERCIAL B'
+        WHEN pt.rate_code = 42 THEN 'COMMERCIAL C'
+    END AS property_type,
+    COUNT(DISTINCT account_summary.account_no) AS cnt,
+    SUM(account_consumption) AS cum,
+    SUM(account_amount) AS amt
+")
+->groupBy('pt.rate_code')
+->get();
+
+
+
+    /* ==========================================
+ * DISCONNECTED PER ZONE
+ * ========================================== */
+$disconnectedPerZone = ConcessionerAccount::query()
+    ->whereIn('status', ['IV', 'ID', 'BL'])  // only disconnected statuses
+    ->groupBy('zone')                        // group by zone
+    ->selectRaw('zone, COUNT(DISTINCT account_no) AS disconnected_cnt')
+    ->pluck('disconnected_cnt', 'zone');     // return as [zone => count]
+
+
+
+/* ==========================================
+ * ACTIVE PER BARANGAY
+ * ========================================== */
+$activePerBarangay = [];
+
+foreach ($barangays as $brgy) {
+    $activePerBarangay[$brgy] = ConcessionerAccount::query()
+        ->where('status', 'AB')
+        ->where('address', 'LIKE', "%{$brgy}%")
+        ->count();
+}
+
+/* ==========================================
+ * DISCONNECTED
+ * ========================================== */
+$disconnected = ConcessionerAccount::whereIn('status', [3, 5])->count();
+
+/* ==========================================
+ * FINAL ROWS
+ * ========================================== */
+$rows = array_values($books);
+/* ==========================================
+ * PENALTY PER ZONE
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- PENALTY PER ZONE ---',
+    'NO. OF CONCESSIONAIRES' => null,
+    'DISCONNECTED' => null,
+    'TOTAL AMOUNT' => null,
+];
+
+foreach ($zoneSummary as $row) {
+    $rows[] = [
+        'BOOK' => "ZONE {$row->zone}",
+        'NO. OF CONCESSIONAIRES' => $row->cnt,
+        'DISCONNECTED' => $disconnectedPerZone[$row->zone] ?? 0,
+        'TOTAL AMOUNT' => $row->total_penalty,
+    ];
+}
+
+/* ==========================================
+ * SENIOR DISCOUNT PER ZONE (DISCOUNT TABLE)
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- SENIOR DISCOUNT PER ZONE ---',
+    'NO. OF CONCESSIONAIRES' => null,
+    'TOTAL AMOUNT' => null,
+];
+
+foreach ($seniorDiscountPerZone as $row) {
+    $rows[] = [
+        'BOOK' => "ZONE {$row->zone}",
+        'NO. OF CONCESSIONAIRES' => $row->cnt,
+        'TOTAL AMOUNT' => $row->total_discount,
+    ];
+}
+
+
+
+/* ==========================================
+ * SENIOR CITIZEN PENALTY PER ZONE
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- SENIOR CITIZEN PENALTY PER ZONE ---',
+    'NO. OF CONCESSIONAIRES' => null,
+    'TOTAL AMOUNT' => null,
+];
+
+foreach ($seniorPenaltyPerZone as $row) {
+    $rows[] = [
+        'BOOK' => "ZONE {$row->zone}",
+        'NO. OF CONCESSIONAIRES' => $row->cnt,
+        'TOTAL AMOUNT' => $row->total_penalty,
+    ];
+}
+
+/* ==========================================
+ * ACTIVE PER PROPERTY TYPE
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- ACTIVE PER PROPERTY TYPE ---',
+    'NO. OF CONCESSIONAIRES' => null,
+    'CUBIC METER' => null,
+    'TOTAL AMOUNT' => null,
+];
+
+foreach ($activePerProperty as $row) {
+    $rows[] = [
+        'BOOK' => $row->property_type,
+        'NO. OF CONCESSIONAIRES' => $row->cnt,
+        'CUBIC METER' => $row->cum,
+        'TOTAL AMOUNT' => $row->amt,
+    ];
+}
+
+/* ==========================================
+ * ACTIVE PER BARANGAY
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- ACTIVE PER BARANGAY ---',
+    'NO. OF CONCESSIONAIRES' => null,
+];
+
+foreach ($activePerBarangay as $brgy => $count) {
+    $rows[] = [
+        'BOOK' => $brgy,
+        'NO. OF CONCESSIONAIRES' => $count,
+    ];
+}
+
+/* ==========================================
+ * DISCONNECTED
+ * ========================================== */
+$rows[] = [
+    'BOOK' => '--- TOTAL DISCONNECTED ---',
+    'NO. OF CONCESSIONAIRES' => $disconnected,
+];
+
+$result[$report] = $rows;
+break;
+
 
                 default:
                     $result[$report] = [];

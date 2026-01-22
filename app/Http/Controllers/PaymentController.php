@@ -439,25 +439,16 @@ class PaymentController extends Controller
         $dueDate = $currentBillData['due_date'] ?? null;
         $tax = (float) ($currentBillData['tax'] ?? 0);
 
-        if ($dueDate) {
-            $dueDateCarbon = \Carbon\Carbon::parse($dueDate)->timezone('Asia/Manila')->startOfDay();
-            $today = \Carbon\Carbon::today('Asia/Manila');
+        $dueDate = isset($currentBillData['due_date'])
+            ? \Carbon\Carbon::parse(trim($currentBillData['due_date']))
+                ->timezone('Asia/Manila')
+                ->startOfDay()
+            : null;
 
-            if ($today->gt($dueDateCarbon)) {
-                $daysOverdue = $dueDateCarbon->diffInDays($today);
+        $today = \Carbon\Carbon::today('Asia/Manila');
 
-                $penaltyRule = PaymentBreakdownPenalty::where('due_from', '<=', $daysOverdue)
-                    ->where('due_to', '>=', $daysOverdue)
-                    ->first();
-
-                if ($penaltyRule) {
-                    if ($penaltyRule->amount_type === 'percentage') {
-                        $dueDatePenalty = round($penalty, 2);
-                    } elseif ($penaltyRule->amount_type === 'fixed') {
-                        $dueDatePenalty = round(0, 2);
-                    }
-                }
-            }
+        if ($dueDate && $today->gt($dueDate)) {
+            $dueDatePenalty = (float) $penalty;
         }
 
         // $userDiscount = $currentBillData['reading']['account_no'];
