@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
-   
+
     public $profileService;
     public $propertyTypesService;
 
@@ -28,7 +28,7 @@ class ProfileController extends Controller
         $data = $this->profileService::getData($user_id);
 
         return view('profile.index', compact('data', 'property_types'));
-    
+
     }
 
     public function update(string $user_type, int $id, Request $request) {
@@ -70,5 +70,5 @@ class ProfileController extends Controller
         }
 
     }
-    
+
 }
