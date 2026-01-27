@@ -87,9 +87,9 @@ class PreviousBillingImport implements
         $reading_id = Reading::insertGetId([
             'zone'             => $zone ?? null,
             'account_no'       => $get(['account_no']),
-            'previous_reading' => $get(['previous_reading']),
-            'present_reading'  => $get(['present_reading']),
-            'consumption'      => $get(['consumption']),
+            'previous_reading' => $get(['previous_reading']) ?? 0,
+            'present_reading'  => $get(['present_reading']) ?? 0,
+            'consumption'      => $get(['consumption']) ?? 0,
             'created_at'       => $billing_from,
             'updated_at'       => $billing_from,
         ]);
@@ -119,13 +119,13 @@ class PreviousBillingImport implements
 
         $bill = Bill::create([
             'reading_id'       => $reading_id,
-            'reference_no'     => $get(['reference_no']),
+            'reference_no'     => $get(['reference_no']) ?? 0,
             'bill_period_from' => $billing_from,
             'bill_period_to'   => $billing_to,
-            'previous_unpaid'  => 0, // <-- arrears
-            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0), // <-- penalty stays
-            'total'            => $current_bills,
-            'amount'           => $amount,
+            'previous_unpaid'  => $arrears,
+            'penalty'          => 0, // <-- penalty stays
+            'total'            => $arrears,
+            'amount'           => $arrears,
             'amount_paid'      => $this->cleanAmount($get(['amount_paid']) ?? 0),
             'change'           => $this->cleanAmount($get(['change']) ?? 0),
             'isPaid'           => !empty($get(['amount_paid'])) ? 1 : 0,
