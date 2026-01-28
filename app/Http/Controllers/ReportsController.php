@@ -1452,7 +1452,12 @@ $zoneSummary = Bill::query()
         COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
         SUM(COALESCE(bill.total - bill.previous_unpaid, 0)) AS total_paid,
         SUM(COALESCE(bill.penalty, 0)) AS total_penalty
-    ')->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+    ')
+    ->where(function ($q) {
+        $q->where('bill.hasPenalty', 1);
+    })
+    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
         $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
     })
     ->groupBy('concessioner_accounts.zone')
@@ -1466,7 +1471,12 @@ $zoneSummary = Bill::query()
 $seniorPenaltyPerZone = Bill::query()
     ->join('readings', 'bill.reading_id', '=', 'readings.id')
     ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->join('discount', function($join) {
+        $join->on('discount.account_no', '=', 'concessioner_accounts.account_no')
+             ->where('discount.discount_type_id', 1); // SENIOR only
+    })
     ->where('bill.penalty', '>', 0)               // only bills with penalty
+    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
     ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
         $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
     })
@@ -1483,27 +1493,26 @@ $seniorPenaltyPerZone = Bill::query()
 /* ==========================================
  * SENIOR DISCOUNT PER ZONE (FIXED)
  * ========================================== */
-$seniorDiscountPerZone = Bill::query()
-    ->join('readings', 'bill.reading_id', '=', 'readings.id')
-    ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-    ->join('discount', function ($join) {
-    $join->on('discount.account_no', '=', 'concessioner_accounts.account_no')
-         ->where('discount.discount_type_id', 1); // SENIOR
+$seniorDiscountPerZone = DB::table('discount')
+    ->join('concessioner_accounts', 'discount.account_no', '=', 'concessioner_accounts.account_no')
+    ->leftJoin('readings', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+    ->leftJoin('bill', function($join) use ($startDate, $endDate) {
+        $join->on('bill.reading_id', '=', 'readings.id');
+        if ($startDate && $endDate) {
+            $join->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+        }
     })
-    ->where('bill.discount', '>', 0)
-    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
-        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
-    })
+    ->where('discount.discount_type_id', 1) // SENIOR
+    ->whereNotNull('concessioner_accounts.zone')
+    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
     ->selectRaw('
         concessioner_accounts.zone AS zone,
-        COUNT(DISTINCT concessioner_accounts.account_no) AS cnt,
-        SUM(CAST(bill.discount AS DECIMAL(10,2))) AS total_discount
+        COUNT(DISTINCT discount.account_no) AS cnt,
+        COALESCE(SUM(CAST(bill.discount AS DECIMAL(10,2))), 0) AS total_discount
     ')
     ->groupBy('concessioner_accounts.zone')
     ->orderBy('concessioner_accounts.zone')
     ->get();
-
-
 
 /* ==========================================
  * TOTAL ACTIVE PER PROPERTY TYPE
