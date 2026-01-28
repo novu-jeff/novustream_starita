@@ -9,7 +9,7 @@
             @if(session('error'))
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
-            @if (request('params') === 'zabbbbbbbbb')
+            @if (Auth::guard('admins')->check())
                 <a href="{{ url('/admin/database-refresh') }}" 
                 class="btn btn-danger"
                 onclick="return confirm('⚠️ This will drop and recreate all tables. Continue?')">

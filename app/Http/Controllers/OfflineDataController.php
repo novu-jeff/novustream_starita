@@ -16,7 +16,7 @@ class OfflineDataController extends Controller
 {
     public function download(Request $request)
     {
-
+        
         // STATIC TOKEN AUTHENTICATION
         // $token = $request->header('X-API-KEY');
 
@@ -54,8 +54,8 @@ class OfflineDataController extends Controller
                 });
             })
             ->get();
-
         
+        // dd($accounts);
 
         // ✅ Compute unpaid + previous_reading BEFORE mapping to array
         $previousReadings = [];
@@ -79,7 +79,7 @@ class OfflineDataController extends Controller
             //     'from_id_relation' => $acc->property_types?->toArray(),
             //     'from_name_relation' => $acc->property_types_by_name?->toArray(),
             // ]);
-
+        // dd($acc);
 
 
             // \Log::info('[DEBUG OFFLINE] Account structure:', $acc->toArray());
@@ -89,6 +89,8 @@ class OfflineDataController extends Controller
                 ->where('isPaid', false)
                 ->sum('amount');
 
+            
+            
             return [
                 'account_no'       => $acc->account_no,
                 'name'             => $acc->user->name ?? 'N/A',
@@ -100,9 +102,13 @@ class OfflineDataController extends Controller
                 'previous_reading' => $previousReadings[$acc->account_no]['present_reading'] ?? 0,
                 'unpaid_amount'    => $unpaid,
                 'created_at'      => $previousReadings[$acc->account_no]['created_at'] ?? null,
+                'sequence_no'     => $acc->sequence_no ?? null,
             ];
 
-        });
+        })->sortBy(function ($account) {
+            // Sort by sequence_no, treating null as last
+            return $account['sequence_no'] ?? PHP_INT_MAX;
+        })->values();
 
         // ✅ Rates, Property Types, Discounts, Penalties
         $rates         = Rates::select('property_types_id', 'cu_m', 'amount')->get();
