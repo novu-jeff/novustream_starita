@@ -11,6 +11,7 @@ use App\Models\PaymentDiscount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\Reading;
 use App\Models\Bill;
+use Illuminate\Support\Facades\Log;
 
 class OfflineDataController extends Controller
 {
@@ -24,7 +25,28 @@ class OfflineDataController extends Controller
         //     return response()->json(['error' => 'Unauthorized'], 403);
         // }
 
-        $user = \App\Models\User::first();
+        $user = $request->user();
+        if (!$user) {
+            $hasBearer = $request->bearerToken() !== null;
+            $hint = $hasBearer
+                ? 'Token not recognized by this app. Log in to this app (sta-rita) via POST /api/login and use the returned token.'
+                : 'Send Authorization: Bearer <token> from POST /api/login';
+            Log::channel('single')->warning('Novustream offline API: offline/download unauthenticated', [
+                'has_bearer_token' => $hasBearer,
+                'hint' => $hint,
+            ]);
+            return response()->json([
+                'error' => 'Unauthenticated',
+                'message' => $hasBearer
+                    ? 'Token not recognized. Log in to this app (sta-rita) via POST /api/login and use that token.'
+                    : 'Send Authorization: Bearer <token> in request header (get token from POST /api/login). Technician and admin are allowed.',
+            ], 401);
+        }
+        if ($user->user_type !== 'technician' && $user->user_type !== 'admin') {
+            \Illuminate\Support\Facades\Log::channel('single')->warning('Novustream offline API: offline/download unauthorized', ['admin_id' => $user->id, 'user_type' => $user->user_type]);
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        \Illuminate\Support\Facades\Log::channel('single')->info('Novustream offline API: offline/download', ['admin_id' => $user->id]);
 
 
         // if (!$user) {
@@ -36,22 +58,18 @@ class OfflineDataController extends Controller
         // }
 
         // ✅ Determine technician’s assigned zones
-        $zoneIds = $user->zone_assigned ? explode(',', $user->zone_assigned) : [];
-        $zones = Zones::whereIn('id', $zoneIds)->pluck('zone');
+        $zoneIds = $user->zone_assigned ? array_map('trim', explode(',', $user->zone_assigned)) : [];
+        $zoneNames = $zoneIds ? Zones::whereIn('id', $zoneIds)->pluck('zone') : collect();
 
-        // ✅ Fetch accounts with latest reading + related user
+        // ✅ Fetch accounts (filter by account.zone like ReadingController)
         $accounts = UserAccounts::with([
                 'user',
                 'readings' => function ($q) {
                     $q->latest()->limit(1);
                 }
             ])
-            ->when($zones->isNotEmpty(), function ($query) use ($zones) {
-                $query->where(function ($q) use ($zones) {
-                    foreach ($zones as $zone) {
-                        $q->orWhere('account_no', 'like', "{$zone}%");
-                    }
-                });
+            ->when($zoneNames->isNotEmpty(), function ($query) use ($zoneNames) {
+                $query->whereIn('zone', $zoneNames->toArray());
             })
             ->get();
         
@@ -125,6 +143,12 @@ class OfflineDataController extends Controller
             'penalties'      => $penalties,
         ];
 
+        Log::channel('single')->info('Novustream offline API: offline/download success', [
+            'admin_id' => $user->id,
+            'zone_assigned' => $user->zone_assigned,
+            'zone_names_count' => $zoneNames->count(),
+            'accounts_count' => $accounts->count(),
+        ]);
         return response()->json($data);
     }
 }

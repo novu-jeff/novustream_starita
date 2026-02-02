@@ -24,6 +24,12 @@ return [
     'offline_api_key' => env('OFFLINE_API_KEY'),
 
     /*
+    | Multi-branch offline app: accept Bearer token from partner app when local Sanctum doesn't recognize it.
+    | Set to the other app's base URL (e.g. morong) so one login works for both.
+    */
+    'offline_partner_app_url' => env('OFFLINE_PARTNER_APP_URL', ''),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
