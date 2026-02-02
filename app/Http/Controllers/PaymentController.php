@@ -351,7 +351,7 @@ class PaymentController extends Controller
     // 🧮 Use dynamic penalty computation
     $amount = (float)($data['current_bill']['total'] ?? 0);
     $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
-    $discount = (float)($currentBill['discount'] ?? 0);
+    $discount = (float)($currentBill['discount']['amount'] ?? 0);
     $tax = (float)($currentBill['tax'] ?? 0);
     $currentDay = now()->day;
 
