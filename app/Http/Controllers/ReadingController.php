@@ -519,7 +519,7 @@ class ReadingController extends Controller
 
     $isTemporaryBillingOverride =
     $date->year === 2026 &&
-    $date->month === 1; // January 2026 billing only
+    $date->month === 2;
 
     $month = $date->month;
     $year = $date->year;
@@ -639,21 +639,21 @@ class ReadingController extends Controller
             $bookRules = [
                 'B1-B5' => [
                     'prefixes' => ['011','021','031','041','051'],
-                    'from' => '2025-12-01',
-                    'to'   => '2026-01-03',
-                    'bill_day' => '2026-01-03',
+                    'from' => '2026-01-03',
+                    'to'   => '2026-02-02',
+                    'bill_day' => '2026-02-02',
                 ],
                 'B6-B8' => [
                     'prefixes' => ['061','071','081'],
-                    'from' => '2025-12-02',
-                    'to'   => '2026-01-05',
-                    'bill_day' => '2026-01-05',
+                    'from' => '2026-01-05',
+                    'to'   => '2026-02-03',
+                    'bill_day' => '2026-02-03',
                 ],
                 'B9-B11' => [
                     'prefixes' => ['091','101','111'],
-                    'from' => '2025-12-03',
-                    'to'   => '2026-01-06',
-                    'bill_day' => '2026-01-06',
+                    'from' => '2026-01-06',
+                    'to'   => '2026-02-04',
+                    'bill_day' => '2026-02-04',
                 ],
             ];
 
@@ -663,7 +663,7 @@ class ReadingController extends Controller
                     $billPeriodFrom = Carbon::parse($rule['from']);
                     $billPeriodTo   = Carbon::parse($rule['to']);
                     $billDate       = Carbon::parse($rule['bill_day']);
-                    $dueDate        = $billDate->copy()->addDays(15);
+                    $dueDate        = $billDate->copy()->addDays(14);
                     $penaltyDate    = $dueDate->copy()->addDay();
                     $disconnectionDate = $dueDate->copy()->addDays(7);
                     break;
@@ -684,9 +684,6 @@ class ReadingController extends Controller
         //     ]
         // );
 
-        $hitpayReference = $payload['hitpay_reference'] ?? null;
-        $hitpayPaymentId = $payload['hitpay_payment_id'] ?? null;
-        $hitpayInitiatedAt = (!empty($hitpayReference) || !empty($hitpayPaymentId)) ? now() : null;
 
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
@@ -1017,6 +1014,34 @@ class ReadingController extends Controller
         }
     }
 
+    public function orWalkinShow(string $reference_no)
+    {
+        $data = $this->meterService::getBill($reference_no);
+
+        if (isset($data['status']) && $data['status'] === 'error') {
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
+        }
+
+        // 🔑 Property type from concessioner_accounts
+        $propertyType = strtoupper(
+            $data['current_bill']['reading']['concessioner_account']['property_type'] ?? ''
+        );
+
+        // 🧮 Walk-in fee logic
+        $isResidential = str_contains($propertyType, 'RESIDENTIAL 1/2');
+
+        $walkInFee = $isResidential ? 8.00 : 23.00;
+
+        return view('reading.orwalkin', [
+            'data'         => $data,
+            'reference_no' => $reference_no,
+            'walkInFee'    => $walkInFee,
+            'propertyType' => $propertyType,
+        ]);
+    }
 
 
 }

@@ -351,7 +351,7 @@ class PaymentController extends Controller
     // 🧮 Use dynamic penalty computation
     $amount = (float)($data['current_bill']['total'] ?? 0);
     $amount_afterDue = (float)($currentBill['amount_after_due'] ?? 0);
-    $discount = (float)($currentBill['discount'] ?? 0);
+    $discount = (float)($currentBill['discount']['amount'] ?? 0);
     $tax = (float)($currentBill['tax'] ?? 0);
     $currentDay = now()->day;
 
@@ -451,17 +451,17 @@ class PaymentController extends Controller
             $dueDatePenalty = (float) $penalty;
         }
 
-        // $userDiscount = $currentBillData['reading']['account_no'];
-        //     if (in_array($userDiscount, ['061-12-064897'])) {
-        //         $temporaryDiscount = 0.25;
-        //     } else {
-        //         $temporaryDiscount = null;
-        //     }
+        $userDiscount = $currentBillData['reading']['account_no'];
+            if (in_array($userDiscount, ['011-12-010740'])) {
+                $temporaryDiscount = 0.25;
+            } else {
+                $temporaryDiscount = null;
+            }
 
         // 2. removed arrears
         $totalDue = $currentBill - $discount + $dueDatePenalty - $advancePayment - $partialPayment;
-        // $temporaryDiscounts = $totalDue * $temporaryDiscount;
-        // $totalDue = $totalDue - $temporaryDiscounts;
+        $temporaryDiscounts = $totalDue * $temporaryDiscount;
+        $totalDue = $totalDue - $temporaryDiscounts;
         $totalDue = max(0, round($totalDue, 2));
 
         return [

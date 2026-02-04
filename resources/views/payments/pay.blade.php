@@ -446,9 +446,20 @@
 
                                             $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
 
+                                            $userDiscount = $data['client']['account_no'];
+                                                if (in_array($userDiscount, ['011-12-010740'])) {
+                                                    $temporaryDiscount = 0.25;
+                                                } else {
+                                                    $temporaryDiscount = null;
+                                                }
+
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
                                             $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
+
+                                            $temporaryDiscount = $totalDue * $temporaryDiscount;
+
+                                            $totalDue = $totalDue - $temporaryDiscount;
 
                                             $forAdvances = $advances - $currentBill;
                                         @endphp
@@ -501,6 +512,11 @@
                                                 </div>
                                             @endif
 
+                                            @if($temporaryDiscount > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($temporaryDiscount, 2) }} (25% DISCOUNT)</h6>
+                                                </div>
+                                            @endif
 
                                             @if($advancePayment > 0)
                                                 <div class="text-end">
@@ -578,21 +594,27 @@
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                             <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
-                                            <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
+                                            <!-- <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button> -->
                                         </div>
                                     </div>
                                 </div>
                             @else
-                                <div class="bg-primary d-flex align-items-center justify-content-center mt-4 p-3 text-uppercase fw-bold text-white">
+                                <div class="bg-primary rounded d-flex align-items-center justify-content-center mt-4 p-3 text-uppercase fw-bold text-white">
                                     <h3 class="ms-2 mb-0 text-center">
                                         Already Paid
                                     </h3>
                                 </div>
-                                <div style="margin-top: 8px;">
+                                <div class="d-flex flex-column flex-md-row gap-3 justify-content-center mt-3">
                                     <a href="{{ route('reading.orshow', ['reference_no' => $reference_no]) }}"
-                                    style="background-color: #32667e; color: white; padding: 12px 40px; text-align:center; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none;">
+                                    class="btn btn-outline-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
+                                        <i class="bx bx-printer me-2"></i>
                                         Generate Official Receipt
                                     </a>
+                                    <!-- <a href="{{ route('reading.or.walkin', $reference_no) }}"
+                                    class="btn btn-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
+                                        <i class="bx bx-receipt me-2"></i>
+                                        Walk-In OR
+                                    </a> -->
                                 </div>
                             @endif
                         </div>
