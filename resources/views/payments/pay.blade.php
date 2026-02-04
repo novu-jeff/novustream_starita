@@ -446,9 +446,20 @@
 
                                             $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
 
+                                            $userDiscount = $data['client']['account_no'];
+                                                if (in_array($userDiscount, ['011-12-010740'])) {
+                                                    $temporaryDiscount = 0.25;
+                                                } else {
+                                                    $temporaryDiscount = null;
+                                                }
+
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
                                             $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
+
+                                            $temporaryDiscount = $totalDue * $temporaryDiscount;
+
+                                            $totalDue = $totalDue - $temporaryDiscount;
 
                                             $forAdvances = $advances - $currentBill;
                                         @endphp
@@ -501,6 +512,11 @@
                                                 </div>
                                             @endif
 
+                                            @if($temporaryDiscount > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($temporaryDiscount, 2) }} (25% DISCOUNT)</h6>
+                                                </div>
+                                            @endif
 
                                             @if($advancePayment > 0)
                                                 <div class="text-end">
@@ -578,7 +594,7 @@
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                             <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
-                                            <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
+                                            <!-- <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button> -->
                                         </div>
                                     </div>
                                 </div>
