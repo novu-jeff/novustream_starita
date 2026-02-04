@@ -16,9 +16,12 @@ use App\Models\Ruling;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PDO;
 use App\Models\PaymentDiscount;
 use App\Models\PartialPayment;
+use App\Models\Discount;
+use App\Models\PaymentBreakdownPenalty;
 
 class MeterService {
 
@@ -610,8 +613,8 @@ class MeterService {
             ];
         }
 
-        $reference_no = $payload['reference_no'];
-        $reread_bill = Bill::with('reading')->where('reference_no', $reference_no)->first();
+        $reference_no = $payload['reference_no'] ?? null;
+        $reread_bill = $reference_no ? Bill::with('reading')->where('reference_no', $reference_no)->first() : null;
         if (!empty($payload['isReRead'])) {
             if ($reread_bill && $reread_bill->reading) {
                 $reread_bill->reading->isReRead = true;
@@ -625,7 +628,9 @@ class MeterService {
             ->latest()
             ->first();
 
-        $previous_reading = optional($latest_reading)->present_reading ?? 0;
+        $previous_reading = isset($payload['previous_reading']) && $payload['previous_reading'] !== null && $payload['previous_reading'] !== ''
+            ? (float) $payload['previous_reading']
+            : (optional($latest_reading)->present_reading ?? 0);
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
 
         $advances = $isChangeSaved ? (float) $latest_reading->bill->change ?? 0 : 0;
@@ -692,6 +697,7 @@ class MeterService {
                 'description' => '',
             ],
         ];
+        $total_amount = $rate + $unpaidAmount;
 
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -702,12 +708,14 @@ class MeterService {
                     'description' => $deduction->amount . '%',
                     'amount' => $amount
                 ];
+                $total_amount += $amount;
             } else {
                 $deductions[] = [
                     'name' => $deduction->name,
                     'description' => '',
                     'amount' => $deduction->amount
                 ];
+                $total_amount += $deduction->amount;
             }
         }
 
@@ -808,21 +816,24 @@ class MeterService {
 
         $isHighConsumption = $payload['is_high_consumption'] == 'yes';
 
+        $billReferenceNo = $reference_no ?? $this->generateReferenceNo();
+
         $reading = [
             'zone' => explode('-', $payload['account_no'])[0] ?? null,
             'account_no' => $payload['account_no'],
             'previous_reading' => $previous_reading,
             'present_reading' => $payload['present_reading'],
             'consumption' => $consumption,
-            'reader_name' => Auth::user()->name,
+            'reader_name' => Auth::user()->name ?? 'OfflineReader',
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
-
-        $generatedReferenceNo = $this->generateReferenceNo();
+        if ($billReferenceNo) {
+            $reading['reference_no'] = $billReferenceNo;
+        }
 
         $bill = [
-            'reference_no' => $generatedReferenceNo,
+            'reference_no' => $billReferenceNo,
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
@@ -841,9 +852,26 @@ class MeterService {
         ];
 
         try {
-            $readingID = Reading::insertGetId($reading);
+            if ($billReferenceNo && $reference_no) {
+                $readingModel = Reading::updateOrCreate(
+                    ['reference_no' => $billReferenceNo],
+                    $reading
+                );
+                $readingID = $readingModel->id;
+            } else {
+                $readingID = Reading::insertGetId($reading);
+            }
             $bill['reading_id'] = $readingID;
-            $billID = Bill::insertGetId($bill);
+
+            $existingBill = Bill::where('reference_no', $billReferenceNo)->first();
+            if ($existingBill) {
+                $existingBill->update(array_merge($bill, ['reading_id' => $readingID]));
+                $billID = $existingBill->id;
+                BillBreakdown::where('bill_id', $billID)->delete();
+                BillDiscount::where('bill_id', $billID)->delete();
+            } else {
+                $billID = Bill::insertGetId($bill);
+            }
 
             foreach ($deductions as $deduction) {
                 BillBreakdown::insert([
@@ -867,11 +895,9 @@ class MeterService {
                 ]);
             }
 
-            if (!empty($payload['isReRead'])) {
-                if ($reread_bill && $reread_bill->reading) {
-                    $reread_bill->reading->reread_reference_no = $generatedReferenceNo;
-                    $reread_bill->reading->save();
-                }
+            if (!empty($payload['isReRead']) && $reread_bill && $reread_bill->reading) {
+                $reread_bill->reading->reread_reference_no = $billReferenceNo;
+                $reread_bill->reading->save();
             }
 
         } catch (\Exception $e) {
@@ -883,8 +909,9 @@ class MeterService {
 
         return [
             'status' => 'success',
-            'bill' => $bill,
+            'bill' => array_merge($bill, ['id' => $billID]),
             'basic_charge' => $basic_charge,
+            'reference_no' => $billReferenceNo,
         ];
     }
 
@@ -958,5 +985,144 @@ class MeterService {
             ->value('created_at')?->format('Y-m');
     }
 
+    /**
+     * Apply same post-processing as ReadingController::store (discounts, penalty).
+     * Used after create_breakdown in merge flow. Set $skipHitPayQr = true to avoid creating HitPay/QR for merge.
+     */
+    public function applyStorePostProcessingToBill(string $referenceNo, array $billData, float $basicCharge, float $consumption, string $account_no, array $payload = [], bool $skipHitPayQr = false): bool
+    {
+        try {
+            $bill = Bill::where('reference_no', $referenceNo)->first();
+            if (!$bill) {
+                Log::warning('Merge: Bill not found for applyStorePostProcessingToBill', ['reference_no' => $referenceNo]);
+                return false;
+            }
+            $account = $this->getAccount($account_no);
+            if (!$account) {
+                Log::warning('Merge: Account not found for applyStorePostProcessingToBill', ['account_no' => $account_no]);
+                return false;
+            }
+
+            $currentDay = now()->day;
+            $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+                ->where('due_to', '>=', $currentDay)
+                ->first();
+            $penaltyAmount = 0;
+            $totalDiscount = 0;
+
+            $hardcodedDiscounts = [
+                '011-22-011450' => 0.02,
+                '091-22-092230' => 0.05,
+                '111-22-111720' => 0.02,
+            ];
+            $discountRecord = Discount::where('account_no', $account->account_no)->first();
+
+            if (isset($hardcodedDiscounts[$account_no])) {
+                $discountRate = $hardcodedDiscounts[$account_no];
+                $hardcodedAmount = round($basicCharge * $discountRate, 2);
+                BillDiscount::create([
+                    'bill_id' => $bill->id,
+                    'name' => 'Franchise Tax',
+                    'description' => ($discountRate * 100) . '%',
+                    'amount' => $hardcodedAmount,
+                ]);
+                $totalDiscount += $hardcodedAmount;
+            }
+
+            $ruling = DB::table('global_ruling')->first();
+            $consumptionLimit = $ruling->snr_dc_rule ?? 0;
+
+            if ($discountRecord && $discountRecord->discount_type_id == 1 && $consumption <= $consumptionLimit) {
+                $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
+                if ($seniorDiscount) {
+                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $bill->amount;
+                    $seniorAmount = $seniorDiscount->type === 'fixed'
+                        ? round(floatval($seniorDiscount->amount), 2)
+                        : round($baseAmount * floatval($seniorDiscount->amount), 2);
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $seniorDiscount->name,
+                        'description' => $seniorDiscount->type ?? null,
+                        'amount' => $seniorAmount,
+                    ]);
+                    $totalDiscount += $seniorAmount;
+                }
+            }
+
+            if ($discountRecord && $discountRecord->discount_type_id == 2) {
+                $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
+                if ($franchiseDiscount) {
+                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $bill->amount;
+                    $franchiseAmount = $franchiseDiscount->type === 'fixed'
+                        ? round(floatval($franchiseDiscount->amount), 2)
+                        : round($baseAmount * floatval($franchiseDiscount->amount), 2);
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $franchiseDiscount->name,
+                        'description' => $franchiseDiscount->type ?? null,
+                        'amount' => $franchiseAmount,
+                    ]);
+                    $totalDiscount += $franchiseAmount;
+                }
+            }
+
+            $total = (float) ($billData['total'] ?? 0);
+            $prevUnpaid = (float) ($billData['previous_unpaid'] ?? 0);
+            $totalAmountPenalty = max($total - $prevUnpaid - $totalDiscount, 0);
+            if ($penaltyEntry) {
+                if ($penaltyEntry->amount_type === 'percentage') {
+                    $penaltyAmount = $totalAmountPenalty * floatval($penaltyEntry->amount);
+                } elseif ($penaltyEntry->amount_type === 'fixed') {
+                    $penaltyAmount = floatval($penaltyEntry->amount);
+                }
+            }
+
+            $penaltyExemptAccounts = [
+                '011-22-011450', '031-22-030360', '031-22-030220', '011-22-011350', '081-22-082580',
+                '081-22-082560', '081-22-082570', '101-22-102580', '081-22-080980', '111-22-111720',
+                '091-22-092230', '061-22-060250', '071-22-073120', '111-22-110290', '111-22-111650',
+            ];
+            if (in_array($account_no, $penaltyExemptAccounts)) {
+                $penaltyAmount = 0;
+            }
+
+            $bill->update([
+                'penalty' => $penaltyAmount,
+                'amount' => $bill->amount + $penaltyAmount - $totalDiscount,
+                'discount' => $totalDiscount,
+                'amount_after_due' => $bill->amount + $penaltyAmount,
+                'high_consumption_note' => $payload['high_consumption_note'] ?? null,
+            ]);
+
+            if (!$skipHitPayQr && !$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
+                $hitpayPayload = [
+                    'reference_no' => $referenceNo,
+                    'amount' => $bill->amount_after_due,
+                    'payor' => $account->user->name ?? 'Sta. Rita Customer',
+                    'email' => $account->user->email ?? null,
+                    'account_no' => $account->account_no ?? '',
+                ];
+                $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+                    ->createHitpayPaymentRequest($referenceNo, $hitpayPayload);
+                if ($hitpayData && (!empty($hitpayData['reference']) || !empty($hitpayData['id']))) {
+                    $bill->update([
+                        'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                        'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                        'initiated_at' => now(),
+                    ]);
+                }
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Merge: applyStorePostProcessingToBill failed', [
+                'reference_no' => $referenceNo,
+                'account_no' => $account_no,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
 
 }

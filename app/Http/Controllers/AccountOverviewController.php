@@ -117,16 +117,23 @@ public function index()
             ],
         ];
 
-        // Call PaymentController to create HitPay payment link
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($currentBill['reference_no'] ?? '', $payload);
-
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $statement['current_bill_qr'] = $hitpayData['url'];
+        $hitpayCompletedId = $currentBill['hitpay_payment_id']
+            ?? $currentBill['hitpay_reference']
+            ?? null;
+        if (!empty($currentBill['isPaid']) && !empty($hitpayCompletedId)) {
+            $statement['current_bill_qr'] = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
         } else {
-            $statement['current_bill_qr'] = env('NOVUPAY_URL')
-                . '/payment/merchants/'
-                . ($currentBill['reference_no'] ?? '');
+            // Call PaymentController to create HitPay payment link
+            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+                ->createHitpayPaymentRequest($currentBill['reference_no'] ?? '', $payload);
+
+            if ($hitpayData && !empty($hitpayData['url'])) {
+                $statement['current_bill_qr'] = $hitpayData['url'];
+            } else {
+                $statement['current_bill_qr'] = env('NOVUPAY_URL')
+                    . '/payment/merchants/'
+                    . ($currentBill['reference_no'] ?? '');
+            }
         }
     }
 
@@ -221,14 +228,21 @@ public function index()
             ],
         ];
 
-    // 🔹 Generate HitPay checkout link (your logic)
-    $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-        ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-
-    if ($hitpayData && !empty($hitpayData['url'])) {
-        $url = $hitpayData['url']; // ✅ HitPay checkout link
+    $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
+        ?? $data['current_bill']['hitpay_reference']
+        ?? null;
+    if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
+        $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
     } else {
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        // 🔹 Generate HitPay checkout link (your logic)
+        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            $url = $hitpayData['url']; // ✅ HitPay checkout link
+        } else {
+            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        }
     }
 
     // $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);

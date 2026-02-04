@@ -226,27 +226,30 @@ class ReadingController extends Controller
         ];
 
 
-        // 🧩 Generate HitPay checkout URL (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-        // dd($reference_no, $paymentPayload);
-        // dd($hitpayData);
-
-         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
         $billData = $data['current_bill'] ?? null;
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
-            $bill = \App\Models\Bill::find($billData['id']);
-            if ($bill) {
-                $bill->update([
-                    'initiated_at' => now(),
-                    'hitpay_reference' => $hitpayData['id'] ?? 'N/A',
-                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
-                ]);
-            }
+        $hitpayCompletedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+        if (!empty($billData['isPaid']) && !empty($hitpayCompletedId)) {
+            $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
         } else {
-            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+            // 🧩 Generate HitPay checkout URL (your logic)
+            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+                ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+            // 🔗 Determine payment URL (HitPay or fallback NovuPay)
+            if ($hitpayData && !empty($hitpayData['url'])) {
+                $url = $hitpayData['url']; // ✅ HitPay checkout link
+                $bill = \App\Models\Bill::find($billData['id']);
+                if ($bill) {
+                    $bill->update([
+                        'initiated_at' => now(),
+                        'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                        'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                    ]);
+                }
+            } else {
+                // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+                $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+            }
         }
 
 
@@ -334,19 +337,23 @@ class ReadingController extends Controller
         ];
 
 
-        // 🧩 Generate HitPay checkout URL (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-        // dd($reference_no, $paymentPayload);
-        // dd($hitpayData);
-
-         // 🔗 Determine payment URL (HitPay or fallback NovuPay)
-
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
+        $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
+            ?? $data['current_bill']['hitpay_reference']
+            ?? null;
+        if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
+            $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
         } else {
-            // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-            $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+            // 🧩 Generate HitPay checkout URL (your logic)
+            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+                ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+
+            // 🔗 Determine payment URL (HitPay or fallback NovuPay)
+            if ($hitpayData && !empty($hitpayData['url'])) {
+                $url = $hitpayData['url']; // ✅ HitPay checkout link
+            } else {
+                // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+                $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+            }
         }
 
         // 🧾 Generate QR code (HitPay or fallback NovuPay)
@@ -687,6 +694,9 @@ class ReadingController extends Controller
                 'discount' => $computed['bill']['discount'] ?? 0,
                 'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
+                'hitpay_reference' => $hitpayReference,
+                'hitpay_payment_id' => $hitpayPaymentId,
+                'initiated_at' => $hitpayInitiatedAt,
 
                 // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
@@ -829,6 +839,27 @@ class ReadingController extends Controller
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);
+
+        if (!$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
+            $hitpayPayload = [
+                'reference_no' => $reference_no,
+                'amount' => $bill->amount_after_due,
+                'payor' => $account->user->name ?? 'Sta. Rita Customer',
+                'email' => $account->user->email ?? null,
+                'account_no' => $account->account_no ?? '',
+            ];
+
+            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
+                ->createHitpayPaymentRequest($reference_no, $hitpayPayload);
+
+            if ($hitpayData && (!empty($hitpayData['reference']) || !empty($hitpayData['id']))) {
+                $bill->update([
+                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                    'initiated_at' => now(),
+                ]);
+            }
+        }
 
 
         // Generate payment QR

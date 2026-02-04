@@ -332,7 +332,7 @@ class ReportsController extends Controller
                         'bill'
                     ])
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
-                    ->whereHas('concessionaire', fn($q) => $q->where('status', 3))
+                    ->whereHas('concessionaire', fn($q) => $q->whereIn('status', ['ID', 'IV', 'BL']))
                     ->get();
 
                 $rows = [];
@@ -648,10 +648,10 @@ class ReportsController extends Controller
                         $tax = floatval($bill->tax ?? 0);
                         $dueDate = Carbon::parse($bill->due_date);
 
-                        // Correct overdue calculation: positive = overdue, negative = not yet due
-                        $daysOverdue = now()->diffInDays($dueDate, false);
+                        // Overdue calculation: positive = overdue, negative/zero = not yet due
+                        $daysOverdue = $dueDate->diffInDays(now(), false);
 
-                        if ($daysOverdue < 0) $summary['current'] += $tax;         // Not yet due
+                        if ($daysOverdue <= 0) $summary['current'] += $tax;         // Not yet due
                         elseif ($daysOverdue <= 30) $summary['1_30'] += $tax;
                         elseif ($daysOverdue <= 60) $summary['31_60'] += $tax;
                         elseif ($daysOverdue <= 90) $summary['61_90'] += $tax;
@@ -1203,16 +1203,25 @@ class ReportsController extends Controller
                     case 'Senior Count':
 
     $query = DB::table('discount')
-        ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'discount.account_no')
-        ->join('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-        ->join('bill', 'bill.reading_id', '=', 'readings.id')
+        ->join(
+            'concessioner_accounts',
+            'concessioner_accounts.account_no',
+            '=',
+            'discount.account_no'
+        )
+        ->leftJoin('readings', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+        ->leftJoin('bill', 'bill.reading_id', '=', 'readings.id')
         ->where('discount.discount_type_id', 1) // Senior Citizen
         ->whereNotNull('concessioner_accounts.zone')
+        ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+        ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+            $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+        })
         ->groupBy('concessioner_accounts.zone')
         ->select(
             'concessioner_accounts.zone as zone',
             DB::raw('COUNT(DISTINCT discount.account_no) as senior_count'),
-            DB::raw('SUM(bill.amount) as total_amount')
+            DB::raw('COALESCE(SUM(bill.amount), 0) as total_amount')
         )
         ->orderBy('concessioner_accounts.zone', 'asc')
         ->get();
@@ -1242,38 +1251,9 @@ class ReportsController extends Controller
                     ->when($zone !== 'all', fn ($q) =>
                         $q->where('concessioner_accounts.zone', $zone)
                     )
-
-                    ->selectRaw("
-                        concessioner_accounts.zone,
-                        concessioner_accounts.status,
-                        concessioner_accounts.sequence_no,
-                        readings.account_no,
-                        users.name AS customer_name,
-
-                        SUM(CASE WHEN MONTH(bill.bill_period_to) = 2 THEN bill.amount_after_due ELSE 0 END) AS feb,
-                        SUM(CASE WHEN MONTH(bill.bill_period_to) = 1 THEN bill.amount_after_due ELSE 0 END) AS jan,
-                        SUM(CASE WHEN MONTH(bill.bill_period_to) = 12 THEN bill.amount_after_due ELSE 0 END) AS `dec`,
-                        SUM(CASE WHEN MONTH(bill.bill_period_to) = 11 THEN bill.amount_after_due ELSE 0 END) AS nov,
-
-                        SUM(
-                            CASE
-                                WHEN MONTH(bill.bill_period_to) <= 10
-                                THEN bill.amount_after_due
-                                ELSE 0
-                            END
-                        ) AS oct_over,
-
-                        SUM(bill.amount_after_due) AS total,
-
-                        SUM(
-                            CASE
-                                WHEN bill.amount_paid > bill.amount_after_due
-                                THEN bill.amount_paid - bill.amount_after_due
-                                ELSE 0
-                            END
-                        ) AS over_payt
-                    ")
-
+                    ->with(['reading.concessionaire.user'])
+                    ->where('concessioner_accounts.status', 'AB')
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
                     ->groupBy(
                         'concessioner_accounts.zone',
                         'concessioner_accounts.status',
@@ -1383,6 +1363,76 @@ class ReportsController extends Controller
 
 
                 case 'Book Summary Report':
+
+                /* ==========================================
+                * BOOKS
+                * ========================================== */
+                $bookList = ConcessionerAccount::query()
+                    ->select('zone')
+                    ->distinct()
+                    ->orderBy('zone')
+                    ->pluck('zone')
+                    ->map(fn ($z) => "ZONE {$z}")
+                    ->values();
+
+
+                /* ==========================================
+                * PROPERTY CATEGORIES
+                * ========================================== */
+                $categories = [
+                    'RESIDENTIAL',
+                    'GOVERNMENT',
+                    'COMMERCIAL & INDUSTRIAL',
+                    'COMMERCIAL A',
+                    'COMMERCIAL B',
+                    'COMMERCIAL C',
+                ];
+
+                /* ==========================================
+                * BARANGAYS
+                * ========================================== */
+                $barangays = [
+                    'SAN BASILIO',
+                    'BECURAN',
+                    'DILA-DILA',
+                    'SAN MATIAS',
+                    'SAN VICENTE',
+                ];
+$data = ConcessionerAccount::query()
+    ->leftJoin('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+    ->leftJoin('bill', function ($join) use ($startDate, $endDate) {
+        $join->on('bill.reading_id', '=', 'readings.id')
+             ->where('bill.isPaid', 0); // unpaid only
+        if ($startDate && $endDate) {
+            $join->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+        }
+    })
+    ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
+    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+    ->selectRaw("
+        concessioner_accounts.zone AS zone,
+        COUNT(DISTINCT concessioner_accounts.account_no) AS total_inactive,
+        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS total_unpaid_amount
+    ")
+    ->groupBy('concessioner_accounts.zone')
+    ->orderBy('concessioner_accounts.zone')
+    ->get();
+
+$rows = [];
+
+foreach ($data as $row) {
+    $rows[] = [
+        'ZONE'         => 'ZONE ' . $row->zone,
+        'TOTAL'        => $row->total_inactive,
+        'TOTAL AMOUNT' => $row->total_unpaid_amount,
+    ];
+}
+
+$result[$report] = $rows;
+break;
+
+
+case 'Book Summary Report':
 
                 /* ==========================================
                 * BOOKS

@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('offline_payments')) {
+            return;
+        }
         Schema::create('offline_payments', function (Blueprint $table) {
             $table->id();
             $table->string('reference_no')->unique();
@@ -18,7 +21,6 @@ return new class extends Migration
             $table->boolean('synced')->default(false);
             $table->timestamps();
         });
-
     }
 
     /**

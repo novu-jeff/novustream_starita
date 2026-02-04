@@ -10,7 +10,7 @@ use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OfflineDataController;
-
+use App\Http\Controllers\OfflineSyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,7 +32,9 @@ Route::fallback(function () {
 });
 
 Route::post('login', [LoginController::class, 'login']);
+Route::post('api/login', [LoginController::class, 'login']); // allow /api/api/login when app base URL ends with /api
 Route::post('logout', [LoginController::class, 'logout']);
+Route::post('api/logout', [LoginController::class, 'logout']);
 
 Route::post('transaction/callback', [CallbackController::class, 'save'])
     ->name('transaction.callback');
@@ -63,9 +65,10 @@ Route::prefix('v1')->group(function() {
     Route::post('callback/{reference_no}', [PaymentController::class, 'callback']);
 });
 
-
-Route::post('/offline/reading-sync', [ReadingController::class, 'store'])
-    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
-    ->name('api.reading.sync');
-
+// Mobile app (novustream_offline): auth via local token OR partner app token (multi-branch; one login works for both)
+Route::middleware('auth.offline')->group(function () {
+    Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
+    Route::post('/readings', [OfflineSyncController::class, 'store']);
+    Route::post('/readings/merge', [OfflineSyncController::class, 'merge']);
     Route::get('/offline/download', [OfflineDataController::class, 'download']);
+});
