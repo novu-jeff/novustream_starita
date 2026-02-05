@@ -23,9 +23,9 @@ class ReadingOffline extends Model
     ];
 
     protected $casts = [
-        'previous_reading' => 'decimal:4',
-        'present_reading'  => 'decimal:4',
-        'consumption'      => 'decimal:4',
+        'previous_reading' => 'integer',
+        'present_reading'  => 'integer',
+        'consumption'      => 'integer',
         'synced_at'        => 'datetime',
         'payload'          => 'array',
     ];

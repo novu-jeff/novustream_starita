@@ -519,7 +519,7 @@ class ReadingController extends Controller
 
     $isTemporaryBillingOverride =
     $date->year === 2026 &&
-    $date->month === 1; // January 2026 billing only
+    $date->month === 2; // Feb 2026 billing only
 
     $month = $date->month;
     $year = $date->year;
@@ -639,21 +639,21 @@ class ReadingController extends Controller
             $bookRules = [
                 'B1-B5' => [
                     'prefixes' => ['011','021','031','041','051'],
-                    'from' => '2025-12-01',
-                    'to'   => '2026-01-03',
-                    'bill_day' => '2026-01-03',
+                    'from' => '2026-01-03',
+                    'to'   => '2026-02-02',
+                    'bill_day' => '2026-02-02',
                 ],
                 'B6-B8' => [
                     'prefixes' => ['061','071','081'],
-                    'from' => '2025-12-02',
-                    'to'   => '2026-01-05',
-                    'bill_day' => '2026-01-05',
+                    'from' => '2026-01-05',
+                    'to'   => '2026-02-03',
+                    'bill_day' => '2026-02-03',
                 ],
                 'B9-B11' => [
                     'prefixes' => ['091','101','111'],
-                    'from' => '2025-12-03',
-                    'to'   => '2026-01-06',
-                    'bill_day' => '2026-01-06',
+                    'from' => '2026-01-06',
+                    'to'   => '2026-02-04',
+                    'bill_day' => '2026-02-04',
                 ],
             ];
 
@@ -663,7 +663,7 @@ class ReadingController extends Controller
                     $billPeriodFrom = Carbon::parse($rule['from']);
                     $billPeriodTo   = Carbon::parse($rule['to']);
                     $billDate       = Carbon::parse($rule['bill_day']);
-                    $dueDate        = $billDate->copy()->addDays(15);
+                    $dueDate        = $billDate->copy()->addDays(14);
                     $penaltyDate    = $dueDate->copy()->addDay();
                     $disconnectionDate = $dueDate->copy()->addDays(7);
                     break;
@@ -843,10 +843,13 @@ class ReadingController extends Controller
             'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);
 
+        // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+        $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
+
         if (!$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
             $hitpayPayload = [
                 'reference_no' => $reference_no,
-                'amount' => $bill->amount_after_due,
+                'amount' => $baseAmount,
                 'payor' => $account->user->name ?? 'Sta. Rita Customer',
                 'email' => $account->user->email ?? null,
                 'account_no' => $account->account_no ?? '',
@@ -865,10 +868,10 @@ class ReadingController extends Controller
         }
 
 
-        // Generate payment QR
+        // Generate payment QR (use base amount so Novupay/HitPay shows normal amount, not overdue)
         $paymentPayload = [
             'reference_no' => $reference_no,
-            'amount' => $bill->amount_after_due,
+            'amount' => $baseAmount,
             'customer' => [
                 'name' => $account->user->name ?? '',
                 'account_no' => $account->account_no,

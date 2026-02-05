@@ -666,7 +666,9 @@ class MeterService {
             ->where('isReRead', 0)
             ->pluck('id');
 
-        $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+        $forceZeroArrears = !empty($payload['force_zero_arrears']);
+
+        $latestUnpaidBill = $forceZeroArrears ? null : Bill::whereIn('reading_id', $readingIds)
             ->where(function ($q) {
                 $q->where('isPaid', 0)
                 ->orWhere('isPartial', 1);
@@ -680,6 +682,11 @@ class MeterService {
         if ($latestUnpaidBill) {
             $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
             $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
+        }
+
+        if ($forceZeroArrears) {
+            $unpaidAmount = 0;
+            $partialPaymentTotal = 0;
         }
 
         $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
@@ -1095,9 +1102,11 @@ class MeterService {
             ]);
 
             if (!$skipHitPayQr && !$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
+                // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+                $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
                 $hitpayPayload = [
                     'reference_no' => $referenceNo,
-                    'amount' => $bill->amount_after_due,
+                    'amount' => $baseAmount,
                     'payor' => $account->user->name ?? 'Sta. Rita Customer',
                     'email' => $account->user->email ?? null,
                     'account_no' => $account->account_no ?? '',

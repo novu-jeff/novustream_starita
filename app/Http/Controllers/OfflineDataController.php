@@ -27,10 +27,11 @@ class OfflineDataController extends Controller
 
         $user = $request->user();
         if (!$user) {
+            $label = config('app.offline_app_label', 'sta-rita');
             $hasBearer = $request->bearerToken() !== null;
             $hint = $hasBearer
-                ? 'Token not recognized by this app. Log in to this app (sta-rita) via POST /api/login and use the returned token.'
-                : 'Send Authorization: Bearer <token> from POST /api/login';
+                ? 'Token not recognized. Log in to this app (' . $label . ') via POST /api/login or POST /api/auth/login and use the returned token.'
+                : 'Send Authorization: Bearer <token> (get token from POST /api/login or POST /api/auth/login).';
             Log::channel('single')->warning('Novustream offline API: offline/download unauthenticated', [
                 'has_bearer_token' => $hasBearer,
                 'hint' => $hint,
@@ -38,8 +39,8 @@ class OfflineDataController extends Controller
             return response()->json([
                 'error' => 'Unauthenticated',
                 'message' => $hasBearer
-                    ? 'Token not recognized. Log in to this app (sta-rita) via POST /api/login and use that token.'
-                    : 'Send Authorization: Bearer <token> in request header (get token from POST /api/login). Technician and admin are allowed.',
+                    ? 'Token not recognized. Log in to this app (' . $label . ') via POST /api/login or POST /api/auth/login and use that token.'
+                    : 'Send Authorization: Bearer <token> in request header (get token from POST /api/login or POST /api/auth/login). Technician and admin are allowed.',
             ], 401);
         }
         if ($user->user_type !== 'technician' && $user->user_type !== 'admin') {
@@ -75,40 +76,31 @@ class OfflineDataController extends Controller
         
         // dd($accounts);
 
-        // ✅ Compute unpaid + previous_reading BEFORE mapping to array
+        // ✅ Compute from latest reading only (avoid stacking re-reads / over arrears)
         $previousReadings = [];
 
         foreach ($accounts as $acc) {
-            $latest = Reading::where('account_no', $acc->account_no)
+            $latest = Reading::with('bill')
+                ->where('account_no', $acc->account_no)
                 ->latest('created_at')
                 ->first();
 
+            $bill = $latest?->bill;
+            $unpaidAmount = ($bill && !$bill->isPaid)
+                ? (float) ($bill->amount ?? 0)
+                : 0.0;
+
             $previousReadings[$acc->account_no] = [
-                'present_reading' => $latest->present_reading ?? 0,
-                'created_at'      => $latest->created_at ?? null,
+                'present_reading' => $latest?->present_reading ?? 0,
+                'created_at'      => $latest?->created_at ?? null,
+                'unpaid_amount'   => $unpaidAmount,
             ];
         }
 
-
         // ✅ Now transform to clean arrays for frontend
         $accounts = $accounts->map(function ($acc) use ($previousReadings) {
-            // dd([
-            //     'prop_type_raw' => $acc->property_type,
-            //     'from_id_relation' => $acc->property_types?->toArray(),
-            //     'from_name_relation' => $acc->property_types_by_name?->toArray(),
-            // ]);
-        // dd($acc);
+            $unpaid = $previousReadings[$acc->account_no]['unpaid_amount'] ?? 0;
 
-
-            // \Log::info('[DEBUG OFFLINE] Account structure:', $acc->toArray());
-            $unpaid = Bill::whereHas('reading', function ($q) use ($acc) {
-                    $q->where('account_no', $acc->account_no);
-                })
-                ->where('isPaid', false)
-                ->sum('amount');
-
-            
-            
             return [
                 'account_no'       => $acc->account_no,
                 'name'             => $acc->user->name ?? 'N/A',
