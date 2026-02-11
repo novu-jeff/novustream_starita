@@ -394,9 +394,11 @@ class ReadingController extends Controller
 
         $readingsPerZone = DB::table('readings')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+            ->join('bill', 'readings.id', '=', 'bill.reading_id')
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
-            ->whereMonth('readings.created_at', Carbon::parse($date)->month)
-            ->whereYear('readings.created_at', Carbon::parse($date)->year);
+            ->where('readings.isReRead', false)
+            ->whereMonth('bill.bill_period_to', Carbon::parse($date)->month)
+            ->whereYear('bill.bill_period_to', Carbon::parse($date)->year);
 
         if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
@@ -681,19 +683,11 @@ class ReadingController extends Controller
             }
         }
 
-        // Save bill
-        // $bill = Bill::updateOrCreate(
-        //     ['reference_no' => $reference_no],
-        //     [
-        //         'account_no' => $account_no,
-        //         'amount' => $amount + $penaltyAmount,
-        //         'penalty' => $penaltyAmount,
-        //         'discount' => $computed['bill']['discount'] ?? 0,
-        //         'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
-        //         'high_consumption_note' => $payload['high_consumption_note'] ?? null,
-        //     ]
-        // );
-
+        // Save bill — preserve existing HitPay data when updating
+        $existingBill = Bill::where('reference_no', $reference_no)->first();
+        $hitpayReference = $existingBill->hitpay_reference ?? null;
+        $hitpayPaymentId = $existingBill->hitpay_payment_id ?? null;
+        $hitpayInitiatedAt = $existingBill->initiated_at ?? null;
 
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],

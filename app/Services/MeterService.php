@@ -272,19 +272,24 @@ class MeterService {
         if (empty($zone) && empty($date) && empty($search)) {
             return Reading::with(['concessionaire.user', 'bill'])
                 ->where('isReRead', false)
+                ->whereHas('bill')
                 ->get();
         }
 
         $readings = Reading::with(['concessionaire.user', 'bill'])
-            ->where('isReRead', false)
+            ->when(empty($search), fn($q) => $q->where('isReRead', false)) // Exclude rereads for list view; include when searching for specific account
+            ->whereHas('bill') // Only readings that have a bill (avoids missing ref in report when reading.reference_no is set but bill link is by reading_id)
             ->when(!empty($zone) && !$isAll, fn($q) =>
                 $q->where('zone', 'like', "%$zone%")
             )
             ->when(!empty($date), function ($q) use ($date) {
                 if (preg_match('/^\d{4}-\d{2}$/', $date)) {
                     [$year, $month] = explode('-', $date);
-                    $q->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month);
+                    // Use bill_period_to (canonical billing/reading month) to include merged offline readings
+                    $q->whereHas('bill', function ($bq) use ($year, $month) {
+                        $bq->whereYear('bill_period_to', $year)
+                            ->whereMonth('bill_period_to', $month);
+                    });
                 }
             })
             ->when(!empty($search), function ($q) use ($search) {
@@ -988,8 +993,9 @@ class MeterService {
     public function getLatestReadingMonth()
     {
         return Reading::where('isReRead', false)
+            ->whereHas('bill')
             ->latest('created_at')
-            ->value('created_at')?->format('Y-m');
+            ->value('created_at')?->format('Y-m') ?? now()->format('Y-m');
     }
 
     /**

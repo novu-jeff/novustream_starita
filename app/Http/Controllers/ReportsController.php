@@ -148,11 +148,12 @@ class ReportsController extends Controller
                         $dueDate = Carbon::parse($bill->due_date);
                         $daysOverdue = $dueDate->diffInDays(now(), false);
 
-                        $current = $daysOverdue <= 0 ? $bill->amount : 0;
-                        $oneTo30 = $daysOverdue > 0 && $daysOverdue <= 30 ? $bill->amount : 0;
-                        $thirtyOneTo60 = $daysOverdue > 30 && $daysOverdue <= 60 ? $bill->amount : 0;
-                        $sixtyOneTo90 = $daysOverdue > 60 && $daysOverdue <= 90 ? $bill->amount : 0;
-                        $over90 = $daysOverdue > 90 ? $bill->amount : 0;
+                        $amount = (float) ($bill->amount ?? 0);
+                        $current = $daysOverdue <= 0 ? $amount : 0;
+                        $oneTo30 = $daysOverdue > 0 && $daysOverdue <= 30 ? $amount : 0;
+                        $thirtyOneTo60 = $daysOverdue > 30 && $daysOverdue <= 60 ? $amount : 0;
+                        $sixtyOneTo90 = $daysOverdue > 60 && $daysOverdue <= 90 ? $amount : 0;
+                        $over90 = $daysOverdue > 90 ? $amount : 0;
 
                         $rows[] = [
                             'account_number' => $reading->account_no,
@@ -206,17 +207,18 @@ class ReportsController extends Controller
 
                         $dueDate = Carbon::parse($bill->due_date);
                         $daysOverdue = $dueDate->diffInDays(now(), false);
+                        $amount = (float) ($bill->amount ?? 0);
 
                         if ($daysOverdue <= 0) {
-                            $zoneSummary['current'] += $bill->amount;
+                            $zoneSummary['current'] += $amount;
                         } elseif ($daysOverdue <= 30) {
-                            $zoneSummary['1_30'] += $bill->amount;
+                            $zoneSummary['1_30'] += $amount;
                         } elseif ($daysOverdue <= 60) {
-                            $zoneSummary['31_60'] += $bill->amount;
+                            $zoneSummary['31_60'] += $amount;
                         } elseif ($daysOverdue <= 90) {
-                            $zoneSummary['61_90'] += $bill->amount;
+                            $zoneSummary['61_90'] += $amount;
                         } else {
-                            $zoneSummary['over_90'] += $bill->amount;
+                            $zoneSummary['over_90'] += $amount;
                         }
                     }
 
@@ -293,12 +295,13 @@ class ReportsController extends Controller
 
                         $dueDate = Carbon::parse($bill->due_date);
                         $daysOverdue = $dueDate->diffInDays(now(), false);
+                        $amount = (float) ($bill->amount ?? 0);
 
-                        if ($daysOverdue <= 0) $summary['current'] += $bill->amount;
-                        elseif ($daysOverdue <= 30) $summary['1_30'] += $bill->amount;
-                        elseif ($daysOverdue <= 60) $summary['31_60'] += $bill->amount;
-                        elseif ($daysOverdue <= 90) $summary['61_90'] += $bill->amount;
-                        else $summary['over_90'] += $bill->amount;
+                        if ($daysOverdue <= 0) $summary['current'] += $amount;
+                        elseif ($daysOverdue <= 30) $summary['1_30'] += $amount;
+                        elseif ($daysOverdue <= 60) $summary['31_60'] += $amount;
+                        elseif ($daysOverdue <= 90) $summary['61_90'] += $amount;
+                        else $summary['over_90'] += $amount;
                     }
 
                     $summary['total'] = $summary['current'] + $summary['1_30'] + $summary['31_60'] + $summary['61_90'] + $summary['over_90'];

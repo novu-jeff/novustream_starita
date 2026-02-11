@@ -274,7 +274,12 @@ class OfflineSyncController extends Controller
                 $reading = Reading::where('reference_no', $referenceNo)->first();
                 $localBill = Bill::where('reference_no', $referenceNo)->first();
 
-                if ($off->source === 'novupay' && $localBill && \Schema::hasTable('starita_bills')) {
+                $novupayConnection = (new NovupayStaritaBill())->getConnectionName();
+                if (
+                    $off->source === 'novupay'
+                    && $localBill
+                    && \Schema::connection($novupayConnection)->hasTable('starita_bills')
+                ) {
                     $novupayBill = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
                     if ($novupayBill && strtolower($novupayBill->status ?? '') === 'paid') {
                         $localBill->update([
