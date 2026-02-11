@@ -10,10 +10,12 @@
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
                          Upload Billing
                      </a>
-                    <a href="{{ route('payments.index', ['filter' => $filter === 'paid' ? 'unpaid' : 'paid']) }}"
-                        class="btn btn-primary px-5 py-3 text-uppercase">
-                         View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
-                     </a>
+                    <a href="{{ route('payments.index', array_merge(request()->query(), [
+                            'filter' => $filter === 'paid' ? 'unpaid' : 'paid'
+                        ])) }}"
+                    class="btn btn-primary px-5 py-3 text-uppercase">
+                        View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
+                    </a>
                 </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
