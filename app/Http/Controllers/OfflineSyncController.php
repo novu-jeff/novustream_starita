@@ -43,6 +43,7 @@ class OfflineSyncController extends Controller
             $data['present_reading'] = $this->wholeNumberOrNull($data['present_reading'] ?? null);
             $data['consumption'] = $this->wholeNumberOrNull($data['consumption'] ?? null);
             $data['source'] = 'mobile_app';
+            $data['status'] = 'pending';
             $data['payload'] = $request->except(array_keys($data));
 
             $row = ReadingOffline::create($data);
@@ -108,6 +109,7 @@ class OfflineSyncController extends Controller
                         'reader_name'       => $r['reader_name'] ?? 'OfflineReader',
                         'zone'              => $r['zone'] ?? null,
                         'source'            => 'mobile_app',
+                        'status'            => 'pending',
                         'payload'           => $r,
                     ]
                 );
@@ -158,7 +160,10 @@ class OfflineSyncController extends Controller
             'admin_id' => $request->user()?->id,
             'limit' => $limit ?? 'none',
         ]);
-        $query = ReadingOffline::whereNull('synced_at')
+        $query = ReadingOffline::where(function ($q) {
+                $q->whereNull('status')->orWhere('status', 'pending');
+            })
+            ->whereNull('synced_at')
             ->whereNull('merged_into_reading_id')
             ->orderBy('id');
         if ($limit !== null && $limit > 0) {
@@ -166,16 +171,37 @@ class OfflineSyncController extends Controller
         }
         $pending = $query->get();
 
+        $count = 0;
+        $errors = [];
+
+        // Pre-pass: mark duplicate offline readings where account+month already exists in readings (remove from queue)
+        foreach ($pending as $off) {
+            $year = $off->created_at?->year ?? now()->year;
+            $month = $off->created_at?->month ?? now()->month;
+            $existingReading = Reading::where('account_no', $off->account_no)
+                ->whereYear('created_at', $year)
+                ->whereMonth('created_at', $month)
+                ->first();
+            if ($existingReading) {
+                $off->update([
+                    'synced_at' => now(),
+                    'merged_into_reading_id' => $existingReading->id,
+                    'status' => 'skipped_duplicate',
+                ]);
+                $count++;
+            }
+        }
+        // Re-fetch pending after pre-pass (excludes now-marked rows from duplicate grouping)
+        $pending = $query->get();
+
         // Duplicate account_no in batch: do not merge multiple pending readings for same account
         $byAccount = $pending->groupBy('account_no');
         $duplicateAccountNos = $byAccount->filter(fn ($rows) => $rows->count() > 1)->keys()->all();
 
-        $count = 0;
-        $errors = [];
-
         foreach ($pending as $off) {
             try {
                 if (in_array($off->account_no, $duplicateAccountNos, true)) {
+                    $off->update(['status' => 'skipped_duplicate']);
                     $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Duplicate account_no in batch (multiple pending readings for same account)'];
                     continue;
                 }
@@ -191,6 +217,7 @@ class OfflineSyncController extends Controller
                     $off->update([
                         'synced_at' => now(),
                         'merged_into_reading_id' => $existingReading->id,
+                        'status' => 'skipped_duplicate',
                     ]);
                     $count++;
                     continue;
@@ -200,9 +227,10 @@ class OfflineSyncController extends Controller
 
                 $account = $this->meterService->getAccount($off->account_no);
                 if (!$account) {
-                    Log::warning('Merge: account not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
-                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Account not found'];
                     DB::rollBack();
+                    Log::warning('Merge: account not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
+                    $off->update(['status' => 'rejected']);
+                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Account not found'];
                     continue;
                 }
 
@@ -213,9 +241,10 @@ class OfflineSyncController extends Controller
                     ->value('id');
 
                 if (!$propertyTypeId) {
-                    Log::warning('Merge: property type not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
-                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Property type not found'];
                     DB::rollBack();
+                    Log::warning('Merge: property type not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
+                    $off->update(['status' => 'rejected']);
+                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Property type not found'];
                     continue;
                 }
 
@@ -242,10 +271,11 @@ class OfflineSyncController extends Controller
                 $computed = $this->meterService->create_breakdown($payload);
 
                 if (($computed['status'] ?? '') !== 'success') {
+                    DB::rollBack();
                     $msg = $computed['message'] ?? 'create_breakdown failed';
                     Log::warning('Merge: create_breakdown failed', ['reference_no' => $off->reference_no, 'message' => $msg]);
+                    $off->update(['status' => 'rejected']);
                     $errors[] = ['reference_no' => $off->reference_no, 'error' => $msg];
-                    DB::rollBack();
                     continue;
                 }
 
@@ -265,9 +295,10 @@ class OfflineSyncController extends Controller
                 );
 
                 if (!$ok) {
-                    Log::warning('Merge: applyStorePostProcessingToBill failed', ['reference_no' => $off->reference_no]);
-                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Post-processing failed'];
                     DB::rollBack();
+                    Log::warning('Merge: applyStorePostProcessingToBill failed', ['reference_no' => $off->reference_no]);
+                    $off->update(['status' => 'rejected']);
+                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Post-processing failed'];
                     continue;
                 }
 
@@ -282,28 +313,41 @@ class OfflineSyncController extends Controller
                 ) {
                     $novupayBill = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
                     if ($novupayBill && strtolower($novupayBill->status ?? '') === 'paid') {
-                        $localBill->update([
+                        $update = [
                             'isPaid' => true,
                             'date_paid' => $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
                             'payment_method' => 'online',
-                        ]);
+                        ];
+                        if (empty($localBill->payor_name)) {
+                            $payor = $novupayBill->payload['customer']['name'] ?? $novupayBill->payload['payor'] ?? null;
+                            if (empty($payor)) {
+                                $account = $this->meterService->getAccount($off->account_no);
+                                $payor = optional(optional($account)->user)->name ?? 'Sta. Rita Customer';
+                            }
+                            $update['payor_name'] = $payor;
+                        }
+                        $localBill->update($update);
                     }
                 }
 
                 $off->update([
                     'synced_at' => now(),
                     'merged_into_reading_id' => $reading ? $reading->id : null,
+                    'status' => 'merged',
                 ]);
 
                 DB::commit();
                 $count++;
             } catch (\Throwable $e) {
-                DB::rollBack();
+                if (DB::transactionLevel() > 0) {
+                    DB::rollBack();
+                }
                 Log::error('Merge: exception for reference_no', [
                     'reference_no' => $off->reference_no,
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
+                $off->update(['status' => 'rejected']);
                 $errors[] = ['reference_no' => $off->reference_no, 'error' => $e->getMessage()];
             }
         }

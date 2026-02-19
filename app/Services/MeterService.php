@@ -844,6 +844,8 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
+        $payorName = optional($concessionaire->user)->name ?? null;
+
         $bill = [
             'reference_no' => $billReferenceNo,
             'bill_period_from' => $bill_period_from,
@@ -859,6 +861,7 @@ class MeterService {
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
+            'payor_name' => $payorName,
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];

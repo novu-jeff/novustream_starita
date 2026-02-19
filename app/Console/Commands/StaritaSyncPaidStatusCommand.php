@@ -6,6 +6,7 @@ use App\Models\Bill;
 use App\Models\NovupayStaritaBill;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Sync paid status from Novupay starita_bills to sta-rita Bill records.
@@ -24,13 +25,18 @@ class StaritaSyncPaidStatusCommand extends Command
         $this->logToBoth('starita:sync-paid-status started', ['limit' => $limit]);
 
         try {
-            if (!\Schema::hasTable('starita_bills')) {
+            $sourceConnection = (new NovupayStaritaBill())->getConnectionName();
+            if (!Schema::connection($sourceConnection)->hasTable('starita_bills')) {
                 $this->warn('Table starita_bills not found.');
                 $this->logToBoth('starita:sync-paid-status skipped: starita_bills table not found');
                 return self::FAILURE;
             }
 
-            $paidStarita = NovupayStaritaBill::where('status', 'paid')
+            $paidStarita = NovupayStaritaBill::query()
+                ->where(function ($q) {
+                    $q->where('status', 'paid')
+                        ->orWhereNotNull('paid_at');
+                })
                 ->orderBy('paid_at', 'desc')
                 ->limit($limit)
                 ->get();
@@ -41,6 +47,12 @@ class StaritaSyncPaidStatusCommand extends Command
 
             foreach ($paidStarita as $nb) {
                 try {
+                    $sourceIsPaid = strtolower((string) ($nb->status ?? '')) === 'paid' || !is_null($nb->paid_at);
+                    if (!$sourceIsPaid) {
+                        $skipped++;
+                        continue;
+                    }
+
                     $localBill = Bill::where('reference_no', $nb->reference_no)->first();
                     if (!$localBill) {
                         $skipped++;
@@ -55,6 +67,10 @@ class StaritaSyncPaidStatusCommand extends Command
                         'date_paid' => $nb->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
                         'payment_method' => 'online',
                     ]);
+
+                    if (strtolower((string) ($nb->status ?? '')) !== 'paid') {
+                        NovupayStaritaBill::whereKey($nb->id)->update(['status' => 'paid']);
+                    }
                     $updated++;
                     $this->logToBoth('starita:sync-paid-status synced', [
                         'reference_no' => $nb->reference_no,

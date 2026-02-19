@@ -44,20 +44,30 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="password" class="form-label">Password <small class="text-danger"> ( required )</small></label>
-                            <input type="password"
-                                    class="form-control" id="password"
-                                    v-model="concessioner.password"
-                                    :class="{ 'is-invalid': errors && errors.password }"
-                                    >
+                            <div class="input-group">
+                                <input :type="showPassword ? 'text' : 'password'"
+                                        class="form-control" id="password"
+                                        v-model="concessioner.password"
+                                        :class="{ 'is-invalid': errors && errors.password }"
+                                        >
+                                <button type="button" class="btn btn-outline-secondary" @click="showPassword = !showPassword">
+                                    <i :class="showPassword ? 'bx bx-hide' : 'bx bx-show'"></i>
+                                </button>
+                            </div>
                             <small v-if="errors.password" class="text-danger px-1">{{ errors.password[0] }}</small>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="password_confirmation" class="form-label">Confirm Password <small class="text-danger"> ( required )</small></label>
-                            <input type="password"
-                                    class="form-control" id="password_confirmation"
-                                    v-model="concessioner.password_confirmation"
-                                    :class="{ 'is-invalid': errors && errors.password_confirmation }"
-                                    >
+                            <div class="input-group">
+                                <input :type="showPasswordConfirm ? 'text' : 'password'"
+                                        class="form-control" id="password_confirmation"
+                                        v-model="concessioner.password_confirmation"
+                                        :class="{ 'is-invalid': errors && errors.password_confirmation }"
+                                        >
+                                <button type="button" class="btn btn-outline-secondary" @click="showPasswordConfirm = !showPasswordConfirm">
+                                    <i :class="showPasswordConfirm ? 'bx bx-hide' : 'bx bx-show'"></i>
+                                </button>
+                            </div>
                             <small v-if="errors.password_confirmation" class="text-danger px-1">{{ errors.password_confirmation[0] }}</small>
                         </div>
                     </div>
@@ -398,6 +408,8 @@ export default {
     return {
       loading: false,
       disableValidation: true,
+      showPassword: false,
+      showPasswordConfirm: false,
       concessioner: {
         name: '',
         contact_no: '',

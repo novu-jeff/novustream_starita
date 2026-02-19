@@ -65,7 +65,10 @@ class MergeReadingsCommand extends Command
      */
     private function dryRun(?int $limit): int
     {
-        $query = ReadingOffline::whereNull('synced_at')
+        $query = ReadingOffline::where(function ($q) {
+                $q->whereNull('status')->orWhere('status', 'pending');
+            })
+            ->whereNull('synced_at')
             ->whereNull('merged_into_reading_id')
             ->orderBy('id');
         if ($limit !== null && $limit > 0) {

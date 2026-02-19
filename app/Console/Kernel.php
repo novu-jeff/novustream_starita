@@ -13,7 +13,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('novupay:sync-readings --limit=200')
-            ->everyTenMinutes()
+            ->everyFiveMinutes()
             ->withoutOverlapping()
             ->runInBackground();
     }
