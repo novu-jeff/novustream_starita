@@ -176,36 +176,54 @@ class ConcessionaireController extends Controller
         return view('concessionaires.form', compact('data', 'status_code', 'property_types'));
     }
 
-    public function update(int $id, UpdateClientRequest $request) {
+    public function update(int $id, UpdateClientRequest $request)
+    {
+        $payload = $request->validated();
 
-    $payload = $request->validated();
+        $existingClient = $this->clientService::getData($id);
+        $oldAccountNo = $existingClient->accounts[0]->account_no ?? null;
 
-    // ADD THIS: set zone from account_no
-    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
-        foreach ($payload['accounts'] as &$account) {
-            $account['zone'] = isset($account['account_no'])
-                ? substr($account['account_no'], 0, 3)
-                : null;
+        if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+            foreach ($payload['accounts'] as &$account) {
+                $account['zone'] = isset($account['account_no'])
+                    ? substr($account['account_no'], 0, 3)
+                    : null;
+            }
+        }
+
+        $newAccountNo = $payload['accounts'][0]['account_no'] ?? null;
+
+        DB::beginTransaction();
+
+        try {
+            $client = $this->clientService::update($payload, $id);
+
+            if ($oldAccountNo && $newAccountNo && $oldAccountNo !== $newAccountNo) {
+                DB::table('readings')
+                    ->where('account_no', $oldAccountNo)
+                    ->update([
+                        'account_no' => $newAccountNo,
+                        'zone'       => substr($newAccountNo, 0, 3),
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            DB::commit();
+
+            return response([
+                'data' => $client,
+                'status' => 'success',
+                'message' => 'Client ' . $payload['name'] . ' updated successfully.'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
         }
     }
-
-    DB::beginTransaction();
-
-    try {
-        $client = $this->clientService::update($payload, $id);
-        DB::commit();
-
-        return response([
-            'data' => $client,
-            'status' => 'success',
-            'message' => 'Client ' . $payload['name'] . ' updated successfully.'
-        ]);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response(['status' => 'error', 'message' => $e->getMessage()]);
-    }
-}
 
 
     public function destroy(int $id) {
@@ -227,5 +245,7 @@ class ConcessionaireController extends Controller
         }
 
     }
+
+
 
 }

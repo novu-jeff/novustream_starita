@@ -1205,42 +1205,42 @@ class ReportsController extends Controller
 
                     case 'Senior Count':
 
-    $query = DB::table('discount')
-        ->join(
-            'concessioner_accounts',
-            'concessioner_accounts.account_no',
-            '=',
-            'discount.account_no'
-        )
-        ->leftJoin('readings', 'concessioner_accounts.account_no', '=', 'readings.account_no')
-        ->leftJoin('bill', 'bill.reading_id', '=', 'readings.id')
-        ->where('discount.discount_type_id', 1) // Senior Citizen
-        ->whereNotNull('concessioner_accounts.zone')
-        ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
-        ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
-            $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
-        })
-        ->groupBy('concessioner_accounts.zone')
-        ->select(
-            'concessioner_accounts.zone as zone',
-            DB::raw('COUNT(DISTINCT discount.account_no) as senior_count'),
-            DB::raw('COALESCE(SUM(bill.amount), 0) as total_amount')
-        )
-        ->orderBy('concessioner_accounts.zone', 'asc')
-        ->get();
+                $query = DB::table('discount')
+                    ->join(
+                        'concessioner_accounts',
+                        'concessioner_accounts.account_no',
+                        '=',
+                        'discount.account_no'
+                    )
+                    ->leftJoin('readings', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                    ->leftJoin('bill', 'bill.reading_id', '=', 'readings.id')
+                    ->where('discount.discount_type_id', 1) // Senior Citizen
+                    ->whereNotNull('concessioner_accounts.zone')
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                    ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+                        $q->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+                    })
+                    ->groupBy('concessioner_accounts.zone')
+                    ->select(
+                        'concessioner_accounts.zone as zone',
+                        DB::raw('COUNT(DISTINCT discount.account_no) as senior_count'),
+                        DB::raw('COALESCE(SUM(bill.amount), 0) as total_amount')
+                    )
+                    ->orderBy('concessioner_accounts.zone', 'asc')
+                    ->get();
 
-    $rows = [];
+                $rows = [];
 
-    foreach ($query as $row) {
-        $rows[] = [
-            'ZONE'           => $row->zone ?? 'N/A',
-            'NO. OF SENIORS' => $row->senior_count,
-            'TOTAL AMOUNT'  => number_format($row->total_amount ?? 0, 2),
-        ];
-    }
+                foreach ($query as $row) {
+                    $rows[] = [
+                        'ZONE'           => $row->zone ?? 'N/A',
+                        'NO. OF SENIORS' => $row->senior_count,
+                        'TOTAL AMOUNT'  => number_format($row->total_amount ?? 0, 2),
+                    ];
+                }
 
-    $result[$report] = $rows;
-    break;
+                $result[$report] = $rows;
+                break;
 
                 case 'List of Active':
 
