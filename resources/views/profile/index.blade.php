@@ -3,6 +3,7 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper">
+            <div id="profilePageData" data-alert="{{ e(json_encode(session('alert'))) }}"></div>
             @if(session('status'))
                 <div class="alert alert-success">{{ session('status') }}</div>
             @endif
@@ -81,14 +82,24 @@
 @section('script')
     <script>
         $(function () {
-            @if (session('alert'))
-                setTimeout(() => {
-                    let alertData = @json(session('alert'));
-                    alert(alertData.status, alertData.message);
-                }, 100);
-            @endif
+            const pageDataEl = document.getElementById('profilePageData');
+            const rawAlert = pageDataEl ? pageDataEl.dataset.alert : null;
+
+            if (rawAlert && rawAlert !== 'null') {
+                try {
+                    const alertData = JSON.parse(rawAlert);
+                    setTimeout(() => {
+                        alert(alertData.status, alertData.message);
+                    }, 100);
+                } catch (error) {
+                    console.error('Invalid alert payload', error);
+                }
+            }
         });
-        $('#syncNowBtn').on('click', syncOfflineReadings);
+        const syncNowBtn = document.getElementById('syncNowBtn');
+        if (syncNowBtn && typeof window.syncOfflineReadings === 'function') {
+            syncNowBtn.addEventListener('click', window.syncOfflineReadings);
+        }
     </script>
 @endsection
 
