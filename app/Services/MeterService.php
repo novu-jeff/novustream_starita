@@ -272,19 +272,24 @@ class MeterService {
         if (empty($zone) && empty($date) && empty($search)) {
             return Reading::with(['concessionaire.user', 'bill'])
                 ->where('isReRead', false)
+                ->whereHas('bill')
                 ->get();
         }
 
         $readings = Reading::with(['concessionaire.user', 'bill'])
-            ->where('isReRead', false)
+            ->when(empty($search), fn($q) => $q->where('isReRead', false)) // Exclude rereads for list view; include when searching for specific account
+            ->whereHas('bill') // Only readings that have a bill (avoids missing ref in report when reading.reference_no is set but bill link is by reading_id)
             ->when(!empty($zone) && !$isAll, fn($q) =>
                 $q->where('zone', 'like', "%$zone%")
             )
             ->when(!empty($date), function ($q) use ($date) {
                 if (preg_match('/^\d{4}-\d{2}$/', $date)) {
                     [$year, $month] = explode('-', $date);
-                    $q->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month);
+                    // Use bill_period_to (canonical billing/reading month) to include merged offline readings
+                    $q->whereHas('bill', function ($bq) use ($year, $month) {
+                        $bq->whereYear('bill_period_to', $year)
+                            ->whereMonth('bill_period_to', $month);
+                    });
                 }
             })
             ->when(!empty($search), function ($q) use ($search) {
@@ -666,7 +671,9 @@ class MeterService {
             ->where('isReRead', 0)
             ->pluck('id');
 
-        $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+        $forceZeroArrears = !empty($payload['force_zero_arrears']);
+
+        $latestUnpaidBill = $forceZeroArrears ? null : Bill::whereIn('reading_id', $readingIds)
             ->where(function ($q) {
                 $q->where('isPaid', 0)
                 ->orWhere('isPartial', 1);
@@ -680,6 +687,11 @@ class MeterService {
         if ($latestUnpaidBill) {
             $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
             $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
+        }
+
+        if ($forceZeroArrears) {
+            $unpaidAmount = 0;
+            $partialPaymentTotal = 0;
         }
 
         $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
@@ -981,8 +993,9 @@ class MeterService {
     public function getLatestReadingMonth()
     {
         return Reading::where('isReRead', false)
+            ->whereHas('bill')
             ->latest('created_at')
-            ->value('created_at')?->format('Y-m');
+            ->value('created_at')?->format('Y-m') ?? now()->format('Y-m');
     }
 
     /**
@@ -1095,9 +1108,11 @@ class MeterService {
             ]);
 
             if (!$skipHitPayQr && !$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
+                // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+                $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
                 $hitpayPayload = [
                     'reference_no' => $referenceNo,
-                    'amount' => $bill->amount_after_due,
+                    'amount' => $baseAmount,
                     'payor' => $account->user->name ?? 'Sta. Rita Customer',
                     'email' => $account->user->email ?? null,
                     'account_no' => $account->account_no ?? '',

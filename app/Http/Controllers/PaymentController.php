@@ -869,8 +869,10 @@ class PaymentController extends Controller
         }
 
         // ✅ Step 1: If already paid locally (walk-in), show paid receipt
+        // HitPay redirect sends payment-request ID (UUID) as "reference" – match by hitpay_reference, reference_no, or hitpay_payment_id
         $localBill = \App\Models\Bill::where('hitpay_reference', $hitpay_reference)
             ->orWhere('reference_no', $hitpay_reference)
+            ->orWhere('hitpay_payment_id', $hitpay_reference)
             ->first();
 
         if ($localBill && $localBill->isPaid) {
@@ -921,8 +923,9 @@ class PaymentController extends Controller
         $payor = $payment['name'] ?? 'Unknown';
         $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
 
-        // ✅ Step 2: Find bill
+        // ✅ Step 2: Find bill (redirect "reference" is payment-request ID; also match by our reference_number from API response)
         $bill = \App\Models\Bill::where('hitpay_reference', $hitpay_reference)
+            ->orWhere('hitpay_payment_id', $hitpay_reference)
             ->orWhere('reference_no', $reference_number)
             ->first();
 
@@ -954,6 +957,12 @@ class PaymentController extends Controller
                 'payor_name' => $payor,
                 'date_paid' => now(),
                 'payment_method' => 'online',
+            ]);
+            \Log::info('HitPay redirect: bill marked as paid', [
+                'bill_id' => $bill->id,
+                'reference_no' => $bill->reference_no,
+                'hitpay_reference' => $hitpay_reference,
+                'amount' => $amount,
             ]);
 
             return view('payments.status', [
@@ -1066,6 +1075,75 @@ class PaymentController extends Controller
         }
 
         return "https://securecheckout.hit-pay.com/payment-request/{$paymentRequestId}/checkout";
+    }
+
+    /**
+     * HitPay webhook: update bill to paid when payment completes.
+     * HitPay may send reference_number (our ref) or payment-request id – look up by both.
+     */
+    public function hitpayWebhook(Request $request)
+    {
+        $payload = $request->all();
+        Log::info('HitPay Webhook received', $payload);
+
+        $reference_number = $payload['reference_number'] ?? $payload['reference_no'] ?? null;
+        $payment_request_id = $payload['payment_request_id'] ?? $payload['id'] ?? null;
+        $payment_status = strtolower($payload['status'] ?? '');
+        $payment_amount = (float) ($payload['amount'] ?? 0);
+        $payor = $payload['customer']['name'] ?? $payload['name'] ?? 'Unknown';
+
+        if (empty($reference_number) && empty($payment_request_id)) {
+            Log::warning('HitPay webhook: missing reference_number and id');
+            return response()->json(['status' => 'error', 'message' => 'Invalid payload'], 400);
+        }
+
+        $existingBill = Bill::query()
+            ->where(function ($q) use ($reference_number, $payment_request_id) {
+                if (!empty($reference_number)) {
+                    $q->where('reference_no', $reference_number)
+                      ->orWhere('hitpay_reference', $reference_number)
+                      ->orWhere('hitpay_payment_id', $reference_number);
+                }
+                if (!empty($payment_request_id)) {
+                    $q->orWhere('hitpay_payment_id', $payment_request_id)
+                      ->orWhere('hitpay_reference', $payment_request_id);
+                }
+            })
+            ->orderBy('id')
+            ->first();
+
+        if (!$existingBill) {
+            Log::warning('HitPay webhook: bill not found', ['reference_number' => $reference_number, 'id' => $payment_request_id]);
+            return response()->json(['status' => 'error', 'message' => 'Bill not found'], 404);
+        }
+
+        if ($existingBill->isPaid) {
+            Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
+            return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
+        }
+
+        if (!in_array($payment_status, ['completed', 'succeeded', 'success'], true)) {
+            Log::info('HitPay webhook ignored; status not completed', ['status' => $payment_status]);
+            return response()->json(['status' => 'ignored', 'message' => 'Payment not completed'], 200);
+        }
+
+        try {
+            $existingBill->update([
+                'isPaid' => 1,
+                'amount_paid' => $payment_amount > 0 ? $payment_amount : $existingBill->amount,
+                'payor_name' => $payor,
+                'date_paid' => now(),
+                'payment_method' => 'online',
+            ]);
+            Log::info('HitPay webhook: bill marked as paid', [
+                'bill_id' => $existingBill->id,
+                'reference_no' => $existingBill->reference_no,
+            ]);
+            return response()->json(['status' => 'success', 'message' => 'Bill updated'], 200);
+        } catch (\Exception $e) {
+            Log::error('HitPay webhook exception: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Server error'], 500);
+        }
     }
 
     public function datatable($query) {

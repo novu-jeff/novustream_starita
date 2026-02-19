@@ -394,9 +394,11 @@ class ReadingController extends Controller
 
         $readingsPerZone = DB::table('readings')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+            ->join('bill', 'readings.id', '=', 'bill.reading_id')
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
-            ->whereMonth('readings.created_at', Carbon::parse($date)->month)
-            ->whereYear('readings.created_at', Carbon::parse($date)->year);
+            ->where('readings.isReRead', false)
+            ->whereMonth('bill.bill_period_to', Carbon::parse($date)->month)
+            ->whereYear('bill.bill_period_to', Carbon::parse($date)->year);
 
         if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
@@ -519,7 +521,7 @@ class ReadingController extends Controller
 
     $isTemporaryBillingOverride =
     $date->year === 2026 &&
-    $date->month === 2;
+    $date->month === 2; // Feb 2026 billing only
 
     $month = $date->month;
     $year = $date->year;
@@ -642,15 +644,24 @@ class ReadingController extends Controller
                     'from' => '2026-01-03',
                     'to'   => '2026-02-02',
                     'bill_day' => '2026-02-02',
+                    'from' => '2026-01-03',
+                    'to'   => '2026-02-02',
+                    'bill_day' => '2026-02-02',
                 ],
                 'B6-B8' => [
                     'prefixes' => ['061','071','081'],
                     'from' => '2026-01-05',
                     'to'   => '2026-02-03',
                     'bill_day' => '2026-02-03',
+                    'from' => '2026-01-05',
+                    'to'   => '2026-02-03',
+                    'bill_day' => '2026-02-03',
                 ],
                 'B9-B11' => [
                     'prefixes' => ['091','101','111'],
+                    'from' => '2026-01-06',
+                    'to'   => '2026-02-04',
+                    'bill_day' => '2026-02-04',
                     'from' => '2026-01-06',
                     'to'   => '2026-02-04',
                     'bill_day' => '2026-02-04',
@@ -664,6 +675,7 @@ class ReadingController extends Controller
                     $billPeriodTo   = Carbon::parse($rule['to']);
                     $billDate       = Carbon::parse($rule['bill_day']);
                     $dueDate        = $billDate->copy()->addDays(14);
+                    $dueDate        = $billDate->copy()->addDays(14);
                     $penaltyDate    = $dueDate->copy()->addDay();
                     $disconnectionDate = $dueDate->copy()->addDays(7);
                     break;
@@ -671,19 +683,11 @@ class ReadingController extends Controller
             }
         }
 
-        // Save bill
-        // $bill = Bill::updateOrCreate(
-        //     ['reference_no' => $reference_no],
-        //     [
-        //         'account_no' => $account_no,
-        //         'amount' => $amount + $penaltyAmount,
-        //         'penalty' => $penaltyAmount,
-        //         'discount' => $computed['bill']['discount'] ?? 0,
-        //         'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
-        //         'high_consumption_note' => $payload['high_consumption_note'] ?? null,
-        //     ]
-        // );
-
+        // Save bill — preserve existing HitPay data when updating
+        $existingBill = Bill::where('reference_no', $reference_no)->first();
+        $hitpayReference = $existingBill->hitpay_reference ?? null;
+        $hitpayPaymentId = $existingBill->hitpay_payment_id ?? null;
+        $hitpayInitiatedAt = $existingBill->initiated_at ?? null;
 
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
@@ -840,10 +844,13 @@ class ReadingController extends Controller
             'amount_after_due' => $bill->amount + $penaltyAmount,
         ]);
 
+        // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+        $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
+
         if (!$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
             $hitpayPayload = [
                 'reference_no' => $reference_no,
-                'amount' => $bill->amount_after_due,
+                'amount' => $baseAmount,
                 'payor' => $account->user->name ?? 'Sta. Rita Customer',
                 'email' => $account->user->email ?? null,
                 'account_no' => $account->account_no ?? '',
@@ -862,10 +869,10 @@ class ReadingController extends Controller
         }
 
 
-        // Generate payment QR
+        // Generate payment QR (use base amount so Novupay/HitPay shows normal amount, not overdue)
         $paymentPayload = [
             'reference_no' => $reference_no,
-            'amount' => $bill->amount_after_due,
+            'amount' => $baseAmount,
             'customer' => [
                 'name' => $account->user->name ?? '',
                 'account_no' => $account->account_no,

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class NovupayStaritaBill extends Model
 {
+    protected $connection = 'novupay_starita';
     protected $table = 'starita_bills';
 
     protected $fillable = [
