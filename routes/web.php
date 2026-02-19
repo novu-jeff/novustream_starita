@@ -22,6 +22,7 @@ use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
 use App\Http\Controllers\OfflineDataController;
+use App\Http\Controllers\LedgerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -169,6 +170,19 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->names('payment-breakdown');
     });
 
+
+    // web.php
+    Route::middleware(['auth'])->group(function () {
+
+        Route::get('/concessionaires/ledger',
+            [LedgerController::class, 'index']
+        )->name('ledger.index');
+
+        Route::get('/concessionaires/{concessionaire}/ledger',
+            [LedgerController::class, 'show']
+        )->name('concessionaires.ledger');
+
+    });
 
     Route::get('/transactions', [ConcessionaireController::class, 'index'])
         ->name('transactions');

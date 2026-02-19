@@ -1,0 +1,105 @@
+<?php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use App\Models\ConcessionerAccount;
+use App\Models\User;
+use App\Models\Bill;
+
+class LedgerController extends Controller
+{
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+
+            if (!Gate::any(['admin', 'cashier'])) {
+                abort(403, 'Unauthorized');
+            }
+
+            return $next($request);
+        });
+    }
+
+    public function index(Request $request)
+    {
+        $search = $request->search;
+
+        $clients = User::with('accounts')
+            ->when($search, function ($query) use ($search) {
+                $query->where('name', 'like', "%$search%")
+                    ->orWhereHas('accounts', function ($q) use ($search) {
+                        $q->where('account_no', 'like', "%$search%");
+                    });
+            })
+            ->paginate(20);
+
+        return view('ledger.index', compact('clients'));
+    }
+
+
+    public function show($userId)
+{
+    $user = User::with('accounts')->findOrFail($userId);
+
+    $accountNumbers = $user->accounts->pluck('account_no');
+
+    $bills = Bill::with(['reading'])
+        ->whereHas('reading', function ($query) use ($accountNumbers) {
+            $query->whereIn('account_no', $accountNumbers);
+        })
+        ->orderBy('created_at', 'asc')
+        ->get()
+        ->map(function ($bill) {
+
+            $total = (float) $bill->total;
+            $penalty = (float) $bill->penalty;
+            $totalPaid = (float) $bill->amount_paid;
+
+            $paidDate = $bill->date_paid
+                ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
+                : null;
+
+            $dueDate = $bill->due_date
+                ? \Carbon\Carbon::parse($bill->due_date)->startOfDay()
+                : null;
+
+            $today = \Carbon\Carbon::today();
+
+            $appliedPenalty = 0;
+
+            if (!$paidDate && $dueDate && $today->gt($dueDate)) {
+                $appliedPenalty = $penalty;
+            }
+
+            if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
+                $appliedPenalty = $penalty;
+            }
+
+            $finalAmount = $total + $appliedPenalty;
+
+            $balance = $finalAmount - $totalPaid;
+
+            if ($balance <= 0) {
+                $status = 'PAID';
+                $balance = 0;
+            } elseif ($totalPaid > 0) {
+                $status = 'PARTIAL';
+            } elseif ($dueDate && $today->gt($dueDate)) {
+                $status = 'OVERDUE';
+            } else {
+                $status = 'UNPAID';
+            }
+
+            $bill->computed_amount = $finalAmount;
+            $bill->computed_paid = (float) $bill->amount_paid - (float) $bill->change;
+            $bill->computed_balance = max(0, $balance);
+            $bill->computed_status = $status;
+
+            return $bill;
+        });
+
+    return view('ledger.show', compact('user', 'bills'));
+}
+
+}
