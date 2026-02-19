@@ -42,12 +42,12 @@ class SyncNovupayReadingsCommand extends Command
             // create_breakdown uses Auth::user() for reader_name; set a deterministic CLI user context
             auth()->setUser(Admin::first());
 
+            // Only sync rows that are paid: status = 'paid' and/or paid_at set
             $bills = NovupayStaritaBill::query()
                 ->where(function ($q) {
-                    $q->whereIn('status', ['initiated', 'paid', 'pending'])
+                    $q->where('status', 'paid')
                         ->orWhereNotNull('paid_at');
                 })
-                ->orderByRaw('paid_at IS NULL')
                 ->orderByDesc('paid_at')
                 ->orderByDesc('id')
                 ->limit($limit)
