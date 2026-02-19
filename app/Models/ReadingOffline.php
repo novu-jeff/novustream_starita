@@ -17,6 +17,7 @@ class ReadingOffline extends Model
         'reader_name',
         'zone',
         'source',
+        'status',
         'synced_at',
         'merged_into_reading_id',
         'payload',

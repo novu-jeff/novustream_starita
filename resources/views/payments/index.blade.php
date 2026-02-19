@@ -10,12 +10,10 @@
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
                          Upload Billing
                      </a>
-                    <a href="{{ route('payments.index', array_merge(request()->query(), [
-                            'filter' => $filter === 'paid' ? 'unpaid' : 'paid'
-                        ])) }}"
-                    class="btn btn-primary px-5 py-3 text-uppercase">
-                        View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
-                    </a>
+                    <a href="{{ route('payments.index', array_merge(request()->query(), ['filter' => $filter === 'paid' ? 'unpaid' : 'paid'])) }}"
+                        class="btn btn-primary px-5 py-3 text-uppercase">
+                         View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
+                     </a>
                 </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
@@ -35,6 +33,14 @@
                         <select name="filter" id="filter" class="form-select text-uppercase dropdown-toggle">
                             <option value="unpaid" {{$filter == 'unpaid' ? 'selected' : ''}}>UnPaid</option>
                             <option value="paid" {{$filter == 'paid' ? 'selected' : ''}}>Paid</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-2 mb-3">
+                        <label class="mb-1">Payment Method</label>
+                        <select name="payment_method" id="payment_method" class="form-select text-uppercase dropdown-toggle">
+                            <option value="all" {{ $paymentMethod == 'all' ? 'selected' : '' }}>All</option>
+                            <option value="walk-in" {{ $paymentMethod == 'walk-in' ? 'selected' : '' }}>Walk-in</option>
+                            <option value="online" {{ $paymentMethod == 'online' ? 'selected' : '' }}>Online</option>
                         </select>
                     </div>
                     <div class="col-12 col-md-3 mb-3">
@@ -91,6 +97,7 @@
                                 <th>Bill Date</th>
                                 <th>Amount</th>
                                 <th>Due Date</th>
+                                <th>Payment Method</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -126,6 +133,7 @@
                                             ? \Carbon\Carbon::parse($row->due_date)->format('M d, Y')
                                             : 'N/A' }}
                                     </td>
+                                    <td>{{ $row->payment_method === 'cash' ? 'Walk-in' : (ucfirst($row->payment_method ?? 'N/A')) }}</td>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
                                             @if (!$row->isPaid)
@@ -145,7 +153,7 @@
                                 </tr>
                             @empty
                             <tr>
-                                <td colspan="12">
+                                <td colspan="11">
                                     <div class="text-uppercase text-center">No Data Found</div>
                                 </td>
                             </tr>
@@ -167,7 +175,7 @@
         function updateUrl() {
             const params = new URLSearchParams(window.location.search);
 
-            ['search', 'entries', 'filter', 'zone_no', 'date'].forEach(id => {
+            ['search', 'entries', 'filter', 'payment_method', 'zone_no', 'date'].forEach(id => {
                 const val = $('#' + id).val();
                 const key = id === 'zone_no' ? 'zone' : id;
 
@@ -177,7 +185,7 @@
             window.location.href = window.location.pathname + '?' + params.toString();
         }
 
-        $('#search, #entries, #filter, #zone_no, #date').on('change', updateUrl);
+        $('#search, #entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');

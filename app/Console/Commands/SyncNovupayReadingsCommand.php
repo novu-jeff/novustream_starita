@@ -42,8 +42,12 @@ class SyncNovupayReadingsCommand extends Command
             // create_breakdown uses Auth::user() for reader_name; set a deterministic CLI user context
             auth()->setUser(Admin::first());
 
-            $bills = NovupayStaritaBill::whereIn('status', ['initiated', 'paid', 'pending'])
-                ->orderByRaw('paid_at IS NULL')
+            // Only sync rows that are paid: status = 'paid' and/or paid_at set
+            $bills = NovupayStaritaBill::query()
+                ->where(function ($q) {
+                    $q->where('status', 'paid')
+                        ->orWhereNotNull('paid_at');
+                })
                 ->orderByDesc('paid_at')
                 ->orderByDesc('id')
                 ->limit($limit)
@@ -226,7 +230,7 @@ class SyncNovupayReadingsCommand extends Command
     private function syncLocalBillPaymentStatus(Bill $localBill, NovupayStaritaBill $nb): void
     {
         $status = strtolower((string) ($nb->status ?? ''));
-        $isPaid = $status === 'paid';
+        $isPaid = $status === 'paid' || !is_null($nb->paid_at);
         $paidAt = $nb->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
 
         $update = [
@@ -242,14 +246,54 @@ class SyncNovupayReadingsCommand extends Command
             if (!$localBill->isPaid) {
                 $update['isPaid'] = true;
                 $update['date_paid'] = $localBill->date_paid ?? $paidAt;
+            } elseif (empty($localBill->date_paid)) {
+                $update['date_paid'] = $paidAt;
             }
             if (empty($localBill->payment_method)) {
                 $update['payment_method'] = 'online';
+            }
+            // Set payor_name when empty (from starita_bills payload or account)
+            if (empty($localBill->payor_name)) {
+                $payor = $nb->payload['customer']['name'] ?? $nb->payload['payor'] ?? null;
+                if (empty($payor) && $localBill->reading) {
+                    $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? 'Sta. Rita Customer';
+                }
+                if (!empty($payor)) {
+                    $update['payor_name'] = $payor;
+                }
             }
         } elseif (empty($localBill->payment_method)) {
             $update['payment_method'] = 'online';
         }
 
         $localBill->update($update);
+        $this->markSourceRowAsSynced($nb, $isPaid);
+    }
+
+    private function markSourceRowAsSynced(NovupayStaritaBill $nb, bool $isPaid): void
+    {
+        $connection = $nb->getConnectionName();
+        $table = $nb->getTable();
+        $updates = [
+            'synced_to_sta_rita_at' => now(),
+        ];
+
+        if ($isPaid) {
+            // Normalize source rows where paid_at exists but status was left initiated.
+            $updates['status'] = 'paid';
+            if (is_null($nb->paid_at)) {
+                $updates['paid_at'] = now();
+            }
+        }
+
+        if (!Schema::connection($connection)->hasColumn($table, 'synced_to_sta_rita_at')) {
+            unset($updates['synced_to_sta_rita_at']);
+        }
+
+        if (empty($updates)) {
+            return;
+        }
+
+        NovupayStaritaBill::whereKey($nb->id)->update($updates);
     }
 }

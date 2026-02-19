@@ -16,6 +16,7 @@ class NovupayStaritaBill extends Model
     protected $fillable = [
         'reference_no', 'account_no', 'amount', 'previous_reading', 'present_reading',
         'is_high_consumption', 'status', 'payload', 'initiated_at', 'paid_at',
+        'hitpay_reference', 'synced_to_sta_rita_at',
     ];
 
     protected $casts = [
@@ -26,5 +27,6 @@ class NovupayStaritaBill extends Model
         'payload' => 'array',
         'initiated_at' => 'datetime',
         'paid_at' => 'datetime',
+        'synced_to_sta_rita_at' => 'datetime',
     ];
 }

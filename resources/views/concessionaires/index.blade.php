@@ -84,15 +84,23 @@
                                 <td>{{ $user->accounts->pluck('address')->implode(', ') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
+
+                                        <a href="{{ route('concessionaires.ledger', $user->id) }}"
+                                        class="btn btn-success text-uppercase fw-bold">
+                                            <i class="bx bx-book"></i>
+                                        </a>
+
                                         <a href="{{ route('concessionaires.edit', ['concessionaire' => $user->id]) }}"
-                                            class="btn btn-primary text-white text-uppercase fw-bold"
-                                            data-id="{{ $user->id }}">
+                                        class="btn btn-primary text-uppercase fw-bold">
                                             <i class="bx bx-edit"></i>
                                         </a>
 
-                                        <button type="button" class="btn btn-danger btn-delete" data-id="{{ $user->id }}">
+                                        <button type="button"
+                                            class="btn btn-danger btn-delete"
+                                            data-id="{{ $user->id }}">
                                             <i class="bx bx-trash"></i>
                                         </button>
+
                                     </div>
                                 </td>
                             </tr>

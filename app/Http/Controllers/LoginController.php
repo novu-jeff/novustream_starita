@@ -108,7 +108,7 @@ class LoginController extends Controller
     public function redirectTo($user): string
     {
         return match($user->user_type) {
-            'admin', 'cashier' => '/admin/dashboard',
+            'admin', 'cashier', 'superadmin' => '/admin/dashboard',
             'technician' => '/admin/reading',
             'concessionaire', 'user', null => '/concessionaire/my/overview',
             default => '/login',

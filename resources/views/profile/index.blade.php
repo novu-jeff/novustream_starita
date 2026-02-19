@@ -10,10 +10,10 @@
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
             @if (Auth::guard('admins')->check())
-                <a href="{{ url('/admin/database-refresh') }}" 
-                class="btn btn-danger"
-                onclick="return confirm('⚠️ This will drop and recreate all tables. Continue?')">
-                🔄 Refresh Database
+                <a href="{{ route('admin.sync-novupay-to-starita') }}"
+                    class="btn btn-primary mb-3"
+                    onclick="return confirm('Sync Novupay starita_bills to Sta-Rita (readings + bills, synced_to_sta_rita_at)?')">
+                    📥 Sync to Sta-Rita
                 </a>
             @endif
 

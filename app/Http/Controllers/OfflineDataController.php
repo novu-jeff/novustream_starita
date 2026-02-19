@@ -107,6 +107,7 @@ class OfflineDataController extends Controller
                 'address'          => $acc->address,
                 'meter_serial_no'  => $acc->meter_serial_no,
                 'zone'             => $acc->zone,
+                'status'           => $acc->status ?? null,
                 'property_type_id' => $acc->property_types_by_name->id ?? null,
                 'discount_type'    => $acc->discount->discount_type_id ?? 0,
                 'previous_reading' => $previousReadings[$acc->account_no]['present_reading'] ?? 0,

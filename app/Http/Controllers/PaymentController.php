@@ -43,6 +43,10 @@ class PaymentController extends Controller
 
     $zones = $this->meterService->getZones();
     $zone = $request->zone ?? 'all';
+    $paymentMethod = $request->payment_method ?? 'all';
+    if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
+        $paymentMethod = 'all';
+    }
 
     $entries = $request->entries ?? 10;
     $toSearch = trim($request->search ?? '');
@@ -84,7 +88,8 @@ class PaymentController extends Controller
             $filter,
             $zone,
             $date,
-            $toSearch
+            $toSearch,
+            $paymentMethod === 'all' ? null : $paymentMethod
         )
     )->flatten(2);
 
@@ -102,7 +107,7 @@ class PaymentController extends Controller
 
     return view(
         'payments.index',
-        compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch')
+        compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch', 'paymentMethod')
     );
 }
 

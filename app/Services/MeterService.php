@@ -324,12 +324,14 @@ class MeterService {
 
     }
 
-    public static function getPayments(string $filter, string $zone = null, string $date = null, string $search = null)
+    public static function getPayments(string $filter, string $zone = null, string $date = null, string $search = null, ?string $paymentMethod = null)
     {
         $isPaid = $filter === 'paid';
 
         $bills = Bill::with(['reading', 'client']) // Include client relationship
             ->where('isPaid', $isPaid)
+            ->when($paymentMethod === 'walk-in', fn ($q) => $q->where('payment_method', 'cash'))
+            ->when($paymentMethod === 'online', fn ($q) => $q->whereIn('payment_method', ['online', 'hitpay']))
             ->whereHas('reading', function ($query) use ($zone, $date) {
                 $query->where('isReRead', false);
 
@@ -844,6 +846,8 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
+        $payorName = optional($concessionaire->user)->name ?? null;
+
         $bill = [
             'reference_no' => $billReferenceNo,
             'bill_period_from' => $bill_period_from,
@@ -859,6 +863,7 @@ class MeterService {
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
+            'payor_name' => $payorName,
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];

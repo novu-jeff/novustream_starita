@@ -688,6 +688,7 @@ class ReadingController extends Controller
         $hitpayReference = $existingBill->hitpay_reference ?? null;
         $hitpayPaymentId = $existingBill->hitpay_payment_id ?? null;
         $hitpayInitiatedAt = $existingBill->initiated_at ?? null;
+        $payorName = optional($account->user)->name ?? optional($existingBill)->payor_name ?? null;
 
         $bill = Bill::updateOrCreate(
             ['reference_no' => $reference_no],
@@ -701,6 +702,7 @@ class ReadingController extends Controller
                 'hitpay_reference' => $hitpayReference,
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
+                'payor_name' => $payorName,
 
                 // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
