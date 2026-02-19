@@ -44,7 +44,7 @@
 
     <div class="card shadow-sm">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-20">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-3">Date / Reference</th>
