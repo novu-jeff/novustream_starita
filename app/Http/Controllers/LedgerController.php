@@ -46,7 +46,8 @@ class LedgerController extends Controller
 
     $bills = Bill::with(['reading'])
         ->whereHas('reading', function ($query) use ($accountNumbers) {
-            $query->whereIn('account_no', $accountNumbers);
+            $query->whereIn('account_no', $accountNumbers)
+            ->where('isReRead', 0);
         })
         ->orderBy('created_at', 'asc')
         ->get()
