@@ -80,7 +80,7 @@ class LedgerController extends Controller
 
             $balance = $finalAmount - $totalPaid;
 
-            if ($balance <= 0) {
+            if ($balance <= 0 || $bill->isPaid == 1) {
                 $status = 'PAID';
                 $balance = 0;
             } elseif ($totalPaid > 0) {
