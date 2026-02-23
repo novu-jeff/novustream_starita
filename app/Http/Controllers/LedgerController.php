@@ -56,6 +56,8 @@ class LedgerController extends Controller
             $total = (float) $bill->total;
             $penalty = (float) $bill->penalty;
             $totalPaid = (float) $bill->amount_paid;
+            $discount = (float) $bill->discount ?? 0;
+            $advances = (float) $bill->advances ?? 0;
 
             $paidDate = $bill->date_paid
                 ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
@@ -77,7 +79,7 @@ class LedgerController extends Controller
                 $appliedPenalty = $penalty;
             }
 
-            $finalAmount = $total + $appliedPenalty;
+            $finalAmount = $total + $appliedPenalty - $discount - $advances;
 
             $balance = $finalAmount - $totalPaid;
 
