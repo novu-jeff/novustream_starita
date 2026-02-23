@@ -14,7 +14,7 @@ class NovupayStaritaBill extends Model
     protected $table = 'starita_bills';
 
     protected $fillable = [
-        'reference_no', 'account_no', 'amount', 'previous_reading', 'present_reading',
+        'reference_no', 'account_no', 'payor', 'amount', 'previous_reading', 'present_reading',
         'is_high_consumption', 'status', 'payload', 'initiated_at', 'paid_at',
         'hitpay_reference', 'synced_to_sta_rita_at',
     ];

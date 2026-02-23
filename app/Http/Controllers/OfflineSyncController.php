@@ -173,6 +173,7 @@ class OfflineSyncController extends Controller
 
         $count = 0;
         $errors = [];
+        $accountsPaid = [];
 
         // Pre-pass: mark duplicate offline readings where account+month already exists in readings (remove from queue)
         foreach ($pending as $off) {
@@ -319,14 +320,14 @@ class OfflineSyncController extends Controller
                             'payment_method' => 'online',
                         ];
                         if (empty($localBill->payor_name)) {
-                            $payor = $novupayBill->payload['customer']['name'] ?? $novupayBill->payload['payor'] ?? null;
-                            if (empty($payor)) {
-                                $account = $this->meterService->getAccount($off->account_no);
-                                $payor = optional(optional($account)->user)->name ?? 'Sta. Rita Customer';
-                            }
+                            $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
                             $update['payor_name'] = $payor;
                         }
                         $localBill->update($update);
+                        $accountsPaid[] = [
+                            'account_no' => $off->account_no,
+                            'payor_name' => $update['payor_name'] ?? $localBill->payor_name ?? null,
+                        ];
                     }
                 }
 
@@ -352,12 +353,52 @@ class OfflineSyncController extends Controller
             }
         }
 
-        Log::channel('single')->info('Novustream offline API: readings/merge success', ['count' => $count, 'errors_count' => count($errors)]);
-        $response = ['status' => 'merged', 'count' => $count];
+        $accountsPaidCount = count($accountsPaid);
+        Log::channel('single')->info('Novustream offline API: readings/merge success', [
+            'count' => $count,
+            'errors_count' => count($errors),
+            'accounts_paid_count' => $accountsPaidCount,
+            'accounts_paid' => $accountsPaid,
+        ]);
+        $response = [
+            'status' => 'merged',
+            'count' => $count,
+            'accounts_paid_count' => $accountsPaidCount,
+            'accounts_paid' => $accountsPaid,
+        ];
         if (!empty($errors)) {
             $response['errors'] = $errors;
         }
         return response()->json($response);
+    }
+
+    /**
+     * Resolve payor name from Novupay starita_bills (payload, payor column, or account).
+     * Same fallbacks as SyncNovupayReadingsCommand so merge path also gets payor when webhook overwrote payload.
+     */
+    private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): string
+    {
+        $payload = $nb->payload ?? [];
+        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
+        if (!empty($payor)) {
+            return trim((string) $payor);
+        }
+        if (!empty($nb->payor)) {
+            return trim((string) $nb->payor);
+        }
+        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
+        if (!empty($payor)) {
+            return trim((string) $payor);
+        }
+        if ($localBill->reading) {
+            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
+            if (!empty($payor)) {
+                return trim((string) $payor);
+            }
+        }
+        $account = $this->meterService->getAccount($localBill->reading?->account_no ?? $nb->account_no ?? '');
+        $payor = optional(optional($account)->user)->name ?? null;
+        return !empty($payor) ? trim((string) $payor) : 'Sta. Rita Customer';
     }
 
     /** Normalize to whole number for readings/consumption (no decimal); null if empty. */

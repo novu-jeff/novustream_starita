@@ -10,14 +10,6 @@
             @if(session('error'))
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
-            @if (Auth::guard('admins')->check())
-                <a href="{{ route('admin.sync-novupay-to-starita') }}"
-                    class="btn btn-primary mb-3"
-                    onclick="return confirm('Sync Novupay starita_bills to Sta-Rita (readings + bills, synced_to_sta_rita_at)?')">
-                    📥 Sync to Sta-Rita
-                </a>
-            @endif
-
             <div class="main-header d-flex justify-content-between">
                 <h1>Update My Profile</h1>
             </div>
@@ -95,11 +87,12 @@
                     console.error('Invalid alert payload', error);
                 }
             }
+
+            const syncNowBtn = document.getElementById('syncNowBtn');
+            if (syncNowBtn && typeof window.syncOfflineReadings === 'function') {
+                syncNowBtn.addEventListener('click', window.syncOfflineReadings);
+            }
         });
-        const syncNowBtn = document.getElementById('syncNowBtn');
-        if (syncNowBtn && typeof window.syncOfflineReadings === 'function') {
-            syncNowBtn.addEventListener('click', window.syncOfflineReadings);
-        }
     </script>
 @endsection
 

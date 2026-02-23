@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
 use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\NovupaySyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -168,6 +169,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::resource('payment-breakdown', PaymentBreakdownController::class)
             ->names('payment-breakdown');
+
+        Route::get('online-payments', [NovupaySyncController::class, 'index'])
+            ->name('online-payments.index');
     });
 
 
@@ -206,6 +210,13 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
                 ->name('admin.support-ticket.update');
         });
     });
+
+    Route::get('/payments-ready-to-sync', [NovupaySyncController::class, 'paymentsReadyToSync'])
+        ->name('admin.payments-ready-to-sync');
+    Route::get('/recent-synced-payments', [NovupaySyncController::class, 'recentSyncedPayments'])
+        ->name('admin.recent-synced-payments');
+    Route::post('/sync-online-payments', [NovupaySyncController::class, 'syncOnlinePayments'])
+        ->name('admin.sync-online-payments');
 
     Route::get('/sync-novupay-to-starita', function () {
         try {

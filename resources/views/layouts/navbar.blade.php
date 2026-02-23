@@ -101,6 +101,7 @@
 							@endcan
 
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
+							<li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
 						</ul>
 					</div>
 				@endcan
