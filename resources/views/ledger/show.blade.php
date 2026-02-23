@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="mb-0">Statement of Account</h4>
-            <p class="text-muted">Account Holder: <strong>{{ $user->name }}</strong></p>
+            <p class="text-muted"><span>Account Holder: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
             <a href="{{route('concessionaires.index')}}">←Go Back</a>
         </div>
         <!-- <div class="text-end">
@@ -44,11 +44,11 @@
 
     <div class="card shadow-sm">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-20">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-3">Date / Reference</th>
-                        <th>Billing Period</th>
+                        <th>Reading</th>
                         <th>Due Date</th>
                         <th class="text-end">Amount</th>
                         <th class="text-end">Payments</th>
@@ -66,9 +66,13 @@
                             <small class="text-muted">{{ $bill->reference_no }}</small>
                         </td>
                         <td>
+                            <div class="fw-bold text-dark">
+                                {{ number_format((float) optional($bill->reading)->present_reading, 0) }}
+                            </div>
                             <small class="text-muted">
-                                {{ \Carbon\Carbon::parse($bill->bill_period_from)->format('m/d/y') }} -
-                                {{ \Carbon\Carbon::parse($bill->bill_period_to)->format('m/d/y') }}
+                                Prev: {{ number_format((float) optional($bill->reading)->previous_reading, 0) }}
+                                |
+                                Cub: {{ number_format((float) optional($bill->reading)->consumption, 0) }}
                             </small>
                         </td>
                         <td>

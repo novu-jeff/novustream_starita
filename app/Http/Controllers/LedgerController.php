@@ -46,7 +46,8 @@ class LedgerController extends Controller
 
     $bills = Bill::with(['reading'])
         ->whereHas('reading', function ($query) use ($accountNumbers) {
-            $query->whereIn('account_no', $accountNumbers);
+            $query->whereIn('account_no', $accountNumbers)
+            ->where('isReRead', 0);
         })
         ->orderBy('created_at', 'asc')
         ->get()
@@ -80,7 +81,7 @@ class LedgerController extends Controller
 
             $balance = $finalAmount - $totalPaid;
 
-            if ($balance <= 0) {
+            if ($balance <= 0 || $bill->isPaid == 1) {
                 $status = 'PAID';
                 $balance = 0;
             } elseif ($totalPaid > 0) {
