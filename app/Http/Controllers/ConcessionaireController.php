@@ -96,34 +96,49 @@ class ConcessionaireController extends Controller
 
     public function store(StoreClientRequest $request) {
 
-    $payload = $request->validated();
+        $payload = $request->validated();
 
-    // ADD THIS: set zone from account_no
-    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
-        foreach ($payload['accounts'] as &$account) {
-            $account['zone'] = isset($account['account_no'])
-                ? substr($account['account_no'], 0, 3)
-                : null;
+        // ADD THIS: set zone from account_no
+        if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+            foreach ($payload['accounts'] as &$account) {
+                $account['zone'] = isset($account['account_no'])
+                    ? substr($account['account_no'], 0, 3)
+                    : null;
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client = $this->clientService::create($payload);
+            foreach ($payload['accounts'] as $account) {
+
+                if (!empty($account['has_sc_discount']) && $account['has_sc_discount'] == 1) {
+
+                    DB::table('discount')->insert([
+                        'account_no'       => $account['account_no'],
+                        'id_no'            => $account['sc_id_no'] ?? null,
+                        'discount_type_id' => 1,
+                        'effective_date'   => null,
+                        'created_at'       => now(),
+                        'updated_at'       => now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response([
+                'data' => $client,
+                'status' => 'success',
+                'message' => 'Client ' . $payload['name'] . ' added.'
+            ]);
+
+        } catch  (\Exception $e)  {
+            DB::rollBack();
+            return response(['status' => 'error', 'message' => $e->getMessage()]);
         }
     }
-
-    DB::beginTransaction();
-
-    try {
-        $client = $this->clientService::create($payload);
-        DB::commit();
-
-        return response([
-            'data' => $client,
-            'status' => 'success',
-            'message' => 'Client ' . $payload['name'] . ' added.'
-        ]);
-
-    } catch  (\Exception $e)  {
-        DB::rollBack();
-        return response(['status' => 'error', 'message' => $e->getMessage()]);
-    }
-}
 
 
     private function getUploadErrorMessage($errorCode)
@@ -206,6 +221,48 @@ class ConcessionaireController extends Controller
                         'zone'       => substr($newAccountNo, 0, 3),
                         'updated_at' => now(),
                     ]);
+            }
+
+            foreach ($payload['accounts'] as $index => $account) {
+
+                $newAccountNo = $account['account_no'];
+                $oldAccountNo = $existingClient->accounts[$index]->account_no ?? null;
+
+                if ((int)($account['has_sc_discount'] ?? 0) === 1) {
+
+                    DB::table('discount')->updateOrInsert(
+                        [
+                            'account_no' => $newAccountNo,
+                            'discount_type_id' => 1,
+                        ],
+                        [
+                            'id_no'          => $account['sc_id_no'] ?? null,
+                            'effective_date' => now(),
+                            'updated_at'     => now(),
+                        ]
+                    );
+
+                    // If account number changed, remove old senior row
+                    if ($oldAccountNo && $oldAccountNo !== $newAccountNo) {
+                        DB::table('discount')
+                            ->where('account_no', $oldAccountNo)
+                            ->where('discount_type_id', 1)
+                            ->delete();
+                    }
+
+                } else {
+
+                    DB::table('discount')
+                        ->where('discount_type_id', 1)
+                        ->where(function ($q) use ($newAccountNo, $oldAccountNo) {
+                            $q->where('account_no', $newAccountNo);
+
+                            if ($oldAccountNo) {
+                                $q->orWhere('account_no', $oldAccountNo);
+                            }
+                        })
+                        ->delete();
+                }
             }
 
             DB::commit();
