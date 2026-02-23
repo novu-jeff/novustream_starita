@@ -15,37 +15,38 @@ class ClientService {
 
     public static function getData($id = null, $zone = null, $search = null)
     {
-
         if (!is_null($id)) {
             return User::with(['accounts.sc_discount', 'accounts.property_types'])
                 ->where('id', $id)
                 ->first();
         }
 
-        $isAllZone = $zone === 'all';
+        $query = User::with(['accounts.property_types'])
+            ->where('isActive', true);
 
-        return User::with(['accounts.property_types'])
-            ->withCount('accounts')
-            ->where('isActive', true)
-            ->when(!empty($zone) && !$isAllZone, function ($query) use ($zone) {
-                $query->whereHas('accounts', function ($subQuery) use ($zone) {
-                    $subQuery->where('zone', 'like', '%' . $zone . '%');
-                });
-            })
-            ->when(!empty($search['value']) && !empty($search['parameter']), function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    foreach ($search['parameter'] as $param) {
-                        if (in_array($param, ['name'])) {
-                            $q->orWhere($param, 'like', '%' . $search['value'] . '%');
-                        } elseif (in_array($param, ['account_no', 'address'])) {
-                            $q->orWhereHas('accounts', function ($subQ) use ($param, $search) {
-                                $subQ->where($param, 'like', '%' . $search['value'] . '%');
-                            });
-                        }
-                    }
-                });
-            })
-            ->get();
+        // ZONE FILTER
+        if (!empty($zone) && $zone !== 'all') {
+            $query->whereHas('accounts', function ($subQuery) use ($zone) {
+                $subQuery->where('zone', 'like', "%{$zone}%");
+            });
+        }
+
+        // SEARCH FILTER (NAME ONLY FIRST — keep it simple)
+        if (!empty($search['value'])) {
+
+            $keywords = preg_split('/\s+/', trim($search['value']));
+
+            foreach ($keywords as $keyword) {
+
+                $keyword = strtolower($keyword);
+
+                $query->whereRaw("
+                    REPLACE(REPLACE(LOWER(users.name), ',', ''), '.', '') LIKE ?
+                ", ["%{$keyword}%"]);
+            }
+        }
+
+        return $query->get();
     }
 
     public static function getStatusCode()
