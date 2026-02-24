@@ -33,6 +33,15 @@ Route::post('api/login', [LoginController::class, 'login']); // allow /api/api/l
 Route::post('logout', [LoginController::class, 'logout']);
 Route::post('api/logout', [LoginController::class, 'logout']);
 
+// Flutter app: GET /api/app-version (set baseUrl / appVersionUrl in lib/config/merchant_config.dart)
+Route::get('app-version', function () {
+    return response()->json([
+        'version'      => env('APP_VERSION', '1.0.0'),
+        'build_number' => (int) env('APP_BUILD_NUMBER', 1),
+        'apk_url'      => env('APK_URL', ''),
+    ]);
+});
+
 Route::post('transaction/callback', [CallbackController::class, 'save'])
     ->name('transaction.callback');
 Route::post('payment/status/{reference_no}', [CallbackController::class, 'status'])
