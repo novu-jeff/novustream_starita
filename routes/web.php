@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
 use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\PenaltyExemptionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,6 +122,8 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::get('/reports/download-options', [ReportsController::class, 'downloadFilesIndex'])->name('reports.download.index');
     Route::post('/reports/download-generate', [ReportsController::class, 'generateFile'])->name('reports.download.generate');
 
+    Route::resource('penalty-exemption', PenaltyExemptionController::class)
+    ->except(['create', 'edit', 'show']);
 
     Route::prefix('users')->group(function() {
 

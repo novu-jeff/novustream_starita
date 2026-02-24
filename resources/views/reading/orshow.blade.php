@@ -186,6 +186,9 @@
     $total = (float) ($cb['total'] ?? 0);
     $penalty = (float) ($cb['penalty'] ?? 0);
     $advances = (float) ($cb['advances'] ?? 0);
+    $isPartial = (int) ($cb['isPartial'] ?? 0);
+    $partial_payment = (float) ($cb['partial_payment'] ?? 0);
+    $isPaid = (int) ($cb['isPaid'] ?? 0);
 
     $arrears = $cb['previous_unpaid'] ?? 0;
     if (is_array($arrears)) {
@@ -216,8 +219,21 @@
     $assumed_penalty = (float) ($cb['penalty'] ?? 0);
     $totalAmount = round($total + $applicablePenalty - $advances - $discount, 2);
 
-    // Use helper that falls back when the PHP intl extension is not available
-    $amount_in_words = \App\Helper\NumberHelper::convertToWords($totalAmount);
+    $partialPayment = (float) ($cb['partial_payment'] ?? 0);
+
+    if ($isPaid === 1) {
+        $paymentAmount = $total;
+    } elseif ($isPartial === 1) {
+        $paymentAmount = $partialPayment;
+    } else {
+        $paymentAmount = 0;
+    }
+
+    $pesos = intval(floor($paymentAmount));
+    $centavos = intval(round(($paymentAmount - $pesos) * 100));
+    use App\Helper\NumberHelper;
+
+    $amount_in_words = NumberHelper::convertToWords($paymentAmount);
 
     $receipt_no = $receipt_no ?? ('436' . str_pad(rand(0,9999), 4, '0', STR_PAD_LEFT));
     $cashier = auth()->user()->name ?? ($cb['collecting_officer'] ?? 'NA');
@@ -348,7 +364,7 @@
           <tr style="line-height: 2px;">
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($total - $arrears, 2) }}</td>
+            <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
           </tr>
 
           {{-- Conditionally show Arrears and Penalty --}}
@@ -360,7 +376,7 @@
             </tr>
           @endif
 
-          @if($applicablePenalty > 0)
+          @if($applicablePenalty > 0 && $isPaid == 1)
             <tr style="line-height: 2px;">
               <td>Penalty</td>
               <td></td>
@@ -385,12 +401,14 @@
           <tr style="line-height: 2px;">
             <td style="font-size: 10px;">Less: Senior Discount</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($discount, 2) }}</td>
+            @if ($isPaid == 1)
+                <td class="text-end">₱ {{ number_format($discount, 2) }}</td>
+            @endif
           </tr>
           <tr class="fw-bold" style="line-height: 2px;">
             <td>TOTAL</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($totalAmount, 2) }}</td>
+            <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -505,29 +523,35 @@
   <div style="position:absolute; left: 1.5cm; top:9.5cm; font-size:13px;">
     WB {{ $bill_month }}
   </div>
+  <div style="position:absolute; left: 1.5cm; top:10cm; font-size:13px;">
+    @if($isPartial === 1)
+        (PARTIAL PAYMENT)
+    @endif
+    </div>
   <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
-    ₱ {{ number_format($total - $arrears,2) }}
+    ₱ {{ number_format($paymentAmount,2) }}
   </div>
 
   {{-- Penalty --}}
-  @if($applicablePenalty > 0)
+  @if($applicablePenalty > 0 && $isPaid == 1)
     <div style="position:absolute; top:10.1cm; left: 1.5cm; font-size:14px;">Penalty</div>
     <div style="position:absolute; top:9.9cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($applicablePenalty,2) }}</div>
   @endif
 
   {{-- Arrears --}}
-  @if($arrears > 0)
+  @if($arrears > 0 && $isPaid == 1)
     <div style="position:absolute; top:10.9cm; left: 1.5cm; font-size:12px;">Arrears</div>
     <div style="position:absolute; top:10.7cm; right:1.3cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($arrears,2) }}</div>
   @endif
 
   {{-- Discount --}}
-  <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:12px;">Less: Senior Discount</div>
-  <div style="position:absolute; top:13.1cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
-
+  @if ($isPaid == 1)
+    <div style="position:absolute; top:13.2cm; left: 1.5cm; font-size:12px;">Less: Senior Discount</div>
+    <div style="position:absolute; top:13.1cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right; ">₱ {{ number_format($discount,2) }}</div>
+  @endif
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
-  <div style="position:absolute; top:13.8cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  <div style="position:absolute; top:13.8cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($paymentAmount, 2) }}</div>
 
   {{-- Amount in words --}}
   <div style="position:absolute; left: 1.4cm; top:15.2cm; font-size:11px; text-align:center; ">
