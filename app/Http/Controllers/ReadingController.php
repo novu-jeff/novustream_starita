@@ -26,6 +26,7 @@ use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
+use App\Models\PenaltyExemption;
 
 
 class ReadingController extends Controller
@@ -815,30 +816,44 @@ class ReadingController extends Controller
             }
         }
 
-        // Hardcoded accounts exempted from penalties
-        $penaltyExemptAccounts = [
-            '011-22-011450', // San Basilio High School
-            '031-22-030360', // San Basilio Brgy Hall
-            '031-22-030220', // San Basilio Health Center
-            '011-22-011350', // San Basilio Covered Court
-            '081-22-082580', // Dila-Dila Gym
-            '081-22-082560', // Dila-Dila Sports Center
-            '081-22-082570', // Dila-Dila Daycare
-            '101-22-102580', // Dila-Dila Senior Citizen
-            '081-22-080980', // Dila-Dila Brgy Hall
-            '111-22-111720', // Holy Family Elementary School
-            '091-22-092230', // Material Recovery Facilities
-            '061-22-060250', // VDLR Parish
-            '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
-            '111-22-110290', // Aetahanan
-            '111-22-111650', // HOLY FAMILY DAY CARE CENTER
-            '011-22-010120', //SRWD PS I
-            '091-22-091120', //SRWD PS II
-            '091-22-091130', //SRWD PS II-A
-        ];
+        // // Hardcoded accounts exempted from penalties
+        // $penaltyExemptAccounts = [
+        //     '011-22-011450', // San Basilio High School
+        //     '031-22-030360', // San Basilio Brgy Hall
+        //     '031-22-030220', // San Basilio Health Center
+        //     '011-22-011350', // San Basilio Covered Court
+        //     '081-22-082580', // Dila-Dila Gym
+        //     '081-22-082560', // Dila-Dila Sports Center
+        //     '081-22-082570', // Dila-Dila Daycare
+        //     '101-22-102580', // Dila-Dila Senior Citizen
+        //     '081-22-080980', // Dila-Dila Brgy Hall
+        //     '111-22-111720', // Holy Family Elementary School
+        //     '091-22-092230', // Material Recovery Facilities
+        //     '061-22-060250', // VDLR Parish
+        //     '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
+        //     '111-22-110290', // Aetahanan
+        //     '111-22-111650', // HOLY FAMILY DAY CARE CENTER
+        //     '011-22-010120', //SRWD PS I
+        //     '091-22-091120', //SRWD PS II
+        //     '091-22-091130', //SRWD PS II-A
+        // ];
 
-        // Check if account is exempted from penalty
-        if (in_array($account_no, $penaltyExemptAccounts)) {
+        // // Check if account is exempted from penalty
+        // if (in_array($account_no, $penaltyExemptAccounts)) {
+        //     $penaltyAmount = 0;
+        // }
+
+        $today = Carbon::today();
+
+        $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
+            ->whereDate('effective_date', '<=', $today)
+            ->where(function ($query) use ($today) {
+                $query->whereNull('expired_date')
+                    ->orWhereDate('expired_date', '>=', $today);
+            })
+            ->exists();
+
+        if ($hasActivePenaltyExemption) {
             $penaltyAmount = 0;
         }
 
