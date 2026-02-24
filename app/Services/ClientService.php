@@ -31,18 +31,30 @@ class ClientService {
             });
         }
 
-        // SEARCH FILTER (NAME ONLY FIRST — keep it simple)
         if (!empty($search['value'])) {
 
-            $keywords = preg_split('/\s+/', trim($search['value']));
+            $normalizedSearch = strtolower($search['value']);
+            $normalizedSearch = str_replace([',', '.'], ' ', $normalizedSearch);
+            $normalizedSearch = preg_replace('/\s+/', ' ', $normalizedSearch);
+
+            $keywords = explode(' ', trim($normalizedSearch));
 
             foreach ($keywords as $keyword) {
 
-                $keyword = strtolower($keyword);
+                $query->where(function ($q) use ($keyword) {
 
-                $query->whereRaw("
-                    REPLACE(REPLACE(LOWER(users.name), ',', ''), '.', '') LIKE ?
-                ", ["%{$keyword}%"]);
+                    $q->whereRaw("
+                        REPLACE(REPLACE(LOWER(users.name), ',', ' '), '.', ' ') LIKE ?
+                    ", ["%{$keyword}%"])
+
+                    ->orWhereHas('accounts', function ($subQ) use ($keyword) {
+                        $subQ->whereRaw("
+                            LOWER(account_no) LIKE ?
+                            OR LOWER(address) LIKE ?
+                        ", ["%{$keyword}%", "%{$keyword}%"]);
+                    });
+
+                });
             }
         }
 
