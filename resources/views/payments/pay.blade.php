@@ -617,6 +617,13 @@
                                     </a> -->
                                 </div>
                             @endif
+                            @if($data['current_bill']['isPartial'] == 1)
+                                <a href="{{ route('reading.orshow', ['reference_no' => $reference_no]) }}"
+                                class="mt-5 btn btn-outline-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
+                                    <i class="bx bx-printer me-2"></i>
+                                    Generate Official Receipt
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </form>
@@ -751,11 +758,19 @@
                 let value = parseFloat(input) || 0;
                 let change = Math.max(0, value - total); // Ensure change is never negative
                 let formattedChange = 'PHP ' + change.toFixed(2);
+                const previousUnpaid = parseFloat('{{ number_format($data['current_bill']['previous_unpaid'] ?? 0, 2, '.', '') }}') || 0;
 
                 $('#changeAmount').text(formattedChange);
                 $('#isForAdvances').empty();
 
-                if (value < total && value > 0) {
+                if (value === previousUnpaid) {
+                    $('#isForAdvances').html(`
+                        <div class="form-check text-end">
+                            <input type="checkbox" id="pay_arrears_only" name="pay_arrears_only" value="1">
+                            <label class="fw-bold">Apply to Previous Billing Only</label>
+                        </div>
+                    `);
+                }else if (value < total && value > 0) {
                     // Show partial payment checkbox
                     $('#isForAdvances').html(`
                         <div class="form-check text-end">
