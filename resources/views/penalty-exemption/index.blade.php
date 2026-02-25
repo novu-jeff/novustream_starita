@@ -29,8 +29,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Exemption Type</label>
-                        <select name="penalty_exemption_type_id"
-                                class="form-select">
+                        <select name="penalty_exemption_type_id" class="form-select" required>
                             <option value="">Select Type</option>
                             @foreach($types as $type)
                                 <option value="{{ $type->id }}">
@@ -40,11 +39,11 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Effective Date</label>
+                        <label class="form-label" required>Effective Date</label>
                         <input type="date" name="effective_date" class="form-control">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Expired Date</label>
+                        <label class="form-label" required>Expired Date</label>
                         <input type="date" name="expired_date" class="form-control">
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
@@ -85,8 +84,8 @@
                         <td class="fw-semibold">{{ $exemption->account_no }}</td>
                         <td>{{ optional(optional($exemption->account)->user)->name ?? '—' }}</td>
                         <td>{{ optional($exemption->type)->penalty_exemption_name }}</td>
-                        <td>{{ $exemption->effective_date ?? '-' }}</td>
-                        <td>{{ $exemption->expired_date ?? '-' }}</td>
+                        <td>{{\Carbon\Carbon::parse($exemption->effective_date)->format('F j, Y') ?? '-'}}</td>
+                        <td>{{\Carbon\Carbon::parse($exemption->expired_date)->format('F j, Y') ?? '-' }}</td>
                         <td>
                             @if($isActive)
                                 <span class="badge bg-success">Active</span>
@@ -125,51 +124,109 @@
 <div class="modal fade" id="editModal{{ $exemption->id }}" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-0 shadow">
+
             <form method="POST" action="{{ route('penalty-exemption.update', $exemption->id) }}">
                 @csrf
                 @method('PUT')
+
                 <div class="modal-header bg-light">
                     <h5 class="modal-title fw-semibold">
                         Edit Penalty Exemption
                     </h5>
-                    <button type="button"class="btn-close"data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
+
                 <div class="modal-body">
                     <div class="row g-3">
+
+                        {{-- Account No --}}
                         <div class="col-md-6">
                             <label class="form-label">Account No</label>
-                            <input type="text" name="account_no" class="form-control" value="{{ $exemption->account_no }}" required>
+                            <input type="text"
+                                   name="account_no"
+                                   class="form-control @error('account_no') is-invalid @enderror"
+                                   value="{{ old('account_no', $exemption->account_no) }}"
+                                   required>
+                            @error('account_no')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+                            @enderror
                         </div>
+
+                        {{-- Exemption Type --}}
                         <div class="col-md-6">
                             <label class="form-label">Exemption Type</label>
-                            <select name="penalty_exemption_type_id" class="form-select">
+                            <select name="penalty_exemption_type_id"
+                                    class="form-select @error('penalty_exemption_type_id') is-invalid @enderror"
+                                    required>
                                 @foreach($types as $type)
                                     <option value="{{ $type->id }}"
-                                        {{ $exemption->penalty_exemption_type_id == $type->id ? 'selected' : '' }}>
+                                        {{ old('penalty_exemption_type_id', $exemption->penalty_exemption_type_id) == $type->id ? 'selected' : '' }}>
                                         {{ $type->penalty_exemption_name }}
                                     </option>
                                 @endforeach
                             </select>
+                            @error('penalty_exemption_type_id')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+                            @enderror
                         </div>
+
+                        {{-- Effective Date --}}
                         <div class="col-md-6">
                             <label class="form-label">Effective Date</label>
-                            <input type="date" name="effective_date" class="form-control" value="{{ $exemption->effective_date }}">
+                            <input type="date"
+                                   name="effective_date"
+                                   class="form-control @error('effective_date') is-invalid @enderror"
+                                   value="{{ old('effective_date', $exemption->effective_date) }}">
+                            @error('effective_date')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+                            @enderror
                         </div>
+
+                        {{-- Expired Date --}}
                         <div class="col-md-6">
                             <label class="form-label">Expired Date</label>
-                            <input type="date" name="expired_date" class="form-control" value="{{ $exemption->expired_date }}">
+                            <input type="date"
+                                   name="expired_date"
+                                   class="form-control @error('expired_date') is-invalid @enderror"
+                                   value="{{ old('expired_date', $exemption->expired_date) }}"
+                                   >
+                            @error('expired_date')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+                            @enderror
                         </div>
+
                     </div>
                 </div>
+
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary px-4">
                         Update
                     </button>
                 </div>
+
             </form>
+
         </div>
     </div>
 </div>
 @endforeach
 
+@if(session('open_modal'))
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var modal = new bootstrap.Modal(
+            document.getElementById('editModal{{ session('open_modal') }}')
+        );
+        modal.show();
+    });
+</script>
+@endif
 @endsection

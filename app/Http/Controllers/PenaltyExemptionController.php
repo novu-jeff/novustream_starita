@@ -24,15 +24,20 @@ class PenaltyExemptionController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'account_no' => 'required|string|max:255',
-            'id_no' => 'nullable|string|max:255',
-            'penalty_exemption_type_id' => 'nullable|exists:penalty_exemption_type,id',
-            'effective_date' => 'nullable|string|max:255',
-            'expired_date' => 'nullable|string|max:255',
+            'penalty_exemption_type_id' => 'required|exists:penalty_exemption_type,id',
+            'effective_date' => 'required|date',
+            'expired_date' => 'required|date|after_or_equal:effective_date',
+        ], [
+            'account_no.required' => 'Account number is required.',
+            'penalty_exemption_type_id.required' => 'Exemption type is required.',
+            'effective_date.required' => 'Effective date is required.',
+            'expired_date.required' => 'Expired date is required.',
+            'expired_date.after_or_equal' => 'Expired date must be after or equal to effective date.',
         ]);
 
-        PenaltyExemption::create($request->all());
+        PenaltyExemption::create($validated);
 
         return redirect()->route('penalty-exemption.index')
             ->with('success', 'Penalty exemption added successfully.');
@@ -40,23 +45,33 @@ class PenaltyExemptionController extends Controller
 
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'account_no' => 'required|string|max:255',
-            'penalty_exemption_type_id' => 'nullable|exists:penalty_exemption_type,id',
-            'effective_date' => 'nullable|date',
-            'expired_date' => 'nullable|date',
-        ]);
+        try {
+            $validated = $request->validate([
+                'account_no' => 'required|string|max:255',
+                'penalty_exemption_type_id' => 'required|exists:penalty_exemption_type,id',
+                'effective_date' => 'required|date',
+                'expired_date' => 'required|date|after_or_equal:effective_date',
+            ], [
+                'account_no.required' => 'The account number field is required.',
+                'penalty_exemption_type_id.required' => 'The exemption type field is required.',
+                'effective_date.required' => 'The effective date field is required.',
+                'expired_date.required' => 'The expired date field is required.',
+                'expired_date.after_or_equal' => 'Expired date must be after or equal to effective date.',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+
+            return redirect()
+                ->back()
+                ->withErrors($e->validator)
+                ->withInput()
+                ->with('open_modal', $id);
+        }
 
         $exemption = PenaltyExemption::findOrFail($id);
+        $exemption->update($validated);
 
-        $exemption->update([
-            'account_no' => $request->account_no,
-            'penalty_exemption_type_id' => $request->penalty_exemption_type_id,
-            'effective_date' => $request->effective_date,
-            'expired_date' => $request->expired_date,
-        ]);
-
-        return redirect()->route('penalty-exemption.index')
+        return redirect()
+            ->route('penalty-exemption.index')
             ->with('success', 'Penalty exemption updated successfully.');
     }
 
