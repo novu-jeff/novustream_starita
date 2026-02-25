@@ -279,6 +279,8 @@ Route::middleware(['auth', 'check.default.password'])->prefix('concessionaire')-
         ->name('account-overview.index');
 });
 
+Route::delete('reading-dates/destroy-all', [ReadingDateController::class, 'destroyAll'])
+->name('reading-dates.destroy-all');
 
 Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
 Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');

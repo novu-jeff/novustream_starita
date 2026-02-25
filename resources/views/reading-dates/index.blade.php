@@ -31,9 +31,21 @@
                 <div class="row g-3">
 
                     <div class="col-md-3">
-                        <label>Zone</label>
-                        <select name="zone_id" class="form-select" required>
-                            <option value="">Select Zone</option>
+                        <label>From Zone</label>
+                        <select name="from_zone_id" class="form-select">
+                            <option value="">Select From</option>
+                            @foreach($zones as $zone)
+                                <option value="{{ $zone->id }}">
+                                    {{ $zone->zone }} - {{ $zone->area }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label>To Zone</label>
+                        <select name="to_zone_id" class="form-select">
+                            <option value="">Select To</option>
                             @foreach($zones as $zone)
                                 <option value="{{ $zone->id }}">
                                     {{ $zone->zone }} - {{ $zone->area }}
@@ -71,7 +83,17 @@
     </div>
 
     <div class="card shadow-sm">
-        <div class="card-header">Reading Date Schedule</div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Reading Date Schedule</span>
+
+    <button type="button"
+        class="btn btn-sm btn-outline-danger"
+        data-bs-toggle="modal"
+        data-bs-target="#deleteAllModal"
+        data-url="{{ route('reading-dates.destroy-all') }}">
+        Delete All
+    </button>
+</div>
         <div class="card-body table-responsive">
             <table class="table table-bordered">
                 <thead>
@@ -96,17 +118,14 @@
                                         data-bs-target="#editModal{{ $rd->id }}">
                                     Edit
                                 </button>
-                                <form action="{{ route('reading-dates.destroy', $rd->id) }}"
-                                    method="POST"
-                                    class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit"
-                                            class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Delete this reading date?')">
-                                        Delete
-                                    </button>
-                                </form>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#deleteRowModal"
+                                        data-url="{{ route('reading-dates.destroy', $rd->id) }}"
+                                        data-zone="{{ $rd->zone->zone }} - {{ $rd->zone->area }}">
+                                    Delete
+                                </button>
                             </td>
                         </tr>
                     @endforeach
@@ -193,4 +212,144 @@
     </div>
 
 </div>
+<div class="modal fade" id="deleteAllModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:40px;height:40px;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <h5 class="modal-title fw-semibold text-danger mb-0">
+                        Delete All Reading Dates
+                    </h5>
+                </div>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body pt-2">
+                <p class="text-muted mb-0">
+                    You are about to permanently delete
+                    <strong class="text-danger">all reading date schedules</strong>.
+                </p>
+                <p class="small text-muted mt-2 mb-0">
+                    This action cannot be undone.
+                </p>
+            </div>
+
+            <div class="modal-footer border-0 pt-3">
+                <form id="deleteAllForm"
+                      action="{{ route('reading-dates.destroy-all') }}"
+                      method="POST"
+                      class="d-flex gap-2 ms-auto">
+
+                    @csrf
+                    @method('DELETE')
+
+                    <button type="button"
+                            class="btn btn-light border"
+                            data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-danger px-4">
+                        Delete All
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteRowModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+
+            <div class="modal-header border-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bg-danger bg-opacity-10 text-danger rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:40px;height:40px;">
+                        <i class="bi bi-trash-fill"></i>
+                    </div>
+                    <h5 class="modal-title fw-semibold text-danger mb-0">
+                        Confirm Deletion
+                    </h5>
+                </div>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body pt-2">
+                <p id="deleteRowMessage" class="text-muted mb-0"></p>
+            </div>
+
+            <div class="modal-footer border-0 pt-3">
+                <form id="deleteRowForm"
+                      method="POST"
+                      class="d-flex gap-2 ms-auto">
+
+                    @csrf
+                    @method('DELETE')
+
+                    <button type="button"
+                            class="btn btn-light border"
+                            data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-danger px-4">
+                        Delete
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    function openDeleteModal(actionUrl, zoneName) {
+        const form = document.getElementById('deleteForm');
+        form.action = actionUrl;
+
+        document.querySelector('#deleteConfirmModal .modal-body p')
+            .innerHTML = `Are you sure you want to delete reading date for <strong>${zoneName}</strong>?`;
+
+        const modal = new bootstrap.Modal(
+            document.getElementById('deleteConfirmModal')
+        );
+        modal.show();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+
+        const deleteModal = document.getElementById('deleteRowModal');
+
+        deleteModal.addEventListener('show.bs.modal', function (event) {
+
+            const button = event.relatedTarget;
+
+            const url = button.getAttribute('data-url');
+            const zone = button.getAttribute('data-zone');
+
+            const form = document.getElementById('deleteRowForm');
+            const message = document.getElementById('deleteRowMessage');
+
+            form.action = url;
+            message.innerHTML =
+                `Are you sure you want to delete reading date for <strong>${zone}</strong>?`;
+        });
+
+    });
+</script>
 @endsection
