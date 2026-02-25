@@ -25,6 +25,7 @@ use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\NovupaySyncController;
 use App\Http\Controllers\PenaltyExemptionController;
+use App\Http\Controllers\ReadingDateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -125,6 +126,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::resource('penalty-exemption', PenaltyExemptionController::class)
     ->except(['create', 'edit', 'show']);
+
+    Route::resource('reading-dates', ReadingDateController::class)
+    ->except(['create', 'show']);
 
     Route::prefix('users')->group(function() {
 

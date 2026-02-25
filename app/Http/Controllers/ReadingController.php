@@ -520,10 +520,6 @@ class ReadingController extends Controller
         ], 400);
     }
 
-    $isTemporaryBillingOverride =
-    $date->year === 2026 &&
-    $date->month === 2; // Feb 2026 billing only
-
     $month = $date->month;
     $year = $date->year;
     $account_no = $payload['account_no'];
@@ -548,6 +544,16 @@ class ReadingController extends Controller
 
     try {
         $account = $this->meterService->getAccount($account_no);
+
+        $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+
+        $readingDate = null;
+
+        if ($zone) {
+            $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+                ->where('is_active', 1)
+                ->first();
+        }
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];
@@ -627,61 +633,23 @@ class ReadingController extends Controller
 
         $penaltyAmount = 0;
 
-        //disposable
         $billPeriodFrom = null;
         $billPeriodTo = null;
-        $billDate = null;
+        $billDate = now();
         $dueDate = null;
         $penaltyDate = null;
         $disconnectionDate = null;
 
-        if ($isTemporaryBillingOverride) {
+        if ($readingDate) {
 
-            $prefix = substr($account_no, 0, 3);
+            $billPeriodFrom = Carbon::parse($readingDate->bill_period_from);
+            $billPeriodTo   = Carbon::parse($readingDate->bill_period_to);
 
-            $bookRules = [
-                'B1-B5' => [
-                    'prefixes' => ['011','021','031','041','051'],
-                    'from' => '2026-01-03',
-                    'to'   => '2026-02-02',
-                    'bill_day' => '2026-02-02',
-                    'from' => '2026-01-03',
-                    'to'   => '2026-02-02',
-                    'bill_day' => '2026-02-02',
-                ],
-                'B6-B8' => [
-                    'prefixes' => ['061','071','081'],
-                    'from' => '2026-01-05',
-                    'to'   => '2026-02-03',
-                    'bill_day' => '2026-02-03',
-                    'from' => '2026-01-05',
-                    'to'   => '2026-02-03',
-                    'bill_day' => '2026-02-03',
-                ],
-                'B9-B11' => [
-                    'prefixes' => ['091','101','111'],
-                    'from' => '2026-01-06',
-                    'to'   => '2026-02-04',
-                    'bill_day' => '2026-02-04',
-                    'from' => '2026-01-06',
-                    'to'   => '2026-02-04',
-                    'bill_day' => '2026-02-04',
-                ],
-            ];
+            $billDate = now();
 
-            foreach ($bookRules as $rule) {
-                if (in_array($prefix, $rule['prefixes'])) {
-
-                    $billPeriodFrom = Carbon::parse($rule['from']);
-                    $billPeriodTo   = Carbon::parse($rule['to']);
-                    $billDate       = Carbon::parse($rule['bill_day']);
-                    $dueDate        = $billDate->copy()->addDays(14);
-                    $dueDate        = $billDate->copy()->addDays(14);
-                    $penaltyDate    = $dueDate->copy()->addDay();
-                    $disconnectionDate = $dueDate->copy()->addDays(7);
-                    break;
-                }
-            }
+            $dueDate = Carbon::parse($readingDate->due_date);
+            $penaltyDate = $dueDate->copy()->addDay();
+            $disconnectionDate = $dueDate->copy()->addDays(7);
         }
 
         // Save bill — preserve existing HitPay data when updating
@@ -704,8 +672,6 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-
-                // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,
@@ -846,10 +812,18 @@ class ReadingController extends Controller
         $today = Carbon::today();
 
         $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
-            ->whereDate('effective_date', '<=', $today)
             ->where(function ($query) use ($today) {
-                $query->whereNull('expired_date')
-                    ->orWhereDate('expired_date', '>=', $today);
+
+                $query->where('penalty_exemption_type_id', 2)
+
+                ->orWhere(function ($subQuery) use ($today) {
+                    $subQuery->where('penalty_exemption_type_id', 1)
+                        ->whereDate('effective_date', '<=', $today)
+                        ->where(function ($dateQuery) use ($today) {
+                            $dateQuery->whereNull('expired_date')
+                                ->orWhereDate('expired_date', '>=', $today);
+                        });
+                });
             })
             ->exists();
 
