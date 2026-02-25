@@ -24,39 +24,83 @@ class PenaltyExemptionController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'account_no' => 'required|string|max:255',
-            'id_no' => 'nullable|string|max:255',
-            'penalty_exemption_type_id' => 'nullable|exists:penalty_exemption_type,id',
-            'effective_date' => 'nullable|string|max:255',
-            'expired_date' => 'nullable|string|max:255',
+        $type = PenaltyExemptionType::findOrFail($request->penalty_exemption_type_id);
+
+        $rules = [
+            'account_no' => 'required|string|max:255|exists:concessioner_accounts,account_no',
+            'penalty_exemption_type_id' => 'required|exists:penalty_exemption_type,id',
+        ];
+
+        if ($type->penalty_exemption_name === 'Temporary') {
+            $rules['effective_date'] = 'required|date';
+            $rules['expired_date'] = 'required|date|after_or_equal:effective_date';
+        } else {
+            $rules['effective_date'] = 'nullable|date';
+            $rules['expired_date'] = 'nullable|date';
+        }
+
+        $validated = $request->validate($rules, [
+            'account_no.required' => 'Account number is required.',
+            'account_no.exists' => 'Account does not exist.',
+            'penalty_exemption_type_id.required' => 'Exemption type is required.',
+            'effective_date.required' => 'Effective date is required for Temporary exemption.',
+            'expired_date.required' => 'Expired date is required for Temporary exemption.',
+            'expired_date.after_or_equal' => 'Expired date must be after or equal to effective date.',
         ]);
 
-        PenaltyExemption::create($request->all());
+        $existing = PenaltyExemption::where('account_no', $validated['account_no'])->first();
+        if ($existing) {
+            return redirect()
+                ->route('penalty-exemption.index')
+                ->with('warning', 'This account already has a penalty exemption. Please edit instead.');
+        }
 
-        return redirect()->route('penalty-exemption.index')
+        PenaltyExemption::create($validated);
+
+        return redirect()
+            ->route('penalty-exemption.index')
             ->with('success', 'Penalty exemption added successfully.');
     }
 
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'account_no' => 'required|string|max:255',
-            'penalty_exemption_type_id' => 'nullable|exists:penalty_exemption_type,id',
-            'effective_date' => 'nullable|date',
-            'expired_date' => 'nullable|date',
-        ]);
-
         $exemption = PenaltyExemption::findOrFail($id);
+        $type = PenaltyExemptionType::findOrFail($request->penalty_exemption_type_id);
 
-        $exemption->update([
-            'account_no' => $request->account_no,
-            'penalty_exemption_type_id' => $request->penalty_exemption_type_id,
-            'effective_date' => $request->effective_date,
-            'expired_date' => $request->expired_date,
-        ]);
+        $rules = [
+            'account_no' => 'required|string|max:255|exists:concessioner_accounts,account_no',
+            'penalty_exemption_type_id' => 'required|exists:penalty_exemption_type,id',
+        ];
 
-        return redirect()->route('penalty-exemption.index')
+        if ($type->penalty_exemption_name === 'Temporary') {
+            $rules['effective_date'] = 'required|date';
+            $rules['expired_date'] = 'required|date|after_or_equal:effective_date';
+        } else {
+            $rules['effective_date'] = 'nullable|date';
+            $rules['expired_date'] = 'nullable|date';
+        }
+
+        try {
+            $validated = $request->validate($rules, [
+                'account_no.required' => 'The account number field is required.',
+                'account_no.exists' => 'Account does not exist.',
+                'penalty_exemption_type_id.required' => 'The exemption type field is required.',
+                'effective_date.required' => 'Effective date is required for Temporary exemption.',
+                'expired_date.required' => 'Expired date is required for Temporary exemption.',
+                'expired_date.after_or_equal' => 'Expired date must be after or equal to effective date.',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->back()
+                ->withErrors($e->validator)
+                ->withInput()
+                ->with('open_modal', $id);
+        }
+
+        $exemption->update($validated);
+
+        return redirect()
+            ->route('penalty-exemption.index')
             ->with('success', 'Penalty exemption updated successfully.');
     }
 
