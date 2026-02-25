@@ -84,8 +84,14 @@
                         <td class="fw-semibold">{{ $exemption->account_no }}</td>
                         <td>{{ optional(optional($exemption->account)->user)->name ?? '—' }}</td>
                         <td>{{ optional($exemption->type)->penalty_exemption_name }}</td>
-                        <td>{{\Carbon\Carbon::parse($exemption->effective_date)->format('F j, Y') ?? '-'}}</td>
-                        <td>{{\Carbon\Carbon::parse($exemption->expired_date)->format('F j, Y') ?? '-' }}</td>
+                        <td>{{ $exemption->effective_date
+                            ? \Carbon\Carbon::parse($exemption->effective_date)->format('F j, Y')
+                            : '-' }}
+                        </td>
+                        <td>{{ $exemption->expired_date
+                                ? \Carbon\Carbon::parse($exemption->expired_date)->format('F j, Y')
+                                : '-' }}
+                        </td>
                         <td>
                             @if($isActive)
                                 <span class="badge bg-success">Active</span>

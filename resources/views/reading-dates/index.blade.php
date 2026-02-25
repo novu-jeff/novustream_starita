@@ -86,7 +86,7 @@
                 <tbody>
                     @foreach($readingDates as $rd)
                         <tr>
-                            <td>{{ $rd->zone->zone }}</td>
+                            <td>{{ $rd->zone->zone}} - {{$rd->zone->area}}</td>
                             <td>{{ \Carbon\Carbon::parse($rd->bill_period_from)->format('F j, Y') }}</td>
                             <td>{{ \Carbon\Carbon::parse($rd->bill_period_to)->format('F j, Y') }}</td>
                             <td>{{ \Carbon\Carbon::parse($rd->due_date)->format('F j, Y') }}</td>

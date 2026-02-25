@@ -812,10 +812,18 @@ class ReadingController extends Controller
         $today = Carbon::today();
 
         $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
-            ->whereDate('effective_date', '<=', $today)
             ->where(function ($query) use ($today) {
-                $query->whereNull('expired_date')
-                    ->orWhereDate('expired_date', '>=', $today);
+
+                $query->where('penalty_exemption_type_id', 2)
+
+                ->orWhere(function ($subQuery) use ($today) {
+                    $subQuery->where('penalty_exemption_type_id', 1)
+                        ->whereDate('effective_date', '<=', $today)
+                        ->where(function ($dateQuery) use ($today) {
+                            $dateQuery->whereNull('expired_date')
+                                ->orWhereDate('expired_date', '>=', $today);
+                        });
+                });
             })
             ->exists();
 
