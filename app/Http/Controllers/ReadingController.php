@@ -645,7 +645,7 @@ class ReadingController extends Controller
             $billPeriodFrom = Carbon::parse($readingDate->bill_period_from);
             $billPeriodTo   = Carbon::parse($readingDate->bill_period_to);
 
-            $billDate = now();
+            $billDate = $billPeriodTo;
 
             $dueDate = Carbon::parse($readingDate->due_date);
             $penaltyDate = $dueDate->copy()->addDay();

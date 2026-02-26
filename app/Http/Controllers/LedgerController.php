@@ -49,7 +49,7 @@ class LedgerController extends Controller
             $query->whereIn('account_no', $accountNumbers)
             ->where('isReRead', 0);
         })
-        ->orderBy('created_at', 'asc')
+        ->orderBy('bill_period_to', 'asc')
         ->get()
         ->map(function ($bill) {
 
