@@ -54,6 +54,7 @@
                         <th class="text-end">Payments</th>
                         <th class="text-end">Balance</th>
                         <th class="text-center">Status</th>
+                        <th class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -108,6 +109,22 @@
                                 <span class="badge rounded-pill bg-warning-subtle text-warning px-3">UNPAID</span>
                             @endif
                         </td>
+                        <td class="text-center">
+                            <div>
+                                @if($bill->computed_status !== 'PAID')
+                                    <a href="{{ route('payments.pay', ['reference_no' => $bill->reference_no]) }}"
+                                    class="btn btn-primary btn-sm text-white fw-bold">
+                                        <i class="bx bx-credit-card-alt"></i>
+                                    </a>
+                                @else
+                                    <a target="_blank"
+                                    href="{{ route('reading.show', $bill->reference_no) }}"
+                                    class="btn btn-success btn-sm text-white fw-bold">
+                                        <i class="bx bx-receipt"></i>
+                                    </a>
+                                @endif
+                            </div>
+                        </td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -115,6 +132,7 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
+                        <td></td>
                         <td></td>
                     </tr>
                 </tfoot>

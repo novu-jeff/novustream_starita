@@ -28,7 +28,7 @@
                         <input type="text" name="account_no" class="form-control" placeholder="e.g. 091-22-091130" required>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Exemption Type</label>
+                        <label class="form-label">Exemption Type</label><small style="font-size: 8px; margin-left: 5px; color:crimson;">(If permanent no need for effective/expired date)</small>
                         <select name="penalty_exemption_type_id" class="form-select" required>
                             <option value="">Select Type</option>
                             @foreach($types as $type)
@@ -162,7 +162,7 @@
 
                         {{-- Exemption Type --}}
                         <div class="col-md-6">
-                            <label class="form-label">Exemption Type</label>
+                            <label class="form-label">Exemption Type</label><small style="font-size: 8px; margin-left: 5px; color:crimson;">(If permanent no need for effective/expired date)</small>
                             <select name="penalty_exemption_type_id"
                                     class="form-select @error('penalty_exemption_type_id') is-invalid @enderror"
                                     required>
