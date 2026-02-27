@@ -154,10 +154,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
         Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
-    ->name('account-overview.pay-online');
+            ->name('account-overview.pay-online');
 
 
-
+    Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
+        ->name('payments.applyDiscount');
 
     });
 
