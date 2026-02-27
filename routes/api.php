@@ -72,7 +72,7 @@ Route::prefix('v1')->group(function() {
 });
 
 // Mobile app (novustream_offline_starita): auth via local token only. Single route for sync accepts GET and POST.
-Route::middleware('auth.offline')->group(function () {
+Route::middleware(['log.offline.api', 'auth.offline'])->group(function () {
     Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
     Route::post('/readings', [OfflineSyncController::class, 'store']);
     Route::post('/readings/merge', [OfflineSyncController::class, 'merge']);
@@ -81,6 +81,7 @@ Route::middleware('auth.offline')->group(function () {
     Route::post('/offline/store', [OfflineSyncController::class, 'store']);
     Route::post('/offline/merge', [OfflineSyncController::class, 'merge']);
     Route::get('/offline/download', [OfflineDataController::class, 'download']);
+    Route::get('/offline/reading-dates', [OfflineDataController::class, 'readingDates']);
 });
 
 // Fallback last so it does not catch POST /offline/sync, /readings/sync, etc.

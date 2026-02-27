@@ -11,6 +11,8 @@ use App\Models\PaymentDiscount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\Reading;
 use App\Models\Bill;
+use App\Models\ReadingDate;
+use App\Services\MeterService;
 use Illuminate\Support\Facades\Log;
 
 class OfflineDataController extends Controller
@@ -49,6 +51,20 @@ class OfflineDataController extends Controller
         }
         \Illuminate\Support\Facades\Log::channel('single')->info('Novustream offline API: offline/download', ['admin_id' => $user->id]);
 
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        // Optional: ?include=accounts,readings — only return requested sections (default: all)
+        $includeParam = $request->query('include', '');
+        $include = array_map('trim', array_filter(explode(',', strtolower($includeParam))));
+        $wantAccounts = empty($include) || in_array('accounts', $include, true);
+        $wantReadings = empty($include) || in_array('readings', $include, true);
+
+        $limit = (int) $request->query('limit', 0);
+        $offset = (int) $request->query('offset', 0);
+        if ($limit <= 0) {
+            $limit = 0;
+        }
 
         // if (!$user) {
         //     return response()->json(['error' => 'Unauthenticated'], 401);
@@ -63,7 +79,7 @@ class OfflineDataController extends Controller
         $zoneNames = $zoneIds ? Zones::whereIn('id', $zoneIds)->pluck('zone') : collect();
 
         // ✅ Fetch accounts (filter by account.zone like ReadingController)
-        $accounts = UserAccounts::with([
+        $accountsQuery = UserAccounts::with([
                 'user',
                 'readings' => function ($q) {
                     $q->latest()->limit(1);
@@ -71,13 +87,20 @@ class OfflineDataController extends Controller
             ])
             ->when($zoneNames->isNotEmpty(), function ($query) use ($zoneNames) {
                 $query->whereIn('zone', $zoneNames->toArray());
-            })
-            ->get();
+            });
+
+        $totalAccounts = $accountsQuery->count();
+        if ($limit > 0) {
+            $accountsQuery->skip($offset)->take($limit);
+        }
+        $accounts = $accountsQuery->get();
         
         // dd($accounts);
 
         // ✅ Compute from latest reading only (avoid stacking re-reads / over arrears)
         $previousReadings = [];
+        $readingsList = [];
+        $readingsToExport = [];
 
         foreach ($accounts as $acc) {
             $latest = Reading::with('bill')
@@ -95,10 +118,43 @@ class OfflineDataController extends Controller
                 'created_at'      => $latest?->created_at ?? null,
                 'unpaid_amount'   => $unpaidAmount,
             ];
+
+            if ($wantReadings && $latest && $bill) {
+                $refNo = $bill->reference_no ?? $latest->reference_no ?? null;
+                if ($refNo) {
+                    $readingsToExport[] = ['refNo' => $refNo, 'latest' => $latest, 'bill' => $bill];
+                }
+            }
         }
 
-        // ✅ Now transform to clean arrays for frontend
-        $accounts = $accounts->map(function ($acc) use ($previousReadings) {
+        if ($wantReadings && !empty($readingsToExport)) {
+            $refNos = array_column($readingsToExport, 'refNo');
+            $billsWithBreakdown = Bill::with('breakdown')->whereIn('reference_no', array_unique($refNos))->get()->keyBy('reference_no');
+            foreach ($readingsToExport as $item) {
+                $refNo = $item['refNo'];
+                $latest = $item['latest'];
+                $bill = $billsWithBreakdown->get($refNo) ?? $item['bill'];
+                $soaData = self::minimalSoaFromModels($refNo, $latest, $bill);
+                $readingsList[] = [
+                    'reference_no'         => $refNo,
+                    'account_no'           => $latest->account_no,
+                    'previous_reading'     => (float) ($latest->previous_reading ?? 0),
+                    'present_reading'      => (float) ($latest->present_reading ?? 0),
+                    'consumption'          => (float) ($latest->consumption ?? 0),
+                    'is_high_consumption'  => isset($bill->isHighConsumption) ? (int) $bill->isHighConsumption : 0,
+                    'high_consumption_note'=> (string) ($bill->high_consumption_note ?? ''),
+                    'amount'               => (float) ($bill->amount ?? 0),
+                    'amount_after_due'     => (float) ($bill->amount_after_due ?? $bill->amount ?? 0),
+                    'timestamp'            => $latest->created_at ? $latest->created_at->format('c') : date('c'),
+                    'soa_json'             => json_encode($soaData),
+                ];
+            }
+        }
+
+        // ✅ Transform to clean arrays for frontend (only when requested)
+        $accountsPayload = $accounts;
+        if ($wantAccounts) {
+            $accountsPayload = $accounts->map(function ($acc) use ($previousReadings) {
             $unpaid = $previousReadings[$acc->account_no]['unpaid_amount'] ?? 0;
 
             return [
@@ -120,28 +176,163 @@ class OfflineDataController extends Controller
             // Sort by sequence_no, treating null as last
             return $account['sequence_no'] ?? PHP_INT_MAX;
         })->values();
+        }
 
-        // ✅ Rates, Property Types, Discounts, Penalties
-        $rates         = Rates::select('property_types_id', 'cu_m', 'amount')->get();
-        $propertyTypes = PropertyTypes::select('id', 'name')->get();
-        $discounts     = PaymentDiscount::select('eligible', 'type', 'amount', 'percentage_of')->get();
-        $penalties     = PaymentBreakdownPenalty::select('due_from', 'due_to', 'amount_type', 'amount')->get();
+        // ✅ Rates, Property Types, Discounts, Penalties (only when accounts requested)
+        $rates = $wantAccounts ? Rates::select('property_types_id', 'cu_m', 'amount')->get() : [];
+        $propertyTypes = $wantAccounts ? PropertyTypes::select('id', 'name')->get() : [];
+        $discounts = $wantAccounts ? PaymentDiscount::select('eligible', 'type', 'amount', 'percentage_of')->get() : [];
+        $penalties = $wantAccounts ? PaymentBreakdownPenalty::select('due_from', 'due_to', 'amount_type', 'amount')->get() : [];
 
-        // ✅ Final data payload
-        $data = [
-            'accounts'       => $accounts,
-            'rates'          => $rates,
-            'property_types' => $propertyTypes,
-            'discounts'      => $discounts,
-            'penalties'      => $penalties,
-        ];
+        // ✅ Build response from requested sections
+        $data = [];
+        if ($wantAccounts) {
+            $data['accounts'] = $accountsPayload;
+            $data['rates'] = $rates;
+            $data['property_types'] = $propertyTypes;
+            $data['discounts'] = $discounts;
+            $data['penalties'] = $penalties;
+        }
+        if ($wantReadings) {
+            $data['readings'] = $readingsList;
+        }
+        if ($limit > 0) {
+            $data['_meta'] = [
+                'total_accounts' => $totalAccounts,
+                'limit'          => $limit,
+                'offset'         => $offset,
+            ];
+        }
 
         Log::channel('single')->info('Novustream offline API: offline/download success', [
             'admin_id' => $user->id,
             'zone_assigned' => $user->zone_assigned,
             'zone_names_count' => $zoneNames->count(),
             'accounts_count' => $accounts->count(),
+            'total_accounts' => $totalAccounts,
+            'include' => $includeParam ?: 'all',
+            'limit' => $limit ?: null,
+            'offset' => $offset ?: null,
         ]);
         return response()->json($data);
+    }
+
+    /**
+     * Build minimal SOA data for offline download (enough to generate/view/print SOA).
+     * Omits client dump, previous_payment, active_payment, unpaid_bills, previousConsumption.
+     */
+    private static function minimalSoaForDownload($fullBill, string $refNo, $reading, $bill): array
+    {
+        if (!is_array($fullBill) || ($fullBill['status'] ?? null) === 'error') {
+            return self::minimalSoaFromModels($refNo, $reading, $bill);
+        }
+        $cb = $fullBill['current_bill'] ?? [];
+        $client = $fullBill['client'] ?? [];
+        $readingArr = $cb['reading'] ?? [];
+        $breakdown = $cb['breakdown'] ?? [];
+        return [
+            'reference_no'         => $cb['reference_no'] ?? $refNo,
+            'account_no'           => $cb['bill_account_no'] ?? $client['account_no'] ?? $reading->account_no ?? '',
+            'bill_period_from'     => $cb['bill_period_from'] ?? null,
+            'bill_period_to'      => $cb['bill_period_to'] ?? null,
+            'due_date'             => $cb['due_date'] ?? null,
+            'previous_unpaid'      => $cb['previous_unpaid'] ?? 0,
+            'total'                => $cb['total'] ?? 0,
+            'discount'             => $cb['discount'] ?? 0,
+            'penalty'              => $cb['penalty'] ?? 0,
+            'amount'               => $cb['amount'] ?? 0,
+            'amount_after_due'     => $cb['amount_after_due'] ?? 0,
+            'isPaid'               => $cb['isPaid'] ?? false,
+            'date_paid'            => $cb['date_paid'] ?? null,
+            'payor_name'           => $cb['payor_name'] ?? $client['name'] ?? '',
+            'bill_owner_name'      => $cb['bill_owner_name'] ?? $client['name'] ?? '',
+            'bill_account_no'      => $cb['bill_account_no'] ?? $client['account_no'] ?? '',
+            'bill_address'         => $cb['bill_address'] ?? $client['address'] ?? '',
+            'bill_meter_serial_no' => $cb['bill_meter_serial_no'] ?? $client['meter_serial_no'] ?? '',
+            'reading'              => [
+                'previous_reading' => $readingArr['previous_reading'] ?? $reading->previous_reading ?? 0,
+                'present_reading'  => $readingArr['present_reading'] ?? $reading->present_reading ?? 0,
+                'consumption'      => $readingArr['consumption'] ?? $reading->consumption ?? 0,
+            ],
+            'breakdown'            => array_values(array_map(function ($row) {
+                return [
+                    'name'        => $row['name'] ?? '',
+                    'description' => $row['description'] ?? '',
+                    'amount'      => $row['amount'] ?? 0,
+                ];
+            }, is_array($breakdown) ? $breakdown : [])),
+        ];
+    }
+
+    private static function minimalSoaFromModels(string $refNo, $reading, $bill): array
+    {
+        $breakdown = [];
+        if ($bill->relationLoaded('breakdown') && $bill->breakdown) {
+            $breakdown = $bill->breakdown->map(function ($row) {
+                return ['name' => $row->name ?? '', 'description' => $row->description ?? '', 'amount' => $row->amount ?? 0];
+            })->values()->toArray();
+        }
+        return [
+            'reference_no'         => $refNo,
+            'account_no'           => $reading->account_no ?? '',
+            'bill_period_from'     => $bill->bill_period_from ?? null,
+            'bill_period_to'      => $bill->bill_period_to ?? null,
+            'due_date'             => $bill->due_date ?? null,
+            'previous_unpaid'      => $bill->previous_unpaid ?? 0,
+            'total'                => $bill->total ?? 0,
+            'discount'             => $bill->discount ?? 0,
+            'penalty'              => $bill->penalty ?? 0,
+            'amount'               => $bill->amount ?? 0,
+            'amount_after_due'     => $bill->amount_after_due ?? $bill->amount ?? 0,
+            'isPaid'               => (bool) ($bill->isPaid ?? false),
+            'date_paid'            => $bill->date_paid ?? null,
+            'payor_name'           => $bill->payor_name ?? '',
+            'bill_owner_name'      => $bill->bill_owner_name ?? $bill->payor_name ?? '',
+            'bill_account_no'      => $bill->bill_account_no ?? $reading->account_no ?? '',
+            'bill_address'         => $bill->bill_address ?? '',
+            'bill_meter_serial_no' => $bill->bill_meter_serial_no ?? '',
+            'reading'              => [
+                'previous_reading' => (float) ($reading->previous_reading ?? 0),
+                'present_reading'   => (float) ($reading->present_reading ?? 0),
+                'consumption'      => (float) ($reading->consumption ?? 0),
+            ],
+            'breakdown'            => $breakdown,
+        ];
+    }
+
+    /**
+     * GET /offline/reading-dates — same auth as offline/download.
+     * Returns reading_dates table data as JSON for the mobile offline app.
+     */
+    public function readingDates(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            $label = config('app.offline_app_label', 'sta-rita');
+            Log::channel('single')->warning('Novustream offline API: offline/reading-dates unauthenticated');
+            return response()->json([
+                'error'   => 'Unauthenticated',
+                'message' => 'Send Authorization: Bearer <token>. Log in via POST /api/login or POST /api/auth/login.',
+            ], 401);
+        }
+        if ($user->user_type !== 'technician' && $user->user_type !== 'admin') {
+            Log::channel('single')->warning('Novustream offline API: offline/reading-dates unauthorized', ['admin_id' => $user->id, 'user_type' => $user->user_type]);
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $rows = ReadingDate::with('zone')->orderBy('zone_id')->get();
+        $readingDates = $rows->map(function ($rd) {
+            return [
+                'id'               => $rd->id,
+                'zone_id'          => $rd->zone_id,
+                'zone'             => $rd->zone ? $rd->zone->zone : null,
+                'bill_period_from' => $rd->bill_period_from,
+                'bill_period_to'   => $rd->bill_period_to,
+                'due_date'         => $rd->due_date,
+                'is_active'        => (bool) $rd->is_active,
+            ];
+        })->values();
+
+        return response()->json(['reading_dates' => $readingDates]);
     }
 }
