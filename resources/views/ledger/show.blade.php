@@ -4,15 +4,12 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <a href="{{route('concessionaires.index')}}">←Go Back</a>
             <h4 class="mb-0 mt-2">Statement of Account</h4>
             <p class="text-muted"><span>Account Name: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
         </div>
-        <!-- <div class="text-end">
-            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
-                <i class="bi bi-printer"></i> Print Statement
-            </button>
-        </div> -->
+        <div class="text-end">
+            <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">Go Back</a>
+        </div>
     </div>
 
     <div class="row mb-4">
@@ -132,8 +129,13 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
-                        <td class="text-center fw-bold text-uppercase small">Advances: </td>
-                        <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
+                        @if ($bill->advances > 0)
+                            <td class="text-center fw-bold text-uppercase small">Advances: </td>
+                            <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
+                        @else
+                            <td></td>
+                            <td></td>
+                        @endif
                     </tr>
                 </tfoot>
             </table>
