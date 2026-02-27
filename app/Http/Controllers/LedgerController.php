@@ -39,70 +39,73 @@ class LedgerController extends Controller
 
 
     public function show($userId)
-{
-    $user = User::with('accounts')->findOrFail($userId);
+    {
+        $user = User::with('accounts')->findOrFail($userId);
 
-    $accountNumbers = $user->accounts->pluck('account_no');
+        $accountNumbers = $user->accounts->pluck('account_no');
 
-    $bills = Bill::with(['reading'])
-        ->whereHas('reading', function ($query) use ($accountNumbers) {
-            $query->whereIn('account_no', $accountNumbers)
-            ->where('isReRead', 0);
-        })
-        ->orderBy('bill_period_to', 'asc')
-        ->get()
-        ->map(function ($bill) {
+        $bills = Bill::with(['reading'])
+            ->whereHas('reading', function ($query) use ($accountNumbers) {
+                $query->whereIn('account_no', $accountNumbers)
+                ->where('isReRead', 0);
+            })
+            ->orderBy('bill_period_to', 'asc')
+            ->get()
+            ->map(function ($bill) {
 
-            $total = (float) $bill->total;
-            $penalty = (float) $bill->penalty;
-            $totalPaid = (float) $bill->amount_paid;
-            $discount = (float) $bill->discount ?? 0;
-            $advances = (float) $bill->advances ?? 0;
+                $total = (float) $bill->total;
+                $penalty = (float) $bill->penalty;
+                $totalPaid = (float) $bill->amount_paid;
+                $discount = (float) $bill->discount ?? 0;
+                $advances = (float) $bill->advances ?? 0;
 
-            $paidDate = $bill->date_paid
-                ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
-                : null;
+                $paidDate = $bill->date_paid
+                    ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
+                    : null;
 
-            $dueDate = $bill->due_date
-                ? \Carbon\Carbon::parse($bill->due_date)->startOfDay()
-                : null;
+                $dueDate = $bill->due_date
+                    ? \Carbon\Carbon::parse($bill->due_date)->startOfDay()
+                    : null;
 
-            $today = \Carbon\Carbon::today();
+                $today = \Carbon\Carbon::today();
 
-            $appliedPenalty = 0;
+                $appliedPenalty = 0;
 
-            if (!$paidDate && $dueDate && $today->gt($dueDate)) {
-                $appliedPenalty = $penalty;
-            }
+                if (!$paidDate && $dueDate && $today->gt($dueDate)) {
+                    $appliedPenalty = $penalty;
+                }
 
-            if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
-                $appliedPenalty = $penalty;
-            }
+                if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
+                    $appliedPenalty = $penalty;
+                }
 
-            $finalAmount = $total + $appliedPenalty - $discount - $advances;
+                $finalAmount = $total + $appliedPenalty - $discount - $advances;
 
-            $balance = $finalAmount - $totalPaid;
+                $balance = $finalAmount - $totalPaid;
 
-            if ($balance <= 0 || $bill->isPaid == 1) {
-                $status = 'PAID';
-                $balance = 0;
-            } elseif ($totalPaid > 0) {
-                $status = 'PARTIAL';
-            } elseif ($dueDate && $today->gt($dueDate)) {
-                $status = 'OVERDUE';
-            } else {
-                $status = 'UNPAID';
-            }
+                if ($balance <= 0 || $bill->isPaid == 1) {
+                    $status = 'PAID';
+                    $balance = 0;
+                } elseif ($totalPaid > 0) {
+                    $status = 'PARTIAL';
+                } elseif ($dueDate && $today->gt($dueDate)) {
+                    $status = 'OVERDUE';
+                } else {
+                    $status = 'UNPAID';
+                }
 
-            $bill->computed_amount = $finalAmount;
-            $bill->computed_paid = (float) $bill->amount_paid - (float) $bill->change;
-            $bill->computed_balance = max(0, $balance);
-            $bill->computed_status = $status;
+                $amountPaid = (float) $bill->amount_paid;
+                $change     = (float) $bill->change;
 
-            return $bill;
-        });
+                $bill->computed_amount  = $finalAmount;
+                $bill->computed_paid    = $bill->isChangeForAdvancePayment === false ? $amountPaid - $change : $amountPaid;
+                $bill->computed_balance = max(0, $balance);
+                $bill->computed_status  = $status;
+                $bill->advances         = $bill->isChangeForAdvancePayment === true ? $change : 0;
+                return $bill;
+            });
 
-    return view('ledger.show', compact('user', 'bills'));
-}
+        return view('ledger.show', compact('user', 'bills'));
+    }
 
 }
