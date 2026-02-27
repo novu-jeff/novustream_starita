@@ -4,9 +4,9 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-0">Statement of Account</h4>
-            <p class="text-muted"><span>Account Holder: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
             <a href="{{route('concessionaires.index')}}">←Go Back</a>
+            <h4 class="mb-0 mt-2">Statement of Account</h4>
+            <p class="text-muted"><span>Account Name: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
         </div>
         <!-- <div class="text-end">
             <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
@@ -132,8 +132,8 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
-                        <td></td>
-                        <td></td>
+                        <td class="text-center fw-bold text-uppercase small">Advances: </td>
+                        <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
                     </tr>
                 </tfoot>
             </table>
