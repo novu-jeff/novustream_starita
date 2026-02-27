@@ -20,6 +20,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
+use App\Models\BillDiscount;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -415,8 +417,11 @@ class PaymentController extends Controller
 
     $qr_code = $this->generateService::qr_code($url, 80);
 
+    $user = \App\Models\User::whereHas('accounts', function ($q) use ($data) {
+        $q->where('account_no', $data['client']['account_no']);
+    })->first();
 
-    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user'));
 }
 
 
@@ -542,200 +547,239 @@ class PaymentController extends Controller
         ];
     }
 
+    public function applyDiscount(Request $request, $reference_no)
+    {
+        $request->validate([
+            'appliedDiscount' => 'required|numeric|min:0|max:100'
+        ]);
+
+        $bill = Bill::where('reference_no', $reference_no)
+                    ->where('isPaid', 0)
+                    ->firstOrFail();
+
+        if ($bill->discount > 0) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Discount already applied.'
+            ]);
+        }
+
+        $percentage = (float) $request->appliedDiscount;
+        $baseAmount = (float) $bill->amount;
+
+        $computedDiscount = round(($baseAmount * $percentage) / 100, 2);
+
+        if ($computedDiscount > $baseAmount) {
+            $computedDiscount = $baseAmount;
+        }
+
+        \DB::transaction(function () use ($bill, $percentage, $computedDiscount) {
+
+            $bill->discount         = $computedDiscount;
+            $bill->penalty          = 0;
+            $bill->amount           = $bill->total - $computedDiscount;
+            $bill->amount_after_due = $bill->total - $computedDiscount;
+            $bill->save();
+
+            BillDiscount::create([
+                'bill_id'     => $bill->id,
+                'name'        => $percentage . '% discount',
+                'description' => 'percentage',
+                'amount'      => $computedDiscount,
+            ]);
+        });
+
+        return back()->with('alert', [
+            'status' => 'success',
+            'message' => 'Discount applied successfully.'
+        ]);
+    }
+
 
     public function processCashPayment(string $reference_no, array $payload)
-{
-    $result = $this->getBill($reference_no, $payload, false);
+    {
 
-    if (isset($result['error'])) {
-        return back()->with('alert', [
-            'status' => 'error',
-            'message' => $result['error']
-        ]);
-    }
+        $result = $this->getBill($reference_no, $payload, false);
 
-    $data = $result['data'];
-    $currentBill = Bill::find($data['current_bill']['id']);
-
-    if (!$currentBill) {
-        return back()->with('alert', [
-            'status' => 'error',
-            'message' => 'Bill not found.'
-        ]);
-    }
-
-    $now = Carbon::now()->format('Y-m-d H:i:s');
-
-    $paymentAmount     = (float) $payload['payment_amount'];
-    $totalDue          = (float) $result['total_due'];
-    $change            = $paymentAmount - $totalDue;
-
-    $payArrearsOnly    = !empty($payload['pay_arrears_only']);
-    $isPartialPayment  = !empty($payload['partial_payment']);
-    $forAdvancePayment = !empty($payload['for_advances']);
-    $saveChange        = ($change > 0 && $forAdvancePayment);
-
-    /*
-    |--------------------------------------------------------------------------
-    | VALIDATION
-    |--------------------------------------------------------------------------
-    */
-    if (!$isPartialPayment && !$payArrearsOnly && $paymentAmount < $totalDue) {
-        return back()->with('alert', [
-            'status' => 'error',
-            'message' => "Cash payment is insufficient. Total due is PHP " . number_format($totalDue, 2)
-        ]);
-    }
-
-    $account_no = optional($currentBill->reading)->account_no;
-
-    $unpaidBills = Bill::whereHas('reading', function ($q) use ($account_no) {
-            $q->where('account_no', $account_no);
-        })
-        ->where('isPaid', 0)
-        ->orderBy('bill_period_from', 'asc')
-        ->get();
-
-    if ($payArrearsOnly) {
-
-    $arrearsAmount = (float) $currentBill->previous_unpaid;
-
-    if ($paymentAmount < $arrearsAmount) {
-        return back()->with('alert', [
-            'status' => 'error',
-            'message' => 'Payment does not fully cover arrears.'
-        ]);
-    }
-
-    // 1️⃣ Find previous unpaid bills
-    $account_no = optional($currentBill->reading)->account_no;
-
-    $previousBills = Bill::whereHas('reading', function ($q) use ($account_no) {
-            $q->where('account_no', $account_no);
-        })
-        ->where('isPaid', 0)
-        ->where('id', '<>', $currentBill->id)
-        ->orderBy('bill_period_from', 'asc')
-        ->get();
-
-    $remaining = $arrearsAmount;
-
-    foreach ($previousBills as $bill) {
-
-        $balance = (float)$bill->amount - (float)$bill->amount_paid;
-
-        if ($remaining >= $balance) {
-
-            $bill->update([
-                'isPaid'        => 1,
-                'isPartial'     => 0,
-                'amount_paid'   => $bill->amount,
-                'date_paid'     => $now,
-                'payment_method'=> 'cash',
-                'or_number'     => $payload['or_number'] ?? null,
+        if (isset($result['error'])) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => $result['error']
             ]);
-
-            $remaining -= $balance;
-
-        } else {
-
-            $bill->update([
-                'isPartial'     => 1,
-                'amount_paid'   => $bill->amount_paid + $remaining,
-                'date_paid'     => $now,
-                'payment_method'=> 'cash',
-                'or_number'     => $payload['or_number'] ?? null,
-            ]);
-
-            break;
         }
-    }
 
-    // 2️⃣ Update Current Bill (REMOVE ARREARS)
-    $currentBill->update([
-        'previous_unpaid'   => 0,
-        'total'             => (float)$currentBill->total - $arrearsAmount,
-        'amount'            => (float)$currentBill->amount - $arrearsAmount,
-        'amount_after_due'  => (float)$currentBill->amount_after_due - $arrearsAmount,
-    ]);
+        $data = $result['data'];
+        $currentBill = Bill::find($data['current_bill']['id']);
 
-    return back()->with('alert', [
-        'status'  => 'success',
-        'message' => 'Arrears successfully paid and current bill adjusted.'
-    ]);
-}
+        if (!$currentBill) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill not found.'
+            ]);
+        }
 
-    if ($isPartialPayment) {
+        $now = Carbon::now()->format('Y-m-d H:i:s');
 
-        $newPartial = (float)$currentBill->partial_payment + $paymentAmount;
+        $paymentAmount     = (float) $payload['payment_amount'];
+        $totalDue          = (float) $result['total_due'];
+        $change            = $paymentAmount - $totalDue;
+
+        $payArrearsOnly    = !empty($payload['pay_arrears_only']);
+        $isPartialPayment  = !empty($payload['partial_payment']);
+        $forAdvancePayment = !empty($payload['for_advances']);
+        $saveChange        = ($change > 0 && $forAdvancePayment);
+
+        if (!$isPartialPayment && !$payArrearsOnly && $paymentAmount < $totalDue) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => "Cash payment is insufficient. Total due is PHP " . number_format($totalDue, 2)
+            ]);
+        }
+
+        $account_no = optional($currentBill->reading)->account_no;
+
+        $unpaidBills = Bill::whereHas('reading', function ($q) use ($account_no) {
+                $q->where('account_no', $account_no);
+            })
+            ->where('isPaid', 0)
+            ->orderBy('bill_period_from', 'asc')
+            ->get();
+
+        if ($payArrearsOnly) {
+
+        $arrearsAmount = (float) $currentBill->previous_unpaid;
+
+        if ($paymentAmount < $arrearsAmount) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Payment does not fully cover arrears.'
+            ]);
+        }
+
+        $account_no = optional($currentBill->reading)->account_no;
+
+        $previousBills = Bill::whereHas('reading', function ($q) use ($account_no) {
+                $q->where('account_no', $account_no);
+            })
+            ->where('isPaid', 0)
+            ->where('id', '<>', $currentBill->id)
+            ->orderBy('bill_period_from', 'asc')
+            ->get();
+
+        $remaining = $arrearsAmount;
+
+        foreach ($previousBills as $bill) {
+
+            $balance = (float)$bill->amount - (float)$bill->amount_paid;
+
+            if ($remaining >= $balance) {
+
+                $bill->update([
+                    'isPaid'        => 1,
+                    'isPartial'     => 0,
+                    'amount_paid'   => $bill->amount,
+                    'date_paid'     => $now,
+                    'payment_method'=> 'cash',
+                    'or_number'     => $payload['or_number'] ?? null,
+                ]);
+
+                $remaining -= $balance;
+
+            } else {
+
+                $bill->update([
+                    'isPartial'     => 1,
+                    'amount_paid'   => $bill->amount_paid + $remaining,
+                    'date_paid'     => $now,
+                    'payment_method'=> 'cash',
+                    'or_number'     => $payload['or_number'] ?? null,
+                ]);
+
+                break;
+            }
+        }
 
         $currentBill->update([
-            'partial_payment'           => $newPartial,
-            'amount_paid'               => (float)$currentBill->amount_paid + $paymentAmount,
-            'isPaid'                    => 0,
-            'isPartial'                 => 1,
-            'change'                    => 0,
-            'date_paid'                 => $now,
-            'payment_method'            => 'cash',
-            'or_number'                 => $payload['or_number'] ?? null,
-            'isChangeForAdvancePayment' => 0,
-        ]);
-
-        PartialPayment::create([
-            'reading_id'       => $currentBill->reading_id,
-            'partial_payment'  => $paymentAmount,
-            'remaining_balance'=> max($totalDue - $newPartial, 0),
+            'previous_unpaid'   => 0,
+            'total'             => (float)$currentBill->total - $arrearsAmount,
+            'amount'            => (float)$currentBill->amount - $arrearsAmount,
+            'amount_after_due'  => (float)$currentBill->amount_after_due - $arrearsAmount,
         ]);
 
         return back()->with('alert', [
             'status'  => 'success',
-            'message' => 'Partial payment recorded.'
+            'message' => 'Arrears successfully paid and current bill adjusted.'
         ]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 3️⃣ FULL / FIFO PAYMENT
-    |--------------------------------------------------------------------------
-    */
-    $remaining = $paymentAmount;
+        if ($isPartialPayment) {
 
-    foreach ($unpaidBills as $bill) {
+            $newPartial = (float)$currentBill->partial_payment + $paymentAmount;
 
-        $balance = (float)$bill->amount - (float)$bill->amount_paid;
-
-        if ($remaining >= $balance) {
-
-            $bill->update([
-                'isPaid'        => 1,
-                'isPartial'     => 0,
-                'amount_paid'   => $bill->amount,
-                'date_paid'     => $now,
-                'payment_method'=> 'cash',
-                'or_number'     => $payload['or_number'] ?? null,
+            $currentBill->update([
+                'partial_payment'           => $newPartial,
+                'amount_paid'               => (float)$currentBill->amount_paid + $paymentAmount,
+                'isPaid'                    => 0,
+                'isPartial'                 => 1,
+                'change'                    => 0,
+                'date_paid'                 => $now,
+                'payment_method'            => 'cash',
+                'or_number'                 => $payload['or_number'] ?? null,
+                'isChangeForAdvancePayment' => 0,
             ]);
 
-            $remaining -= $balance;
-
-        } else {
-
-            $bill->update([
-                'isPartial'     => 1,
-                'amount_paid'   => (float)$bill->amount_paid + $remaining,
-                'date_paid'     => $now,
-                'payment_method'=> 'cash',
-                'or_number'     => $payload['or_number'] ?? null,
+            PartialPayment::create([
+                'reading_id'       => $currentBill->reading_id,
+                'partial_payment'  => $paymentAmount,
+                'remaining_balance'=> max($totalDue - $newPartial, 0),
             ]);
 
-            break;
+            return back()->with('alert', [
+                'status'  => 'success',
+                'message' => 'Partial payment recorded.'
+            ]);
         }
+
+        $remaining = $paymentAmount;
+
+        foreach ($unpaidBills as $bill) {
+
+            $balance = (float)$bill->amount - (float)$bill->amount_paid;
+
+            if ($remaining >= $balance) {
+
+                $bill->update([
+                    'isPaid'        => 1,
+                    'isPartial'     => 0,
+                    'amount_paid'   => $bill->amount,
+                    'date_paid'     => $now,
+                    'payment_method'=> 'cash',
+                    'or_number'     => $payload['or_number'] ?? null,
+                ]);
+
+                $remaining -= $balance;
+
+            } else {
+
+                $bill->update([
+                    'isPartial'     => 1,
+                    'amount_paid'   => (float)$bill->amount_paid + $remaining,
+                    'date_paid'     => $now,
+                    'payment_method'=> 'cash',
+                    'or_number'     => $payload['or_number'] ?? null,
+                ]);
+
+                break;
+            }
+        }
+
+        return back()->with('alert', [
+            'status'  => 'success',
+            'message' => 'Payment applied successfully.'
+        ]);
     }
 
-    return back()->with('alert', [
-        'status'  => 'success',
-        'message' => 'Payment applied successfully.'
-    ]);
-}
+
     public function processOnlinePaymentOld(string $reference_no, array $payload)
     {
         $result = $this->getBill($reference_no, $payload, false);
