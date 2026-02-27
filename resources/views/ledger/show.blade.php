@@ -129,8 +129,13 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
-                        <td class="text-center fw-bold text-uppercase small">Advances: </td>
-                        <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
+                        @if ($bill->advances > 0)
+                            <td class="text-center fw-bold text-uppercase small">Advances: </td>
+                            <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
+                        @else
+                            <td></td>
+                            <td></td>
+                        @endif
                     </tr>
                 </tfoot>
             </table>
