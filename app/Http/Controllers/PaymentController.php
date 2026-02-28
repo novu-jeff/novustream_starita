@@ -621,7 +621,7 @@ class PaymentController extends Controller
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
         $paymentAmount     = (float) $payload['payment_amount'];
-        $totalDue          = (float) $result['total_due'];
+        $totalDue          = round((float)$currentBill->amount_after_due - (float)$currentBill->amount_paid, 2);
         $change            = $paymentAmount - $totalDue;
 
         $payArrearsOnly    = !empty($payload['pay_arrears_only']);
@@ -629,7 +629,7 @@ class PaymentController extends Controller
         $forAdvancePayment = !empty($payload['for_advances']);
         $saveChange        = ($change > 0 && $forAdvancePayment);
 
-        if (!$isPartialPayment && !$payArrearsOnly && $paymentAmount < $totalDue) {
+        if (!$isPartialPayment && !$payArrearsOnly && round($paymentAmount,2) < round($totalDue,2)) {
             return back()->with('alert', [
                 'status' => 'error',
                 'message' => "Cash payment is insufficient. Total due is PHP " . number_format($totalDue, 2)
@@ -670,7 +670,7 @@ class PaymentController extends Controller
 
         foreach ($previousBills as $bill) {
 
-            $balance = (float)$bill->amount - (float)$bill->amount_paid;
+            $balance = round((float)$bill->amount - (float)$bill->amount_paid, 4);
 
             if ($remaining >= $balance) {
 
@@ -741,36 +741,46 @@ class PaymentController extends Controller
         }
 
         $remaining = $paymentAmount;
+        $updated   = false;
 
-        foreach ($unpaidBills as $bill) {
+        $balance = round((float)$currentBill->amount_after_due - (float)$currentBill->amount_paid, 2);
 
-            $balance = (float)$bill->amount - (float)$bill->amount_paid;
+        if ($balance <= 0) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill already paid.'
+            ]);
+        }
 
-            if ($remaining >= $balance) {
+        if ($paymentAmount >= $balance) {
 
-                $bill->update([
-                    'isPaid'        => 1,
-                    'isPartial'     => 0,
-                    'amount_paid'   => $bill->amount,
-                    'date_paid'     => $now,
-                    'payment_method'=> 'cash',
-                    'or_number'     => $payload['or_number'] ?? null,
-                ]);
+            $currentBill->update([
+                'isPaid'      => 1,
+                'isPartial'   => 0,
+                'amount_paid' => $currentBill->amount_after_due,
+                'date_paid'   => $now,
+                'payment_method' => 'cash',
+                'or_number'   => $payload['or_number'] ?? null,
+            ]);
 
-                $remaining -= $balance;
+        } else {
 
-            } else {
+            $currentBill->update([
+                'isPartial'   => 1,
+                'amount_paid' => (float)$currentBill->amount_paid + $paymentAmount,
+                'date_paid'   => $now,
+                'payment_method' => 'cash',
+                'or_number'   => $payload['or_number'] ?? null,
+            ]);
+        }
 
-                $bill->update([
-                    'isPartial'     => 1,
-                    'amount_paid'   => (float)$bill->amount_paid + $remaining,
-                    'date_paid'     => $now,
-                    'payment_method'=> 'cash',
-                    'or_number'     => $payload['or_number'] ?? null,
-                ]);
+        $currentBill->refresh();
 
-                break;
-            }
+        if (round((float)$currentBill->amount_after_due - (float)$currentBill->amount_paid,2) <= 0) {
+            $currentBill->update([
+                'isPaid' => 1,
+                'isPartial' => 0
+            ]);
         }
 
         return back()->with('alert', [
