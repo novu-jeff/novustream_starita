@@ -129,9 +129,15 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
-                        @if ($bill->advances > 0)
-                            <td class="text-center fw-bold text-uppercase small">Advances: </td>
-                            <td class="text-center fw-bold text-primary">{{$bill->advances}}</td>
+                        @php
+                            $totalAdvances = $bills->sum('advances');
+                        @endphp
+
+                        @if ($totalAdvances > 0)
+                            <td class="text-center fw-bold text-uppercase small">Advances:</td>
+                            <td class="text-center fw-bold text-primary">
+                                {{ number_format($totalAdvances, 2) }}
+                            </td>
                         @else
                             <td></td>
                             <td></td>
