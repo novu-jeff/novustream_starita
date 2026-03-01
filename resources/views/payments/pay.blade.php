@@ -10,7 +10,7 @@
                 <h1>Bill Payment</h1>
                 <div>
                     <a href="{{route('payments.index', ['filter' => 'unpaid'])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
-                        Go Back
+                        Payments
                     </a>
                     @can('superadmin')
                     <a href="{{ route('concessionaires.ledger', $user->id) }}"
