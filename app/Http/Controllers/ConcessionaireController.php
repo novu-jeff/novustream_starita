@@ -40,49 +40,49 @@ class ConcessionaireController extends Controller
         $this->meterService = $meterService;
     }
 
-    public function index(Request $request) {
+    public function index(Request $request)
+    {
+        $zone     = $request->zone ?? 'all';
+        $entries  = $request->entries ?? 10;
+        $search   = trim($request->search ?? '');
+
         $zones = $this->meterService->getZones()->pluck('area', 'zone');
 
-        $zone = $request->zone ?? 'all';
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
+        $query = \App\Models\User::with('accounts');
 
-        $search = [
-            'parameter' => [
-                'name',
-                'account_no',
-                'address',
-            ],
-            'value' => $toSearch
-        ];
+        if ($zone !== 'all') {
+            $query->whereHas('accounts', function ($q) use ($zone) {
+                $q->where('zone', $zone);
+            });
+        }
 
-        $collection = collect($this->clientService::getData(null, $zone, $search))
-            ->flatten(2)
-            ->map(function ($client) use ($zones) {
-                $client->zone = null;
+        if (!empty($search)) {
+            $tokens = preg_split('/\s+/', $search);
 
-                foreach ($zones as $code => $area) {
-                    if (stripos($client->address, $area) !== false) {
-                        $client->zone = $code;
-                        break;
-                    }
+            $query->where(function ($q) use ($tokens, $search) {
+
+                foreach ($tokens as $token) {
+                    $q->where('name', 'like', "%{$token}%");
                 }
 
-                return $client;
+                $q->orWhereHas('accounts', function ($aq) use ($search) {
+                    $aq->where('account_no', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%");
+                });
             });
+        }
 
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        $data = $query
+            ->orderByDesc('created_at')
+            ->paginate($entries)
+            ->withQueryString();
 
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        return view('concessionaires.index', compact('data', 'entries', 'zone', 'zones', 'toSearch'));
+        return view('concessionaires.index', compact(
+            'data',
+            'entries',
+            'zone',
+            'zones'
+        ))->with('toSearch', $search);
     }
 
 

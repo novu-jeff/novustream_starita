@@ -372,77 +372,102 @@ class ReadingController extends Controller
 
     public function report(Request $request)
     {
-        $zone = $request->zone ?? 'all';
-        $user = auth()->user();
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
-        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+        $zone     = $request->zone ?? 'all';
+        $entries  = $request->entries ?? 10;
+        $toSearch = trim($request->search ?? '');
+        $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
+        $user     = auth()->user();
 
-        $zonesQuery = DB::table('concessioner_accounts');
+        $month = \Carbon\Carbon::parse($date)->month;
+        $year  = \Carbon\Carbon::parse($date)->year;
 
-        // Restrict zones if user is a technician
+        $assignedZones = [];
+
         if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $assignedZoneIds = explode(',', $user->zone_assigned);
-            $assignedZones = Zones::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
-            $zonesQuery->whereIn('zone', $assignedZones);
+            $assignedZones = Zones::whereIn('id', $assignedZoneIds)
+                ->pluck('zone')
+                ->toArray();
         }
 
-        $zonesRaw = $zonesQuery
+        $zonesRaw = DB::table('concessioner_accounts')
+            ->when(!empty($assignedZones), fn($q) =>
+                $q->whereIn('zone', $assignedZones)
+            )
             ->select('zone', DB::raw('COUNT(*) as total_accounts'))
             ->groupBy('zone')
             ->get();
 
         $readingsPerZone = DB::table('readings')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-            ->join('bill', 'readings.id', '=', 'bill.reading_id')
+            ->whereMonth('readings.created_at', $month)
+            ->whereYear('readings.created_at', $year)
+            ->when(!empty($assignedZones), fn($q) =>
+                $q->whereIn('concessioner_accounts.zone', $assignedZones)
+            )
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
-            ->where('readings.isReRead', false)
-            ->whereMonth('bill.bill_period_to', Carbon::parse($date)->month)
-            ->whereYear('bill.bill_period_to', Carbon::parse($date)->year);
-
-        if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
-            $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
-        }
-
-        $readingsPerZone = $readingsPerZone
             ->groupBy('concessioner_accounts.zone')
             ->pluck('read_count', 'zone');
 
         $zoneAreas = DB::table('zones')->pluck('area', 'zone');
 
-        $zones = $zonesRaw->map(function ($zone) use ($readingsPerZone, $zoneAreas) {
-            $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
-            $zone->area = $zoneAreas[$zone->zone] ?? 'Unknown';
-            return $zone;
-        })->sortBy('zone')->values();
+        $zones = $zonesRaw->map(function ($z) use ($readingsPerZone, $zoneAreas) {
+            $z->read_count = $readingsPerZone[$z->zone] ?? 0;
+            $z->area       = $zoneAreas[$z->zone] ?? 'Unknown';
+            return $z;
+        })->values();
 
-        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))->flatten(2);
+        $tokens = $toSearch ? preg_split('/\s+/', $toSearch) : [];
 
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection
-            ->slice(($currentPage - 1) * $entries, $entries)
-            ->values();
+        $accountsQuery = \App\Models\ConcessionerAccount::query();
 
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            [
-                'path'  => $request->url(),
-                'query' => $request->query(),
-            ]
-        );
+        if (!empty($assignedZones)) {
+            $accountsQuery->whereIn('zone', $assignedZones);
+        }
+
+        if ($zone !== 'all') {
+            $accountsQuery->where('zone', $zone);
+        }
+
+        if (!empty($toSearch)) {
+            $accountsQuery->where(function ($q) use ($toSearch, $tokens) {
+
+                $q->where('account_no', 'like', "%{$toSearch}%")
+                ->orWhereHas('user', function ($uq) use ($tokens) {
+                    foreach ($tokens as $token) {
+                        $uq->where('name', 'like', "%{$token}%");
+                    }
+                });
+            });
+        }
+
+        $accountNos = $accountsQuery->pluck('account_no');
+
+        $query = Reading::with(['bill', 'concessionaire.user'])
+            ->whereMonth('created_at', $month)
+            ->whereYear('created_at', $year);
+
+        if ($accountNos->isNotEmpty()) {
+            $query->whereIn('account_no', $accountNos);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $data = $query
+            ->orderByDesc('created_at')
+            ->paginate($entries);
 
         if ($request->ajax()) {
             return response()->json([
-                'data'       => $data->items(),
-                'zones'      => $zones,
+                'data' => $data->items(),
+                'zones' => $zones,
                 'pagination' => [
                     'current_page' => $data->currentPage(),
                     'last_page'    => $data->lastPage(),
                     'per_page'     => $data->perPage(),
                     'total'        => $data->total(),
+                    'next_page_url'=> $data->nextPageUrl(),
+                    'prev_page_url'=> $data->previousPageUrl(),
                 ],
             ]);
         }
@@ -456,6 +481,7 @@ class ReadingController extends Controller
             'toSearch'
         ));
     }
+
 
     public function store(Request $request) {
 

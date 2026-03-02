@@ -135,7 +135,17 @@
             window.location.href = window.location.pathname + '?' + params.toString();
         }
 
-        $('#search, #entries, #zone_no').on('change', updateUrl);
+        let searchTimer = null;
+
+        $('#search').on('keyup', function () {
+            clearTimeout(searchTimer);
+
+            searchTimer = setTimeout(() => {
+                updateUrl();
+            }, 400); // 400ms debounce
+        });
+
+        $('#entries, #zone_no').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');
