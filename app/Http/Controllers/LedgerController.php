@@ -54,10 +54,13 @@ class LedgerController extends Controller
             ->map(function ($bill) {
 
                 $total = (float) $bill->total;
+                $amount = (float) $bill->amount;
                 $penalty = (float) $bill->penalty;
                 $totalPaid = (float) $bill->amount_paid;
                 $discount = (float) $bill->discount ?? 0;
+                $change = (float) $bill->change ?? 0;
                 $advances = (float) $bill->advances ?? 0;
+                $previousReading = (float) $bill->previous_reading ?? 0;
 
                 $paidDate = $bill->date_paid
                     ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
@@ -77,9 +80,12 @@ class LedgerController extends Controller
 
                 if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
                     $appliedPenalty = $penalty;
+                    $totalAmount = $total;
+                } else {
+                    $totalAmount = $amount;
                 }
 
-                $finalAmount = $total + $appliedPenalty - $discount - $advances;
+                $finalAmount = $totalAmount - $previousReading+ $appliedPenalty - $discount - $advances - $change;
 
                 $balance = $finalAmount - $totalPaid;
 

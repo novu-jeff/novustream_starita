@@ -1,6 +1,20 @@
 @extends('layouts.app')
 
 @section('content')
+    <div id="page-loader" style="
+        display:none;
+        position:fixed;
+        inset:0;
+        background:rgba(255,255,255,0.7);
+        z-index:9999;
+        align-items:center;
+        justify-content:center;
+    ">
+        <div class="text-center">
+            <div class="spinner-border text-primary" style="width:3rem;height:3rem;" role="status"></div>
+            <div class="mt-3 fw-bold text-uppercase">Loading...</div>
+        </div>
+    </div>
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
@@ -182,10 +196,22 @@
                 val ? params.set(key, val) : params.delete(key);
             });
 
+            $('#page-loader').css('display', 'flex');
+
             window.location.href = window.location.pathname + '?' + params.toString();
         }
 
-        $('#search, #entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
+       let searchTimer = null;
+
+        $('#search').on('keyup', function () {
+            clearTimeout(searchTimer);
+
+            searchTimer = setTimeout(() => {
+                updateUrl();
+            }, 400); // 400ms debounce
+        });
+
+        $('#entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');
@@ -205,6 +231,36 @@
         const url = `/admin/reports/download?type=${type}&date=${date}&zone=${zone}`;
         window.location.href = url;
     });
+
+
     });
+
+    let searchTimer = null;
+
+function updateUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    ['search', 'entries', 'filter', 'payment_method', 'zone_no', 'date'].forEach(id => {
+        const val = $('#' + id).val();
+        const key = id === 'zone_no' ? 'zone' : id;
+
+        val ? params.set(key, val) : params.delete(key);
+    });
+
+    $('#page-loader').css('display', 'flex');
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+$('#search').on('keyup', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(updateUrl, 400);
+});
+
+$('#entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
+
+$('#clear-search').on('click', function () {
+    $('#search').val('');
+    updateUrl();
+});
 </script>
 @endsection

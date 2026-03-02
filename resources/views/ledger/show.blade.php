@@ -65,12 +65,12 @@
                         </td>
                         <td>
                             <div class="fw-bold text-dark">
-                                {{ optional($bill->reading)->present_reading }}
+                                {{ number_format((float) optional($bill->reading)->present_reading, 0) }}
                             </div>
                             <small class="text-muted">
-                                Prev: {{ optional($bill->reading)->previous_reading }}
+                                Prev: {{ number_format((float) optional($bill->reading)->previous_reading, 0) }}
                                 |
-                                Cub: {{ optional($bill->reading)->consumption }}
+                                Cub: {{ number_format((float) optional($bill->reading)->consumption, 0) }}
                             </small>
                         </td>
                         <td>

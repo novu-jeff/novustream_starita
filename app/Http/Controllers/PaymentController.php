@@ -37,80 +37,119 @@ class PaymentController extends Controller
 
     public function index(Request $request)
 {
-    $filter = $request->filter ?? '';
+    $filter = $request->filter ?? 'unpaid';
 
     if (!in_array($filter, ['unpaid', 'paid'], true)) {
         return redirect()->route('payments.index', ['filter' => 'unpaid']);
     }
 
     $zones = $this->meterService->getZones();
-    $zone = $request->zone ?? 'all';
+    $zone  = $request->zone ?? 'all';
+
     $paymentMethod = $request->payment_method ?? 'all';
     if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
         $paymentMethod = 'all';
     }
 
-    $entries = $request->entries ?? 10;
-    $toSearch = trim($request->search ?? '');
-    $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+    $entries  = $request->entries ?? 10;
+    $search   = trim($request->search ?? '');
+    $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-    /**
-     * ------------------------------------------------------------
-     *  SMART SEARCH PROCESSING (Catherine Abayari → ABAYARI...)
-     * ------------------------------------------------------------
-     *
-     * We convert input like:
-     *   "Catherine Abayari"
-     *   "Abayari Catherine"
-     *   "Catherine A."
-     *
-     * Into searchable fragments:
-     *   catherine
-     *   abayari
-     *
-     * So the service can match: "ABAYARI I, CATHERINE S."
-     */
-    $searchParts = [];
+    $startDate = \Carbon\Carbon::parse($date)->startOfMonth();
+    $endDate   = \Carbon\Carbon::parse($date)->endOfMonth();
 
-    if (!empty($toSearch)) {
-        // Split into keywords
-        $keywords = preg_split('/\s+/', strtolower($toSearch));
+    /*
+    |--------------------------------------------------------------------------
+    | BASE QUERY
+    |--------------------------------------------------------------------------
+    */
 
-        foreach ($keywords as $keyword) {
-            if (strlen($keyword) > 0) {
-                $searchParts[] = $keyword;
-            }
-        }
+    $query = \App\Models\Bill::query()
+        ->with(['reading.concessionaire.user'])
+        ->whereBetween('bill_period_to', [$startDate, $endDate]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Paid / Unpaid
+    |--------------------------------------------------------------------------
+    */
+
+    if ($filter === 'paid') {
+    $query->where('isPaid', 1);
+} else {
+    $query->where('isPaid', 0);
+}
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Zone
+    |--------------------------------------------------------------------------
+    */
+
+    if ($zone !== 'all') {
+        $query->whereHas('reading.concessionaire', function ($q) use ($zone) {
+            $q->where('zone', $zone);
+        });
     }
 
-    // Pass to service as array OR as original string
-    // Service can filter using LIKE per keyword
-    $collection = collect(
-        $this->meterService::getPayments(
-            $filter,
-            $zone,
-            $date,
-            $toSearch,
-            $paymentMethod === 'all' ? null : $paymentMethod
-        )
-    )->flatten(2);
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Payment Method
+    |--------------------------------------------------------------------------
+    */
 
-    // Pagination (unchanged)
-    $currentPage = LengthAwarePaginator::resolveCurrentPage();
-    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+    if ($paymentMethod !== 'all') {
+        $query->where('payment_method', $paymentMethod);
+    }
 
-    $data = new LengthAwarePaginator(
-        $currentItems,
-        $collection->count(),
-        $entries,
-        $currentPage,
-        ['path' => $request->url(), 'query' => $request->query()]
-    );
+    /*
+    |--------------------------------------------------------------------------
+    | SMART SEARCH (FAST TOKEN SEARCH)
+    |--------------------------------------------------------------------------
+    */
+
+    if (!empty($search)) {
+        $tokens = preg_split('/\s+/', strtolower($search));
+
+        $query->where(function ($q) use ($tokens, $search) {
+
+            // Reference number
+            $q->where('reference_no', 'like', "%{$search}%")
+
+              ->orWhereHas('reading', function ($rq) use ($tokens, $search) {
+                  $rq->where('account_no', 'like', "%{$search}%")
+                     ->orWhereHas('concessionaire.user', function ($uq) use ($tokens) {
+                         foreach ($tokens as $token) {
+                             $uq->where('name', 'like', "%{$token}%");
+                         }
+                     });
+              });
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DATABASE PAGINATION
+    |--------------------------------------------------------------------------
+    */
+
+    $data = $query
+        ->orderByDesc('created_at')
+        ->paginate($entries)
+        ->withQueryString();
 
     return view(
-        'payments.index',
-        compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch', 'paymentMethod')
-    );
+    'payments.index',
+        compact(
+            'data',
+            'entries',
+            'filter',
+            'zones',
+            'zone',
+            'date',
+            'paymentMethod'
+        )
+    )->with('toSearch', $search);
 }
 
 
