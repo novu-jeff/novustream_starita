@@ -510,9 +510,23 @@ class ReadingController extends Controller
     }
 
     try {
-        $date = $this->isTesting
-            ? Carbon::createFromFormat('Y-m-d', $payload['reading_month'])
-            : Carbon::now();
+        // Use reading month from request when provided (allows new readings for current/future months).
+        // Otherwise fall back to current date. Required when IS_TEST_READING is true.
+        if (!empty($payload['reading_month'])) {
+            $parsed = null;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
+            } elseif (preg_match('/^\d{4}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m', $payload['reading_month'])->startOfMonth();
+            }
+            if ($parsed) {
+                $date = $parsed;
+            } else {
+                $date = Carbon::now();
+            }
+        } else {
+            $date = Carbon::now();
+        }
     } catch (\Exception $e) {
         return response()->json([
             'status' => 'error',
@@ -642,12 +656,18 @@ class ReadingController extends Controller
 
         if ($readingDate) {
 
-            $billPeriodFrom = Carbon::parse($readingDate->bill_period_from);
-            $billPeriodTo   = Carbon::parse($readingDate->bill_period_to);
+            // Use the reading month ($date) so each month gets its own period (e.g. March readings → March period).
+            $billPeriodFrom = $date->copy()->startOfMonth();
+            $billPeriodTo   = $date->copy()->endOfMonth();
 
             $billDate = $billPeriodTo;
 
-            $dueDate = Carbon::parse($readingDate->due_date);
+            // Keep due date rule from zone config but in the target month (e.g. 10th of reading month).
+            $dueDay = Carbon::parse($readingDate->due_date)->day;
+            $dueDate = $date->copy()->day($dueDay)->startOfDay();
+            if ($dueDay > $date->daysInMonth) {
+                $dueDate = $date->copy()->endOfMonth();
+            }
             $penaltyDate = $dueDate->copy()->addDay();
             $disconnectionDate = $dueDate->copy()->addDays(7);
         }
