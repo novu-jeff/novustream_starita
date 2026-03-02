@@ -4,17 +4,11 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-<<<<<<< HEAD
-            <h4 class="mb-0">Statement of Account</h4>
-            <p class="text-muted"><span>Account Holder: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
-            <a href="{{route('concessionaires.index')}}">←Go Back</a>
-=======
             <h4 class="mb-0 mt-2">Statement of Account</h4>
             <p class="text-muted"><span>Account Name: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
         </div>
         <div class="text-end">
             <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">Go Back</a>
->>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
         </div>
     </div>
 
@@ -71,21 +65,12 @@
                         </td>
                         <td>
                             <div class="fw-bold text-dark">
-<<<<<<< HEAD
                                 {{ number_format((float) optional($bill->reading)->present_reading, 0) }}
                             </div>
                             <small class="text-muted">
                                 Prev: {{ number_format((float) optional($bill->reading)->previous_reading, 0) }}
                                 |
                                 Cub: {{ number_format((float) optional($bill->reading)->consumption, 0) }}
-=======
-                                {{ optional($bill->reading)->present_reading }}
-                            </div>
-                            <small class="text-muted">
-                                Prev: {{ optional($bill->reading)->previous_reading }}
-                                |
-                                Cub: {{ optional($bill->reading)->consumption }}
->>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
                             </small>
                         </td>
                         <td>
