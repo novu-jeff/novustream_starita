@@ -56,6 +56,7 @@ class SyncNovupayReadingsCommand extends Command
             $updated = 0;
             $created = 0;
             $loggedOnly = 0;
+            $accountsPaid = [];
             foreach ($bills as $nb) {
                 try {
                     $referenceNo = (string) $nb->reference_no;
@@ -87,6 +88,8 @@ class SyncNovupayReadingsCommand extends Command
                     }
 
                     $this->syncLocalBillPaymentStatus($localBill, $nb);
+                    $payor = $nb->payload['customer']['name'] ?? $nb->payload['payor'] ?? $localBill->payor_name ?? null;
+                    $accountsPaid[] = ['account_no' => $accountNo, 'payor_name' => $payor];
                 } catch (\Throwable $e) {
                     Log::error('SyncNovupayReadings: failed for reference_no', [
                         'reference_no' => $nb->reference_no ?? null,
@@ -97,14 +100,20 @@ class SyncNovupayReadingsCommand extends Command
                 }
             }
 
+            $accountsPaidCount = count($accountsPaid);
             $summary = [
                 'updated' => $updated,
                 'created' => $created,
                 'logged_only' => $loggedOnly,
                 'processed' => $bills->count(),
+                'accounts_paid_count' => $accountsPaidCount,
+                'accounts_paid' => $accountsPaid,
             ];
 
-            $this->info("Synced local bill records. Updated: {$updated}, Created: {$created}, Logged-only: {$loggedOnly}");
+            $this->info("Synced local bill records. Updated: {$updated}, Created: {$created}, Logged-only: {$loggedOnly}. Accounts paid: {$accountsPaidCount}");
+            if ($accountsPaidCount > 0) {
+                $this->table(['account_no', 'payor_name'], array_map(fn ($a) => [$a['account_no'], $a['payor_name'] ?? '-'], $accountsPaid));
+            }
             Log::info('SyncNovupayReadings completed', $summary);
             return self::SUCCESS;
         } catch (\Throwable $e) {
@@ -252,12 +261,9 @@ class SyncNovupayReadingsCommand extends Command
             if (empty($localBill->payment_method)) {
                 $update['payment_method'] = 'online';
             }
-            // Set payor_name when empty (from starita_bills payload or account)
+            // Set payor_name when empty (from starita_bills: payload, payor column, or account)
             if (empty($localBill->payor_name)) {
-                $payor = $nb->payload['customer']['name'] ?? $nb->payload['payor'] ?? null;
-                if (empty($payor) && $localBill->reading) {
-                    $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? 'Sta. Rita Customer';
-                }
+                $payor = $this->resolvePayorFromNovupayBill($nb, $localBill);
                 if (!empty($payor)) {
                     $update['payor_name'] = $payor;
                 }
@@ -268,6 +274,35 @@ class SyncNovupayReadingsCommand extends Command
 
         $localBill->update($update);
         $this->markSourceRowAsSynced($nb, $isPaid);
+    }
+
+    /**
+     * Resolve payor name from Novupay starita_bills (payload, payor column, or local account).
+     * Webhook can overwrite payload so we try: payload customer.name, payor, then payor column, then payload name/customer_name, then account.
+     */
+    private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): ?string
+    {
+        $payload = $nb->payload ?? [];
+        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
+        if (!empty($payor)) {
+            return trim((string) $payor);
+        }
+        // Payor column on starita_bills (set at creation; not overwritten by webhook)
+        if (!empty($nb->payor)) {
+            return trim((string) $nb->payor);
+        }
+        // HitPay webhook often sends name at top level or customer_name
+        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
+        if (!empty($payor)) {
+            return trim((string) $payor);
+        }
+        if ($localBill->reading) {
+            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
+            if (!empty($payor)) {
+                return trim((string) $payor);
+            }
+        }
+        return 'Sta. Rita Customer';
     }
 
     private function markSourceRowAsSynced(NovupayStaritaBill $nb, bool $isPaid): void

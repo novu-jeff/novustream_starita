@@ -4,15 +4,18 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
+<<<<<<< HEAD
             <h4 class="mb-0">Statement of Account</h4>
             <p class="text-muted"><span>Account Holder: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
             <a href="{{route('concessionaires.index')}}">←Go Back</a>
+=======
+            <h4 class="mb-0 mt-2">Statement of Account</h4>
+            <p class="text-muted"><span>Account Name: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
         </div>
-        <!-- <div class="text-end">
-            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
-                <i class="bi bi-printer"></i> Print Statement
-            </button>
-        </div> -->
+        <div class="text-end">
+            <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">Go Back</a>
+>>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
+        </div>
     </div>
 
     <div class="row mb-4">
@@ -54,6 +57,7 @@
                         <th class="text-end">Payments</th>
                         <th class="text-end">Balance</th>
                         <th class="text-center">Status</th>
+                        <th class="text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -67,12 +71,21 @@
                         </td>
                         <td>
                             <div class="fw-bold text-dark">
+<<<<<<< HEAD
                                 {{ number_format((float) optional($bill->reading)->present_reading, 0) }}
                             </div>
                             <small class="text-muted">
                                 Prev: {{ number_format((float) optional($bill->reading)->previous_reading, 0) }}
                                 |
                                 Cub: {{ number_format((float) optional($bill->reading)->consumption, 0) }}
+=======
+                                {{ optional($bill->reading)->present_reading }}
+                            </div>
+                            <small class="text-muted">
+                                Prev: {{ optional($bill->reading)->previous_reading }}
+                                |
+                                Cub: {{ optional($bill->reading)->consumption }}
+>>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
                             </small>
                         </td>
                         <td>
@@ -108,6 +121,22 @@
                                 <span class="badge rounded-pill bg-warning-subtle text-warning px-3">UNPAID</span>
                             @endif
                         </td>
+                        <td class="text-center">
+                            <div>
+                                @if($bill->computed_status !== 'PAID')
+                                    <a href="{{ route('payments.pay', ['reference_no' => $bill->reference_no]) }}"
+                                    class="btn btn-primary btn-sm text-white fw-bold">
+                                        <i class="bx bx-credit-card-alt"></i>
+                                    </a>
+                                @else
+                                    <a target="_blank"
+                                    href="{{ route('reading.show', $bill->reference_no) }}"
+                                    class="btn btn-success btn-sm text-white fw-bold">
+                                        <i class="bx bx-receipt"></i>
+                                    </a>
+                                @endif
+                            </div>
+                        </td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -115,7 +144,19 @@
                     <tr>
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
-                        <td></td>
+                        @php
+                            $totalAdvances = $bills->sum('advances');
+                        @endphp
+
+                        @if ($totalAdvances > 0)
+                            <td class="text-center fw-bold text-uppercase small">Advances:</td>
+                            <td class="text-center fw-bold text-primary">
+                                {{ number_format($totalAdvances, 2) }}
+                            </td>
+                        @else
+                            <td></td>
+                            <td></td>
+                        @endif
                     </tr>
                 </tfoot>
             </table>

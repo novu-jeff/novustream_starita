@@ -26,6 +26,7 @@ use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
+use App\Models\PenaltyExemption;
 
 
 class ReadingController extends Controller
@@ -535,19 +536,29 @@ class ReadingController extends Controller
     }
 
     try {
-        $date = $this->isTesting
-            ? Carbon::createFromFormat('Y-m-d', $payload['reading_month'])
-            : Carbon::now();
+        // Use reading month from request when provided (allows new readings for current/future months).
+        // Otherwise fall back to current date. Required when IS_TEST_READING is true.
+        if (!empty($payload['reading_month'])) {
+            $parsed = null;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
+            } elseif (preg_match('/^\d{4}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m', $payload['reading_month'])->startOfMonth();
+            }
+            if ($parsed) {
+                $date = $parsed;
+            } else {
+                $date = Carbon::now();
+            }
+        } else {
+            $date = Carbon::now();
+        }
     } catch (\Exception $e) {
         return response()->json([
             'status' => 'error',
             'message' => 'Invalid reading month format.'
         ], 400);
     }
-
-    $isTemporaryBillingOverride =
-    $date->year === 2026 &&
-    $date->month === 2; // Feb 2026 billing only
 
     $month = $date->month;
     $year = $date->year;
@@ -573,6 +584,16 @@ class ReadingController extends Controller
 
     try {
         $account = $this->meterService->getAccount($account_no);
+
+        $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+
+        $readingDate = null;
+
+        if ($zone) {
+            $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+                ->where('is_active', 1)
+                ->first();
+        }
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];
@@ -652,61 +673,29 @@ class ReadingController extends Controller
 
         $penaltyAmount = 0;
 
-        //disposable
         $billPeriodFrom = null;
         $billPeriodTo = null;
-        $billDate = null;
+        $billDate = now();
         $dueDate = null;
         $penaltyDate = null;
         $disconnectionDate = null;
 
-        if ($isTemporaryBillingOverride) {
+        if ($readingDate) {
 
-            $prefix = substr($account_no, 0, 3);
+            // Use the reading month ($date) so each month gets its own period (e.g. March readings → March period).
+            $billPeriodFrom = $date->copy()->startOfMonth();
+            $billPeriodTo   = $date->copy()->endOfMonth();
 
-            $bookRules = [
-                'B1-B5' => [
-                    'prefixes' => ['011','021','031','041','051'],
-                    'from' => '2026-01-03',
-                    'to'   => '2026-02-02',
-                    'bill_day' => '2026-02-02',
-                    'from' => '2026-01-03',
-                    'to'   => '2026-02-02',
-                    'bill_day' => '2026-02-02',
-                ],
-                'B6-B8' => [
-                    'prefixes' => ['061','071','081'],
-                    'from' => '2026-01-05',
-                    'to'   => '2026-02-03',
-                    'bill_day' => '2026-02-03',
-                    'from' => '2026-01-05',
-                    'to'   => '2026-02-03',
-                    'bill_day' => '2026-02-03',
-                ],
-                'B9-B11' => [
-                    'prefixes' => ['091','101','111'],
-                    'from' => '2026-01-06',
-                    'to'   => '2026-02-04',
-                    'bill_day' => '2026-02-04',
-                    'from' => '2026-01-06',
-                    'to'   => '2026-02-04',
-                    'bill_day' => '2026-02-04',
-                ],
-            ];
+            $billDate = $billPeriodTo;
 
-            foreach ($bookRules as $rule) {
-                if (in_array($prefix, $rule['prefixes'])) {
-
-                    $billPeriodFrom = Carbon::parse($rule['from']);
-                    $billPeriodTo   = Carbon::parse($rule['to']);
-                    $billDate       = Carbon::parse($rule['bill_day']);
-                    $dueDate        = $billDate->copy()->addDays(14);
-                    $dueDate        = $billDate->copy()->addDays(14);
-                    $penaltyDate    = $dueDate->copy()->addDay();
-                    $disconnectionDate = $dueDate->copy()->addDays(7);
-                    break;
-                }
+            // Keep due date rule from zone config but in the target month (e.g. 10th of reading month).
+            $dueDay = Carbon::parse($readingDate->due_date)->day;
+            $dueDate = $date->copy()->day($dueDay)->startOfDay();
+            if ($dueDay > $date->daysInMonth) {
+                $dueDate = $date->copy()->endOfMonth();
             }
+            $penaltyDate = $dueDate->copy()->addDay();
+            $disconnectionDate = $dueDate->copy()->addDays(7);
         }
 
         // Save bill — preserve existing HitPay data when updating
@@ -729,8 +718,6 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-
-                // TEMPORARY OVERRIDE
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,
@@ -841,27 +828,52 @@ class ReadingController extends Controller
             }
         }
 
-        // Hardcoded accounts exempted from penalties
-        $penaltyExemptAccounts = [
-            '011-22-011450', // San Basilio High School
-            '031-22-030360', // San Basilio Brgy Hall
-            '031-22-030220', // San Basilio Health Center
-            '011-22-011350', // San Basilio Covered Court
-            '081-22-082580', // Dila-Dila Gym
-            '081-22-082560', // Dila-Dila Sports Center
-            '081-22-082570', // Dila-Dila Daycare
-            '101-22-102580', // Dila-Dila Senior Citizen
-            '081-22-080980', // Dila-Dila Brgy Hall
-            '111-22-111720', // Holy Family Elementary School
-            '091-22-092230', // Material Recovery Facilities
-            '061-22-060250', // VDLR Parish
-            '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
-            '111-22-110290', // Aetahanan
-            '111-22-111650' // HOLY FAMILY DAY CARE CENTER
-        ];
+        // // Hardcoded accounts exempted from penalties
+        // $penaltyExemptAccounts = [
+        //     '011-22-011450', // San Basilio High School
+        //     '031-22-030360', // San Basilio Brgy Hall
+        //     '031-22-030220', // San Basilio Health Center
+        //     '011-22-011350', // San Basilio Covered Court
+        //     '081-22-082580', // Dila-Dila Gym
+        //     '081-22-082560', // Dila-Dila Sports Center
+        //     '081-22-082570', // Dila-Dila Daycare
+        //     '101-22-102580', // Dila-Dila Senior Citizen
+        //     '081-22-080980', // Dila-Dila Brgy Hall
+        //     '111-22-111720', // Holy Family Elementary School
+        //     '091-22-092230', // Material Recovery Facilities
+        //     '061-22-060250', // VDLR Parish
+        //     '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
+        //     '111-22-110290', // Aetahanan
+        //     '111-22-111650', // HOLY FAMILY DAY CARE CENTER
+        //     '011-22-010120', //SRWD PS I
+        //     '091-22-091120', //SRWD PS II
+        //     '091-22-091130', //SRWD PS II-A
+        // ];
 
-        // Check if account is exempted from penalty
-        if (in_array($account_no, $penaltyExemptAccounts)) {
+        // // Check if account is exempted from penalty
+        // if (in_array($account_no, $penaltyExemptAccounts)) {
+        //     $penaltyAmount = 0;
+        // }
+
+        $today = Carbon::today();
+
+        $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
+            ->where(function ($query) use ($today) {
+
+                $query->where('penalty_exemption_type_id', 2)
+
+                ->orWhere(function ($subQuery) use ($today) {
+                    $subQuery->where('penalty_exemption_type_id', 1)
+                        ->whereDate('effective_date', '<=', $today)
+                        ->where(function ($dateQuery) use ($today) {
+                            $dateQuery->whereNull('expired_date')
+                                ->orWhereDate('expired_date', '>=', $today);
+                        });
+                });
+            })
+            ->exists();
+
+        if ($hasActivePenaltyExemption) {
             $penaltyAmount = 0;
         }
 

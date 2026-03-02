@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
 use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\NovupaySyncController;
+use App\Http\Controllers\PenaltyExemptionController;
+use App\Http\Controllers\ReadingDateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,6 +124,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::get('/reports/download-options', [ReportsController::class, 'downloadFilesIndex'])->name('reports.download.index');
     Route::post('/reports/download-generate', [ReportsController::class, 'generateFile'])->name('reports.download.generate');
 
+    Route::resource('penalty-exemption', PenaltyExemptionController::class)
+    ->except(['create', 'edit', 'show']);
+
+    Route::resource('reading-dates', ReadingDateController::class)
+    ->except(['create', 'show']);
 
     Route::prefix('users')->group(function() {
 
@@ -147,10 +155,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
         Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
-    ->name('account-overview.pay-online');
+            ->name('account-overview.pay-online');
 
 
-
+    Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
+        ->name('payments.applyDiscount');
 
     });
 
@@ -168,6 +177,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::resource('payment-breakdown', PaymentBreakdownController::class)
             ->names('payment-breakdown');
+
+        Route::get('online-payments', [NovupaySyncController::class, 'index'])
+            ->name('online-payments.index');
     });
 
 
@@ -206,6 +218,13 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
                 ->name('admin.support-ticket.update');
         });
     });
+
+    Route::get('/payments-ready-to-sync', [NovupaySyncController::class, 'paymentsReadyToSync'])
+        ->name('admin.payments-ready-to-sync');
+    Route::get('/recent-synced-payments', [NovupaySyncController::class, 'recentSyncedPayments'])
+        ->name('admin.recent-synced-payments');
+    Route::post('/sync-online-payments', [NovupaySyncController::class, 'syncOnlinePayments'])
+        ->name('admin.sync-online-payments');
 
     Route::get('/sync-novupay-to-starita', function () {
         try {
@@ -261,6 +280,8 @@ Route::middleware(['auth', 'check.default.password'])->prefix('concessionaire')-
         ->name('account-overview.index');
 });
 
+Route::delete('reading-dates/destroy-all', [ReadingDateController::class, 'destroyAll'])
+->name('reading-dates.destroy-all');
 
 Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
 Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');

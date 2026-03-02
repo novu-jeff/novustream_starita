@@ -8,11 +8,31 @@
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
                 <h1>Bill Payment</h1>
-                <a href="{{route('payments.index', ['filter' => 'unpaid'])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
-                    Go Back
-                </a>
+                <div>
+                    <a href="{{route('payments.index', ['filter' => 'unpaid'])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                        Payments
+                    </a>
+                    @can('superadmin')
+                    <a href="{{ route('concessionaires.ledger', $user->id) }}"
+                    class="btn btn-outline-success px-5 py-3 text-uppercase ms-2">
+                        <i class="bx bx-book"></i>Ledger
+                    </a>
+                    @endcan
+                </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
+                <div class="d-flex justify-content-end">
+                    <div class="w-50"></div>
+                    <form method="POST" action="{{ route('payments.applyDiscount', $reference_no) }}" class=" ms-3 w-50">
+                        @csrf
+                        <div class="input-group">
+                            <input type="number" step="0.01" min="0" max="100" name="appliedDiscount" class="form-control" placeholder="Apply Discount (%) (optional)">
+                            <button type="submit" class="btn btn-success">
+                                Apply
+                            </button>
+                        </div>
+                    </form>
+                </div>
                 <form action="{{route('payments.pay', ['reference_no' => $reference_no]) }}" method="POST">
                     @csrf
                     <div class="row">
@@ -402,7 +422,7 @@
                                     $amountAmountDue = max(0, $amountAmountDue);
                                 @endphp
 
-                                <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
+                                <div class="bg-danger d-flex align-items-center rounded justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
                                     <h3 class="ms-2">
                                         PHP {{number_format($amountAmountDue, 2)}}
@@ -410,13 +430,6 @@
                                 </div>
                                 <div class="card mt-4">
                                     <div class="card-body">
-                                        <div class="mb-3">
-                                            <label for="payor" class="form-label">Payor Name (optional)</label>
-                                            <input type="text" class="form-control @error('payor') is-invalid @enderror" id="payor" name="payor" value="{{ old('payor') }}">
-                                            @error('payor')
-                                                <div class="invalid-feedback">{{ $message }}</div>
-                                            @enderror
-                                        </div>
                                         <h3>Bill Breakdown:</h3>
 
                                         @php
@@ -617,6 +630,13 @@
                                     </a> -->
                                 </div>
                             @endif
+                            @if($data['current_bill']['isPartial'] == 1)
+                                <a href="{{ route('reading.orshow', ['reference_no' => $reference_no]) }}"
+                                class="mt-5 btn btn-outline-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
+                                    <i class="bx bx-printer me-2"></i>
+                                    Generate Official Receipt
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </form>
@@ -751,11 +771,19 @@
                 let value = parseFloat(input) || 0;
                 let change = Math.max(0, value - total); // Ensure change is never negative
                 let formattedChange = 'PHP ' + change.toFixed(2);
+                const previousUnpaid = parseFloat('{{ number_format($data['current_bill']['previous_unpaid'] ?? 0, 2, '.', '') }}') || 0;
 
                 $('#changeAmount').text(formattedChange);
                 $('#isForAdvances').empty();
 
-                if (value < total && value > 0) {
+                if (value === previousUnpaid) {
+                    $('#isForAdvances').html(`
+                        <div class="form-check text-end">
+                            <input type="checkbox" id="pay_arrears_only" name="pay_arrears_only" value="1">
+                            <label class="fw-bold">Apply to Previous Billing Only</label>
+                        </div>
+                    `);
+                }else if (value < total && value > 0) {
                     // Show partial payment checkbox
                     $('#isForAdvances').html(`
                         <div class="form-check text-end">
@@ -775,5 +803,6 @@
                 }
             });
     });
+
 </script>
 @endsection

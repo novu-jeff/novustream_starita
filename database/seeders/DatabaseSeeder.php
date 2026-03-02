@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             //UserSeeder::class,
             //ZoneSeeder::class,
             DiscountTypeSeeder::class,
+            PenaltyExemptionTypeSeeder::class,
         ]);
 
     }

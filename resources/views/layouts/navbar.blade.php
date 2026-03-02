@@ -100,7 +100,13 @@
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
 							@endcan
 
+                            @can('superadmin')
+                            <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
+                            @endcan
+
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
+							<li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
 						</ul>
 					</div>
 				@endcan

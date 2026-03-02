@@ -144,21 +144,40 @@
                               >
                         <small v-if="errors['accounts.' + index + '.rate_code']" class="text-danger px-1">{{ errors['accounts.' + index + '.rate_code'][0] }}</small>
                     </div>
-                    <div class="col-md-12 mb-3">
-                      <label :for="'senior_citizen_no_' + index" class="form-label">
-                        Senior Citizen Discount <small class="text-danger"></small>
-                      </label>
-                      <input
-                        type="text"
-                        class="form-control"
-                        :id="'senior_citizen_no_' + index"
-                        :value="getScDiscountIdNo(index)"
-                        disabled
-                        :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
-                      >
-                      <small v-if="errors && errors['accounts.' + index + '.sc_discount.id_no']" class="text-danger px-1">
-                        {{ errors['accounts.' + index + '.sc_discount.id_no'][0] }}
-                      </small>
+                    <div class="col-md-6 mb-3">
+                    <label class="form-label">
+                        Senior Citizen Discount <small class="text-danger">( required )</small>
+                    </label>
+
+                    <div class="d-flex gap-4 mt-2">
+                        <div class="form-check">
+                        <input
+                            class="form-check-input"
+                            type="radio"
+                            :name="'sc_discount_' + index"
+                            :id="'sc_yes_' + index"
+                            :value="1"
+                            v-model="account.has_sc_discount"
+                        >
+                        <label class="form-check-label" :for="'sc_yes_' + index">
+                            Yes
+                        </label>
+                        </div>
+
+                        <div class="form-check">
+                        <input
+                            class="form-check-input"
+                            type="radio"
+                            :name="'sc_discount_' + index"
+                            :id="'sc_no_' + index"
+                            :value="0"
+                            v-model="account.has_sc_discount"
+                        >
+                        <label class="form-check-label" :for="'sc_no_' + index">
+                            No
+                        </label>
+                        </div>
+                    </div>
                     </div>
                     <div class="col-md-12 mb-3">
                         <label :for="'address_' + index" class="form-label">
@@ -264,7 +283,7 @@
                               >
                         <small v-if="errors['accounts.' + index + '.meter_type']" class="text-danger px-1">{{ errors['accounts.' + index + '.meter_type'][0] }}</small>
                     </div>
-                    <div class="col-md-7 mb-3">
+                    <!-- <div class="col-md-7 mb-3">
                         <label :for="'meter_wire_' + index" class="form-label">
                           Meter Wire
                         </label>
@@ -356,7 +375,7 @@
                           </div>
                         </div>
                       </div>
-                  </div>
+                  </div> -->
                 </div>
               </div>
             </div>

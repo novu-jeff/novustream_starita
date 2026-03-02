@@ -54,6 +54,7 @@ class LedgerController extends Controller
             ->map(function ($bill) {
 
                 $total = (float) $bill->total;
+<<<<<<< HEAD
                 $amount = (float) $bill->amount;
                 $penalty = (float) $bill->penalty;
                 $totalPaid = (float) $bill->amount_paid;
@@ -61,6 +62,12 @@ class LedgerController extends Controller
                 $change = (float) $bill->change ?? 0;
                 $advances = (float) $bill->advances ?? 0;
                 $previousReading = (float) $bill->previous_reading ?? 0;
+=======
+                $penalty = (float) $bill->penalty;
+                $totalPaid = (float) $bill->amount_paid;
+                $discount = (float) $bill->discount ?? 0;
+                $advances = (float) $bill->advances ?? 0;
+>>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
 
                 $paidDate = $bill->date_paid
                     ? \Carbon\Carbon::parse($bill->date_paid)->startOfDay()
@@ -80,12 +87,18 @@ class LedgerController extends Controller
 
                 if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
                     $appliedPenalty = $penalty;
+<<<<<<< HEAD
                     $totalAmount = $amount;
                 } else {
                     $totalAmount = $total;
                 }
 
                 $finalAmount = $totalAmount - $previousReading+ $appliedPenalty - $discount - $advances - $change;
+=======
+                }
+
+                $finalAmount = $total + $appliedPenalty - $discount - $advances;
+>>>>>>> f4530672e531d4ebf15c88f4b8729799776dc467
 
                 $balance = $finalAmount - $totalPaid;
 

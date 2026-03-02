@@ -41,6 +41,10 @@ class StoreClientRequest extends FormRequest
             'accounts.*.meter_class' => 'nullable|string|max:120',
             'accounts.*.lat_long' => 'nullable|string|max:120',
             'accounts.*.isErcSealed' => 'nullable',
+            'accounts.*.has_sc_discount' => ['nullable', 'boolean'],
+            'accounts.*.sc_id_no' => [
+                'nullable'
+            ],
         ];
     }
 

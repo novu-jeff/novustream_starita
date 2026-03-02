@@ -70,5 +70,6 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'check.default.password' => \App\Http\Middleware\CheckDefaultPassword::class,
         'auth.offline' => \App\Http\Middleware\AcceptPartnerToken::class,
+        'log.offline.api' => \App\Http\Middleware\LogOfflineApiRequest::class,
     ];
 }

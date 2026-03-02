@@ -76,6 +76,10 @@ class UpdateClientRequest extends FormRequest
             'accounts.*.lat_long' => 'nullable|string|max:120',
             'accounts.*.isErcSealed' => 'nullable|boolean',
             'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048',
+            'accounts.*.has_sc_discount' => ['nullable', 'boolean'],
+            'accounts.*.sc_id_no' => [
+                'nullable'
+            ],
         ];
 
     }

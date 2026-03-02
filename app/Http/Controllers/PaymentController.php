@@ -20,6 +20,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
+use App\Models\BillDiscount;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -35,80 +37,119 @@ class PaymentController extends Controller
 
     public function index(Request $request)
 {
-    $filter = $request->filter ?? '';
+    $filter = $request->filter ?? 'unpaid';
 
     if (!in_array($filter, ['unpaid', 'paid'], true)) {
         return redirect()->route('payments.index', ['filter' => 'unpaid']);
     }
 
     $zones = $this->meterService->getZones();
-    $zone = $request->zone ?? 'all';
+    $zone  = $request->zone ?? 'all';
+
     $paymentMethod = $request->payment_method ?? 'all';
     if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
         $paymentMethod = 'all';
     }
 
-    $entries = $request->entries ?? 10;
-    $toSearch = trim($request->search ?? '');
-    $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+    $entries  = $request->entries ?? 10;
+    $search   = trim($request->search ?? '');
+    $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-    /**
-     * ------------------------------------------------------------
-     *  SMART SEARCH PROCESSING (Catherine Abayari → ABAYARI...)
-     * ------------------------------------------------------------
-     *
-     * We convert input like:
-     *   "Catherine Abayari"
-     *   "Abayari Catherine"
-     *   "Catherine A."
-     *
-     * Into searchable fragments:
-     *   catherine
-     *   abayari
-     *
-     * So the service can match: "ABAYARI I, CATHERINE S."
-     */
-    $searchParts = [];
+    $startDate = \Carbon\Carbon::parse($date)->startOfMonth();
+    $endDate   = \Carbon\Carbon::parse($date)->endOfMonth();
 
-    if (!empty($toSearch)) {
-        // Split into keywords
-        $keywords = preg_split('/\s+/', strtolower($toSearch));
+    /*
+    |--------------------------------------------------------------------------
+    | BASE QUERY
+    |--------------------------------------------------------------------------
+    */
 
-        foreach ($keywords as $keyword) {
-            if (strlen($keyword) > 0) {
-                $searchParts[] = $keyword;
-            }
-        }
+    $query = \App\Models\Bill::query()
+        ->with(['reading.concessionaire.user'])
+        ->whereBetween('bill_period_to', [$startDate, $endDate]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Paid / Unpaid
+    |--------------------------------------------------------------------------
+    */
+
+    if ($filter === 'paid') {
+    $query->where('isPaid', 1);
+} else {
+    $query->where('isPaid', 0);
+}
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Zone
+    |--------------------------------------------------------------------------
+    */
+
+    if ($zone !== 'all') {
+        $query->whereHas('reading.concessionaire', function ($q) use ($zone) {
+            $q->where('zone', $zone);
+        });
     }
 
-    // Pass to service as array OR as original string
-    // Service can filter using LIKE per keyword
-    $collection = collect(
-        $this->meterService::getPayments(
-            $filter,
-            $zone,
-            $date,
-            $toSearch,
-            $paymentMethod === 'all' ? null : $paymentMethod
-        )
-    )->flatten(2);
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER: Payment Method
+    |--------------------------------------------------------------------------
+    */
 
-    // Pagination (unchanged)
-    $currentPage = LengthAwarePaginator::resolveCurrentPage();
-    $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+    if ($paymentMethod !== 'all') {
+        $query->where('payment_method', $paymentMethod);
+    }
 
-    $data = new LengthAwarePaginator(
-        $currentItems,
-        $collection->count(),
-        $entries,
-        $currentPage,
-        ['path' => $request->url(), 'query' => $request->query()]
-    );
+    /*
+    |--------------------------------------------------------------------------
+    | SMART SEARCH (FAST TOKEN SEARCH)
+    |--------------------------------------------------------------------------
+    */
+
+    if (!empty($search)) {
+        $tokens = preg_split('/\s+/', strtolower($search));
+
+        $query->where(function ($q) use ($tokens, $search) {
+
+            // Reference number
+            $q->where('reference_no', 'like', "%{$search}%")
+
+              ->orWhereHas('reading', function ($rq) use ($tokens, $search) {
+                  $rq->where('account_no', 'like', "%{$search}%")
+                     ->orWhereHas('concessionaire.user', function ($uq) use ($tokens) {
+                         foreach ($tokens as $token) {
+                             $uq->where('name', 'like', "%{$token}%");
+                         }
+                     });
+              });
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DATABASE PAGINATION
+    |--------------------------------------------------------------------------
+    */
+
+    $data = $query
+        ->orderByDesc('created_at')
+        ->paginate($entries)
+        ->withQueryString();
 
     return view(
-        'payments.index',
-        compact('data', 'entries', 'filter', 'zones', 'zone', 'date', 'toSearch', 'paymentMethod')
-    );
+    'payments.index',
+        compact(
+            'data',
+            'entries',
+            'filter',
+            'zones',
+            'zone',
+            'date',
+            'paymentMethod'
+        )
+    )->with('toSearch', $search);
 }
 
 
@@ -415,8 +456,11 @@ class PaymentController extends Controller
 
     $qr_code = $this->generateService::qr_code($url, 80);
 
+    $user = \App\Models\User::whereHas('accounts', function ($q) use ($data) {
+        $q->where('account_no', $data['client']['account_no']);
+    })->first();
 
-    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack'));
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user'));
 }
 
 
@@ -542,142 +586,172 @@ class PaymentController extends Controller
         ];
     }
 
+    public function applyDiscount(Request $request, $reference_no)
+    {
+        $request->validate([
+            'appliedDiscount' => 'required|numeric|min:0|max:100'
+        ]);
+
+        $bill = Bill::where('reference_no', $reference_no)
+                    ->where('isPaid', 0)
+                    ->firstOrFail();
+
+        if ($bill->discount > 0) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Discount already applied.'
+            ]);
+        }
+
+        $percentage = (float) $request->appliedDiscount;
+        $baseAmount = (float) $bill->amount;
+
+        $computedDiscount = round(($baseAmount * $percentage) / 100, 2);
+
+        if ($computedDiscount > $baseAmount) {
+            $computedDiscount = $baseAmount;
+        }
+
+        \DB::transaction(function () use ($bill, $percentage, $computedDiscount) {
+
+            $bill->discount         = $computedDiscount;
+            $bill->penalty          = 0;
+            $bill->amount           = $bill->total - $computedDiscount;
+            $bill->amount_after_due = $bill->total - $computedDiscount;
+            $bill->save();
+
+            BillDiscount::create([
+                'bill_id'     => $bill->id,
+                'name'        => $percentage . '% discount',
+                'description' => 'percentage',
+                'amount'      => $computedDiscount,
+            ]);
+        });
+
+        return back()->with('alert', [
+            'status' => 'success',
+            'message' => 'Discount applied successfully.'
+        ]);
+    }
+
 
     public function processCashPayment(string $reference_no, array $payload)
     {
         $result = $this->getBill($reference_no, $payload, false);
 
         if (isset($result['error'])) {
-            return redirect()->back()->with('alert', [
+            return back()->with('alert', [
                 'status' => 'error',
                 'message' => $result['error']
             ]);
         }
 
         $data = $result['data'];
-        $now = Carbon::now()->format('Y-m-d H:i:s');
+        $currentBill = Bill::find($data['current_bill']['id']);
 
-        $amountPay = (float) $result['total_due'];
-        $paymentAmount = (float) $payload['payment_amount'];
-        $change = $paymentAmount - $amountPay;
-
-        $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
-        $isPartialPayment = isset($payload['partial_payment']) && $payload['partial_payment'];
-        $saveChange = ($change > 0 && $forAdvancePayment);
-
-        if (!$isPartialPayment && $paymentAmount < $amountPay) {
-            return redirect()->back()->with('alert', [
+        if (!$currentBill) {
+            return back()->with('alert', [
                 'status' => 'error',
-                'message' => "Cash payment is insufficient. Total due is PHP " . number_format($amountPay, 2)
+                'message' => 'Bill not found.'
             ]);
         }
 
-        $currentBill = Bill::find($data['current_bill']['id']);
+        $now = now();
+        $paymentAmount  = round((float) $payload['payment_amount'], 2);
+        $payArrearsOnly = !empty($payload['pay_arrears_only']);
 
-        if ($currentBill) {
-            $previousPartial = floatval($currentBill->partial_payment ?? 0);
-            $totalAmountPaid = floatval($currentBill->amount_paid ?? 0);
-            $totalBillDue = (float) $result['total_due'];
-            $hitpayFields = [];
-            if (!empty($payload['hitpay_reference']) && empty($currentBill->hitpay_reference)) {
-                $hitpayFields['hitpay_reference'] = $payload['hitpay_reference'];
-            }
-            if (!empty($payload['hitpay_payment_id']) && empty($currentBill->hitpay_payment_id)) {
-                $hitpayFields['hitpay_payment_id'] = $payload['hitpay_payment_id'];
-            }
+        $account_no = optional($currentBill->reading)->account_no;
 
-            if ($isPartialPayment) {
-                $currentBill->update([
-                    'partial_payment' => $previousPartial + $paymentAmount,
-                    'amount_paid' => $totalAmountPaid + $paymentAmount,
-                    'isPaid' => 0,
-                    'isPartial' => 1,
-                    'change' => 0,
-                    'payor_name' => $payload['payor'],
-                    'date_paid' => $now,
-                    'isChangeForAdvancePayment' => 0,
-                    'payment_method' => 'cash',
-                ] + $hitpayFields);
+        $unpaidBills = Bill::whereHas('reading', function ($q) use ($account_no) {
+                $q->where('account_no', $account_no);
+            })
+            ->where('isPaid', 0)
+            ->orderBy('bill_period_from', 'asc')
+            ->get();
 
-                $remainingBalance = $totalBillDue - ($previousPartial + $paymentAmount);
-
-                PartialPayment::create([
-                    'reading_id' => $currentBill->reading_id,
-                    'partial_payment' => $paymentAmount,
-                    'remaining_balance' => max($remainingBalance, 0),
-                ]);
-            } else {
-                $currentBill->update([
-                    'amount_paid' => $totalAmountPaid + $paymentAmount,
-                    'partial_payment' => null,
-                    'isPaid' => 1,
-                    'isPartial' => 0,
-                    'change' => $change > 0 ? $change : 0,
-                    'payor_name' => $payload['payor'],
-                    'date_paid' => $now,
-                    'isChangeForAdvancePayment' => $saveChange,
-                    'payment_method' => 'cash',
-                ] + $hitpayFields);
-
-                $this->deleteHitpayPaymentRequest($currentBill);
-
-                $account_no = optional($currentBill->reading)->account_no;
-
-                if ($account_no) {
-                    $previousBills = Bill::whereHas('reading', function ($q) use ($account_no) {
-                            $q->where('account_no', $account_no);
-                        })
-                        ->where('isPaid', 0)
-                        ->where('id', '<>', $currentBill->id)
-                        ->orderBy('id', 'asc')
-                        ->get();
-
-                    $remainingPayment = $paymentAmount;
-
-                    foreach ($previousBills as $bill) {
-                        $remainingBalance = (float) $bill->amount - (float) $bill->amount_paid;
-
-                        if ($remainingBalance <= 0) {
-                            continue;
-                        }
-
-                        if ($remainingPayment >= $remainingBalance) {
-                            $bill->update([
-                                'isPaid' => 1,
-                                'isPartial' => 0,
-                                'amount_paid' => $bill->amount,
-                                'partial_payment' => null,
-                                'change' => 0,
-                                'payor_name' => $payload['payor'],
-                                'date_paid' => $now,
-                                'paid_by_reference_no' => $reference_no,
-                            ]);
-
-                            $remainingPayment -= $remainingBalance;
-                        } else {
-                            $bill->update([
-                                'isPartial' => 1,
-                                'amount_paid' => $bill->amount_paid + $remainingPayment,
-                                'payor_name' => $payload['payor'],
-                                'partial_payment' => null,
-                                'date_paid' => $now,
-                                'paid_by_reference_no' => $reference_no,
-                            ]);
-                            break;
-                        }
-                    }
-                }
-            }
+        if ($unpaidBills->isEmpty()) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'No unpaid bills found.'
+            ]);
         }
 
-        return redirect()->back()->with('alert', [
-            'status' => 'success',
-            'message' => $isPartialPayment
-                ? 'Partial payment has been recorded.'
-                : 'Bill has been fully paid and any arrears have been cleared.'
+        $remaining = $paymentAmount;
+
+        if ($payArrearsOnly) {
+
+        $arrearsAmount = round((float)$currentBill->previous_unpaid, 2);
+
+        if ($paymentAmount < $arrearsAmount) {
+            return back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Payment does not fully cover arrears.'
+            ]);
+        }
+
+        Bill::whereHas('reading', function ($q) use ($account_no) {
+                $q->where('account_no', $account_no);
+            })
+            ->where('id', '<>', $currentBill->id)
+            ->where('isPaid', 0)
+            ->update([
+                'isPaid'        => 1,
+                'isPartial'     => 0,
+                'amount_paid'   => DB::raw('amount_after_due'),
+                'date_paid'     => now(),
+                'payment_method'=> 'cash',
+            ]);
+
+        $currentBill->update([
+            'previous_unpaid'  => 0,
+            'total'            => (float)$currentBill->total - $arrearsAmount,
+            'amount'           => (float)$currentBill->amount - $arrearsAmount,
+            'amount_after_due' => (float)$currentBill->amount_after_due - $arrearsAmount,
+        ]);
+
+        return back()->with('alert', [
+            'status'  => 'success',
+            'message' => 'Arrears successfully paid.'
         ]);
     }
 
+    $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+    $isOverdue = now()->greaterThan($dueDate);
+
+    $collectible = $isOverdue
+        ? (float)$currentBill->amount_after_due
+        : (float)$currentBill->total;
+
+    $balance = round(
+        $collectible - (float)$currentBill->amount_paid,
+        2
+    );
+
+    if ($paymentAmount < $balance) {
+        return back()->with('alert', [
+            'status'  => 'error',
+            'message' => 'Full settlement required. Total payable is PHP ' .
+                        number_format($balance, 2)
+        ]);
+    }
+
+    Bill::whereHas('reading', function ($q) use ($account_no) {
+            $q->where('account_no', $account_no);
+        })
+        ->where('isPaid', 0)
+        ->update([
+            'isPaid'        => 1,
+            'isPartial'     => 0,
+            'amount_paid'   => DB::raw('amount_after_due'),
+            'date_paid'     => now(),
+            'payment_method'=> 'cash',
+        ]);
+
+        return back()->with('alert', [
+            'status'  => 'success',
+            'message' => 'Payment applied successfully.'
+        ]);
+    }
 
     public function processOnlinePaymentOld(string $reference_no, array $payload)
     {
@@ -747,7 +821,7 @@ class PaymentController extends Controller
             }
 
             $result = $this->getBill($reference_no, $payload, false);
-            
+
             if (isset($result['error'])) {
                 \Log::error('HitPay error: ' . $result['error']);
                 return null;
