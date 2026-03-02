@@ -185,6 +185,16 @@ class ConcessionaireController extends Controller
 
         $data = $this->clientService::getData($id);
 
+        foreach ($data->accounts as $account) {
+
+            $hasSenior = DB::table('discount')
+                ->where('account_no', $account->account_no)
+                ->where('discount_type_id', 1)
+                ->exists();
+
+            $account->has_sc_discount = $hasSenior ? 1 : 0;
+        }
+
         $property_types = $this->propertyTypesService::getData();
         $status_code = $this->clientService::getStatusCode();
 
