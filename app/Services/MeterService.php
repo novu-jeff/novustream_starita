@@ -997,10 +997,7 @@ class MeterService {
 
     public function getLatestReadingMonth()
     {
-        return Reading::where('isReRead', false)
-            ->whereHas('bill')
-            ->latest('created_at')
-            ->value('created_at')?->format('Y-m') ?? now()->format('Y-m');
+        return now()->format('Y-m');
     }
 
     /**
