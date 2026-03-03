@@ -55,30 +55,29 @@
                     </div>
 
                    <div class="col-md-3">
-    <label class="form-label mb-1">Search
-        <span class="text-muted ms-1">[name | account no]</span>
-    </label>
+                        <label class="form-label mb-1">Search
+                            <span class="text-muted ms-1">[name | account no]</span>
+                        </label>
 
-    <div class="position-relative">
-        <input
-            type="text"
-            name="search"
-            id="search"
-            class="form-control pe-5"
-            value="{{ $toSearch }}"
-            placeholder="Search..."
-        >
+                        <div class="position-relative">
+                            <input
+                                type="text"
+                                name="search"
+                                id="search"
+                                class="form-control pe-5"
+                                value="{{ $toSearch }}"
+                                placeholder="Search..."
+                            >
 
-        <button
-            type="button"
-            id="clear-search"
-            class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted d-none"
-            style="border: none; background: none; font-size: 1.2rem;"
-            aria-label="Clear search"
-        >&times;</button>
-    </div>
-</div>
-
+                            <button
+                                type="button"
+                                id="clear-search"
+                                class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted d-none"
+                                style="border: none; background: none; font-size: 1.2rem;"
+                                aria-label="Clear search"
+                            >&times;</button>
+                        </div>
+                    </div>
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
                     <thead>
