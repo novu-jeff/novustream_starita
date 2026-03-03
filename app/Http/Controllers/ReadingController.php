@@ -682,18 +682,13 @@ class ReadingController extends Controller
 
         if ($readingDate) {
 
-            // Use the reading month ($date) so each month gets its own period (e.g. March readings → March period).
-            $billPeriodFrom = $date->copy()->startOfMonth();
-            $billPeriodTo   = $date->copy()->endOfMonth();
+            $billPeriodFrom = Carbon::parse($readingDate->bill_period_from);
+            $billPeriodTo   = Carbon::parse($readingDate->bill_period_to);
 
-            $billDate = $billPeriodTo;
+            $billDate = $billPeriodTo->copy();
 
-            // Keep due date rule from zone config but in the target month (e.g. 10th of reading month).
-            $dueDay = Carbon::parse($readingDate->due_date)->day;
-            $dueDate = $date->copy()->day($dueDay)->startOfDay();
-            if ($dueDay > $date->daysInMonth) {
-                $dueDate = $date->copy()->endOfMonth();
-            }
+            $dueDate = Carbon::parse($readingDate->due_date);
+
             $penaltyDate = $dueDate->copy()->addDay();
             $disconnectionDate = $dueDate->copy()->addDays(7);
         }
