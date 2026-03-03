@@ -703,10 +703,8 @@ class PaymentController extends Controller
             ]);
 
         $currentBill->update([
-            'previous_unpaid'  => 0,
-            'total'            => (float)$currentBill->total - $arrearsAmount,
-            'amount'           => (float)$currentBill->amount - $arrearsAmount,
-            'amount_after_due' => (float)$currentBill->amount_after_due - $arrearsAmount,
+            'isPartial'         => 1,
+            'partial_payment'   => $paymentAmount,
         ]);
 
         return back()->with('alert', [
