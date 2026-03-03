@@ -79,15 +79,14 @@ class LedgerController extends Controller
                 }
 
                 if ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
-                    $appliedPenalty = $penalty;
-                    $totalAmount = $total;
+                    $totalAmount = $total + $penalty;
                 } else {
-                    $totalAmount = $amount;
+                    $totalAmount = $total;
                 }
 
-                $finalAmount = $totalAmount - $previousReading+ $appliedPenalty - $discount - $advances - $change;
+                $finalAmount = $totalAmount - $previousReading + $appliedPenalty - $discount - $advances;
 
-                $balance = $finalAmount - $totalPaid;
+                $balance = $finalAmount - ($totalPaid - $change);
 
                 if ($balance <= 0 || $bill->isPaid == 1) {
                     $status = 'PAID';
