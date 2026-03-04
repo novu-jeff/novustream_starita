@@ -223,7 +223,7 @@
     }
 
     $assumed_penalty = (float) ($cb['penalty'] ?? 0);
-    $totalAmount = round($total + $applicablePenalty - $advances - $discount - $arrears, 2);
+    $totalAmount = round($total + $applicablePenalty - $advances - $discount, 2);
 
     $partialPayment = (float) ($cb['partial_payment'] ?? 0);
 
@@ -569,7 +569,13 @@
   @endif
   {{-- Total --}}
   <!-- <div style="position:absolute; top:12.6cm; font-size:11px; font-weight:700;">TOTAL</div> -->
+  @if ($isPaid === 1)
+  <div style="position:absolute; top:13.8cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($totalAmount, 2) }}</div>
+  @endif
+
+  @if ($isPartial === 1)
   <div style="position:absolute; top:13.8cm; right:1.4cm; width:3.0cm; font-size:12px; text-align:right;">₱ {{ number_format($paymentAmount, 2) }}</div>
+  @endif
 
   {{-- Amount in words --}}
   <div style="position:absolute; left: 1.4cm; top:15.2cm; font-size:11px; text-align:center; ">
