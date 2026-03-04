@@ -364,7 +364,13 @@
           <tr style="line-height: 2px;">
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
+            @if($isPaid === 1) {
+                <td class="text-end">₱ {{ number_format($total, 2) }}</td>
+            }
+            @elseif(isPartial === 1) {
+                <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
+            }
+            @endif
           </tr>
 
           {{-- Conditionally show Arrears and Penalty --}}
@@ -528,9 +534,17 @@
         (PARTIAL PAYMENT)
     @endif
     </div>
-  <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
-    ₱ {{ number_format($paymentAmount,2) }}
-  </div>
+  @if($isPaid === 1)
+    <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
+        ₱ {{ number_format($total,2) }}
+    </div>
+    @endif
+
+    @if($isPartial === 1)
+    <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
+        ₱ {{ number_format($paymentAmount,2) }}
+    </div>
+    @endif
 
   {{-- Penalty --}}
   @if($applicablePenalty > 0 && $isPaid == 1)
