@@ -222,7 +222,7 @@
     $partialPayment = (float) ($cb['partial_payment'] ?? 0);
 
     if ($isPaid === 1) {
-        $paymentAmount = $total;
+        $paymentAmount = $totalAmount;
     } elseif ($isPartial === 1) {
         $paymentAmount = $partialPayment;
     } else {
