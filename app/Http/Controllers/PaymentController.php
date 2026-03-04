@@ -718,7 +718,7 @@ class PaymentController extends Controller
 
     $collectible = $isOverdue
         ? (float)$currentBill->amount_after_due
-        : (float)$currentBill->total;
+        : (float)$currentBill->total - (float)$currentBill->discount;
 
     $balance = round(
         $collectible - (float)$currentBill->amount_paid,
