@@ -659,20 +659,28 @@ class PaymentController extends Controller
         $now = now();
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
         $paymentAmount = round((float) $payload['payment_amount'], 2);
+        $total = round((float) $currentBill->total, 2) - round((float) $currentBill->discount, 2);
+        $amount = round((float)$currentBill->amount, 2) - round((float) $currentBill->discount, 2);
+        $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+        $isOverdue = now()->greaterThan($dueDate);
         $billAmount = round((float) $currentBill->amount_after_due, 2);
 
-        $remaining = $paymentAmount - $billAmount;
+        $amountChange = $isOverdue
+        ? $paymentAmount - $amount
+        : $paymentAmount - $total;
 
         $change = 0;
         $isAdvance = 0;
 
-        if ($remaining > 0) {
-            $change = $remaining;
+        if ($amountChange > 0) {
+            $change = $amountChange;
 
             if (!empty($payload['for_advances'])) {
                 $isAdvance = 1;
             }
         }
+
+        dd($dueDate, $amountChange);
 
         $account_no = optional($currentBill->reading)->account_no;
 
