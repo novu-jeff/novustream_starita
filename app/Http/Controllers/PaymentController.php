@@ -659,7 +659,7 @@ class PaymentController extends Controller
         $now = now();
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
         $paymentAmount = round((float) $payload['payment_amount'], 2);
-        $payPartialOnly = round((float)$payload['partial_payment'], 2);
+        $payPartialOnly = !empty($payload['partial_payment']);
         $total = round((float) $currentBill->total, 2) - round((float) $currentBill->discount, 2);
         $amount = round((float)$currentBill->amount, 2) - round((float) $currentBill->discount, 2);
         $dueDate = \Carbon\Carbon::parse($currentBill->due_date);

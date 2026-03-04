@@ -154,11 +154,16 @@ class OfflineSyncController extends Controller
      */
     public function merge(Request $request)
     {
+        ini_set('memory_limit', '256M');
+
         $limitRaw = $request->input('limit');
-        $limit = ($limitRaw !== null && $limitRaw !== '') ? (int) $limitRaw : null;
+        $limit = ($limitRaw !== null && $limitRaw !== '') ? (int) $limitRaw : 500;
+        if ($limit < 1) {
+            $limit = 500;
+        }
         Log::channel('single')->info('Novustream offline API: readings/merge', [
             'admin_id' => $request->user()?->id,
-            'limit' => $limit ?? 'none',
+            'limit' => $limit,
         ]);
         $query = ReadingOffline::where(function ($q) {
                 $q->whereNull('status')->orWhere('status', 'pending');
@@ -166,9 +171,7 @@ class OfflineSyncController extends Controller
             ->whereNull('synced_at')
             ->whereNull('merged_into_reading_id')
             ->orderBy('id');
-        if ($limit !== null && $limit > 0) {
-            $query->limit($limit);
-        }
+        $query->limit($limit);
         $pending = $query->get();
 
         $count = 0;
