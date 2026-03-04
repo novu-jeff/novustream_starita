@@ -201,9 +201,15 @@
         ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
         : null;
 
-    $today = \Carbon\Carbon::today();
+    $datePaidCarbon = isset($cb['date_paid'])
+        ? \Carbon\Carbon::parse($cb['date_paid'])
+        : null;
 
-    $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+    $applicablePenalty = 0;
+
+    if ($dueDate && $datePaidCarbon && $datePaidCarbon->gt($dueDate)) {
+        $applicablePenalty = $penalty;
+    }
 
     $discount = $cb['discount'] ?? 0;
     if (is_array($discount)) {
@@ -217,7 +223,7 @@
     }
 
     $assumed_penalty = (float) ($cb['penalty'] ?? 0);
-    $totalAmount = round($total + $applicablePenalty - $advances - $discount, 2);
+    $totalAmount = round($total + $applicablePenalty - $advances - $discount - $arrears, 2);
 
     $partialPayment = (float) ($cb['partial_payment'] ?? 0);
 
@@ -364,12 +370,10 @@
           <tr style="line-height: 2px;">
             <td>WB {{ $bill_month }}</td>
             <td></td>
-            @if($isPaid === 1) {
-                <td class="text-end">₱ {{ number_format($total, 2) }}</td>
-            }
-            @elseif(isPartial === 1) {
+            @if($isPaid === 1)
+                <td class="text-end">₱ {{ number_format($total - $arrears, 2) }}</td>
+            @elseif(isPartial === 1)
                 <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
-            }
             @endif
           </tr>
 
@@ -536,7 +540,7 @@
     </div>
   @if($isPaid === 1)
     <div style="position:absolute; top:9.2cm; right:1.3cm; width:3.0cm; font-size:14px; text-align:right;">
-        ₱ {{ number_format($total,2) }}
+        ₱ {{ number_format($total - $arrears,2) }}
     </div>
     @endif
 
