@@ -659,6 +659,7 @@ class PaymentController extends Controller
         $now = now();
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
         $paymentAmount = round((float) $payload['payment_amount'], 2);
+        $payPartialOnly = round((float)$payload['partial_payment'], 2);
         $total = round((float) $currentBill->total, 2) - round((float) $currentBill->discount, 2);
         $amount = round((float)$currentBill->amount, 2) - round((float) $currentBill->discount, 2);
         $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
@@ -680,8 +681,6 @@ class PaymentController extends Controller
             }
         }
 
-        dd($dueDate, $amountChange);
-
         $account_no = optional($currentBill->reading)->account_no;
 
         $unpaidBills = Bill::whereHas('reading', function ($q) use ($account_no) {
@@ -702,38 +701,65 @@ class PaymentController extends Controller
 
         if ($payArrearsOnly) {
 
-        $arrearsAmount = round((float)$currentBill->previous_unpaid, 2);
+            $arrearsAmount = round((float)$currentBill->previous_unpaid, 2);
 
-        if ($paymentAmount < $arrearsAmount) {
+            if ($paymentAmount < $arrearsAmount) {
+                return back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'Payment does not fully cover arrears.'
+                ]);
+            }
+
+            Bill::whereHas('reading', function ($q) use ($account_no) {
+                    $q->where('account_no', $account_no);
+                })
+                ->where('id', '<>', $currentBill->id)
+                ->where('isPaid', 0)
+                ->update([
+                    'isPaid'        => 1,
+                    'isPartial'     => 0,
+                    'amount_paid'   => DB::raw('amount_after_due'),
+                    'date_paid'     => now(),
+                    'payment_method'=> 'cash',
+                ]);
+
+            $currentBill->update([
+                'isPartial'         => 1,
+                'partial_payment'   => $paymentAmount,
+            ]);
+
             return back()->with('alert', [
-                'status' => 'error',
-                'message' => 'Payment does not fully cover arrears.'
+                'status'  => 'success',
+                'message' => 'Arrears successfully paid.'
             ]);
         }
 
-        Bill::whereHas('reading', function ($q) use ($account_no) {
-                $q->where('account_no', $account_no);
-            })
-            ->where('id', '<>', $currentBill->id)
-            ->where('isPaid', 0)
-            ->update([
-                'isPaid'        => 1,
-                'isPartial'     => 0,
-                'amount_paid'   => DB::raw('amount_after_due'),
-                'date_paid'     => now(),
-                'payment_method'=> 'cash',
+        if ($payPartialOnly) {
+
+            $newPartial = (float)$currentBill->partial_payment + $paymentAmount;
+
+            $currentBill->update([
+                'partial_payment'           => $newPartial,
+                'amount_paid'               => (float)$currentBill->amount_paid + $paymentAmount,
+                'isPaid'                    => 0,
+                'isPartial'                 => 1,
+                'change'                    => 0,
+                'date_paid'                 => $now,
+                'payment_method'            => 'cash',
+                'isChangeForAdvancePayment' => 0,
             ]);
 
-        $currentBill->update([
-            'isPartial'         => 1,
-            'partial_payment'   => $paymentAmount,
-        ]);
+            PartialPayment::create([
+                'reading_id'       => $currentBill->reading_id,
+                'partial_payment'  => $paymentAmount,
+                'remaining_balance'=> max($billAmount - $newPartial, 0),
+            ]);
 
-        return back()->with('alert', [
-            'status'  => 'success',
-            'message' => 'Arrears successfully paid.'
-        ]);
-    }
+            return back()->with('alert', [
+                'status'  => 'success',
+                'message' => 'Partial payment recorded.'
+            ]);
+        }
 
     $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
     $isOverdue = now()->greaterThan($dueDate);
@@ -747,13 +773,13 @@ class PaymentController extends Controller
         2
     );
 
-    if ($paymentAmount < $balance) {
-        return back()->with('alert', [
-            'status'  => 'error',
-            'message' => 'Full settlement required. Total payable is PHP ' .
-                        number_format($balance, 2)
-        ]);
-    }
+        if ($paymentAmount < $balance) {
+            return back()->with('alert', [
+                'status'  => 'error',
+                'message' => 'Full settlement required. Total payable is PHP ' .
+                            number_format($balance, 2)
+            ]);
+        }
 
         $currentBill->update([
             'isPaid'                    => 1,
