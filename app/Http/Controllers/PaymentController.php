@@ -657,8 +657,22 @@ class PaymentController extends Controller
         }
 
         $now = now();
-        $paymentAmount  = round((float) $payload['payment_amount'], 2);
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
+        $paymentAmount = round((float) $payload['payment_amount'], 2);
+        $billAmount = round((float) $currentBill->amount_after_due, 2);
+
+        $remaining = $paymentAmount - $billAmount;
+
+        $change = 0;
+        $isAdvance = 0;
+
+        if ($remaining > 0) {
+            $change = $remaining;
+
+            if (!empty($payload['for_advances'])) {
+                $isAdvance = 1;
+            }
+        }
 
         $account_no = optional($currentBill->reading)->account_no;
 
@@ -733,16 +747,14 @@ class PaymentController extends Controller
         ]);
     }
 
-    Bill::whereHas('reading', function ($q) use ($account_no) {
-            $q->where('account_no', $account_no);
-        })
-        ->where('isPaid', 0)
-        ->update([
-            'isPaid'        => 1,
-            'isPartial'     => 0,
-            'amount_paid'   => DB::raw('amount_after_due'),
-            'date_paid'     => now(),
-            'payment_method'=> 'cash',
+        $currentBill->update([
+            'isPaid'                    => 1,
+            'isPartial'                 => 0,
+            'amount_paid'               => $paymentAmount,
+            'change'                    => $change,
+            'isChangeForAdvancePayment' => $isAdvance,
+            'date_paid'                 => now(),
+            'payment_method'            => 'cash',
         ]);
 
         return back()->with('alert', [
