@@ -659,7 +659,7 @@ class PaymentController extends Controller
         $now = now();
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
         $paymentAmount = round((float) $payload['payment_amount'], 2);
-        $payPartialOnly = round((float)$payload['partial_payment'], 2);
+        $payPartialOnly = !empty($payload['partial_payment']);
         $total = round((float) $currentBill->total, 2) - round((float) $currentBill->discount, 2);
         $amount = round((float)$currentBill->amount, 2) - round((float) $currentBill->discount, 2);
         $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
@@ -713,7 +713,7 @@ class PaymentController extends Controller
             Bill::whereHas('reading', function ($q) use ($account_no) {
                     $q->where('account_no', $account_no);
                 })
-                ->where('id', '<>', $currentBill->id)
+                ->where('bill_period_from', '<', $currentBill->bill_period_from)
                 ->where('isPaid', 0)
                 ->update([
                     'isPaid'        => 1,
@@ -761,17 +761,19 @@ class PaymentController extends Controller
             ]);
         }
 
-    $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
-    $isOverdue = now()->greaterThan($dueDate);
+        $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+        $isOverdue = now()->greaterThan($dueDate);
 
-    $collectible = $isOverdue
-        ? (float)$currentBill->amount_after_due
-        : (float)$currentBill->total - (float)$currentBill->discount;
+        $collectible = $isOverdue
+            ? (float)$currentBill->amount_after_due
+            : (float)$currentBill->total - (float)$currentBill->discount;
 
-    $balance = round(
-        $collectible - (float)$currentBill->amount_paid,
-        2
-    );
+        $alreadyPaid = (float)$currentBill->amount_paid + (float)$currentBill->partial_payment;
+
+        $balance = round(
+            $collectible - $alreadyPaid,
+            2
+        );
 
         if ($paymentAmount < $balance) {
             return back()->with('alert', [
