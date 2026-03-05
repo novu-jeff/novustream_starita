@@ -783,15 +783,28 @@ class PaymentController extends Controller
             ]);
         }
 
-        $currentBill->update([
-            'isPaid'                    => 1,
-            'isPartial'                 => 0,
-            'amount_paid'               => $paymentAmount,
-            'change'                    => $change,
-            'isChangeForAdvancePayment' => $isAdvance,
-            'date_paid'                 => now(),
-            'payment_method'            => 'cash',
+        Bill::whereHas('reading', function ($q) use ($account_no) {
+            $q->where('account_no', $account_no);
+        })
+        ->where('isPaid', 0)
+        ->where('bill_period_from', '<=', $currentBill->bill_period_from)
+        ->update([
+            'isPaid'        => 1,
+            'isPartial'     => 0,
+            'amount_paid'   => DB::raw('amount_after_due'),
+            'date_paid'     => now(),
+            'payment_method'=> 'cash',
         ]);
+
+        // $currentBill->update([
+        //     'isPaid'                    => 1,
+        //     'isPartial'                 => 0,
+        //     'amount_paid'               => $paymentAmount,
+        //     'change'                    => $change,
+        //     'isChangeForAdvancePayment' => $isAdvance,
+        //     'date_paid'                 => now(),
+        //     'payment_method'            => 'cash',
+        // ]);
 
         return back()->with('alert', [
             'status'  => 'success',
