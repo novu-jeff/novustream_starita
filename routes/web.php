@@ -24,6 +24,7 @@ use App\Http\Controllers\OfflineSyncController;
 use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\NovupaySyncController;
+use App\Http\Controllers\OfflineReadingsController;
 use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 
@@ -180,6 +181,8 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::get('online-payments', [NovupaySyncController::class, 'index'])
             ->name('online-payments.index');
+        Route::get('offline-readings', [OfflineReadingsController::class, 'index'])
+            ->name('offline-readings.index');
     });
 
 
@@ -223,8 +226,17 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         ->name('admin.payments-ready-to-sync');
     Route::get('/recent-synced-payments', [NovupaySyncController::class, 'recentSyncedPayments'])
         ->name('admin.recent-synced-payments');
+    Route::get('/download-recent-synced-payments', [NovupaySyncController::class, 'downloadRecentSyncedPayments'])
+        ->name('admin.download-recent-synced-payments');
     Route::post('/sync-online-payments', [NovupaySyncController::class, 'syncOnlinePayments'])
         ->name('admin.sync-online-payments');
+
+    Route::get('/readings-ready-to-merge', [OfflineReadingsController::class, 'readingsReadyToMerge'])
+        ->name('admin.readings-ready-to-merge');
+    Route::post('/run-merge', [OfflineReadingsController::class, 'runMerge'])
+        ->name('admin.run-merge');
+    Route::get('/recent-merged-readings', [OfflineReadingsController::class, 'recentMerged'])
+        ->name('admin.recent-merged-readings');
 
     Route::get('/sync-novupay-to-starita', function () {
         try {

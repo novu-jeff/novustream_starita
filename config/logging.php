@@ -133,6 +133,13 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ],
+
+        'online_payments_sync' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/online-payments-sync.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];

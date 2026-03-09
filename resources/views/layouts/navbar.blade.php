@@ -107,6 +107,7 @@
 
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 							<li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
+							<li><a class="dropdown-item" href="{{route('offline-readings.index')}}">Offline Readings</a></li>
 						</ul>
 					</div>
 				@endcan
