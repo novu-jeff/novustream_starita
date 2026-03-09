@@ -53,7 +53,7 @@
             @endif
         </div>
         @if($isReRead['status'])
-            <div class="d-flex justify-content-center text-center">
+            <div class="d-flex flex-column align-items-center text-center">
                 <div style="font-size: 14px;" class="alert alert-danger px-4 text-uppercase fw-bold">
                     This bill has been discarded as it has already been re-read. <br>
                     Please refer to the re-read bill with reference number:
@@ -61,6 +61,11 @@
                         {{ $isReRead['reference_no'] }}
                     </a>.
                 </div>
+                <button
+                    class="print-js"
+                    style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; cursor: pointer;">
+                    <i style="font-size: 15px;" class='bx bxs-printer'></i> Print Bill
+                </button>
             </div>
         @endif
         <div style="padding-bottom: 50px">
