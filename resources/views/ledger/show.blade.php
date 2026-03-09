@@ -131,9 +131,10 @@
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
                         @php
                             $totalAdvances = $bills->sum('advances');
+                            $hasUnpaid = $bills->where('isPaid', 0)->count() > 0;
                         @endphp
 
-                        @if ($totalAdvances > 0)
+                        @if ($totalAdvances > 0 && $hasUnpaid)
                             <td class="text-center fw-bold text-uppercase small">Advances:</td>
                             <td class="text-center fw-bold text-primary">
                                 {{ number_format($totalAdvances, 2) }}
