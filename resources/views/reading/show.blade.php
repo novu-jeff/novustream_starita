@@ -29,6 +29,13 @@
                 style="border: 1px solid #32667e; padding: 12px 40px; text-align:center; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px;">
                 <i style="font-size: 15px;" class='bx bx-left-arrow-alt'></i> Go Back
             </a>
+            @if($isReRead['status'])
+            <button
+                class="print-js"
+                style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; cursor: pointer;">
+                <i style="font-size: 15px;" class='bx bxs-printer'></i> Print Bill
+            </button>
+            @endif
 
             @if(!$isReRead['status'])
                 <button
@@ -61,11 +68,6 @@
                         {{ $isReRead['reference_no'] }}
                     </a>.
                 </div>
-                <button
-                    class="print-js"
-                    style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; cursor: pointer;">
-                    <i style="font-size: 15px;" class='bx bxs-printer'></i> Print Bill
-                </button>
             </div>
         @endif
         <div style="padding-bottom: 50px">

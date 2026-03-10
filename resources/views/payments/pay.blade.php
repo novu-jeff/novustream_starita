@@ -459,20 +459,9 @@
 
                                             $partialPayment = $data['current_bill']['partial_payment'] ?? 0;
 
-                                            $userDiscount = $data['client']['account_no'];
-                                                if (in_array($userDiscount, ['011-12-010740'])) {
-                                                    $temporaryDiscount = 0.25;
-                                                } else {
-                                                    $temporaryDiscount = null;
-                                                }
-
                                             $netCurrentBill = max(0, $currentBill - $discount - $advancePayment);
 
                                             $totalDue = $netCurrentBill + $applicablePenalty - $partialPayment;
-
-                                            $temporaryDiscount = $totalDue * $temporaryDiscount;
-
-                                            $totalDue = $totalDue - $temporaryDiscount;
 
                                             $forAdvances = $advances - $currentBill;
                                         @endphp
@@ -522,12 +511,6 @@
                                             @if($discount > 0)
                                                 <div class="text-end">
                                                     <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($discount, 2) }} (DISCOUNT)</h6>
-                                                </div>
-                                            @endif
-
-                                            @if($temporaryDiscount > 0)
-                                                <div class="text-end">
-                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($temporaryDiscount, 2) }} (25% DISCOUNT)</h6>
                                                 </div>
                                             @endif
 
