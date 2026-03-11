@@ -372,7 +372,7 @@
             <td></td>
             @if($isPaid === 1)
                 <td class="text-end">₱ {{ number_format($total - $arrears, 2) }}</td>
-            @elseif(isPartial === 1)
+            @elseif($isPartial === 1)
                 <td class="text-end">₱ {{ number_format($paymentAmount, 2) }}</td>
             @endif
           </tr>
