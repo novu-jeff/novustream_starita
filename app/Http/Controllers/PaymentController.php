@@ -796,6 +796,48 @@ class PaymentController extends Controller
             'payment_method'=> 'cash',
         ]);
 
+        $installment = \App\Models\Installment::where('status','active')
+            ->whereHas('bill.reading', function ($q) use ($account_no) {
+                $q->where('account_no',$account_no);
+            })
+            ->first();
+
+        if ($installment) {
+
+            $schedule = \App\Models\InstallmentSchedule::where('installment_id', $installment->id)
+                ->where('is_paid',0)
+                ->orderBy('month_no')
+                ->first();
+
+            if ($schedule) {
+
+                $schedule->update([
+                    'is_paid' => 1,
+                    'paid_at' => now()
+                ]);
+
+                // check if installment completed
+                $remainingSchedules = \App\Models\InstallmentSchedule::where('installment_id',$installment->id)
+                    ->where('is_paid',0)
+                    ->count();
+
+                if ($remainingSchedules == 0) {
+
+                    $installment->update([
+                        'status' => 'completed'
+                    ]);
+
+                    $installment->bill->update([
+                        'isInstallment' => 0,
+                        'isPaid' => 1,
+                        'amount_paid' => $installment->bill_amount
+                    ]);
+
+                }
+
+            }
+        }
+
         // $currentBill->update([
         //     'isPaid'                    => 1,
         //     'isPartial'                 => 0,

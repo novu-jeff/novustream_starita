@@ -1401,41 +1401,41 @@ class ReportsController extends Controller
                     'SAN MATIAS',
                     'SAN VICENTE',
                 ];
-$data = ConcessionerAccount::query()
-    ->leftJoin('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-    ->leftJoin('bill', function ($join) use ($startDate, $endDate) {
-        $join->on('bill.reading_id', '=', 'readings.id')
-             ->where('bill.isPaid', 0); // unpaid only
-        if ($startDate && $endDate) {
-            $join->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
-        }
-    })
-    ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
-    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
-    ->selectRaw("
-        concessioner_accounts.zone AS zone,
-        COUNT(DISTINCT concessioner_accounts.account_no) AS total_inactive,
-        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS total_unpaid_amount
-    ")
-    ->groupBy('concessioner_accounts.zone')
-    ->orderBy('concessioner_accounts.zone')
-    ->get();
+                $data = ConcessionerAccount::query()
+                    ->leftJoin('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+                    ->leftJoin('bill', function ($join) use ($startDate, $endDate) {
+                        $join->on('bill.reading_id', '=', 'readings.id')
+                            ->where('bill.isPaid', 0); // unpaid only
+                        if ($startDate && $endDate) {
+                            $join->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+                        }
+                    })
+                    ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                    ->selectRaw("
+                        concessioner_accounts.zone AS zone,
+                        COUNT(DISTINCT concessioner_accounts.account_no) AS total_inactive,
+                        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS total_unpaid_amount
+                    ")
+                    ->groupBy('concessioner_accounts.zone')
+                    ->orderBy('concessioner_accounts.zone')
+                    ->get();
 
-$rows = [];
+                $rows = [];
 
-foreach ($data as $row) {
-    $rows[] = [
-        'ZONE'         => 'ZONE ' . $row->zone,
-        'TOTAL'        => $row->total_inactive,
-        'TOTAL AMOUNT' => $row->total_unpaid_amount,
-    ];
-}
+                foreach ($data as $row) {
+                    $rows[] = [
+                        'ZONE'         => 'ZONE ' . $row->zone,
+                        'TOTAL'        => $row->total_inactive,
+                        'TOTAL AMOUNT' => $row->total_unpaid_amount,
+                    ];
+                }
 
-$result[$report] = $rows;
-break;
+                $result[$report] = $rows;
+                break;
 
 
-case 'Book Summary Report':
+                case 'Book Summary Report':
 
                 /* ==========================================
                 * BOOKS
