@@ -76,5 +76,9 @@ class Bill extends Model
         );
     }
 
+    public function installment()
+    {
+        return $this->hasOne(Installment::class);
+    }
 
 }

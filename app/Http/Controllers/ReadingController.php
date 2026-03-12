@@ -27,6 +27,7 @@ use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
 use App\Models\PenaltyExemption;
+use App\Models\InstallmentSchedule;
 
 
 class ReadingController extends Controller
@@ -650,6 +651,7 @@ class ReadingController extends Controller
 
         $unpaidAmount = Bill::with('reading')
             ->where('isPaid', false)
+            ->where('isInstallment', false)
             ->whereNotNull('amount')
             ->whereHas('reading', function ($query) use ($payload) {
                 $query->where('account_no', $payload['account_no'])
@@ -657,9 +659,16 @@ class ReadingController extends Controller
             })
             ->sum('amount') ?? 0;
 
-        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+        $installmentArrears = InstallmentSchedule::where('is_paid', false)
+            ->whereHas('installment.bill.reading', function ($query) use ($payload) {
+                $query->where('account_no', $payload['account_no']);
+            })
+            ->orderBy('month_no')
+            ->value('amount') ?? 0;
 
-        $newAmount = $amount - $partialPaymentTotal;
+        $totalArrears = ($unpaidAmount + $installmentArrears) - $partialPaymentTotal;
+
+        $remainingUnpaid = max($totalArrears, 0);
 
         // $penaltyRate = 0.15;
         // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
@@ -713,6 +722,7 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
+                'previous_unpaid' => $installmentArrears,
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,

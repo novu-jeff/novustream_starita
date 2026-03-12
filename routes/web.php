@@ -27,6 +27,7 @@ use App\Http\Controllers\NovupaySyncController;
 use App\Http\Controllers\OfflineReadingsController;
 use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
+use App\Http\Controllers\InstallmentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -130,6 +131,19 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::resource('reading-dates', ReadingDateController::class)
     ->except(['create', 'show']);
+
+    Route::get('/admin/installment/details/{id}',
+    [InstallmentController::class,'details'])
+    ->name('installment.details');
+
+    Route::post('/installment/store', [InstallmentController::class,'store'])
+    ->name('installment.store');
+
+    Route::get('/installment/bills-by-account', [InstallmentController::class,'getBillsByAccount'])
+    ->name('installment.bills.by.account');
+
+    Route::get('/installment', [InstallmentController::class,'index'])
+    ->name('installment.index');
 
     Route::prefix('users')->group(function() {
 
