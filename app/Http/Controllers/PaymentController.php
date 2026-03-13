@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Imports\PreviousBillingImport;
 use App\Models\Bill;
 use App\Services\GenerateService;
+use App\Services\BillSettlementService;
 use App\Services\MeterService;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -28,11 +29,14 @@ class PaymentController extends Controller
 
     public $meterService;
     public $generateService;
+    public $billSettlementService;
 
     public function __construct(MeterService $meterService,
-        GenerateService $generateService) {
+        GenerateService $generateService,
+        BillSettlementService $billSettlementService) {
         $this->meterService = $meterService;
         $this->generateService = $generateService;
+        $this->billSettlementService = $billSettlementService;
     }
 
     public function index(Request $request)
@@ -1089,13 +1093,20 @@ class PaymentController extends Controller
 
         // ✅ Step 3: Mark bill as paid if successful
         if (in_array($status, ['completed', 'succeeded', 'success'], true)) {
-            $bill->update([
-                'isPaid' => 1,
-                'amount_paid' => $amount,
-                'payor_name' => $payor,
-                'date_paid' => now(),
-                'payment_method' => 'online',
-            ]);
+            $this->billSettlementService->settlePaidBillChain(
+                $bill,
+                [
+                    'amount_paid' => $amount > 0 ? $amount : null,
+                    'payor_name' => $payor,
+                    'date_paid' => now(),
+                    'payment_method' => 'online',
+                ],
+                [
+                    'payor_name' => $payor,
+                    'date_paid' => now(),
+                    'payment_method' => 'online',
+                ]
+            );
             \Log::info('HitPay redirect: bill marked as paid', [
                 'bill_id' => $bill->id,
                 'reference_no' => $bill->reference_no,
@@ -1266,13 +1277,20 @@ class PaymentController extends Controller
         }
 
         try {
-            $existingBill->update([
-                'isPaid' => 1,
-                'amount_paid' => $payment_amount > 0 ? $payment_amount : $existingBill->amount,
-                'payor_name' => $payor,
-                'date_paid' => now(),
-                'payment_method' => 'online',
-            ]);
+            $this->billSettlementService->settlePaidBillChain(
+                $existingBill,
+                [
+                    'amount_paid' => $payment_amount > 0 ? $payment_amount : null,
+                    'payor_name' => $payor,
+                    'date_paid' => now(),
+                    'payment_method' => 'online',
+                ],
+                [
+                    'payor_name' => $payor,
+                    'date_paid' => now(),
+                    'payment_method' => 'online',
+                ]
+            );
             Log::info('HitPay webhook: bill marked as paid', [
                 'bill_id' => $existingBill->id,
                 'reference_no' => $existingBill->reference_no,

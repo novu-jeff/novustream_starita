@@ -44,7 +44,8 @@ class NovupaySyncController extends Controller
         $limit = in_array($limit, [20, 50, 100, 500], true) ? $limit : 20;
 
         $payments = $this->queryRecentSyncedPaid($limit, $request);
-        $list = $payments->map(fn ($b) => $this->billToRow($b))->values()->all();
+        $localBillsByRef = $this->getLocalBillsByReferenceNo($payments->pluck('reference_no')->all());
+        $list = $payments->map(fn ($b) => $this->billToRow($b, $localBillsByRef->get($b->reference_no)))->values()->all();
 
         Log::channel('single')->info('[OnlinePayments] Filter result', [
             'endpoint' => 'recent-synced-payments',
@@ -73,7 +74,8 @@ class NovupaySyncController extends Controller
         Log::channel('single')->info('[OnlinePayments] Filter request', $filterLog);
 
         $payments = $this->queryPaymentsReadyToSync($request);
-        $list = $payments->map(fn ($b) => $this->billToRow($b))->values()->all();
+        $localBillsByRef = $this->getLocalBillsByReferenceNo($payments->pluck('reference_no')->all());
+        $list = $payments->map(fn ($b) => $this->billToRow($b, $localBillsByRef->get($b->reference_no)))->values()->all();
 
         Log::channel('single')->info('[OnlinePayments] Filter result', [
             'endpoint' => 'payments-ready-to-sync',
@@ -102,9 +104,9 @@ class NovupaySyncController extends Controller
             ], 400);
         }
 
-        // Get list of payments that are about to be synced (so we can return them as "synced")
-        $paymentsBefore = $this->queryPaymentsReadyToSync();
-        $listBefore = $paymentsBefore->map(fn ($b) => $this->billToRow($b))->values()->all();
+        $payments = $this->queryPaymentsReadyToSync($request);
+        $localBillsByRef = $this->getLocalBillsByReferenceNo($payments->pluck('reference_no')->all());
+        $listBefore = $payments->map(fn ($b) => $this->billToRow($b, $localBillsByRef->get($b->reference_no)))->values()->all();
 
         $logChannel = 'online_payments_sync';
         $startedAt = now()->format('Y-m-d H:i:s');
@@ -153,7 +155,8 @@ class NovupaySyncController extends Controller
         $limit = in_array($limit, [20, 50, 100, 500], true) ? $limit : 500;
 
         $payments = $this->queryRecentSyncedPaid($limit, $request);
-        $list = $payments->map(fn ($b) => $this->billToRow($b))->values()->all();
+        $localBillsByRef = $this->getLocalBillsByReferenceNo($payments->pluck('reference_no')->all());
+        $list = $payments->map(fn ($b) => $this->billToRow($b, $localBillsByRef->get($b->reference_no)))->values()->all();
 
         $filename = 'online-payments-recent-synced-' . now()->format('Y-m-d-His') . '.csv';
 
@@ -275,6 +278,22 @@ class NovupaySyncController extends Controller
     }
 
     /**
+     * Get local Bill models by reference_no (keyed by reference_no).
+     * @param array<string> $referenceNos
+     * @return \Illuminate\Support\Collection<string, Bill>
+     */
+    private function getLocalBillsByReferenceNo(array $referenceNos): \Illuminate\Support\Collection
+    {
+        if (empty($referenceNos)) {
+            return collect();
+        }
+        return Bill::query()
+            ->whereIn('reference_no', $referenceNos)
+            ->get()
+            ->keyBy('reference_no');
+    }
+
+    /**
      * Get reference_no values from sta_rita (default connection) bill table
      * where bill.updated_at date is between date_from and date_to inclusive.
      */
@@ -290,10 +309,16 @@ class NovupaySyncController extends Controller
             ->all();
     }
 
-    private function billToRow(NovupayStaritaBill $b): array
+    private function billToRow(NovupayStaritaBill $b, ?Bill $localBill = null): array
     {
         $payload = $b->payload ?? [];
-        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? $b->payor ?? $payload['name'] ?? $payload['customer_name'] ?? null;
+        $payor = null;
+        if ($localBill && trim((string) ($localBill->payor_name ?? '')) !== '') {
+            $payor = trim((string) $localBill->payor_name);
+        }
+        if ($payor === null) {
+            $payor = $payload['customer']['name'] ?? $payload['payor'] ?? $b->payor ?? $payload['name'] ?? $payload['customer_name'] ?? null;
+        }
         return [
             'reference_no' => $b->reference_no,
             'account_no' => $b->account_no,

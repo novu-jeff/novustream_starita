@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Bill;
 use App\Models\NovupayStaritaBill;
+use App\Services\BillSettlementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -20,6 +21,7 @@ class StaritaSyncPaidStatusCommand extends Command
     public function handle(): int
     {
         $limit = (int) $this->option('limit');
+        $billSettlementService = app(BillSettlementService::class);
 
         $this->info('starita:sync-paid-status started.');
         $this->logToBoth('starita:sync-paid-status started', ['limit' => $limit]);
@@ -62,11 +64,18 @@ class StaritaSyncPaidStatusCommand extends Command
                         $skipped++;
                         continue;
                     }
-                    $localBill->update([
-                        'isPaid' => true,
-                        'date_paid' => $nb->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                        'payment_method' => 'online',
-                    ]);
+                    $billSettlementService->settlePaidBillChain(
+                        $localBill,
+                        [
+                            'amount_paid' => $nb->amount ?: null,
+                            'date_paid' => $nb->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                            'payment_method' => 'online',
+                        ],
+                        [
+                            'date_paid' => $nb->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                            'payment_method' => 'online',
+                        ]
+                    );
 
                     if (strtolower((string) ($nb->status ?? '')) !== 'paid') {
                         NovupayStaritaBill::whereKey($nb->id)->update(['status' => 'paid']);

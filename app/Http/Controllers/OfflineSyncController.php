@@ -7,13 +7,17 @@ use App\Models\Bill;
 use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Models\NovupayStaritaBill;
+use App\Services\BillSettlementService;
 use App\Services\MeterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OfflineSyncController extends Controller
 {
-    public function __construct(protected MeterService $meterService)
+    public function __construct(
+        protected MeterService $meterService,
+        protected BillSettlementService $billSettlementService
+    )
     {
     }
 
@@ -317,16 +321,28 @@ class OfflineSyncController extends Controller
                 ) {
                     $novupayBill = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
                     if ($novupayBill && strtolower($novupayBill->status ?? '') === 'paid') {
+                        $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
                         $update = [
-                            'isPaid' => true,
-                            'date_paid' => $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
                             'payment_method' => 'online',
                         ];
                         if (empty($localBill->payor_name)) {
                             $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
                             $update['payor_name'] = $payor;
                         }
-                        $localBill->update($update);
+                        $this->billSettlementService->settlePaidBillChain(
+                            $localBill,
+                            [
+                                'amount_paid' => $novupayBill->amount ?: null,
+                                'date_paid' => $paidAt,
+                                'payment_method' => 'online',
+                                'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                            ],
+                            [
+                                'date_paid' => $paidAt,
+                                'payment_method' => 'online',
+                                'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                            ]
+                        );
                         $accountsPaid[] = [
                             'account_no' => $off->account_no,
                             'payor_name' => $update['payor_name'] ?? $localBill->payor_name ?? null,

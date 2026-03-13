@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Admin;
 use App\Models\Bill;
 use App\Models\NovupayStaritaBill;
+use App\Services\BillSettlementService;
 use App\Services\MeterService;
 use Illuminate\Support\Carbon;
 use Illuminate\Console\Command;
@@ -20,7 +21,10 @@ class SyncNovupayReadingsCommand extends Command
     protected $signature = 'novupay:sync-readings {--limit=100}';
     protected $description = 'Sync starita_bills from Novupay into local bill (reference/account matching + create when missing)';
 
-    public function __construct(private readonly MeterService $meterService)
+    public function __construct(
+        private readonly MeterService $meterService,
+        private readonly BillSettlementService $billSettlementService
+    )
     {
         parent::__construct();
     }
@@ -251,28 +255,42 @@ class SyncNovupayReadingsCommand extends Command
         }
 
         if ($isPaid) {
-            // Never downgrade an already-paid local bill or overwrite a confirmed cash payment.
-            if (!$localBill->isPaid) {
-                $update['isPaid'] = true;
-                $update['date_paid'] = $localBill->date_paid ?? $paidAt;
-            } elseif (empty($localBill->date_paid)) {
-                $update['date_paid'] = $paidAt;
-            }
-            if (empty($localBill->payment_method)) {
-                $update['payment_method'] = 'online';
-            }
             // Set payor_name when empty (from starita_bills: payload, payor column, or account)
+            $payor = null;
             if (empty($localBill->payor_name)) {
                 $payor = $this->resolvePayorFromNovupayBill($nb, $localBill);
                 if (!empty($payor)) {
                     $update['payor_name'] = $payor;
                 }
             }
+
+            $paymentMethod = $localBill->payment_method ?: 'online';
+
+            $this->billSettlementService->settlePaidBillChain(
+                $localBill,
+                [
+                    'amount_paid' => $nb->amount ?: null,
+                    'date_paid' => $localBill->date_paid ?? $paidAt,
+                    'payment_method' => $paymentMethod,
+                    'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                    'hitpay_reference' => $update['hitpay_reference'] ?? $localBill->hitpay_reference,
+                    'initiated_at' => $update['initiated_at'] ?? $localBill->initiated_at,
+                ],
+                [
+                    'date_paid' => $localBill->date_paid ?? $paidAt,
+                    'payment_method' => $paymentMethod,
+                    'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                ]
+            );
+
+            unset($update['payor_name'], $update['hitpay_reference'], $update['initiated_at']);
         } elseif (empty($localBill->payment_method)) {
             $update['payment_method'] = 'online';
         }
 
-        $localBill->update($update);
+        if (!empty($update)) {
+            $localBill->update($update);
+        }
         $this->markSourceRowAsSynced($nb, $isPaid);
     }
 

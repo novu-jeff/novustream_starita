@@ -80,6 +80,11 @@
                         </td>
                         <td class="text-end">
                             <div>{{ number_format($bill->computed_amount, 2) }}</div>
+                            @if($bill->computed_arrears > 0)
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                    Includes arrears: {{ number_format($bill->computed_arrears, 2) }}
+                                </small>
+                            @endif
                             @if($bill->computed_penalty > 0)
                                 <small class="text-danger" style="font-size: 0.75rem;">
                                     +{{ number_format($bill->computed_penalty, 2) }} (Penalty)
@@ -88,6 +93,11 @@
                         </td>
                         <td class="text-end">
                             <div class="text-success">{{ number_format($bill->computed_paid, 2) }}</div>
+                            @if($bill->computed_allocated_to_arrears > 0)
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                    Applied to arrears: {{ number_format($bill->computed_allocated_to_arrears, 2) }}
+                                </small>
+                            @endif
                             @if($bill->partial_payment > 0)
                                 <small class="text-primary" style="font-size: 0.75rem;">
                                     Partial: {{ number_format($bill->partial_payment, 2) }}
@@ -100,6 +110,8 @@
                         <td class="text-center">
                             @if($bill->computed_status === 'PAID')
                                 <span class="badge rounded-pill bg-success-subtle text-success px-3">PAID</span>
+                            @elseif($bill->computed_status === 'PARTIAL')
+                                <span class="badge rounded-pill bg-warning-subtle text-warning px-3">PARTIAL</span>
                             @elseif($bill->computed_status === 'OVERDUE')
                                 <span class="badge rounded-pill bg-danger-subtle text-danger px-3">OVERDUE</span>
                             @else

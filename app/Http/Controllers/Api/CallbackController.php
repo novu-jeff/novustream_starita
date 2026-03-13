@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
+use App\Services\BillSettlementService;
 use App\Services\MeterService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -12,9 +13,11 @@ use Illuminate\Support\Facades\Validator;
 class CallbackController extends Controller {
 
     public $meterService;
+    public $billSettlementService;
 
-    public function __construct(MeterService $meterService) {
+    public function __construct(MeterService $meterService, BillSettlementService $billSettlementService) {
         $this->meterService = $meterService;
+        $this->billSettlementService = $billSettlementService;
     }
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
@@ -25,7 +28,7 @@ class CallbackController extends Controller {
             return ['error' => 'Bill not found'];
         }
     
-        $total = $data['current_bill']->amount;
+        $total = (float) ($data['current_bill']['amount'] ?? 0);
     
         if($strictAmount) {
             $validator = Validator::make($payload, [
@@ -80,25 +83,20 @@ class CallbackController extends Controller {
         $currentBill = Bill::find($data['current_bill']['id']);
 
         if ($currentBill) {
-            $currentBill->update([
-                'isPaid' => true,
-                'payor_name' => $payload['payor'] ?? null,
-                'date_paid' => $now,
-            ]);
-        }
-
-        if (!empty($data['unpaid_bills'])) {
-            foreach ($data['unpaid_bills'] as $unpaid_bill) {
-                $unpaidBill = Bill::find($unpaid_bill['id']);
-                if ($unpaidBill) {
-                    $unpaidBill->update([
-                        'payor_name' => $payload['payor'] ?? null,
-                        'date_paid' => $now,
-                        'isPaid' => true,
-                        'paid_by_reference_no' => $reference_no
-                    ]);
-                }
-            }
+            $this->billSettlementService->settlePaidBillChain(
+                $currentBill,
+                [
+                    'amount_paid' => $payload['payment_amount'] ?? null,
+                    'payor_name' => $payload['payor'] ?? null,
+                    'date_paid' => $now,
+                    'payment_method' => 'online',
+                ],
+                [
+                    'payor_name' => $payload['payor'] ?? null,
+                    'date_paid' => $now,
+                    'payment_method' => 'online',
+                ]
+            );
         }
 
         return response()->json([
