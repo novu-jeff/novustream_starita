@@ -131,6 +131,11 @@
                                     class="btn btn-success btn-sm text-white fw-bold">
                                         <i class="bx bx-receipt"></i>
                                     </a>
+                                    <a target="_blank"
+                                    href="{{ route('reading.orshow', $bill->reference_no) }}"
+                                    class="btn btn-primary btn-sm text-white fw-bold ms-2">
+                                        <i class="bx bx-receipt"></i>
+                                    </a>
                                 @endif
                             </div>
                         </td>

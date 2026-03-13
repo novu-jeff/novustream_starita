@@ -22,6 +22,7 @@ use App\Models\PaymentDiscount;
 use App\Models\PartialPayment;
 use App\Models\Discount;
 use App\Models\PaymentBreakdownPenalty;
+use App\Models\InstallmentSchedule;
 
 class MeterService {
 
@@ -676,6 +677,7 @@ class MeterService {
         $forceZeroArrears = !empty($payload['force_zero_arrears']);
 
         $latestUnpaidBill = $forceZeroArrears ? null : Bill::whereIn('reading_id', $readingIds)
+            ->where('isInstallment', 0)
             ->where(function ($q) {
                 $q->where('isPaid', 0)
                 ->orWhere('isPartial', 1);
@@ -736,6 +738,19 @@ class MeterService {
         $total = collect($deductions)->sum('amount');
         $basic_charge = collect($deductions)->where('name', 'Basic Charge')->sum('amount');
 
+        $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
+            ->whereHas('installment.bill.reading', function ($q) use ($payload) {
+                $q->where('account_no', $payload['account_no']);
+            })
+            ->orderBy('month_no')
+            ->first();
+
+        if ($installmentSchedule) {
+
+            $remainingUnpaid = (float) $installmentSchedule->amount;
+
+        }
+
         $appliedDiscounts = [];
         $totalDiscount = 0;
         $accountDiscountType = $concessionaire->discount_type ?? null;
@@ -792,7 +807,7 @@ class MeterService {
         $amount_after_due = 0;
         $hasPenalty = false;
 
-        if ($unpaidAmount != 0) {
+        if ($unpaidAmount != 0 && !$installmentSchedule) {
             $penalties = $this->paymentBreakdownService::getPenalty();
             $amountPayable = $total - $arrears - $totalDiscount;
 
@@ -853,13 +868,13 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $total - $partialPaymentTotal,
+            'total' => $total - $partialPaymentTotal + $remainingUnpaid,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $overall_total - $partialPaymentTotal,
+            'amount' => $overall_total - $partialPaymentTotal + $remainingUnpaid,
             'amount_after_due' => $amount_after_due,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
