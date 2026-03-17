@@ -493,7 +493,7 @@ class PaymentController extends Controller
         $tax = (float) ($currentBillData['tax'] ?? 0);
 
         $dueDate = isset($currentBillData['due_date'])
-            ? \Carbon\Carbon::parse(trim($currentBillData['due_date']))
+            ? \Carbon\Carbon::parse(trim($currentBillData['due_date']))->addDay()
                 ->timezone('Asia/Manila')
                 ->startOfDay()
             : null;
@@ -763,7 +763,7 @@ class PaymentController extends Controller
             ]);
         }
 
-        $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+        $dueDate = \Carbon\Carbon::parse($currentBill->due_date)->addDay();
         $isOverdue = now()->greaterThan($dueDate);
 
         $collectible = $isOverdue
