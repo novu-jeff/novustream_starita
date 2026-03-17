@@ -198,7 +198,7 @@
     }
 
     $dueDate = isset($data['current_bill']['due_date'])
-        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()
         : null;
 
     $datePaidCarbon = isset($cb['date_paid'])
