@@ -504,17 +504,8 @@ class PaymentController extends Controller
             $dueDatePenalty = (float) $penalty;
         }
 
-        $userDiscount = $currentBillData['reading']['account_no'];
-            if (in_array($userDiscount, ['011-12-010740'])) {
-                $temporaryDiscount = 0.25;
-            } else {
-                $temporaryDiscount = null;
-            }
-
         // 2. removed arrears
         $totalDue = $currentBill - $discount + $dueDatePenalty - $advancePayment - $partialPayment;
-        $temporaryDiscounts = $totalDue * $temporaryDiscount;
-        $totalDue = $totalDue - $temporaryDiscounts;
         $totalDue = max(0, round($totalDue, 2));
 
         return [
@@ -660,15 +651,22 @@ class PaymentController extends Controller
             ]);
         }
 
+
+        $discount = isset($payload['discount'])
+            ? (float) $payload['discount']
+            : (float) $currentBill->discount;
+
+        $discount = round($discount, 2);
+
         $now = now();
         $payArrearsOnly = !empty($payload['pay_arrears_only']);
         $paymentAmount = round((float) $payload['payment_amount'], 2);
         $payPartialOnly = !empty($payload['partial_payment']);
-        $total = round((float) $currentBill->total, 2) - round((float) $currentBill->discount, 2);
-        $amount = round((float)$currentBill->amount, 2) - round((float) $currentBill->discount, 2);
+        $total = round((float)$currentBill->total - $discount, 2);
+        $amount = round((float)$currentBill->amount - $discount, 2);
         $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
         $isOverdue = now()->greaterThan($dueDate);
-        $billAmount = round((float) $currentBill->amount_after_due, 2);
+        $billAmount = round((float) $currentBill->amount_after_due - $discount, 2);
 
         $amountChange = $isOverdue
         ? $paymentAmount - $amount
@@ -769,8 +767,8 @@ class PaymentController extends Controller
         $isOverdue = now()->greaterThan($dueDate);
 
         $collectible = $isOverdue
-            ? (float)$currentBill->amount_after_due
-            : (float)$currentBill->total - (float)$currentBill->discount;
+            ? (float)$currentBill->amount_after_due - $discount
+            : (float)$currentBill->total - $discount;
 
         $alreadyPaid = (float)$currentBill->amount_paid + (float)$currentBill->partial_payment;
 
