@@ -16,13 +16,20 @@
 
   <style>
 
+    @media print {
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    }
+
     @page {
         margin: 0;
     }
 
     @font-face {
         font-family: 'EpsonFX';
-        src: url('/fonts/Web437_EpsonMGA_2y.woff') format('woff');
+        src: url('/fonts/Web437_EpsonMGA_Mono.woff') format('woff');
         font-weight: normal;
         font-style: normal;
     }
