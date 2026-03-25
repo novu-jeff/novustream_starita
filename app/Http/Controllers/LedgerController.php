@@ -76,20 +76,20 @@ class LedgerController extends Controller
                     continue;
                 }
 
-                $applied = min($remaining, $remainingArrearsPool);
-                $bills[$openIndex]->computed_paid += $applied;
-                $bills[$openIndex]->computed_balance = max(0, $bills[$openIndex]->computed_balance - $applied);
-                $remainingArrearsPool -= $applied;
-                $openBalances[$openIndex] = max(0, $remaining - $applied);
+                $applied = round(min($remaining, $remainingArrearsPool), 2);
+                $bills[$openIndex]->computed_paid = round($bills[$openIndex]->computed_paid + $applied, 2);
+                $bills[$openIndex]->computed_balance = round(max(0, $bills[$openIndex]->computed_balance - $applied), 2);
+                $remainingArrearsPool = round($remainingArrearsPool - $applied, 2);
+                $openBalances[$openIndex] = round(max(0, $remaining - $applied), 2);
             }
 
             $bill->computed_allocated_to_arrears = $arrearsPool - $remainingArrearsPool;
 
-            $ownPayment = max(0, $metrics['raw_payment'] - $arrearsPool);
-            $appliedOwnPayment = min($metrics['row_due'], $ownPayment);
+            $ownPayment = round(max(0, $metrics['raw_payment'] - $arrearsPool), 2);
+            $appliedOwnPayment = round(min($metrics['row_due'], $ownPayment), 2);
 
-            $bill->computed_paid += $appliedOwnPayment;
-            $bill->computed_balance = max(0, $metrics['row_due'] - $bill->computed_paid);
+            $bill->computed_paid = round($bill->computed_paid + $appliedOwnPayment, 2);
+            $bill->computed_balance = round(max(0, $metrics['row_due'] - $bill->computed_paid), 2);
             $openBalances[$index] = $bill->computed_balance;
         }
 
@@ -97,7 +97,7 @@ class LedgerController extends Controller
             $today = Carbon::today();
             $dueDate = !empty($bill->due_date) ? Carbon::parse($bill->due_date)->startOfDay() : null;
 
-            if ($bill->computed_balance <= 0.009) {
+            if ($bill->computed_balance <= 0.01) {
                 $bill->computed_status = 'PAID';
                 $bill->computed_balance = 0.0;
                 continue;
