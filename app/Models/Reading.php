@@ -44,4 +44,9 @@ class Reading extends Model
         return $this->belongsTo(PropertyTypes::class, 'property_type_id');
     }
 
+    public function adjustments()
+    {
+        return $this->hasMany(ReadingAdjustment::class)->latest();
+    }
+
 }

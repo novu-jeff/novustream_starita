@@ -28,6 +28,8 @@ use App\Http\Controllers\OfflineReadingsController;
 use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\admin\ReadingAdjustmentController;
+use App\Http\Controllers\admin\BillingAdjustmentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -211,6 +213,23 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             [LedgerController::class, 'show']
         )->name('concessionaires.ledger');
 
+    });
+
+    Route::prefix('admins/reading-adjustments')
+        ->name('admins.reading-adjustments.')
+        ->group(function () {
+
+        Route::get('/', [ReadingAdjustmentController::class, 'index'])->name('index');
+        Route::get('/{id}/edit', [ReadingAdjustmentController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [ReadingAdjustmentController::class, 'update'])->name('update');
+    });
+
+    Route::prefix('admins/billing-adjustments')
+        ->name('admins.billing-adjustments.')
+        ->group(function () {
+
+        Route::get('/', [BillingAdjustmentController::class, 'index'])->name('index');
+        Route::put('/{id}', [BillingAdjustmentController::class, 'update'])->name('update');
     });
 
     Route::get('/transactions', [ConcessionaireController::class, 'index'])

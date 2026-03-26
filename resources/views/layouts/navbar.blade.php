@@ -104,6 +104,8 @@
                             <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
                             <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
                             <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
                             @endcan
 
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
