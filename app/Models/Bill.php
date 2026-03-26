@@ -81,4 +81,9 @@ class Bill extends Model
         return $this->hasOne(Installment::class);
     }
 
+    public function adjustments()
+    {
+        return $this->hasMany(BillAdjustment::class)->latest();
+    }
+
 }

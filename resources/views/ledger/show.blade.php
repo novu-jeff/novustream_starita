@@ -7,8 +7,16 @@
             <h4 class="mb-0 mt-2">Statement of Account</h4>
             <p class="text-muted"><span>Account Name: <strong>{{ $user->name }}</strong></span><br /> Account Number: <strong>{{ $user->accounts->pluck('account_no')->implode(', ') }}</strong></p>
         </div>
-        <div class="text-end">
-            <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">Go Back</a>
+        <div class="d-flex flex-row justify-content-between gap-2">
+            <div class="text-end">
+                <a href="{{route('concessionaires.index')}}" class="btn btn-outline-primary px-3 py-2 text-uppercase">Go Back</a>
+            </div>
+            <div class="text-end">
+                <a href="{{route('admins.reading-adjustments.index')}}" class="btn btn-outline-primary px-3 py-2 text-uppercase">Change Readings</a>
+            </div>
+            <div class="text-end">
+                <a href="{{route('admins.billing-adjustments.index')}}" class="btn btn-outline-primary px-3 py-2 text-uppercase">Change Billing</a>
+            </div>
         </div>
     </div>
 
@@ -147,8 +155,10 @@
                         <td colspan="5" class="text-end fw-bold text-uppercase small">Total Outstanding:</td>
                         <td class="text-end fw-bold text-danger">{{ number_format($runningBalance, 2) }}</td>
                         @php
-                            $totalAdvances = $bills->sum('advances');
-                            $hasUnpaid = $bills->where('isPaid', 0)->count() > 0;
+                            $unpaidBills = $bills->where('isPaid', 0);
+
+                            $totalAdvances = $unpaidBills->sum('advances');
+                            $hasUnpaid = $unpaidBills->isNotEmpty();
                         @endphp
 
                         @if ($totalAdvances > 0 && $hasUnpaid)

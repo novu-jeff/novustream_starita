@@ -599,7 +599,7 @@ class PaymentController extends Controller
         }
 
         $percentage = (float) $request->appliedDiscount;
-        $baseAmount = (float) $bill->total - $bill->previous_unpaid;
+        $baseAmount = (float) $bill->total;
 
         $computedDiscount = round(($baseAmount * $percentage) / 100, 2);
 
