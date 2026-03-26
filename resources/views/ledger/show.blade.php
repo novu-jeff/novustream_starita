@@ -100,12 +100,14 @@
                             @endif
                         </td>
                         <td class="text-end">
-                            <div class="text-success">{{ number_format($bill->computed_paid, 2) }}</div>
-                            @if($bill->computed_allocated_to_arrears > 0)
+                            <div class="{{ $bill->computed_paid > 0 ? 'text-success' : 'text-danger' }}">
+                                {{ number_format($bill->computed_paid ?? 0, 2) }}
+                            </div>
+                            <!-- @if($bill->computed_allocated_to_arrears > 0)
                                 <small class="text-muted d-block" style="font-size: 0.75rem;">
                                     Applied to arrears: {{ number_format($bill->computed_allocated_to_arrears, 2) }}
                                 </small>
-                            @endif
+                            @endif -->
                             @if($bill->partial_payment > 0)
                                 <small class="text-primary" style="font-size: 0.75rem;">
                                     Partial: {{ number_format($bill->partial_payment, 2) }}

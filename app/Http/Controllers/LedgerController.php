@@ -77,7 +77,6 @@ class LedgerController extends Controller
                 }
 
                 $applied = round(min($remaining, $remainingArrearsPool), 2);
-                $bills[$openIndex]->computed_paid = round($bills[$openIndex]->computed_paid + $applied, 2);
                 $bills[$openIndex]->computed_balance = round(max(0, $bills[$openIndex]->computed_balance - $applied), 2);
                 $remainingArrearsPool = round($remainingArrearsPool - $applied, 2);
                 $openBalances[$openIndex] = round(max(0, $remaining - $applied), 2);
@@ -88,7 +87,6 @@ class LedgerController extends Controller
             $ownPayment = round(max(0, $metrics['raw_payment'] - $arrearsPool), 2);
             $appliedOwnPayment = round(min($metrics['row_due'], $ownPayment), 2);
 
-            $bill->computed_paid = round($bill->computed_paid + $appliedOwnPayment, 2);
             $bill->computed_balance = round(max(0, $metrics['row_due'] - $bill->computed_paid), 2);
             $openBalances[$index] = $bill->computed_balance;
         }
@@ -97,14 +95,16 @@ class LedgerController extends Controller
             $today = Carbon::today();
             $dueDate = !empty($bill->due_date) ? Carbon::parse($bill->due_date)->startOfDay() : null;
 
-            if ($bill->computed_balance <= 0.01) {
+            if ($bill->isPaid == 1) {
                 $bill->computed_status = 'PAID';
                 $bill->computed_balance = 0.0;
+                $bill->computed_paid = round((float) $bill->amount_paid, 2);
                 continue;
             }
 
-            if ($bill->computed_paid > 0) {
+            if ($bill->isPartial == 1) {
                 $bill->computed_status = 'PARTIAL';
+                $bill->computed_paid = round((float) $bill->partial_payment, 2);
                 continue;
             }
 
