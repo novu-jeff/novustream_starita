@@ -118,32 +118,7 @@ class ReadingAdjustmentController extends Controller
             $reading->update([
                 'present_reading' => $newPresent,
                 'consumption' => $newConsumption,
-                'isReRead' => 1,
             ]);
-
-            $bill = Bill::where('reading_id', $reading->id)->first();
-
-            if ($bill) {
-                if ($bill->isPaid == 0) {
-                    $bill->update([
-                        'amount' => $amount,
-                        'total' => $amount,
-                    ]);
-                } else {
-                    $difference = $amount - $bill->amount_paid;
-
-                    if ($difference > 0) {
-                        $bill->update([
-                            'isPaid' => 0,
-                            'total' => $amount
-                        ]);
-                    } else {
-                        $bill->update([
-                            'advances' => abs($difference)
-                        ]);
-                    }
-                }
-            }
 
             DB::commit();
 
