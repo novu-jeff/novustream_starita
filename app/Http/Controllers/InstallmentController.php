@@ -73,11 +73,12 @@ class InstallmentController extends Controller
             ]);
         }
 
-        $bill->update([
-            'isInstallment'=>true
+        Bill::where('id', $bill->id)->update([
+            'isInstallment' => 1
         ]);
 
-        return back()->with('success','Installment created');
+        return redirect()->route('installment.index')
+            ->with('success','Installment created');
     }
 
     public function details($id)

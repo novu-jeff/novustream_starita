@@ -13,6 +13,10 @@
         </button>
     </div>
 
+    @if(session('success'))
+        <div class="alert alert-success shadow-sm">{{ session('success') }}</div>
+    @endif
+
     <!-- Summary Cards -->
     <div class="row g-3">
 
@@ -316,10 +320,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 billSelect.innerHTML = '<option value="">Select Bill</option>';
 
                 data.forEach(bill => {
+                    const date = new Date(bill.bill_period_to);
+                    const monthName = date.toLocaleString('en-US', { month: 'long' });
 
                     billSelect.innerHTML += `
                         <option value="${bill.id}" data-amount="${bill.amount}">
-                            ${bill.reference_no} - ₱${parseFloat(bill.amount).toFixed(2)}
+                            ${monthName} - ₱${parseFloat(bill.amount).toFixed(2)}
                         </option>
                     `;
 
