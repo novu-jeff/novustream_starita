@@ -666,9 +666,12 @@ class ReadingController extends Controller
             ->orderBy('month_no')
             ->value('amount') ?? 0;
 
-        $totalArrears = ($unpaidAmount + $installmentArrears) - $partialPaymentTotal;
+        $installmentArrears = (float) $installmentArrears;
+
+        $totalArrears = ($unpaidAmount - $installmentArrears) - $partialPaymentTotal;
 
         $remainingUnpaid = max($totalArrears, 0);
+
 
         // $penaltyRate = 0.15;
         // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
