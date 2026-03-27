@@ -677,7 +677,6 @@ class MeterService {
         $forceZeroArrears = !empty($payload['force_zero_arrears']);
 
         $latestBill = Bill::whereIn('reading_id', $readingIds)
-            ->where('isInstallment', 0)
             ->orderBy('bill_period_to', 'desc')
             ->first();
 
@@ -685,12 +684,15 @@ class MeterService {
         $partialPaymentTotal = 0;
 
         if (!$forceZeroArrears && $latestBill) {
-            if (!$latestBill->isPaid) {
-                $unpaidAmount = (float) ($latestBill->amount ?? 0);
-                $partialPaymentTotal = (float) ($latestBill->partial_payment ?? 0);
-            } else {
+            if ($latestBill->isPaid) {
                 $unpaidAmount = 0;
                 $partialPaymentTotal = 0;
+            } elseif ($latestBill->isInstallment) {
+                $unpaidAmount = 0;
+                $partialPaymentTotal = 0;
+            } else {
+                $unpaidAmount = (float) ($latestBill->amount ?? 0);
+                $partialPaymentTotal = (float) ($latestBill->partial_payment ?? 0);
             }
         }
 
