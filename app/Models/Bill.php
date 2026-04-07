@@ -25,11 +25,14 @@ class Bill extends Model
         'amount_paid',
         'change',
         'isPaid',
+        'isInstallment',
         'hasPenalty',
         'hasDisconnection',
         'hasDisconnected',
         'date_paid',
         'due_date',
+        'penalty_date',
+        'disconnection_date',
         'payor_name',
         'payment_method',
         'paid_by_reference_no',
@@ -45,6 +48,7 @@ class Bill extends Model
 
     protected $casts = [
         'isPaid' => 'boolean',
+        'isInstallment' => 'boolean',
         'hasPenalty' => 'boolean',
         'hasDisconnection' => 'boolean',
         'hasDisconnected' => 'boolean',

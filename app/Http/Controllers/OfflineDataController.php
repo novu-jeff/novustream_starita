@@ -13,6 +13,7 @@ use App\Models\Reading;
 use App\Models\Bill;
 use App\Models\ReadingDate;
 use App\Services\MeterService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class OfflineDataController extends Controller
@@ -230,12 +231,18 @@ class OfflineDataController extends Controller
         $client = $fullBill['client'] ?? [];
         $readingArr = $cb['reading'] ?? [];
         $breakdown = $cb['breakdown'] ?? [];
+        $dueForEnrich = $cb['due_date'] ?? null;
+        $periodTo = $cb['bill_period_to'] ?? null;
+        $dateExtras = self::enrichReadingScheduleDates($dueForEnrich, $periodTo, $bill, $reading);
         return [
             'reference_no'         => $cb['reference_no'] ?? $refNo,
             'account_no'           => $cb['bill_account_no'] ?? $client['account_no'] ?? $reading->account_no ?? '',
             'bill_period_from'     => $cb['bill_period_from'] ?? null,
             'bill_period_to'      => $cb['bill_period_to'] ?? null,
             'due_date'             => $cb['due_date'] ?? null,
+            'reading_date'         => $dateExtras['reading_date'],
+            'penalty_date'         => $dateExtras['penalty_date'],
+            'disconnection_date'   => $dateExtras['disconnection_date'],
             'previous_unpaid'      => $cb['previous_unpaid'] ?? 0,
             'total'                => $cb['total'] ?? 0,
             'discount'             => $cb['discount'] ?? 0,
@@ -243,6 +250,7 @@ class OfflineDataController extends Controller
             'amount'               => $cb['amount'] ?? 0,
             'amount_after_due'     => $cb['amount_after_due'] ?? 0,
             'isPaid'               => $cb['isPaid'] ?? false,
+            'isInstallment'        => (bool) ($cb['isInstallment'] ?? ($bill->isInstallment ?? false)),
             'date_paid'            => $cb['date_paid'] ?? null,
             'payor_name'           => $cb['payor_name'] ?? $client['name'] ?? '',
             'bill_owner_name'      => $cb['bill_owner_name'] ?? $client['name'] ?? '',
@@ -272,12 +280,16 @@ class OfflineDataController extends Controller
                 return ['name' => $row->name ?? '', 'description' => $row->description ?? '', 'amount' => $row->amount ?? 0];
             })->values()->toArray();
         }
+        $dateExtras = self::enrichReadingScheduleDates($bill->due_date ?? null, $bill->bill_period_to ?? null, $bill, $reading);
         return [
             'reference_no'         => $refNo,
             'account_no'           => $reading->account_no ?? '',
             'bill_period_from'     => $bill->bill_period_from ?? null,
             'bill_period_to'      => $bill->bill_period_to ?? null,
             'due_date'             => $bill->due_date ?? null,
+            'reading_date'         => $dateExtras['reading_date'],
+            'penalty_date'         => $dateExtras['penalty_date'],
+            'disconnection_date'   => $dateExtras['disconnection_date'],
             'previous_unpaid'      => $bill->previous_unpaid ?? 0,
             'total'                => $bill->total ?? 0,
             'discount'             => $bill->discount ?? 0,
@@ -285,6 +297,7 @@ class OfflineDataController extends Controller
             'amount'               => $bill->amount ?? 0,
             'amount_after_due'     => $bill->amount_after_due ?? $bill->amount ?? 0,
             'isPaid'               => (bool) ($bill->isPaid ?? false),
+            'isInstallment'        => (bool) ($bill->isInstallment ?? false),
             'date_paid'            => $bill->date_paid ?? null,
             'payor_name'           => $bill->payor_name ?? '',
             'bill_owner_name'      => $bill->bill_owner_name ?? $bill->payor_name ?? '',
@@ -322,17 +335,95 @@ class OfflineDataController extends Controller
 
         $rows = ReadingDate::with('zone')->orderBy('zone_id')->get();
         $readingDates = $rows->map(function ($rd) {
+            $due = $rd->due_date;
+            $penaltyDate = null;
+            $disconnectionDate = null;
+            $readingDate = null;
+            try {
+                if ($due) {
+                    $d = Carbon::parse($due);
+                    $penaltyDate = $d->copy()->addDay()->format('Y-m-d');
+                    $disconnectionDate = $d->copy()->addDays(7)->format('Y-m-d');
+                }
+                if ($rd->bill_period_to) {
+                    $readingDate = Carbon::parse($rd->bill_period_to)->format('Y-m-d');
+                }
+            } catch (\Throwable $e) {
+            }
+
             return [
-                'id'               => $rd->id,
-                'zone_id'          => $rd->zone_id,
-                'zone'             => $rd->zone ? $rd->zone->zone : null,
-                'bill_period_from' => $rd->bill_period_from,
-                'bill_period_to'   => $rd->bill_period_to,
-                'due_date'         => $rd->due_date,
-                'is_active'        => (bool) $rd->is_active,
+                'id'                  => $rd->id,
+                'zone_id'             => $rd->zone_id,
+                'zone'                => $rd->zone ? $rd->zone->zone : null,
+                'bill_period_from'    => $rd->bill_period_from,
+                'bill_period_to'      => $rd->bill_period_to,
+                'due_date'            => $rd->due_date,
+                'reading_date'        => $readingDate,
+                'penalty_date'        => $penaltyDate,
+                'disconnection_date'  => $disconnectionDate,
+                'is_active'           => (bool) $rd->is_active,
             ];
         })->values();
 
         return response()->json(['reading_dates' => $readingDates]);
+    }
+
+    /**
+     * Reading / schedule dates for offline SOA (matches ReadingController: penalty +1 day, disconnection +7 days from due).
+     *
+     * @param  mixed  $reading
+     * @param  mixed  $bill
+     * @return array{reading_date: ?string, penalty_date: ?string, disconnection_date: ?string}
+     */
+    private static function enrichReadingScheduleDates(?string $dueDate, ?string $billPeriodTo, $bill, $reading): array
+    {
+        $readingDate = null;
+        if ($billPeriodTo) {
+            try {
+                $readingDate = Carbon::parse($billPeriodTo)->format('Y-m-d');
+            } catch (\Throwable $e) {
+            }
+        }
+        if ($readingDate === null && $reading && !empty($reading->created_at)) {
+            try {
+                $readingDate = Carbon::parse($reading->created_at)->format('Y-m-d');
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $penaltyDate = null;
+        $disconnectionDate = null;
+        if ($bill) {
+            if (!empty($bill->penalty_date)) {
+                try {
+                    $penaltyDate = Carbon::parse($bill->penalty_date)->format('Y-m-d');
+                } catch (\Throwable $e) {
+                }
+            }
+            if (!empty($bill->disconnection_date)) {
+                try {
+                    $disconnectionDate = Carbon::parse($bill->disconnection_date)->format('Y-m-d');
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+        if ($dueDate) {
+            try {
+                $d = Carbon::parse($dueDate);
+                if ($penaltyDate === null) {
+                    $penaltyDate = $d->copy()->addDay()->format('Y-m-d');
+                }
+                if ($disconnectionDate === null) {
+                    $disconnectionDate = $d->copy()->addDays(7)->format('Y-m-d');
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return [
+            'reading_date' => $readingDate,
+            'penalty_date' => $penaltyDate,
+            'disconnection_date' => $disconnectionDate,
+        ];
     }
 }

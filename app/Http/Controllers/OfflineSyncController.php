@@ -7,8 +7,14 @@ use App\Models\Bill;
 use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Models\NovupayStaritaBill;
+use App\Models\ReadingDate;
+use App\Models\Zone;
+use App\Models\Installment;
+use App\Models\InstallmentSchedule;
 use App\Services\BillSettlementService;
+use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,9 +22,9 @@ class OfflineSyncController extends Controller
 {
     public function __construct(
         protected MeterService $meterService,
-        protected BillSettlementService $billSettlementService
-    )
-    {
+        protected BillSettlementService $billSettlementService,
+        protected MergeBillReadingDatesService $mergeBillReadingDatesService
+    ) {
     }
 
     /**
@@ -259,13 +265,24 @@ class OfflineSyncController extends Controller
                 $arrearsCorrectedAccounts = config('merge.arrears_corrected_accounts', []);
                 $forceZeroArrears = in_array(trim($off->account_no), $arrearsCorrectedAccounts, true);
 
+                $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
+                $zone = Zone::where('zone', $account->zone)->first();
+                if ($zone) {
+                    $readingDateRow = ReadingDate::where('zone_id', $zone->id)
+                        ->where('is_active', 1)
+                        ->first();
+                    if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
+                        $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
+                    }
+                }
+
                 $payload = [
                     'account_no'         => $off->account_no,
                     'previous_reading'   => $off->previous_reading,
                     'present_reading'    => $off->present_reading,
                     'consumption'        => $off->consumption ?? (($off->present_reading && $off->previous_reading) ? (float) $off->present_reading - (float) $off->previous_reading : null),
                     'reference_no'       => $off->reference_no,
-                    'date'               => $off->created_at ?? now(),
+                    'date'               => $mergeBillingDate,
                     'is_high_consumption'=> $off->payload['is_high_consumption'] ?? 'no',
                     'isReRead'           => filter_var($off->payload['isReRead'] ?? false, FILTER_VALIDATE_BOOLEAN),
                     'property_types_id'  => $propertyTypeId,
@@ -310,6 +327,8 @@ class OfflineSyncController extends Controller
                     continue;
                 }
 
+                $this->mergeBillReadingDatesService->applyZoneReadingDatesToMergedBill($account, $referenceNo);
+
                 $reading = Reading::where('reference_no', $referenceNo)->first();
                 $localBill = Bill::where('reference_no', $referenceNo)->first();
 
@@ -321,32 +340,40 @@ class OfflineSyncController extends Controller
                 ) {
                     $novupayBill = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
                     if ($novupayBill && strtolower($novupayBill->status ?? '') === 'paid') {
-                        $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
-                        $update = [
-                            'payment_method' => 'online',
-                        ];
-                        if (empty($localBill->payor_name)) {
-                            $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
-                            $update['payor_name'] = $payor;
+                        $localBill->refresh();
+                        if ($this->shouldSkipNovupayAutoSettlement($localBill)) {
+                            Log::channel('single')->info('Novustream offline API: merge skipping Novupay auto-settlement (installment)', [
+                                'reference_no' => $referenceNo,
+                                'account_no' => $off->account_no,
+                            ]);
+                        } else {
+                            $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
+                            $update = [
+                                'payment_method' => 'online',
+                            ];
+                            if (empty($localBill->payor_name)) {
+                                $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
+                                $update['payor_name'] = $payor;
+                            }
+                            $this->billSettlementService->settlePaidBillChain(
+                                $localBill,
+                                [
+                                    'amount_paid' => $novupayBill->amount ?: null,
+                                    'date_paid' => $paidAt,
+                                    'payment_method' => 'online',
+                                    'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                                ],
+                                [
+                                    'date_paid' => $paidAt,
+                                    'payment_method' => 'online',
+                                    'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
+                                ]
+                            );
+                            $accountsPaid[] = [
+                                'account_no' => $off->account_no,
+                                'payor_name' => $update['payor_name'] ?? $localBill->payor_name ?? null,
+                            ];
                         }
-                        $this->billSettlementService->settlePaidBillChain(
-                            $localBill,
-                            [
-                                'amount_paid' => $novupayBill->amount ?: null,
-                                'date_paid' => $paidAt,
-                                'payment_method' => 'online',
-                                'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
-                            ],
-                            [
-                                'date_paid' => $paidAt,
-                                'payment_method' => 'online',
-                                'payor_name' => $update['payor_name'] ?? $localBill->payor_name,
-                            ]
-                        );
-                        $accountsPaid[] = [
-                            'account_no' => $off->account_no,
-                            'payor_name' => $update['payor_name'] ?? $localBill->payor_name ?? null,
-                        ];
                     }
                 }
 
@@ -395,6 +422,22 @@ class OfflineSyncController extends Controller
      * Resolve payor name from Novupay starita_bills (payload, payor column, or account).
      * Same fallbacks as SyncNovupayReadingsCommand so merge path also gets payor when webhook overwrote payload.
      */
+    /**
+     * Do not auto-mark bills paid from Novupay during merge when an installment plan is still active.
+     */
+    private function shouldSkipNovupayAutoSettlement(Bill $bill): bool
+    {
+        if ($bill->isInstallment) {
+            return true;
+        }
+        $installment = Installment::where('bill_id', $bill->id)->where('status', 'active')->first();
+        if (!$installment) {
+            return false;
+        }
+
+        return InstallmentSchedule::where('installment_id', $installment->id)->where('is_paid', false)->exists();
+    }
+
     private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): string
     {
         $payload = $nb->payload ?? [];
