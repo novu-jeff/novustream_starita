@@ -699,10 +699,27 @@ class MeterService {
                 })
                 ->orderBy('bill_period_to', 'desc')
                 ->first();
+        $latestBill = Bill::whereIn('reading_id', $readingIds)
+            ->orderBy('bill_period_to', 'desc')
+            ->first();
 
             if ($latestUnpaidBill) {
                 $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
                 $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
+            }
+        $unpaidAmount = 0;
+        $partialPaymentTotal = 0;
+
+        if (!$forceZeroArrears && $latestBill) {
+            if ($latestBill->isPaid) {
+                $unpaidAmount = 0;
+                $partialPaymentTotal = 0;
+            } elseif ($latestBill->isInstallment) {
+                $unpaidAmount = 0;
+                $partialPaymentTotal = 0;
+            } else {
+                $unpaidAmount = (float) ($latestBill->amount ?? 0);
+                $partialPaymentTotal = (float) ($latestBill->partial_payment ?? 0);
             }
         }
 
@@ -888,7 +905,7 @@ class MeterService {
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
             'amount' => $overall_total - $partialPaymentTotal,
-            'amount_after_due' => $amount_after_due,
+            'amount_after_due' => $overall_total - $partialPaymentTotal,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
             'payor_name' => $payorName,

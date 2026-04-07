@@ -73,6 +73,8 @@ return new class extends Migration
                 ->nullable();
             $table->string('due_date')
                 ->nullable();
+            $table->string('penalty_date')
+                ->nullable();
             $table->string('payor_name')
                 ->nullable();
             $table->string('paid_by_reference_no')

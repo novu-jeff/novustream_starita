@@ -49,7 +49,7 @@
                     <tr>
                         <th>Account</th>
                         <th>Name</th>
-                        <th>Reference</th>
+                        <th>Reference Number</th>
                         <th>Amount</th>
                         <th>Total</th>
                         <th>Status</th>

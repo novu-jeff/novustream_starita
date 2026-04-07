@@ -73,6 +73,7 @@
                                 <button
                                     class="btn btn-sm btn-primary open-adjust-modal"
                                     data-id="{{ $reading->id }}"
+                                    data-action="{{ route('admins.reading-adjustments.update', $reading->id) }}"
                                     data-account="{{ $reading->account_no }}"
                                     data-previous="{{ $reading->previous_reading }}"
                                     data-present="{{ $reading->present_reading }}"
@@ -245,8 +246,7 @@ document.addEventListener('click', function(e) {
         document.getElementById('modal_present').value = '';
         document.getElementById('modal_consumption').value = '';
 
-        document.getElementById('adjustForm').action =
-            `/admins/reading-adjustments/${id}`;
+        document.getElementById('adjustForm').action = btn.dataset.action;
 
         let modal = new bootstrap.Modal(document.getElementById('adjustModal'));
         modal.show();
