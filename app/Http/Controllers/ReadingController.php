@@ -719,7 +719,7 @@ class ReadingController extends Controller
                 'amount' => $amount + $penaltyAmount,
                 'penalty' => $penaltyAmount,
                 'discount' => $computed['bill']['discount'] ?? 0,
-                'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount,
+                'amount_after_due' => $amount + $penaltyAmount,
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
                 'hitpay_reference' => $hitpayReference,
                 'hitpay_payment_id' => $hitpayPaymentId,
