@@ -887,9 +887,9 @@ class ReadingController extends Controller
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $totalAmount + $penaltyAmount - $discounted,
+            'amount' => $totalAmount - $discounted,
             'discount' => $totalDiscount,
-            'amount_after_due' => $bill->amount + $penaltyAmount,
+            'amount_after_due' => $bill->amount,
         ]);
 
         // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
