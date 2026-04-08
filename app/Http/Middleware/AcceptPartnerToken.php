@@ -38,8 +38,12 @@ class AcceptPartnerToken
             return $next($request);
         }
 
-        $token = $request->bearerToken();
+        $token = $this->normalizeBearerToken($request->bearerToken());
         if (empty($token)) {
+            Log::channel('single')->warning('Novustream offline API: missing bearer token', [
+                'path' => $request->path(),
+                'auth_header_present' => $request->headers->has('Authorization'),
+            ]);
             return $this->unauthorized($request);
         }
 
@@ -55,19 +59,20 @@ class AcceptPartnerToken
                 ]);
                 return $next($request);
             }
-            // Token found in DB but rejected: log reason for 401
-            Log::channel('single')->warning('Novustream offline API: token in DB but rejected', [
-                'token_found' => true,
-                'expired' => !$valid,
-                'tokenable_type' => $accessToken->tokenable_type ?? null,
-                'user_type' => $tokenable->user_type ?? null,
+            Log::channel('single')->warning('Novustream offline API: direct token found but not allowed', [
+                'path' => $request->path(),
+                'token_id' => $accessToken->id,
+                'tokenable_type' => $accessToken->tokenable_type,
+                'is_valid' => $valid,
+                'resolved_user_type' => $tokenable?->user_type,
             ]);
         } else {
-            // Token not in this app's DB (e.g. issued by another app or never logged in here)
-            Log::channel('single')->warning('Novustream offline API: token not found in DB', [
-                'token_preview' => strlen($token) > 8 ? (substr($token, 0, 4) . '...' . substr($token, -4)) : '(short)',
-                'has_pipe' => str_contains($token, '|'),
-                'hint' => 'Ensure user logged in to this app (sta-rita) and use that token only for this API.',
+            Log::channel('single')->warning('Novustream offline API: direct token lookup failed', [
+                'path' => $request->path(),
+                'token_length' => strlen($token),
+                'token_prefix' => substr($token, 0, 8),
+                'has_pipe_id_format' => str_contains($token, '|'),
+                'hint' => 'Token may be malformed/truncated, wrapped in quotes, or from another app/db.',
             ]);
         }
 
@@ -150,5 +155,21 @@ class AcceptPartnerToken
         return Admin::whereIn('user_type', ['technician', 'admin'])
             ->orderBy('id')
             ->first();
+    }
+
+    private function normalizeBearerToken(?string $token): ?string
+    {
+        if ($token === null) {
+            return null;
+        }
+
+        $token = trim($token);
+        $token = trim($token, "\"' \t\n\r\0\x0B");
+
+        if (str_starts_with(strtolower($token), 'bearer ')) {
+            $token = trim(substr($token, 7));
+        }
+
+        return $token === '' ? null : $token;
     }
 }

@@ -676,23 +676,33 @@ class MeterService {
 
         $forceZeroArrears = !empty($payload['force_zero_arrears']);
 
-        $latestBill = Bill::whereIn('reading_id', $readingIds)
-            ->orderBy('bill_period_to', 'desc')
+        // If the chronologically latest bill period is fully paid, do not carry older unpaid balances forward.
+        $mostRecentBill = Bill::whereIn('reading_id', $readingIds)
+            ->orderByDesc('bill_period_to')
             ->first();
 
+        $skipLegacyArrears = !$forceZeroArrears
+            && $mostRecentBill
+            && (bool) $mostRecentBill->isPaid
+            && !(bool) $mostRecentBill->isPartial;
+
+        $latestUnpaidBill = null;
         $unpaidAmount = 0;
         $partialPaymentTotal = 0;
 
-        if (!$forceZeroArrears && $latestBill) {
-            if ($latestBill->isPaid) {
-                $unpaidAmount = 0;
-                $partialPaymentTotal = 0;
-            } elseif ($latestBill->isInstallment) {
-                $unpaidAmount = 0;
-                $partialPaymentTotal = 0;
-            } else {
-                $unpaidAmount = (float) ($latestBill->amount ?? 0);
-                $partialPaymentTotal = (float) ($latestBill->partial_payment ?? 0);
+        if (!$forceZeroArrears && !$skipLegacyArrears) {
+            $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+                ->where('isInstallment', 0)
+                ->where(function ($q) {
+                    $q->where('isPaid', 0)
+                    ->orWhere('isPartial', 1);
+                })
+                ->orderBy('bill_period_to', 'desc')
+                ->first();
+
+            if ($latestUnpaidBill) {
+                $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
+                $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
             }
         }
 
@@ -703,11 +713,24 @@ class MeterService {
 
         $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
 
+        $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
+            ->whereHas('installment.bill.reading', function ($q) use ($payload) {
+                $q->where('account_no', $payload['account_no']);
+            })
+            ->orderBy('month_no')
+            ->first();
+
+        if ($installmentSchedule) {
+            $remainingUnpaid = (float) $installmentSchedule->amount;
+        }
+
+        $arrearsForBreakdown = $remainingUnpaid;
+
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
                 'name' => 'Previous Balance',
-                'amount' => $unpaidAmount,
+                'amount' => $arrearsForBreakdown,
                 'description' => ''
             ],
             [
@@ -716,7 +739,7 @@ class MeterService {
                 'description' => '',
             ],
         ];
-        $total_amount = $rate + $unpaidAmount;
+        $total_amount = $rate + $arrearsForBreakdown;
 
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -740,19 +763,6 @@ class MeterService {
 
         $total = collect($deductions)->sum('amount');
         $basic_charge = collect($deductions)->where('name', 'Basic Charge')->sum('amount');
-
-        $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
-            ->whereHas('installment.bill.reading', function ($q) use ($payload) {
-                $q->where('account_no', $payload['account_no']);
-            })
-            ->orderBy('month_no')
-            ->first();
-
-        if ($installmentSchedule) {
-
-            $remainingUnpaid = (float) $installmentSchedule->amount;
-
-        }
 
         $appliedDiscounts = [];
         $totalDiscount = 0;
@@ -810,15 +820,29 @@ class MeterService {
         $amount_after_due = 0;
         $hasPenalty = false;
 
-        if ($unpaidAmount != 0 && !$installmentSchedule) {
+        $dateNow = Carbon::parse($payload['date'])->format('Y-m-d');
+
+        $penaltyExemption = \DB::table('penalty_exemptions')
+            ->where('account_no', $payload['account_no'])
+            ->where(function ($q) use ($dateNow) {
+                $q->whereNull('effective_date')
+                ->orWhere('effective_date', '<=', $dateNow);
+            })
+            ->where(function ($q) use ($dateNow) {
+                $q->whereNull('expired_date')
+                ->orWhere('expired_date', '>=', $dateNow);
+            })
+            ->first();
+
+        $isPenaltyExempt = !is_null($penaltyExemption);
+
+        if ($unpaidAmount != 0 && !$installmentSchedule && !$isPenaltyExempt) {
             $penalties = $this->paymentBreakdownService::getPenalty();
             $amountPayable = $total - $arrears - $totalDiscount;
 
             foreach ($penalties as $penalty) {
                 if (strtolower($penalty->amount_type) === 'percentage') {
                     $penaltyAmount = $amountPayable * ($penalty->amount);
-                } else if (strtolower($penalty->amount_type) === 'fixed') {
-                    $penaltyAmount = $penalty->amount;
                 } else {
                     $penaltyAmount = $penalty->amount;
                 }
@@ -826,6 +850,10 @@ class MeterService {
                 $amount_after_due = $overall_total + $penaltyAmount;
                 $hasPenalty = true;
             }
+        } else {
+            $penaltyAmount = 0;
+            $amount_after_due = $overall_total;
+            $hasPenalty = false;
         }
 
         $date = Carbon::parse($payload['date']);
@@ -871,14 +899,14 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $total - $partialPaymentTotal + $remainingUnpaid,
+            'total' => $total,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $overall_total - $partialPaymentTotal + $remainingUnpaid,
-            'amount_after_due' => $amount_after_due,
+            'amount' => $overall_total + $penaltyAmount,
+            'amount_after_due' => $overall_total + $penaltyAmount,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
             'payor_name' => $payorName,

@@ -13,12 +13,14 @@ use App\Models\Reading;
 use App\Models\Bill;
 use App\Models\ReadingDate;
 use App\Services\MeterService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OfflineDataController extends Controller
 {
     public function download(Request $request)
     {
+        $startedAt = microtime(true);
         
         // STATIC TOKEN AUTHENTICATION
         // $token = $request->header('X-API-KEY');
@@ -52,7 +54,7 @@ class OfflineDataController extends Controller
         \Illuminate\Support\Facades\Log::channel('single')->info('Novustream offline API: offline/download', ['admin_id' => $user->id]);
 
         set_time_limit(300);
-        ini_set('memory_limit', '512M');
+        ini_set('memory_limit', '1024M');
 
         // Optional: ?include=accounts,readings — only return requested sections (default: all)
         $includeParam = $request->query('include', '');
@@ -98,15 +100,28 @@ class OfflineDataController extends Controller
         // dd($accounts);
 
         // ✅ Compute from latest reading only (avoid stacking re-reads / over arrears)
+        // Optimized to avoid N+1 queries for thousands of accounts.
         $previousReadings = [];
         $readingsList = [];
         $readingsToExport = [];
 
+        $accountNos = $accounts->pluck('account_no')->filter()->values()->all();
+        $latestReadingsByAccount = collect();
+        if (!empty($accountNos)) {
+            $latestReadingIds = Reading::query()
+                ->select(DB::raw('MAX(id) as id'))
+                ->whereIn('account_no', $accountNos)
+                ->groupBy('account_no')
+                ->pluck('id')
+                ->all();
+            $latestReadingsByAccount = Reading::with('bill')
+                ->whereIn('id', $latestReadingIds)
+                ->get()
+                ->keyBy('account_no');
+        }
+
         foreach ($accounts as $acc) {
-            $latest = Reading::with('bill')
-                ->where('account_no', $acc->account_no)
-                ->latest('created_at')
-                ->first();
+            $latest = $latestReadingsByAccount->get($acc->account_no);
 
             $bill = $latest?->bill;
             $unpaidAmount = ($bill && !$bill->isPaid)
@@ -213,6 +228,7 @@ class OfflineDataController extends Controller
             'include' => $includeParam ?: 'all',
             'limit' => $limit ?: null,
             'offset' => $offset ?: null,
+            'elapsed_ms' => (int) ((microtime(true) - $startedAt) * 1000),
         ]);
         return response()->json($data);
     }

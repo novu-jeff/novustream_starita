@@ -28,8 +28,8 @@ use App\Http\Controllers\OfflineReadingsController;
 use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
-use App\Http\Controllers\admin\ReadingAdjustmentController;
-use App\Http\Controllers\admin\BillingAdjustmentController;
+use App\Http\Controllers\Admin\ReadingAdjustmentController;
+use App\Http\Controllers\Admin\BillingAdjustmentController;
 
 /*
 |--------------------------------------------------------------------------
