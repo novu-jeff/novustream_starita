@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 use App\Models\Bill;
 use App\Models\Installment;
 use App\Models\InstallmentSchedule;
-
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class InstallmentController extends Controller
@@ -47,6 +47,18 @@ class InstallmentController extends Controller
 
         $months = $request->months;
 
+        $today = Carbon::today();
+        $dueDate = Carbon::parse($bill->due_date);
+
+        // ✅ Determine base amount
+        if ($today->lte($dueDate)) {
+            // NOT overdue → use total
+            $baseAmount = $bill->total;
+        } else {
+            // overdue → use amount_after_due
+            $baseAmount = $bill->amount_after_due;
+        }
+
         $monthly = round($bill->amount / $months,2);
 
         $accountNo = $bill->reading->account_no;
@@ -73,8 +85,22 @@ class InstallmentController extends Controller
             ]);
         }
 
+        $basicCharge = $bill->total - $bill->previous_unpaid;
+
         Bill::where('id', $bill->id)->update([
-            'isInstallment' => 1
+            'isInstallment' => 1,
+
+            // move installment to arrears
+            'previous_unpaid' => $monthly,
+
+            // reset totals (ONLY CURRENT BILL)
+            'total' => $basicCharge + $monthly,
+            'amount' => $basicCharge + $monthly,
+            'amount_after_due' => $basicCharge + $monthly,
+
+            // remove penalty
+            'penalty' => 0,
+            'hasPenalty' => 0
         ]);
 
         return redirect()->route('installment.index')
