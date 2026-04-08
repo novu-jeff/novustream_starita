@@ -320,16 +320,23 @@ document.addEventListener("DOMContentLoaded", function () {
                 billSelect.innerHTML = '<option value="">Select Bill</option>';
 
                 data.forEach(bill => {
-                    const date = new Date(bill.bill_period_to);
-                    const monthName = date.toLocaleString('en-US', { month: 'long' });
 
-                    billSelect.innerHTML += `
-                        <option value="${bill.id}" data-amount="${bill.amount}">
-                            ${monthName} - ₱${parseFloat(bill.amount).toFixed(2)}
-                        </option>
-                    `;
+                const today = new Date();
+                const dueDate = new Date(bill.due_date);
 
-                });
+                let amount = (today <= dueDate)
+                    ? bill.total
+                    : bill.amount_after_due;
+
+                const date = new Date(bill.bill_period_to);
+                const monthName = date.toLocaleString('en-US', { month: 'long' });
+
+                billSelect.innerHTML += `
+                    <option value="${bill.id}" data-amount="${amount}">
+                        ${monthName} - ₱${parseFloat(amount).toFixed(2)}
+                    </option>
+                `;
+            });
 
             })
             .catch(err => {
