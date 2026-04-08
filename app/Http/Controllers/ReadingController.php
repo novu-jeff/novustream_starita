@@ -881,7 +881,7 @@ class ReadingController extends Controller
             })
             ->exists();
 
-        if ($hasActivePenaltyExemption) {
+        if ($hasActivePenaltyExemption || $installmentArrears > 0) {
             $penaltyAmount = 0;
         }
 
