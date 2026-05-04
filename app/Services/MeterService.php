@@ -813,7 +813,7 @@ class MeterService {
         }
 
         $total = collect($deductions)->sum('amount');
-        $overall_total = $total;
+        $overall_total = $basic_charge;
         $arrears = collect($deductions)->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
         $penaltyAmount = 0;
@@ -901,14 +901,14 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $totalBill,
+            'total' => $basic_charge - $partialPaymentTotal + $remainingUnpaid,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $amount_after_due,
-            'amount_after_due' => $amount_after_due,
+            'amount' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
+            'amount_after_due' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
             'payor_name' => $payorName,
