@@ -40,6 +40,7 @@ class ReportsController extends Controller
             'List of Active',
             'List of Inactive',
             'Book Summary Report',
+            'Monthly Billing Matrix Report',
         ];
 
         // Fetch all zones ascending for dropdown
@@ -51,80 +52,460 @@ class ReportsController extends Controller
         return view('reports.download-index', compact('availableReports', 'zones'));
     }
 
+protected function generateMatrixReport($startDate, $endDate, $zone)
+{
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+
+    /*
+    |--------------------------------------------------------------------------
+    | TITLE
+    |--------------------------------------------------------------------------
+    */
+    $title = 'MONTHLY BILLING SUMMARY';
+    if ($startDate) {
+        $title .= ' (' . \Carbon\Carbon::parse($startDate)->format('F Y') . ')';
+    }
+
+    $sheet->setCellValue('A1', $title);
+    $sheet->mergeCells('A1:Q1');
+    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+    $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+
+    /*
+    |--------------------------------------------------------------------------
+    | HEADER (2 LEVELS)
+    |--------------------------------------------------------------------------
+    */
+    $sheet->setCellValue('A3', 'ZONES');
+
+    $sheet->setCellValue('B3', 'RESIDENTIAL'); $sheet->mergeCells('B3:D3');
+    $sheet->setCellValue('E3', 'GOVERNMENT');  $sheet->mergeCells('E3:G3');
+    $sheet->setCellValue('H3', 'COMMERCIAL A'); $sheet->mergeCells('H3:J3');
+    $sheet->setCellValue('K3', 'COMMERCIAL B'); $sheet->mergeCells('K3:M3');
+    $sheet->setCellValue('N3', 'COMMERCIAL C'); $sheet->mergeCells('N3:P3');
+    $sheet->setCellValue('Q3', 'TOTAL');
+
+    $sheet->fromArray([[
+        'ZONE',
+        'No.', 'Cu.M', 'Amount',
+        'No.', 'Cu.M', 'Amount',
+        'No.', 'Cu.M', 'Amount',
+        'No.', 'Cu.M', 'Amount',
+        'No.', 'Cu.M', 'Amount',
+        'Total Amount'
+    ]], null, 'A4');
+
+    /*
+    |--------------------------------------------------------------------------
+    | FETCH DATA (ELOQUENT SAFE)
+    |--------------------------------------------------------------------------
+    */
+    $readings = Reading::with(['concessionaire', 'bill'])
+        ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
+        ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+            if ($startDate && $endDate) {
+                $q->whereBetween('bill.bill_period_from', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            }
+        })
+        ->get();
+
+    /*
+    |--------------------------------------------------------------------------
+    | BUILD MATRIX
+    |--------------------------------------------------------------------------
+    */
+    $matrix = [];
+
+    foreach ($readings as $reading) {
+        $bill = $reading->bill;
+        if (!$bill) continue;
+
+        $zoneKey = 'ZONE ' . ($reading->zone ?? 'N/A');
+        $type = strtoupper(trim(optional($reading->concessionaire)->property_type ?? ''));
+
+        if (str_contains($type, 'RESIDENTIAL')) $cat = 'RES';
+        elseif (str_contains($type, 'GOVERNMENT')) $cat = 'GOV';
+        elseif (str_contains($type, 'COMMERCIAL A')) $cat = 'A';
+        elseif (str_contains($type, 'COMMERCIAL B')) $cat = 'B';
+        elseif (str_contains($type, 'COMMERCIAL C')) $cat = 'C';
+        else continue;
+
+        if (!isset($matrix[$zoneKey][$cat])) {
+            $matrix[$zoneKey][$cat] = ['count'=>0,'cum'=>0,'amt'=>0];
+        }
+
+        $matrix[$zoneKey][$cat]['count']++;
+        $matrix[$zoneKey][$cat]['cum'] += (float) $reading->consumption;
+        $matrix[$zoneKey][$cat]['amt'] += (float) $bill->amount;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | WRITE DATA
+    |--------------------------------------------------------------------------
+    */
+    $row = 5;
+
+    $totals = [
+        'RES'=>['count'=>0,'cum'=>0,'amt'=>0],
+        'GOV'=>['count'=>0,'cum'=>0,'amt'=>0],
+        'A'=>['count'=>0,'cum'=>0,'amt'=>0],
+        'B'=>['count'=>0,'cum'=>0,'amt'=>0],
+        'C'=>['count'=>0,'cum'=>0,'amt'=>0],
+        'total' => 0
+    ];
+
+    foreach ($matrix as $zone => $cats) {
+
+        $res = $cats['RES'] ?? ['count'=>0,'cum'=>0,'amt'=>0];
+        $gov = $cats['GOV'] ?? ['count'=>0,'cum'=>0,'amt'=>0];
+        $a   = $cats['A']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+        $b   = $cats['B']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+        $c   = $cats['C']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+
+        $zoneTotal = $res['amt'] + $gov['amt'] + $a['amt'] + $b['amt'] + $c['amt'];
+
+        // accumulate totals
+        foreach (['RES'=>$res,'GOV'=>$gov,'A'=>$a,'B'=>$b,'C'=>$c] as $key => $val) {
+            $totals[$key]['count'] += $val['count'];
+            $totals[$key]['cum'] += $val['cum'];
+            $totals[$key]['amt'] += $val['amt'];
+        }
+        $totals['total'] += $zoneTotal;
+
+        $totals['RES']['count'] += $res['count'];
+        $totals['RES']['cum']   += $res['cum'];
+        $totals['RES']['amt']   += $res['amt'];
+
+        $totals['GOV']['count'] += $gov['count'];
+        $totals['GOV']['cum']   += $gov['cum'];
+        $totals['GOV']['amt']   += $gov['amt'];
+
+        $totals['A']['count'] += $a['count'];
+        $totals['A']['cum']   += $a['cum'];
+        $totals['A']['amt']   += $a['amt'];
+
+        $totals['B']['count'] += $b['count'];
+        $totals['B']['cum']   += $b['cum'];
+        $totals['B']['amt']   += $b['amt'];
+
+        $totals['C']['count'] += $c['count'];
+        $totals['C']['cum']   += $c['cum'];
+        $totals['C']['amt']   += $c['amt'];
+
+        $totals['total'] += $total;
+
+        $sheet->fromArray([[
+            'TOTAL',
+
+            $totals['RES']['count'], $totals['RES']['cum'], $totals['RES']['amt'],
+            $totals['GOV']['count'], $totals['GOV']['cum'], $totals['GOV']['amt'],
+            $totals['A']['count'],   $totals['A']['cum'],   $totals['A']['amt'],
+            $totals['B']['count'],   $totals['B']['cum'],   $totals['B']['amt'],
+            $totals['C']['count'],   $totals['C']['cum'],   $totals['C']['amt'],
+
+            $totals['total']
+        ]], null, "A{$row}");
+
+        $sheet->fromArray([[
+            $zone,
+
+            $res['count'], $res['cum'], $res['amt'],
+            $gov['count'], $gov['cum'], $gov['amt'],
+            $a['count'],   $a['cum'],   $a['amt'],
+            $b['count'],   $b['cum'],   $b['amt'],
+            $c['count'],   $c['cum'],   $c['amt'],
+
+            $zoneTotal
+        ]], null, "A{$row}");
+
+
+        $row++;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | TOTAL ROW (RED LIKE SAMPLE)
+    |--------------------------------------------------------------------------
+    */
+    $sheet->fromArray([[
+        'TOTAL',
+
+        $totals['RES']['count'], $totals['RES']['cum'], $totals['RES']['amt'],
+        $totals['GOV']['count'], $totals['GOV']['cum'], $totals['GOV']['amt'],
+        $totals['A']['count'],   $totals['A']['cum'],   $totals['A']['amt'],
+        $totals['B']['count'],   $totals['B']['cum'],   $totals['B']['amt'],
+        $totals['C']['count'],   $totals['C']['cum'],   $totals['C']['amt'],
+
+        $totals['total']
+    ]], null, "A{$row}");
+
+    $sheet->getStyle("A{$row}:Q{$row}")
+        ->getFont()->setBold(true)
+        ->getColor()->setARGB('FF0000')
+        ->setRGB('FF0000');
+
+    /*
+    |--------------------------------------------------------------------------
+    | STYLING (CRITICAL FOR EXACT LOOK)
+    |--------------------------------------------------------------------------
+    */
+
+    // header style
+    $sheet->getStyle('A3:Q4')->getFont()->setBold(true);
+    $sheet->getStyle('A3:Q4')->getAlignment()
+        ->setHorizontal('center')
+        ->setVertical('center');
+
+    // borders
+    $sheet->getStyle("A3:Q{$row}")
+        ->getBorders()
+        ->getAllBorders()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+    // thicker header border
+    $sheet->getStyle('A3:Q4')
+        ->getBorders()
+        ->getOutline()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM);
+
+    // auto size
+    foreach (range('A','Q') as $col) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    return [
+        'type' => 'formatted',
+        'spreadsheet' => $spreadsheet
+    ];
+}
+
     /**
      * Generate Excel or CSV files from DB
      */
-    public function generateFile(Request $request)
-    {
-        $request->validate([
-            'reports' => 'required|array|min:1',
-            'mode' => 'required|in:combined,separate',
-            'format' => 'required|in:xlsx,csv',
-            'zone' => 'required', // now required for ageing summary
-        ]);
+   public function generateFile(Request $request)
+{
+    $request->validate([
+        'reports' => 'required|array|min:1',
+        'mode' => 'required|in:combined,separate',
+        'format' => 'required|in:xlsx,csv',
+        'zone' => 'required',
+    ]);
 
-        $reports = $request->input('reports', []);
-        $mode = $request->input('mode');
-        $format = $request->input('format');
+    $reports = $request->input('reports', []);
+    $mode = $request->input('mode');
+    $format = $request->input('format');
 
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        $zone = $request->input('zone');
-        $classification = $request->input('classification');
+    $startDate = $request->input('start_date');
+    $endDate = $request->input('end_date');
+    $zone = $request->input('zone');
+    $classification = $request->input('classification');
 
-        $dataByReport = $this->fetchReportsFromDb($reports, $startDate, $endDate, $zone, $classification);
+    $dataByReport = $this->fetchReportsFromDb(
+        $reports,
+        $startDate,
+        $endDate,
+        $zone,
+        $classification
+    );
 
-        if ($mode === 'separate') {
-            $files = [];
-            foreach ($dataByReport as $reportName => $rows) {
-                $filePath = $this->createFile($reportName, $rows, $format);
+    /*
+    |--------------------------------------------------------------------------
+    | SEPARATE MODE
+    |--------------------------------------------------------------------------
+    */
+    if ($mode === 'separate') {
+
+        $files = [];
+
+        foreach ($dataByReport as $reportName => $data) {
+
+            // ✅ FORMATTED REPORT
+            if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
+
+                $spreadsheet = $data['spreadsheet'];
+
+                $fileName = str_replace(['/', '\\'], '-', $reportName)
+                    . '-' . now()->format('Ymd_His') . '.' . $format;
+
+                $filePath = storage_path("app/reports/{$fileName}");
+
+                $writer = $format === 'csv'
+                    ? new Csv($spreadsheet)
+                    : new Xlsx($spreadsheet);
+
+                $writer->save($filePath);
+
                 $files[] = $filePath;
+                continue;
             }
 
-            if (count($files) > 1) {
-                $zipName = 'reports-' . now()->format('Ymd_His') . '.zip';
-                $zipPath = storage_path("app/reports/{$zipName}");
-                $zip = new \ZipArchive();
-                if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE)) {
-                    foreach ($files as $f) {
-                        $zip->addFile($f, basename($f));
+            // ✅ MULTI-SHEET (ZONE GROUPED)
+            if (is_array($data) && !isset($data[0])) {
+
+                $spreadsheet = new Spreadsheet();
+                $first = true;
+
+                foreach ($data as $sheetName => $rows) {
+
+                    $rows = array_values($rows);
+
+                    if ($first) {
+                        $sheet = $spreadsheet->getActiveSheet();
+                        $sheet->setTitle(substr($sheetName, 0, 31));
+                        $first = false;
+                    } else {
+                        $sheet = $spreadsheet->createSheet();
+                        $sheet->setTitle(substr($sheetName, 0, 31));
                     }
-                    $zip->close();
+
+                    if (!empty($rows) && isset($rows[0])) {
+                        $headers = array_keys($rows[0]);
+                        $sheet->fromArray([$headers], null, 'A1');
+                        $sheet->fromArray($rows, null, 'A2');
+                    }
                 }
-                return response()->download($zipPath)->deleteFileAfterSend(true);
+
+                $fileName = str_replace(['/', '\\'], '-', $reportName)
+                    . '-' . now()->format('Ymd_His') . '.' . $format;
+
+                $filePath = storage_path("app/reports/{$fileName}");
+
+                $writer = $format === 'csv'
+                    ? new Csv($spreadsheet)
+                    : new Xlsx($spreadsheet);
+
+                $writer->save($filePath);
+
+                $files[] = $filePath;
+                continue;
             }
 
-            return response()->download($files[0])->deleteFileAfterSend(true);
+            // ✅ NORMAL
+            $filePath = $this->createFile($reportName, $data, $format);
+            $files[] = $filePath;
         }
 
-        $spreadsheet = new Spreadsheet();
-        $firstSheet = true;
+        // ZIP if multiple
+        if (count($files) > 1) {
+            $zipName = 'reports-' . now()->format('Ymd_His') . '.zip';
+            $zipPath = storage_path("app/reports/{$zipName}");
 
-        foreach ($dataByReport as $reportName => $rows) {
+            $zip = new \ZipArchive();
+            if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE)) {
+                foreach ($files as $f) {
+                    $zip->addFile($f, basename($f));
+                }
+                $zip->close();
+            }
+
+            return response()->download($zipPath)->deleteFileAfterSend(true);
+        }
+
+        return response()->download($files[0])->deleteFileAfterSend(true);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMBINED MODE
+    |--------------------------------------------------------------------------
+    */
+    $spreadsheet = new Spreadsheet();
+    $firstSheet = true;
+
+    foreach ($dataByReport as $reportName => $data) {
+
+        // ✅ FORMATTED (MATRIX)
+        if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
+
+            $sourceSheet = $data['spreadsheet']->getActiveSheet();
+            $clonedSheet = clone $sourceSheet;
+            $clonedSheet->setTitle(substr($reportName, 0, 31));
+
             if ($firstSheet) {
-                $sheet = $spreadsheet->getActiveSheet();
-                $sheet->setTitle(substr($reportName, 0, 31));
+                $spreadsheet->removeSheetByIndex(0);
+                $spreadsheet->addSheet($clonedSheet, 0);
                 $firstSheet = false;
             } else {
-                $sheet = $spreadsheet->createSheet();
-                $sheet->setTitle(substr($reportName, 0, 31));
+                $spreadsheet->addSheet($clonedSheet);
             }
 
-            if (!empty($rows)) {
-                $headers = array_keys($rows[0]);
-                $sheet->fromArray([$headers], null, 'A1');
-                $sheet->fromArray($rows, null, 'A2');
-            }
+            continue;
         }
 
-        $fileName = 'combined-reports-' . now()->format('Ymd_His') . '.' . $format;
-        $filePath = storage_path("app/reports/{$fileName}");
+        // ✅ MULTI-SHEET (ZONE GROUPED)
+        if (is_array($data) && !isset($data[0])) {
 
-        $writer = $format === 'csv' ? new Csv($spreadsheet) : new Xlsx($spreadsheet);
-        $writer->save($filePath);
+            foreach ($data as $subSheetName => $rows) {
 
-        return response()->download($filePath)->deleteFileAfterSend(true);
+                $rows = array_values($rows);
+
+                if ($firstSheet) {
+                    $sheet = $spreadsheet->getActiveSheet();
+                    $sheet->setTitle(substr($subSheetName, 0, 31));
+                    $firstSheet = false;
+                } else {
+                    $sheet = $spreadsheet->createSheet();
+                    $sheet->setTitle(substr($subSheetName, 0, 31));
+                }
+
+                if (!empty($rows) && isset($rows[0])) {
+                    $headers = array_keys($rows[0]);
+                    $sheet->fromArray([$headers], null, 'A1');
+                    $sheet->fromArray($rows, null, 'A2');
+                }
+            }
+
+            continue;
+        }
+
+        // ✅ NORMAL FLAT ARRAY
+        if (!array_is_list($data)) {
+            $data = array_values($data);
+        }
+
+        if ($firstSheet) {
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle(substr($reportName, 0, 31));
+            $firstSheet = false;
+        } else {
+            $sheet = $spreadsheet->createSheet();
+            $sheet->setTitle(substr($reportName, 0, 31));
+        }
+
+        if (!empty($data) && isset($data[0])) {
+            $headers = array_keys($data[0]);
+            $sheet->fromArray([$headers], null, 'A1');
+            $sheet->fromArray($data, null, 'A2');
+        }
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SAVE FILE
+    |--------------------------------------------------------------------------
+    */
+    $fileName = 'combined-reports-' . now()->format('Ymd_His') . '.' . $format;
+    $filePath = storage_path("app/reports/{$fileName}");
+
+    $writer = $format === 'csv'
+        ? new Csv($spreadsheet)
+        : new Xlsx($spreadsheet);
+
+        if ($spreadsheet->getSheetCount() === 0) {
+    $sheet = $spreadsheet->createSheet();
+    $sheet->setTitle('EMPTY');
+    $sheet->setCellValue('A1', 'No data available');
+}
+
+    $writer->save($filePath);
+
+    return response()->download($filePath)->deleteFileAfterSend(true);
+}
 
     /**
      * Fetch report data from database
@@ -138,6 +519,14 @@ class ReportsController extends Controller
                 case 'Ageing (Detailed)':
                     $readings = Reading::with(['concessionaire.user', 'bill'])
                         ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
+                        ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                            if ($startDate && $endDate) {
+                                $q->whereBetween('bill.bill_period_to', [
+                                    $startDate . ' 00:00:00',
+                                    $endDate . ' 23:59:59'
+                                ]);
+                            }
+                        })
                         ->get();
 
                     $rows = [];
@@ -174,7 +563,15 @@ class ReportsController extends Controller
                 $query = Reading::with('bill')
                     ->select('readings.*')
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
-                    ->whereHas('bill') // ensure only readings with a bill
+                    ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->orderBy('zone', 'asc')
                     ->get()
                     ->groupBy('zone');
@@ -259,6 +656,14 @@ class ReportsController extends Controller
                 case 'Ageing (Recap)':
                 $readings = Reading::with(['bill', 'concessionaire.propertyType'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
@@ -336,6 +741,14 @@ class ReportsController extends Controller
                     ])
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->whereHas('concessionaire', fn($q) => $q->whereIn('status', ['ID', 'IV', 'BL']))
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->get();
 
                 $rows = [];
@@ -379,6 +792,14 @@ class ReportsController extends Controller
                 case 'Penalty Report (Detailed)':
                 $readings = Reading::with(['bill', 'concessionaire.user'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
@@ -460,6 +881,14 @@ class ReportsController extends Controller
                 case 'Penalty Report (Summary)':
                 $readings = Reading::with(['bill', 'concessionaire.propertyType'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
@@ -535,6 +964,14 @@ class ReportsController extends Controller
                 case 'Franchise Tax Report(Detailed)':
                 $readings = Reading::with(['bill', 'concessionaire.user'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
@@ -612,6 +1049,14 @@ class ReportsController extends Controller
                 case 'Franchise Tax Report(Summary)':
                 $readings = Reading::with(['bill', 'concessionaire.propertyType'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->get();
 
@@ -702,6 +1147,14 @@ class ReportsController extends Controller
                 case 'Monthly Billing Summary':
                 $readings = Reading::with(['bill', 'concessionaire'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->orderBy('zone', 'asc')
                     ->get();
@@ -769,6 +1222,14 @@ class ReportsController extends Controller
                 case 'Billed Con by Category and Size':
                 $readings = Reading::with(['bill', 'concessionaire'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->orderBy('zone', 'asc')
                     ->get();
@@ -849,6 +1310,14 @@ class ReportsController extends Controller
                 case 'Consumption by Category & Size':
                 $readings = Reading::with(['bill', 'concessionaire'])
                     ->whereHas('bill')
+                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+                        if ($startDate && $endDate) {
+                            $q->whereBetween('bill.bill_period_to', [
+                                $startDate . ' 00:00:00',
+                                $endDate . ' 23:59:59'
+                            ]);
+                        }
+                    })
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
                     ->orderBy('zone', 'asc')
                     ->get();
@@ -1245,30 +1714,31 @@ class ReportsController extends Controller
                 case 'List of Active':
 
                 $query = Bill::query()
-                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
-                    ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
-                    ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
+                ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
 
-                    ->where('bill.isPaid', 0)
+                ->where('bill.isPaid', 0)
+                ->where('concessioner_accounts.status', 'AB')
 
-                    ->when($zone !== 'all', fn ($q) =>
-                        $q->where('concessioner_accounts.zone', $zone)
-                    )
-                    ->with(['reading.concessionaire.user'])
-                    ->where('concessioner_accounts.status', 'AB')
-                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
-                    ->groupBy(
-                        'concessioner_accounts.zone',
-                        'concessioner_accounts.status',
-                        'concessioner_accounts.sequence_no',
-                        'readings.account_no',
-                        'users.name'
-                    )
+                ->when($zone !== 'all', fn ($q) =>
+                    $q->where('concessioner_accounts.zone', $zone)
+                )
 
-                    ->orderBy('concessioner_accounts.zone', 'ASC')
-                    ->orderBy('concessioner_accounts.sequence_no', 'ASC')
+                ->select(
+                    'concessioner_accounts.zone',
+                    'concessioner_accounts.status',
+                    'concessioner_accounts.sequence_no',
+                    'readings.account_no',
+                    'users.name as customer_name'
+                )
 
-                    ->get();
+                ->distinct()
+
+                ->orderBy('concessioner_accounts.zone', 'ASC')
+                ->orderBy('concessioner_accounts.sequence_no', 'ASC')
+
+                ->get();
 
                 /**
                  * =====================================
@@ -1335,11 +1805,6 @@ class ReportsController extends Controller
                     ->leftJoin('bill', function ($join) use ($startDate, $endDate) {
                         $join->on('bill.reading_id', '=', 'readings.id')
                             ->where('bill.isPaid', 0); // unpaid only
-
-                        // Add date filter inside the join
-                        if ($startDate && $endDate) {
-                            $join->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
-                        }
                     })
                     ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
                     ->selectRaw("
@@ -1837,7 +2302,657 @@ class ReportsController extends Controller
                 $result[$report] = $rows;
                 break;
 
+                case 'Monthly Billing Matrix Report':
 
+$zones = \App\Models\Zones::orderBy('zone')->pluck('zone');
+
+$readings = Reading::with(['concessionaire', 'bill'])
+    ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
+    ->where('isReread', 0)
+    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
+        if ($startDate && $endDate) {
+            $q->whereBetween('bill.bill_period_to', [
+                $startDate . ' 00:00:00',
+                $endDate . ' 23:59:59'
+            ]);
+        }
+    })
+    ->get();
+
+/*
+|--------------------------------------------------------------------------
+| MATRIX BUILD
+|--------------------------------------------------------------------------
+*/
+$matrix = [];
+
+foreach ($readings as $reading) {
+
+    $bill = $reading->bill;
+    if (!$bill) continue;
+
+    $zoneKey = $reading->zone;
+
+    $type = strtoupper(trim(optional($reading->concessionaire)->property_type ?? ''));
+
+    if (str_contains($type, 'RESIDENTIAL')) $cat = 'RES';
+    elseif (str_contains($type, 'GOVERNMENT')) $cat = 'GOV';
+    elseif (str_contains($type, 'COMMERCIAL') && str_contains($type, 'INDUSTRIAL')) $cat = 'CI';
+    elseif (str_contains($type, 'COMMERCIAL A')) $cat = 'A';
+    elseif (str_contains($type, 'COMMERCIAL B')) $cat = 'B';
+    elseif (str_contains($type, 'COMMERCIAL C')) $cat = 'C';
+    else continue;
+
+    if (!isset($matrix[$zoneKey][$cat])) {
+        $matrix[$zoneKey][$cat] = ['count'=>0,'cum'=>0,'amt'=>0];
+    }
+
+    $matrix[$zoneKey][$cat]['count']++;
+    $matrix[$zoneKey][$cat]['cum'] += (float) ($reading->consumption ?? 0);
+    $matrix[$zoneKey][$cat]['amt'] += (float) ($bill->total - $bill->previous_unpaid ?? 0);
+}
+
+/*
+|--------------------------------------------------------------------------
+| EXCEL
+|--------------------------------------------------------------------------
+*/
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+
+/*
+|--------------------------------------------------------------------------
+| TITLE
+|--------------------------------------------------------------------------
+*/
+$sheet->setCellValue('A1', strtoupper(Carbon::parse($startDate)->format('F Y')));
+$sheet->mergeCells('A1:T1');
+$sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+$sheet->getStyle('A1')->getFont()->setBold(true);
+
+/*
+|--------------------------------------------------------------------------
+| HEADER GROUPS
+|--------------------------------------------------------------------------
+*/
+$sheet->setCellValue('A3','ZONES');
+
+$sheet->setCellValue('B3','RESIDENTIAL'); $sheet->mergeCells('B3:D3');
+$sheet->setCellValue('E3','GOVERNMENT'); $sheet->mergeCells('E3:G3');
+$sheet->setCellValue('H3','COMMERCIAL & INDUSTRIAL'); $sheet->mergeCells('H3:J3');
+$sheet->setCellValue('K3','COMMERCIAL A'); $sheet->mergeCells('K3:M3');
+$sheet->setCellValue('N3','COMMERCIAL B'); $sheet->mergeCells('N3:P3');
+$sheet->setCellValue('Q3','COMMERCIAL C'); $sheet->mergeCells('Q3:S3');
+$sheet->setCellValue('T3','TOTAL');
+
+/*
+|--------------------------------------------------------------------------
+| SUB HEADER
+|--------------------------------------------------------------------------
+*/
+$sheet->fromArray([[
+    '',
+    'NO.','CU.M','AMOUNT',
+    'NO.','CU.M','AMOUNT',
+    'NO.','CU.M','AMOUNT',
+    'NO.','CU.M','AMOUNT',
+    'NO.','CU.M','AMOUNT',
+    'NO.','CU.M','AMOUNT',
+    'TOTAL'
+]], null, 'A4');
+
+/*
+|--------------------------------------------------------------------------
+| MAIN TABLE
+|--------------------------------------------------------------------------
+*/
+$row = 5;
+
+$totals = [
+    'res'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'gov'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'ci'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'a'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'b'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'c'=>['count'=>0,'cum'=>0,'amt'=>0],
+    'grand'=>0
+];
+
+foreach ($zones as $z) {
+
+    $cats = $matrix[$z] ?? [];
+
+    $res = $cats['RES'] ?? ['count'=>0,'cum'=>0,'amt'=>0];
+    $gov = $cats['GOV'] ?? ['count'=>0,'cum'=>0,'amt'=>0];
+    $ci  = $cats['CI']  ?? ['count'=>0,'cum'=>0,'amt'=>0];
+    $a   = $cats['A']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+    $b   = $cats['B']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+    $c   = $cats['C']   ?? ['count'=>0,'cum'=>0,'amt'=>0];
+
+    $total = $res['amt']+$gov['amt']+$ci['amt']+$a['amt']+$b['amt']+$c['amt'];
+
+    $totals['res']['count'] += $res['count'];
+    $totals['res']['cum']   += $res['cum'];
+    $totals['res']['amt']   += $res['amt'];
+
+    $totals['gov']['count'] += $gov['count'];
+    $totals['gov']['cum']   += $gov['cum'];
+    $totals['gov']['amt']   += $gov['amt'];
+
+    $totals['ci']['count'] += $ci['count'];
+    $totals['ci']['cum']   += $ci['cum'];
+    $totals['ci']['amt']   += $ci['amt'];
+
+    $totals['a']['count'] += $a['count'];
+    $totals['a']['cum']   += $a['cum'];
+    $totals['a']['amt']   += $a['amt'];
+
+    $totals['b']['count'] += $b['count'];
+    $totals['b']['cum']   += $b['cum'];
+    $totals['b']['amt']   += $b['amt'];
+
+    $totals['c']['count'] += $c['count'];
+    $totals['c']['cum']   += $c['cum'];
+    $totals['c']['amt']   += $c['amt'];
+
+    $totals['grand'] += $total;
+
+    $sheet->fromArray([[
+        'ZONE '.$z,
+
+        $res['count'],$res['cum'],$res['amt'],
+        $gov['count'],$gov['cum'],$gov['amt'],
+        $ci['count'],$ci['cum'],$ci['amt'],
+        $a['count'],$a['cum'],$a['amt'],
+        $b['count'],$b['cum'],$b['amt'],
+        $c['count'],$c['cum'],$c['amt'],
+
+        $total
+    ]], null, "A{$row}");
+
+    $row++;
+}
+
+/*
+|--------------------------------------------------------------------------
+| TOTAL ROW
+|--------------------------------------------------------------------------
+*/
+$sheet->fromArray([[
+    'TOTAL',
+
+    $totals['res']['count'], $totals['res']['cum'], $totals['res']['amt'],
+    $totals['gov']['count'], $totals['gov']['cum'], $totals['gov']['amt'],
+    $totals['ci']['count'],  $totals['ci']['cum'],  $totals['ci']['amt'],
+    $totals['a']['count'],   $totals['a']['cum'],   $totals['a']['amt'],
+    $totals['b']['count'],   $totals['b']['cum'],   $totals['b']['amt'],
+    $totals['c']['count'],   $totals['c']['cum'],   $totals['c']['amt'],
+
+    $totals['grand']
+]], null, "A{$row}");
+
+$sheet->getStyle("A{$row}:T{$row}")->getFont()->setBold(true);
+$sheet->getStyle("A{$row}:T{$row}")->getFont()->getColor()
+    ->setARGB(\PhpOffice\PhpSpreadsheet\Style\Color::COLOR_RED);
+
+$sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+$sheet->getStyle('A1')->getFont()->setBold(true);
+
+/*
+|--------------------------------------------------------------------------
+| LOWER PANELS (STATIC POSITIONS)
+|--------------------------------------------------------------------------
+*/
+
+$start = $row + 3;
+
+// TOP PANELS
+$sheet->setCellValue("A{$start}", 'PENALTY');
+$sheet->setCellValue("E{$start}", 'SENIOR DISCOUNT');
+$sheet->setCellValue("I{$start}", 'SENIOR PENALTY');
+$sheet->setCellValue("M{$start}", 'TOTAL INACTIVE ARREARS');
+
+// LOWER PANELS (separate row)
+$lowerStart = $start + count($zones) + 4;
+
+$sheet->setCellValue("A{$lowerStart}", 'TOTAL ACTIVE');
+$sheet->setCellValue("F{$lowerStart}", 'ACTIVE');
+$sheet->setCellValue("I{$lowerStart}", 'DISCONNECTED');
+
+/*
+|--------------------------------------------------------------------------
+| ACTIVE / DISCONNECTED
+|--------------------------------------------------------------------------
+*/
+$sheet->setCellValue("F".($start+10), 'ACTIVE');
+$sheet->setCellValue("I".($start+10), 'DISCONNECTED');
+
+/*
+|--------------------------------------------------------------------------
+| LOWER DATA (REAL DATA FIX)
+|--------------------------------------------------------------------------
+*/
+
+$penalty = DB::table('bill')
+    ->join('readings', 'bill.reading_id', '=', 'readings.id')
+    ->select([
+        'readings.zone',
+        DB::raw('COUNT(*) as cnt'),
+        DB::raw('ROUND(SUM(bill.penalty),2) as amt'),
+    ])
+    ->where('bill.penalty', '>', 0)
+
+    ->whereBetween('bill.bill_period_to', [
+        Carbon::parse($startDate)->startOfDay(),
+        Carbon::parse($endDate)->endOfDay(),
+    ])
+
+    ->where(function ($q) {
+        $q->whereNull('bill.date_paid')
+          ->orWhereRaw("
+              STR_TO_DATE(bill.date_paid, '%Y-%m-%d %H:%i:%s') >
+              STR_TO_DATE(bill.due_date, '%Y-%m-%d %H:%i:%s')
+          ");
+    })
+
+    ->groupBy('readings.zone')
+    ->get()
+    ->keyBy('zone');
+
+// SENIOR DISCOUNT (bill.discount)
+$senior = DB::table('discount as d')
+    ->join('concessioner_accounts as ca', 'd.account_no','=','ca.account_no')
+    ->join('readings as r', 'ca.account_no','=','r.account_no')
+    ->join('bill as b', 'r.id','=','b.reading_id')
+    ->selectRaw('r.zone, COUNT(DISTINCT ca.account_no) as cnt, SUM(b.discount) as amt')
+    ->whereBetween('b.bill_period_from', [
+        $startDate . ' 00:00:00',
+        $endDate . ' 23:59:59'
+    ])
+    ->groupBy('r.zone')
+    ->get()
+    ->keyBy('zone');
+
+// SENIOR PENALTY (same penalty but flagged)
+$seniorPenalty = DB::table('discount as d')
+    ->join('concessioner_accounts as ca', 'd.account_no','=','ca.account_no')
+    ->join('readings as r', 'ca.account_no','=','r.account_no')
+    ->join('bill as b', 'r.id','=','b.reading_id')
+    ->selectRaw('r.zone, COUNT(*) as cnt, SUM(b.penalty) as amt')
+    ->where('b.penalty','>',0)
+    ->whereBetween('b.bill_period_from', [
+        $startDate . ' 00:00:00',
+        $endDate . ' 23:59:59'
+    ])
+    ->groupBy('r.zone')
+    ->get()
+    ->keyBy('zone');
+
+// INACTIVE ARREARS (ID, IV, BL)
+$inactive = DB::table('bill')
+    ->join('readings','bill.reading_id','=','readings.id')
+    ->join('concessioner_accounts','readings.account_no','=','concessioner_accounts.account_no')
+    ->selectRaw('readings.zone, COUNT(*) as cnt, SUM(bill.total) as amt')
+    ->whereIn('concessioner_accounts.status',['ID','IV','BL'])
+    ->whereBetween('bill.bill_period_from', [
+        $startDate . ' 00:00:00',
+        $endDate . ' 23:59:59'
+    ])
+    ->groupBy('readings.zone')
+    ->get()
+    ->keyBy('zone');
+
+$inactiveSummary = DB::table('concessioner_accounts as ca')
+    ->leftJoin('readings as r', 'ca.account_no', '=', 'r.account_no')
+    ->leftJoin('bill as b', 'r.id', '=', 'b.reading_id')
+
+    ->whereIn('ca.status', ['ID', 'IV', 'BL'])
+
+    ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
+        $q->whereBetween('b.bill_period_to', [
+            $startDate . ' 00:00:00',
+            $endDate . ' 23:59:59'
+        ]);
+    })
+
+    ->selectRaw("
+        ca.zone,
+        COUNT(DISTINCT ca.account_no) as total_accounts,
+        COALESCE(SUM(CAST(b.total AS DECIMAL(12,2))),0) as total_amount
+    ")
+    ->groupBy('ca.zone')
+    ->get()
+    ->keyBy('zone');
+
+$billingData = DB::table('readings as r')
+    ->join('bill as b', 'r.id', '=', 'b.reading_id')
+    ->join('concessioner_accounts as ca', 'r.account_no', '=', 'ca.account_no')
+
+    ->where('ca.status', 'AB')
+
+    ->whereBetween('b.bill_period_from', [
+        $startDate . ' 00:00:00',
+        $endDate . ' 23:59:59'
+    ])
+
+    ->selectRaw("
+        ca.account_no,
+
+        CASE
+            WHEN UPPER(ca.property_type) LIKE '%RESIDENTIAL%' THEN 'RESIDENTIAL'
+            WHEN UPPER(ca.property_type) LIKE '%GOVERNMENT%' THEN 'GOVERNMENT'
+            WHEN UPPER(ca.property_type) LIKE '%COMMERCIAL%' AND UPPER(ca.property_type) LIKE '%INDUSTRIAL%' THEN 'COMMERCIAL & INDUSTRIAL'
+            WHEN UPPER(ca.property_type) LIKE '%COMMERCIAL A%' THEN 'COMMERCIAL A'
+            WHEN UPPER(ca.property_type) LIKE '%COMMERCIAL B%' THEN 'COMMERCIAL B'
+            WHEN UPPER(ca.property_type) LIKE '%COMMERCIAL C%' THEN 'COMMERCIAL C'
+            ELSE 'OTHER'
+        END as category,
+
+        r.consumption,
+        b.total,
+        b.previous_unpaid
+    ")
+    ->get();
+
+
+//TOTAL ACTIVE PER CLASSIFICATION
+$totalActiveByType = collect($billingData)
+    ->groupBy('category')
+    ->map(function ($rows) {
+        return (object)[
+            'total_accounts' => $rows->pluck('account_no')->unique()->count(),
+            'total_cum' => $rows->sum('consumption'),
+            'total_amount' => $rows->sum(function ($row) {
+                return ((float)$row->total ?? 0) - ((float)$row->previous_unpaid ?? 0);
+            }),
+        ];
+    });
+
+// ACTIVE (AB)
+$active = DB::table('concessioner_accounts')
+    ->selectRaw('zone, COUNT(*) as cnt')
+    ->where('status','AB')
+    ->groupBy('zone')
+    ->get()
+    ->keyBy('zone');
+
+// DISCONNECTED (IV only)
+$disconnected = DB::table('concessioner_accounts')
+    ->selectRaw('zone, COUNT(*) as cnt')
+    ->where('status','IV')
+    ->groupBy('zone')
+    ->get()
+    ->keyBy('zone');
+
+$start = $row + 3;
+
+//PENALTY
+$r = $start + 1;
+
+$totalPenaltyCnt = 0;
+$totalPenaltyAmt = 0;
+
+foreach ($zones as $z) {
+    $cnt = $penalty[$z]->cnt ?? 0;
+    $amt = $penalty[$z]->amt ?? 0;
+
+    $sheet->setCellValue("A{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("B{$r}", $cnt);
+    $sheet->setCellValue("C{$r}", $amt);
+
+    $totalPenaltyCnt += $cnt;
+    $totalPenaltyAmt += $amt;
+
+    $r++;
+}
+
+$sheet->setCellValue("A{$r}", 'TOTAL');
+$sheet->setCellValue("B{$r}", $totalPenaltyCnt);
+$sheet->setCellValue("C{$r}", $totalPenaltyAmt);
+
+
+//SENIOR DISCOUNT
+$r = $start + 1;
+
+$totalSeniorCnt = 0;
+$totalSeniorAmt = 0;
+
+foreach ($zones as $z) {
+    $cnt = $senior[$z]->cnt ?? 0;
+    $amt = $senior[$z]->amt ?? 0;
+
+    $sheet->setCellValue("E{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("F{$r}", $cnt);
+    $sheet->setCellValue("G{$r}", $amt);
+
+    $totalSeniorCnt += $cnt;
+    $totalSeniorAmt += $amt;
+
+    $r++;
+}
+
+$sheet->setCellValue("E{$r}", 'TOTAL');
+$sheet->setCellValue("F{$r}", $totalSeniorCnt);
+$sheet->setCellValue("G{$r}", $totalSeniorAmt);
+
+//SENIOR PENALTY
+$r = $start + 1;
+
+$totalSPCnt = 0;
+$totalSPAmt = 0;
+
+foreach ($zones as $z) {
+    $cnt = $seniorPenalty[$z]->cnt ?? 0;
+    $amt = $seniorPenalty[$z]->amt ?? 0;
+
+    $sheet->setCellValue("I{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("J{$r}", $cnt);
+    $sheet->setCellValue("K{$r}", $amt);
+
+    $totalSPCnt += $cnt;
+    $totalSPAmt += $amt;
+
+    $r++;
+}
+
+$sheet->setCellValue("I{$r}", 'TOTAL');
+$sheet->setCellValue("J{$r}", $totalSPCnt);
+$sheet->setCellValue("K{$r}", $totalSPAmt);
+
+//TOTAL INACTIVE ARREARS
+$r = $start + 1;
+
+$totalInactiveCnt = 0;
+$totalInactiveAmt = 0;
+
+foreach ($zones as $z) {
+    $cnt = $inactive[$z]->cnt ?? 0;
+    $amt = $inactive[$z]->amt ?? 0;
+
+    $sheet->setCellValue("M{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("N{$r}", $cnt);
+    $sheet->setCellValue("O{$r}", $amt);
+
+    $totalInactiveCnt += $cnt;
+    $totalInactiveAmt += $amt;
+
+    $r++;
+}
+
+$sheet->setCellValue("M{$r}", 'TOTAL');
+$sheet->setCellValue("N{$r}", $totalInactiveCnt);
+$sheet->setCellValue("O{$r}", $totalInactiveAmt);
+
+
+$r2 = $start + 1;
+
+$totalInactiveCount = 0;
+$totalInactiveAmount = 0;
+
+// TITLE
+$sheet->setCellValue("Q{$start}", 'TOTAL INACTIVE');
+$sheet->mergeCells("Q{$start}:S{$start}");
+
+$sheet->getStyle("Q{$start}:S{$start}")->getFont();
+$sheet->getStyle("Q{$start}:S{$start}");
+
+foreach ($zones as $z) {
+
+    $cnt = $inactive[$z]->cnt ?? 0;
+    $amt = $inactive[$z]->amt ?? 0;
+
+    $sheet->setCellValue("Q{$r2}", 'ZONE '.$z);
+    $sheet->setCellValue("R{$r2}", $cnt);
+    $sheet->setCellValue("S{$r2}", $amt);
+
+    $totalInactiveCount += $cnt;
+    $totalInactiveAmount += $amt;
+
+    $r2++;
+}
+
+// ✅ TOTAL ROW
+$sheet->setCellValue("Q{$r2}", 'TOTAL');
+$sheet->setCellValue("R{$r2}", $totalInactiveCount);
+$sheet->setCellValue("S{$r2}", $totalInactiveAmount);
+
+// ✅ LOCK END ROW IMMEDIATELY
+$endRow = $r2;
+
+
+//TOTAL ACTIVE
+$r = $lowerStart + 1;
+
+$categories = [
+    'RESIDENTIAL',
+    'GOVERNMENT',
+    'COMMERCIAL & INDUSTRIAL',
+    'COMMERCIAL C',
+    'COMMERCIAL B',
+    'COMMERCIAL A',
+];
+
+$totalNo = 0;
+$totalCum = 0;
+$totalAmt = 0;
+
+foreach ($categories as $cat) {
+
+    $rowData = $totalActiveByType[$cat] ?? null;
+
+    $count = $rowData->total_accounts ?? 0;
+    $cum   = $rowData->total_cum ?? 0;
+    $amt   = $rowData->total_amount ?? 0;
+
+    $sheet->setCellValue("A{$r}", $cat);
+    $sheet->setCellValue("B{$r}", $count);
+    $sheet->setCellValue("C{$r}", $cum);
+    $sheet->setCellValue("D{$r}", $amt);
+
+    $totalNo += $count;
+    $totalCum += $cum;
+    $totalAmt += $amt;
+
+    $r++;
+}
+
+$sheet->setCellValue("A{$r}", 'TOTAL');
+$sheet->setCellValue("B{$r}", $totalNo);
+$sheet->setCellValue("C{$r}", $totalCum);
+$sheet->setCellValue("D{$r}", $totalAmt);
+
+//ACTIVE
+$r = $lowerStart + 1;
+$totalActive = 0;
+
+foreach ($zones as $z) {
+    $cnt = $active[$z]->cnt ?? 0;
+
+    $sheet->setCellValue("F{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("G{$r}", $cnt);
+
+    $totalActive += $cnt;
+    $r++;
+}
+
+$sheet->setCellValue("F{$r}", 'TOTAL');
+$sheet->setCellValue("G{$r}", $totalActive);
+
+
+//DISCONNECTED
+$r = $lowerStart + 1;
+$totalDisc = 0;
+
+foreach ($zones as $z) {
+    $cnt = $disconnected[$z]->cnt ?? 0;
+
+    $sheet->setCellValue("I{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("J{$r}", $cnt);
+
+    $totalDisc += $cnt;
+    $r++;
+}
+
+$sheet->setCellValue("I{$r}", 'TOTAL');
+$sheet->setCellValue("J{$r}", $totalDisc);
+
+/*
+|--------------------------------------------------------------------------
+| STYLE
+|--------------------------------------------------------------------------
+*/
+$sheet->getStyle("A3:T{$row}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$panelEnd = $start + count($zones) + 1; // includes TOTAL row
+
+$sheet->getStyle("A{$start}:C{$panelEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("E{$start}:G{$panelEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("I{$start}:K{$panelEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("M{$start}:O{$panelEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$lowerStart = $start + count($zones) + 4;
+$lowerEnd   = $lowerStart + count($zones) + 1;
+
+$sheet->getStyle("A{$lowerStart}:D{$lowerEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("F{$lowerStart}:G{$lowerEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("I{$lowerStart}:K{$lowerEnd}")
+    ->getBorders()->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+$sheet->getStyle("Q{$start}:S{$endRow}")
+    ->getBorders()
+    ->getAllBorders()
+    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+foreach(range('A','T') as $col){
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
+
+$result[$report] = [
+    'type' => 'formatted',
+    'spreadsheet' => $spreadsheet
+];
+
+break;
                 default:
                     $result[$report] = [];
                     break;
@@ -1855,16 +2970,13 @@ class ReportsController extends Controller
 
     $headers = !empty($rows) ? array_keys($rows[0]) : [];
 
-    // ✅ "Plain Sheet" layout
     if ($format === 'plain') {
-        // Title row
         $sheet->setCellValue('A1', strtoupper($reportName));
         $sheet->mergeCells('A1:E1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
         $sheet->getRowDimension('1')->setRowHeight(25);
 
-        // Column headers start on row 3
         if (!empty($headers)) {
             $sheet->fromArray([$headers], null, 'A3');
             $lastHeaderCol = chr(64 + count($headers));
@@ -1875,17 +2987,14 @@ class ReportsController extends Controller
             $sheet->setCellValue('A3', 'No Data Found');
         }
 
-        // Data rows start at row 4
         if (!empty($rows)) {
             $sheet->fromArray($rows, null, 'A4');
         }
 
-        // ✅ Clean plain layout
         $sheet->getDefaultColumnDimension()->setWidth(18);
         $sheet->getDefaultRowDimension()->setRowHeight(20);
         $sheet->getStyle('A:Z')->getAlignment()->setHorizontal('center');
 
-        // ✅ Add thin borders for readability
         if (!empty($headers)) {
             $lastRow = count($rows) + 3;
             $lastCol = chr(64 + count($headers));
@@ -1893,14 +3002,12 @@ class ReportsController extends Controller
                 ->getBorders()->getAllBorders()->setBorderStyle(
                     \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN
                 );
-            // ✅ Add gray background for header
             $sheet->getStyle("A3:{$lastCol}3")->getFill()
                 ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
                 ->getStartColor()->setARGB('DDDDDD');
         }
     }
 
-    // ✅ Regular Excel or CSV export
     else {
         if (!empty($rows)) {
             $sheet->fromArray([$headers], null, 'A1');
@@ -1910,21 +3017,17 @@ class ReportsController extends Controller
         }
     }
 
-    // ✅ Ensure reports folder exists
     $reportsPath = storage_path('app/reports');
     if (!file_exists($reportsPath)) {
         mkdir($reportsPath, 0777, true);
     }
 
-    // ✅ Safe filename and correct extension
     $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reportName);
     $extension = ($format === 'csv') ? 'csv' : 'xlsx';
     $fileName = "{$safeName}_" . now()->format('Ymd_His') . ".{$extension}";
     $filePath = "{$reportsPath}/{$fileName}";
 
-    // ✅ Select proper writer
     if ($format === 'csv') {
-        // CSV can only handle a single sheet; ensure combined mode didn’t break this
         if ($spreadsheet->getSheetCount() > 1) {
             $spreadsheet->setActiveSheetIndex(0);
         }
@@ -1933,7 +3036,6 @@ class ReportsController extends Controller
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
     }
 
-    // ✅ Safety: Ensure at least 1 sheet has visible data
     if ($sheet->getHighestDataRow() === 0) {
         $sheet->setCellValue('A1', 'No data available');
     }
