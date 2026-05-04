@@ -8,7 +8,6 @@
                 <span class="dashboard-badge">{{ \Carbon\Carbon::now()->format('M d, Y \a\t h:i A') }}</span>
             </div>
 
-            @can('superadmin')
             <div class="dashboard-stats-grid">
                 <div class="stat-card stat-card--primary">
                     <div class="stat-card__icon"><i class="bx bx-wallet"></i></div>
@@ -64,72 +63,11 @@
                     <div id="chartZone" class="chart-card__body chart-card__body--tall"></div>
                 </div>
             </div>
-            @else
-            <div class="row mt-5">
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Admins</h4>
-                            <h1>{{ number_format($data['admins'] ?? 0) }}</h1>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Concessionaires</h4>
-                            <h1>{{ number_format($data['concessionaires'] ?? 0) }}</h1>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Technicians</h4>
-                            <h1>{{ number_format($data['technicians'] ?? 0) }}</h1>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div>
-                <hr class="mt-3 mb-3">
-                <p class="text-uppercase text-muted fw-bold">
-                    Updated:
-                    <span class="text-decoration-underline fst-italic">{{ \Carbon\Carbon::now()->format('F d, Y \a\t h:i A') }}</span>
-                </p>
-            </div>
-            <div class="row">
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Unpaid Amount</h4>
-                            <h1>₱{{ number_format($data['total_unpaid'] ?? 0, 2) }}</h1>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Paid Amount</h4>
-                            <h1>₱{{ number_format($data['total_paid'] ?? 0, 2) }}</h1>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card shadow p-3">
-                        <div class="card-body">
-                            <h4 class="mb-3 text-uppercase fw-lighter">Total Amount</h4>
-                            <h1>₱{{ number_format($data['total_transactions'] ?? 0, 2) }}</h1>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endcan
+
         </div>
     </main>
 @endsection
 
-@can('superadmin')
 @section('script')
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
@@ -147,4 +85,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endsection
-@endcan
