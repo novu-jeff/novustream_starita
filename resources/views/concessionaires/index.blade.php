@@ -84,12 +84,10 @@
                                 <td>{{ $user->accounts->pluck('address')->implode(', ') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        @can('superadmin')
                                         <a href="{{ route('concessionaires.ledger', $user->id) }}"
                                         class="btn btn-success text-uppercase fw-bold">
                                             <i class="bx bx-book"></i>
                                         </a>
-                                        @endcan
                                         <a href="{{ route('concessionaires.edit', ['concessionaire' => $user->id]) }}"
                                         class="btn btn-primary text-uppercase fw-bold">
                                             <i class="bx bx-edit"></i>
