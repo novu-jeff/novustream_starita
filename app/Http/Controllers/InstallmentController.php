@@ -59,7 +59,7 @@ class InstallmentController extends Controller
             $baseAmount = $bill->amount_after_due;
         }
 
-        $monthly = round($bill->amount / $months,2);
+        $monthly = round($baseAmount / $months, 2);
 
         $accountNo = $bill->reading->account_no;
 
@@ -70,7 +70,7 @@ class InstallmentController extends Controller
         $installment = Installment::create([
             'bill_id' => $bill->id,
             'user_id' => $userId,
-            'bill_amount' => $bill->amount,
+            'bill_amount' => $baseAmount,
             'months' => $months,
             'monthly_amount' => $monthly
         ]);
@@ -88,15 +88,14 @@ class InstallmentController extends Controller
         $basicCharge = $bill->total - $bill->previous_unpaid;
 
         Bill::where('id', $bill->id)->update([
-            'isInstallment' => 1,
 
             // move installment to arrears
-            'previous_unpaid' => $monthly,
+            'previous_unpaid' => 0,
 
             // reset totals (ONLY CURRENT BILL)
-            'total' => $basicCharge + $monthly,
-            'amount' => $basicCharge + $monthly,
-            'amount_after_due' => $basicCharge + $monthly,
+            'total' => $monthly,
+            'amount' => $monthly,
+            'amount_after_due' => $monthly,
 
             // remove penalty
             'penalty' => 0,
