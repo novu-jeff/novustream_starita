@@ -23,8 +23,11 @@
 							Meter Reading
 						</button>
 						<ul class="dropdown-menu mt-3">
+                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
 							<li><a class="dropdown-item" href="{{route('reading.index')}}">Meter Reading</a></li>
-							<li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
+                            <li><a class="dropdown-item" href="{{route('offline-readings.index')}}">Offline Readings</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
 						</ul>
 					</div>
 				@endcan
@@ -63,7 +66,18 @@
 				</script>
 
 				@canany(['admin', 'cashier'])
-					<a href="{{route('payments.index')}}"> Payments </a>
+                    <div class="dropdown px-0 mx-0">
+						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+							Payments
+						</button>
+						<ul class="dropdown-menu mt-3">
+                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
+                            <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
+                            <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
+							<li><a class="dropdown-item" href="{{route('payments.index')}}"> Payments </a></li>
+                            <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
+						</ul>
+					</div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
 				@endcanany
 				@can('admin')
@@ -99,18 +113,7 @@
 							@can('app-novustream')
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
 							@endcan
-
-                            @can('superadmin')
-                            <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
-                            <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
-                            <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
-                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
-                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
-                            @endcan
-
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
-							<li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
-							<li><a class="dropdown-item" href="{{route('offline-readings.index')}}">Offline Readings</a></li>
 						</ul>
 					</div>
 				@endcan
