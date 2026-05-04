@@ -838,7 +838,7 @@ class MeterService {
 
         if ($unpaidAmount != 0 && !$installmentSchedule && !$isPenaltyExempt) {
             $penalties = $this->paymentBreakdownService::getPenalty();
-            $amountPayable = $total - $arrears - $totalDiscount;
+            $amountPayable = $total - $totalDiscount;
 
             foreach ($penalties as $penalty) {
                 if (strtolower($penalty->amount_type) === 'percentage') {
@@ -847,7 +847,7 @@ class MeterService {
                     $penaltyAmount = $penalty->amount;
                 }
 
-                $amount_after_due = $overall_total + $penaltyAmount;
+                $amount_after_due = $overall_total + $penaltyAmount + $remainingUnpaid;
                 $hasPenalty = true;
             }
         } else {
@@ -892,6 +892,8 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
+        $totalBill = $total + $remainingUnpaid;
+
         $payorName = optional($concessionaire->user)->name ?? null;
 
         $bill = [
@@ -899,7 +901,7 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $total,
+            'total' => $totalBill,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
