@@ -23,11 +23,11 @@
 							Meter Reading
 						</button>
 						<ul class="dropdown-menu mt-3">
-                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
 							<li><a class="dropdown-item" href="{{route('reading.index')}}">Meter Reading</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
                             <li><a class="dropdown-item" href="{{route('offline-readings.index')}}">Offline Readings</a></li>
                             <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
-                            <li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
 						</ul>
 					</div>
 				@endcan
@@ -71,11 +71,11 @@
 							Payments
 						</button>
 						<ul class="dropdown-menu mt-3">
-                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
+                            <li><a class="dropdown-item" href="{{route('payments.index')}}"> Payments </a></li>
                             <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
-                            <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
-							<li><a class="dropdown-item" href="{{route('payments.index')}}"> Payments </a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
                             <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
+                            <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
 						</ul>
 					</div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
