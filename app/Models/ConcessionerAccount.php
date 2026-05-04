@@ -49,6 +49,11 @@ class ConcessionerAccount extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function statusCode()
+    {
+        return $this->belongsTo(StatusCode::class, 'status', 'code');
+    }
+
 }
 
 ?>
