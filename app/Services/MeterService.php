@@ -803,7 +803,7 @@ class MeterService {
         }
 
         $total = collect($deductions)->sum('amount');
-        $overall_total = $basic_charge;
+        $overall_total = $total;
         $arrears = collect($deductions)->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
         $penaltyAmount = 0;
@@ -864,6 +864,29 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
+        if ($installmentSchedule) {
+
+            $finalTotal = ($total - $partialPaymentTotal) + $remainingUnpaid;
+
+            $finalAmount = ($overall_total - $partialPaymentTotal)
+                + $remainingUnpaid
+                + $penaltyAmount;
+
+            $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
+                + $remainingUnpaid
+                + $penaltyAmount;
+
+        } else {
+
+            $finalTotal = $total - $partialPaymentTotal;
+
+            $finalAmount = ($overall_total - $partialPaymentTotal)
+                + $penaltyAmount;
+
+            $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
+                + $penaltyAmount;
+        }
+
         $payorName = optional($concessionaire->user)->name ?? null;
 
         $bill = [
@@ -871,14 +894,14 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $basic_charge - $partialPaymentTotal + $remainingUnpaid,
+            'total' => $finalTotal,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
-            'amount_after_due' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
+            'amount' => $finalAmount,
+            'amount_after_due' => $finalAmountAfterDue,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
             'payor_name' => $payorName,
