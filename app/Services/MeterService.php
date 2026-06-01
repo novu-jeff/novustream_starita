@@ -682,32 +682,28 @@ class MeterService {
 
         $unpaidAmount = 0;
         $partialPaymentTotal = 0;
+        $remainingUnpaid = 0;
 
         if (!$forceZeroArrears && $latestBill) {
-            if ($latestBill->isPaid) {
-                $unpaidAmount = 0;
-                $partialPaymentTotal = 0;
-            } elseif ($latestBill->isInstallment) {
-                $unpaidAmount = 0;
-                $partialPaymentTotal = 0;
-            } else {
-                $unpaidAmount = (float) ($latestBill->amount ?? 0);
-                $partialPaymentTotal = (float) ($latestBill->partial_payment ?? 0);
+
+            if (!$latestBill->isPaid && !$latestBill->isInstallment) {
+
+                // Only carry the actual remaining balance
+                $remainingUnpaid = max(
+                    (float)($latestBill->amount ?? 0)
+                    - (float)($latestBill->partial_payment ?? 0),
+                    0
+                );
+
+                $unpaidAmount = $remainingUnpaid;
             }
         }
-
-        if ($forceZeroArrears) {
-            $unpaidAmount = 0;
-            $partialPaymentTotal = 0;
-        }
-
-        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
 
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
                 'name' => 'Previous Balance',
-                'amount' => $unpaidAmount,
+                'amount' => $remainingUnpaid,
                 'description' => ''
             ],
             [
@@ -716,7 +712,7 @@ class MeterService {
                 'description' => '',
             ],
         ];
-        $total_amount = $rate + $unpaidAmount;
+        $total_amount = $rate + $remainingUnpaid;
 
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -908,6 +904,7 @@ class MeterService {
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
+
 
         try {
             if ($billReferenceNo && $reference_no) {
