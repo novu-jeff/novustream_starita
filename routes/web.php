@@ -332,6 +332,7 @@ Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayP
 Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
 Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
 Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
+Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'showQrVoided'])->name('payments.qr-voided');
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');

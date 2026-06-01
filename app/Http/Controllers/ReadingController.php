@@ -228,37 +228,25 @@ class ReadingController extends Controller
         ];
 
 
-        $billData = $data['current_bill'] ?? null;
-        $hitpayCompletedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
-        if (!empty($billData['isPaid']) && !empty($hitpayCompletedId)) {
-            $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
-        } else {
-            // 🧩 Generate HitPay checkout URL (your logic)
-            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        $billData = $data['current_bill'] ?? [];
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl($reference_no, $billData, $paymentPayload);
+        $url = $qrResolved['url'];
 
-            // 🔗 Determine payment URL (HitPay or fallback NovuPay)
-            if ($hitpayData && !empty($hitpayData['url'])) {
-                $url = $hitpayData['url']; // ✅ HitPay checkout link
-                $bill = \App\Models\Bill::find($billData['id']);
-                if ($bill) {
-                    $bill->update([
-                        'initiated_at' => now(),
-                        'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
-                        'hitpay_payment_id' => $hitpayData['id'] ?? null,
-                    ]);
-                }
-            } else {
-                // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-                $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+        if (!empty($qrResolved['hitpay']) && !empty($billData['id'])) {
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $hitpayData = $qrResolved['hitpay'];
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
             }
         }
 
-
-        // 🧾 Generate QR code (HitPay or fallback NovuPay)
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        // 🔹 Reread status
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
@@ -339,29 +327,25 @@ class ReadingController extends Controller
         ];
 
 
-        $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
-            ?? $data['current_bill']['hitpay_reference']
-            ?? null;
-        if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
-            $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
-        } else {
-            // 🧩 Generate HitPay checkout URL (your logic)
-            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+        $billData = $data['current_bill'] ?? [];
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl($reference_no, $billData, $paymentPayload);
+        $url = $qrResolved['url'];
 
-            // 🔗 Determine payment URL (HitPay or fallback NovuPay)
-            if ($hitpayData && !empty($hitpayData['url'])) {
-                $url = $hitpayData['url']; // ✅ HitPay checkout link
-            } else {
-                // $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-                $url = 'https://staritawaterdistrictpamp.gov.ph/'; // ✅ Fallback NovuPay link (temporary)
+        if (!empty($qrResolved['hitpay']) && !empty($billData['id'])) {
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $hitpayData = $qrResolved['hitpay'];
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
             }
         }
 
-        // 🧾 Generate QR code (HitPay or fallback NovuPay)
         $qr_code = $this->generateService::qr_code($url, 80);
 
-        // 🔹 Reread status
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
             'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
@@ -891,7 +875,6 @@ class ReadingController extends Controller
             'discount' => $totalDiscount,
             'amount_after_due' => $bill->amount,
         ]);
-
 
         // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
         $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);

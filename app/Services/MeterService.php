@@ -813,7 +813,7 @@ class MeterService {
         }
 
         $total = collect($deductions)->sum('amount');
-        $overall_total = $basic_charge;
+        $overall_total = $total;
         $arrears = collect($deductions)->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
         $penaltyAmount = 0;
@@ -838,7 +838,7 @@ class MeterService {
 
         if ($unpaidAmount != 0 && !$installmentSchedule && !$isPenaltyExempt) {
             $penalties = $this->paymentBreakdownService::getPenalty();
-            $amountPayable = $total - $totalDiscount;
+            $amountPayable = $basic_charge - $totalDiscount;
 
             foreach ($penalties as $penalty) {
                 if (strtolower($penalty->amount_type) === 'percentage') {
@@ -892,7 +892,32 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
-        $totalBill = $total + $remainingUnpaid;
+        $finalTotal = $basic_charge + $remainingUnpaid;
+
+        $finalAmount = $basic_charge + $penaltyAmount + $remainingUnpaid;
+
+        $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
+
+        // if ($installmentSchedule) {
+
+        //     $finalTotal = ($total - $partialPaymentTotal) + $remainingUnpaid;
+
+        //     $finalAmount = ($overall_total - $partialPaymentTotal)
+        //         + $remainingUnpaid
+        //         + $penaltyAmount;
+
+        //     $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
+        //         + $remainingUnpaid
+        //         + $penaltyAmount;
+
+        // } else {
+
+        //     $finalTotal = $basic_charge + $remainingUnpaid;
+
+        //     $finalAmount = $basic_charge + $penaltyAmount + $remainingUnpaid;
+
+        //     $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
+        // }
 
         $payorName = optional($concessionaire->user)->name ?? null;
 
@@ -901,14 +926,14 @@ class MeterService {
             'bill_period_from' => $bill_period_from,
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $remainingUnpaid,
-            'total' => $basic_charge - $partialPaymentTotal + $remainingUnpaid,
+            'total' => $finalTotal,
             'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
-            'amount_after_due' => $amount_after_due - $partialPaymentTotal + $remainingUnpaid,
+            'amount' => $finalAmount,
+            'amount_after_due' => $finalAmountAfterDue,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
             'payor_name' => $payorName,

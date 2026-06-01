@@ -89,15 +89,10 @@ class InstallmentController extends Controller
 
         Bill::where('id', $bill->id)->update([
 
-            // move installment to arrears
             'previous_unpaid' => 0,
-
-            // reset totals (ONLY CURRENT BILL)
             'total' => $monthly,
             'amount' => $monthly,
             'amount_after_due' => $monthly,
-
-            // remove penalty
             'penalty' => 0,
             'hasPenalty' => 0
         ]);
@@ -132,16 +127,27 @@ class InstallmentController extends Controller
     }
 
     public function getBillsByAccount(Request $request)
-    {
-        $accountNo = $request->account_no;
+{
+    $accountNo = $request->account_no;
 
-        $bills = Bill::where('isPaid',0)
-            ->where('isInstallment',false)
-            ->whereHas('reading', function($q) use ($accountNo){
-                $q->where('account_no',$accountNo);
-            })
-            ->get();
+    $bills = Bill::where('isPaid', 0)
+        ->where('isInstallment', false)
+        ->whereHas('reading', function ($q) use ($accountNo) {
+            $q->where('account_no', $accountNo);
+        })
+        ->get()
+        ->map(function ($bill) {
+            return [
+                'id' => $bill->id,
+                'reference_no' => $bill->reference_no,
+                'bill_period_to' => $bill->bill_period_to,
+                'due_date' => $bill->due_date,
+                'total' => (float) ($bill->total ?? 0),
+                'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
+                'partial_payment' => (float) ($bill->partial_payment ?? 0),
+            ];
+        });
 
-        return response()->json($bills);
-    }
+    return response()->json($bills);
+}
 }

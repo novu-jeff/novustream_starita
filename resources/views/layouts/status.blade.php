@@ -46,6 +46,9 @@
         .icon.success {
             background-color: #28a745;
         }
+        .icon.warning {
+            background-color: #ffc107;
+        }
         .header {
             text-align: center;
             margin-top: 10px;
