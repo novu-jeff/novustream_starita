@@ -48,7 +48,9 @@ class ConcessionaireController extends Controller
 
         $zones = $this->meterService->getZones()->pluck('area', 'zone');
 
-        $query = \App\Models\User::with('accounts');
+        $query = \App\Models\User::with('accounts')
+        ->leftJoin('concessioner_accounts', 'users.id', '=', 'concessioner_accounts.user_id')
+        ->select('users.*');
 
         if ($zone !== 'all') {
             $query->whereHas('accounts', function ($q) use ($zone) {
@@ -57,23 +59,35 @@ class ConcessionaireController extends Controller
         }
 
         if (!empty($search)) {
-            $tokens = preg_split('/\s+/', $search);
 
-            $query->where(function ($q) use ($tokens, $search) {
+            if (is_numeric($search)) {
 
-                foreach ($tokens as $token) {
-                    $q->where('name', 'like', "%{$token}%");
-                }
+                $query->where(
+                    'concessioner_accounts.sequence_no',
+                    '>=',
+                    $search
+                );
 
-                $q->orWhereHas('accounts', function ($aq) use ($search) {
-                    $aq->where('account_no', 'like', "%{$search}%")
-                    ->orWhere('address', 'like', "%{$search}%");
+            } else {
+
+                $tokens = preg_split('/\s+/', $search);
+
+                $query->where(function ($q) use ($tokens, $search) {
+
+                    foreach ($tokens as $token) {
+                        $q->where('name', 'like', "%{$token}%");
+                    }
+
+                    $q->orWhereHas('accounts', function ($aq) use ($search) {
+                        $aq->where('account_no', 'like', "%{$search}%")
+                        ->orWhere('address', 'like', "%{$search}%");
+                    });
                 });
-            });
+            }
         }
 
         $data = $query
-            ->orderByDesc('created_at')
+            ->orderBy('sequence_no', 'asc')
             ->paginate($entries)
             ->withQueryString();
 
