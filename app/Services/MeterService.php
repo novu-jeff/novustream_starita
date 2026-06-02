@@ -1062,6 +1062,9 @@ class MeterService {
                 ->first();
             $penaltyAmount = 0;
             $totalDiscount = 0;
+            $billAmountBeforePostProcessing = (float) ($billData['amount'] ?? $bill->amount ?? 0);
+            $existingPenalty = (float) ($billData['penalty'] ?? $bill->penalty ?? 0);
+            $baseAmountBeforePenalty = max($billAmountBeforePostProcessing - $existingPenalty, 0);
 
             $hardcodedDiscounts = [
                 '011-22-011450' => 0.02,
@@ -1088,7 +1091,7 @@ class MeterService {
             if ($discountRecord && $discountRecord->discount_type_id == 1 && $consumption <= $consumptionLimit) {
                 $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
                 if ($seniorDiscount) {
-                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $bill->amount;
+                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $baseAmountBeforePenalty;
                     $seniorAmount = $seniorDiscount->type === 'fixed'
                         ? round(floatval($seniorDiscount->amount), 2)
                         : round($baseAmount * floatval($seniorDiscount->amount), 2);
@@ -1105,7 +1108,7 @@ class MeterService {
             if ($discountRecord && $discountRecord->discount_type_id == 2) {
                 $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
                 if ($franchiseDiscount) {
-                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $bill->amount;
+                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $baseAmountBeforePenalty;
                     $franchiseAmount = $franchiseDiscount->type === 'fixed'
                         ? round(floatval($franchiseDiscount->amount), 2)
                         : round($baseAmount * floatval($franchiseDiscount->amount), 2);
@@ -1141,9 +1144,9 @@ class MeterService {
 
             $bill->update([
                 'penalty' => $penaltyAmount,
-                'amount' => $bill->amount + $penaltyAmount - $totalDiscount,
+                'amount' => $baseAmountBeforePenalty + $penaltyAmount - $totalDiscount,
                 'discount' => $totalDiscount,
-                'amount_after_due' => $bill->amount + $penaltyAmount,
+                'amount_after_due' => $baseAmountBeforePenalty + $penaltyAmount,
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
             ]);
 
