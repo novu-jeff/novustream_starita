@@ -87,7 +87,7 @@ class LedgerController extends Controller
             $ownPayment = round(max(0, $metrics['raw_payment'] - $arrearsPool), 2);
             $appliedOwnPayment = round(min($metrics['row_due'], $ownPayment), 2);
 
-            $bill->computed_balance = round(max(0, $metrics['row_due'] - $bill->computed_paid), 2);
+            $bill->computed_balance = round(max(0, $bill->computed_amount - $bill->amount_paid), 2);
             $openBalances[$index] = $bill->computed_balance;
         }
 

@@ -69,6 +69,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Sequence No.</th>
                             <th>Full Name</th>
                             <th>Account No.</th>
                             <th>Address</th>
@@ -79,6 +80,7 @@
                         @forelse ($data as $user)
                             <tr>
                                 <td>{{ $user->id }}</td>
+                                <td>{{ optional($user->accounts->first())->sequence_no }}</td>
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->accounts->pluck('account_no')->implode(', ') }}</td>
                                 <td>{{ $user->accounts->pluck('address')->implode(', ') }}</td>

@@ -321,22 +321,32 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 data.forEach(bill => {
 
-                const today = new Date();
-                const dueDate = new Date(bill.due_date);
+                    const today = new Date();
+                    const dueDate = new Date(bill.due_date);
 
-                let amount = (today <= dueDate)
-                    ? bill.total
-                    : bill.amount_after_due;
+                    let rawAmount = (today <= dueDate)
+                        ? (bill.total ?? 0)
+                        : (bill.amount_after_due ?? 0);
 
-                const date = new Date(bill.bill_period_to);
-                const monthName = date.toLocaleString('en-US', { month: 'long' });
+                    let partialPayment = parseFloat(bill.partial_payment ?? 0);
 
-                billSelect.innerHTML += `
-                    <option value="${bill.id}" data-amount="${amount}">
-                        ${monthName} - ₱${parseFloat(amount).toFixed(2)}
-                    </option>
-                `;
-            });
+                    let amount = parseFloat(rawAmount) - partialPayment;
+
+                    if (isNaN(amount) || amount < 0) {
+                        amount = 0;
+                    }
+
+                    const date = new Date(bill.bill_period_to);
+                    const monthName = date.toLocaleString('en-US', {
+                        month: 'long'
+                    });
+
+                    billSelect.innerHTML += `
+                        <option value="${bill.id}" data-amount="${amount}">
+                            ${monthName} - ₱${amount.toFixed(2)}
+                        </option>
+                    `;
+                });
 
             })
             .catch(err => {

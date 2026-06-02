@@ -12,12 +12,10 @@
                     <a href="{{route('payments.index', ['filter' => 'unpaid'])}}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                         Payments
                     </a>
-                    @can('superadmin')
                     <a href="{{ route('concessionaires.ledger', $user->id) }}"
                     class="btn btn-outline-success px-5 py-3 text-uppercase ms-2">
                         <i class="bx bx-book"></i>Ledger
                     </a>
-                    @endcan
                 </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
