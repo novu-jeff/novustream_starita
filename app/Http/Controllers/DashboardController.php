@@ -78,7 +78,7 @@ class DashboardController extends Controller
             'payment_method_count' => $payment_method_count,
         ];
 
-        if (Gate::allows('superadmin')) {
+        if (Gate::any(['superadmin', 'admin', 'cashier'])) {
             $startDate = Carbon::now()->subMonths(11)->startOfMonth();
             $monthlyRevenue = Bill::query()
                 ->where('isPaid', true)
