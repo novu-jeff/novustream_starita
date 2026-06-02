@@ -689,48 +689,28 @@ class MeterService {
         $latestUnpaidBill = null;
         $unpaidAmount = 0;
         $partialPaymentTotal = 0;
+        $remainingUnpaid = 0;
 
-        if (!$forceZeroArrears && !$skipLegacyArrears) {
-            $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
-                ->where('isInstallment', 0)
-                ->where(function ($q) {
-                    $q->where('isPaid', 0)
-                    ->orWhere('isPartial', 1);
-                })
-                ->orderBy('bill_period_to', 'desc')
-                ->first();
+        if (!$forceZeroArrears && $latestBill) {
 
-            if ($latestUnpaidBill) {
-                $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
-                $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
+            if (!$latestBill->isPaid && !$latestBill->isInstallment) {
+
+                // Only carry the actual remaining balance
+                $remainingUnpaid = max(
+                    (float)($latestBill->amount ?? 0)
+                    - (float)($latestBill->partial_payment ?? 0),
+                    0
+                );
+
+                $unpaidAmount = $remainingUnpaid;
             }
         }
-
-        if ($forceZeroArrears) {
-            $unpaidAmount = 0;
-            $partialPaymentTotal = 0;
-        }
-
-        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
-
-        $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
-            ->whereHas('installment.bill.reading', function ($q) use ($payload) {
-                $q->where('account_no', $payload['account_no']);
-            })
-            ->orderBy('month_no')
-            ->first();
-
-        if ($installmentSchedule) {
-            $remainingUnpaid = (float) $installmentSchedule->amount;
-        }
-
-        $arrearsForBreakdown = $remainingUnpaid;
 
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
                 'name' => 'Previous Balance',
-                'amount' => $arrearsForBreakdown,
+                'amount' => $remainingUnpaid,
                 'description' => ''
             ],
             [
@@ -739,7 +719,7 @@ class MeterService {
                 'description' => '',
             ],
         ];
-        $total_amount = $rate + $arrearsForBreakdown;
+        $total_amount = $rate + $remainingUnpaid;
 
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -940,6 +920,7 @@ class MeterService {
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
+
 
         try {
             if ($billReferenceNo && $reference_no) {
@@ -1174,11 +1155,16 @@ class MeterService {
                 $penaltyAmount = 0;
             }
 
+            // Amount due from billData (basic + arrears − discounts). Do not add penalty to
+            // $bill->amount — create_breakdown already baked a penalty into that field.
+            $amountDue = round(max($total - $totalDiscount, 0), 2);
+            $amountAfterDue = round($amountDue + $penaltyAmount, 2);
+
             $bill->update([
                 'penalty' => $penaltyAmount,
-                'amount' => $bill->amount + $penaltyAmount - $totalDiscount,
+                'amount' => $amountAfterDue,
                 'discount' => $totalDiscount,
-                'amount_after_due' => $bill->amount + $penaltyAmount,
+                'amount_after_due' => $amountAfterDue,
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
             ]);
 
