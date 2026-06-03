@@ -39,6 +39,145 @@ class PaymentController extends Controller
         $this->billSettlementService = $billSettlementService;
     }
 
+    /**
+     * SOA QR payment is void after the bill due date (same rule as SOA penalty display).
+     */
+    public static function isSoaQrVoided(array $billData): bool
+    {
+        if (!empty($billData['isPaid'])) {
+            return false;
+        }
+
+        $dueDateString = $billData['due_date'] ?? null;
+        if (empty($dueDateString)) {
+            return false;
+        }
+
+        $dueDate = Carbon::parse($dueDateString)->timezone('Asia/Manila')->startOfDay();
+        $today = Carbon::today('Asia/Manila');
+
+        return $today->gt($dueDate);
+    }
+
+    /**
+     * Resolve the URL encoded in the SOA QR code.
+     *
+     * @return array{url: string, voided: bool, hitpay?: array}
+     */
+    public function resolveSoaPaymentQrUrl(string $referenceNo, array $billData, array $paymentPayload): array
+    {
+        $hitpayCompletedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+        if (!empty($billData['isPaid']) && !empty($hitpayCompletedId)) {
+            return [
+                'url' => self::buildHitpayCompletedUrl($hitpayCompletedId),
+                'voided' => false,
+            ];
+        }
+
+        if (self::isSoaQrVoided($billData)) {
+            $existingBill = Bill::where('reference_no', $referenceNo)->first();
+            if ($existingBill && !empty($existingBill->hitpay_payment_id)) {
+                $this->deleteHitpayPaymentRequest($existingBill);
+                $existingBill->update([
+                    'hitpay_reference' => null,
+                    'hitpay_payment_id' => null,
+                    'initiated_at' => null,
+                ]);
+            }
+
+            return [
+                'url' => route('payments.qr-voided', ['reference_no' => $referenceNo]),
+                'voided' => true,
+            ];
+        }
+
+        $hitpayData = $this->createHitpayPaymentRequest($referenceNo, $paymentPayload);
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            return [
+                'url' => $hitpayData['url'],
+                'voided' => false,
+                'hitpay' => $hitpayData,
+            ];
+        }
+
+        return [
+            'url' => env('NOVUPAY_URL') . '/payment/merchants/' . $referenceNo,
+            'voided' => false,
+        ];
+    }
+
+    public function showQrVoided(string $reference_no)
+    {
+        $result = $this->meterService->getBill($reference_no);
+        $billData = null;
+        $client = null;
+
+        if (!isset($result['status']) || $result['status'] !== 'error') {
+            $billData = $result['current_bill'] ?? null;
+            $client = $result['client'] ?? null;
+        }
+
+        $bill = Bill::where('reference_no', $reference_no)->first();
+
+        if ($billData && !empty($billData['isPaid'])) {
+            $hitpayId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+            if ($hitpayId) {
+                return redirect()->away((string) self::buildHitpayCompletedUrl($hitpayId));
+            }
+
+            return view('payments.qr-voided', [
+                'payload' => [
+                    'title' => 'Bill Already Paid',
+                    'message' => 'This bill has already been paid. No further online payment is required.',
+                    'reference_no' => $reference_no,
+                    'account_no' => $client['account_no'] ?? ($bill->account_no ?? '-'),
+                    'account_name' => $client['name'] ?? '-',
+                    'due_date' => !empty($billData['due_date'])
+                        ? Carbon::parse($billData['due_date'])->timezone('Asia/Manila')->format('M d, Y')
+                        : null,
+                    'status' => 'paid',
+                ],
+            ]);
+        }
+
+        if ($billData && !self::isSoaQrVoided($billData)) {
+            $hitpayId = $bill?->hitpay_payment_id;
+            if ($hitpayId) {
+                return redirect()->away((string) self::buildHitpayCheckoutUrl($hitpayId));
+            }
+
+            return view('payments.qr-voided', [
+                'payload' => [
+                    'title' => 'Payment Link Active',
+                    'message' => 'This bill is still within the due date. Please request a new SOA or pay at the district office if the QR does not open checkout.',
+                    'reference_no' => $reference_no,
+                    'account_no' => $client['account_no'] ?? ($bill->account_no ?? '-'),
+                    'account_name' => $client['name'] ?? '-',
+                    'due_date' => !empty($billData['due_date'])
+                        ? Carbon::parse($billData['due_date'])->timezone('Asia/Manila')->format('M d, Y')
+                        : null,
+                    'status' => 'active',
+                ],
+            ]);
+        }
+
+        return view('payments.qr-voided', [
+            'payload' => [
+                'title' => 'QR Code No Longer Valid',
+                'message' => 'This payment QR has expired because the bill is past its due date. Penalties may apply. Please visit Sta. Rita Water District or request an updated Statement of Account (SOA) with a new QR code.',
+                'reference_no' => $reference_no,
+                'account_no' => $client['account_no'] ?? ($bill->account_no ?? '-'),
+                'account_name' => $client['name'] ?? '-',
+                'due_date' => !empty($billData['due_date'])
+                    ? Carbon::parse($billData['due_date'])->timezone('Asia/Manila')->format('M d, Y')
+                    : ($bill && $bill->due_date
+                        ? Carbon::parse($bill->due_date)->timezone('Asia/Manila')->format('M d, Y')
+                        : null),
+                'status' => 'voided',
+            ],
+        ]);
+    }
+
     public function index(Request $request)
 {
     $filter = $request->filter ?? 'unpaid';
@@ -445,18 +584,12 @@ class PaymentController extends Controller
         ],
     ];
 
-    $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
-        ?? $data['current_bill']['hitpay_reference']
-        ?? null;
-    if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
-        $url = self::buildHitpayCompletedUrl($hitpayCompletedId);
-    } else {
-        // 🔹 Generate HitPay checkout link (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
-
-        $url = $hitpayData['url'] ?? env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-    }
+    $qrResolved = $this->resolveSoaPaymentQrUrl(
+        $reference_no,
+        $data['current_bill'] ?? [],
+        $paymentPayload
+    );
+    $url = $qrResolved['url'];
 
     $qr_code = $this->generateService::qr_code($url, 80);
 
@@ -878,6 +1011,15 @@ class PaymentController extends Controller
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
+        $billResult = $this->getBill($reference_no, $payload, false);
+        $billData = $billResult['data']['current_bill'] ?? null;
+        if ($billData && self::isSoaQrVoided($billData)) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Online payment is no longer available for this bill because it is past the due date. Please visit the district office or request an updated SOA.',
+            ]);
+        }
+
         // 🔹 Call your existing helper method
         $hitpayData = $this->createHitpayPaymentRequest($reference_no, $payload);
 
@@ -914,14 +1056,6 @@ class PaymentController extends Controller
     {
         try {
             $existingBill = Bill::where('reference_no', $reference_no)->first();
-            if ($existingBill && !empty($existingBill->hitpay_payment_id)) {
-                return [
-                    'id' => $existingBill->hitpay_payment_id,
-                    'url' => self::buildHitpayCheckoutUrl($existingBill->hitpay_payment_id),
-                    'reference' => $existingBill->hitpay_reference,
-                    'reference_number' => $existingBill->hitpay_reference,
-                ];
-            }
 
             $result = $this->getBill($reference_no, $payload, false);
 
@@ -936,6 +1070,12 @@ class PaymentController extends Controller
                 \Log::error('Missing bill data for HitPay', ['reference_no' => $reference_no]);
                 return null;
             }
+
+            if (self::isSoaQrVoided($billData)) {
+                \Log::info('HitPay request skipped: bill past due date', ['reference_no' => $reference_no]);
+                return null;
+            }
+
             $days_before_due = 15;
             if (!empty($billData['due_date'])) {
                 try {
@@ -945,9 +1085,6 @@ class PaymentController extends Controller
                 }
             } else {
                 $due_date = Carbon::now()->addDays($days_before_due);
-            }
-            if ($due_date->isPast()) {
-                $due_date = Carbon::now()->addDay();
             }
             $due_date = $due_date->endOfDay()->format('Y-m-d H:i:s');
 
@@ -990,6 +1127,25 @@ class PaymentController extends Controller
             $additional_service_fee = $hitpay_fee + $novupay_fee;
 
             $final_amount = round($amount + $additional_service_fee, 2);
+            if ($existingBill && !empty($existingBill->hitpay_payment_id)) {
+                $existingRequest = $this->fetchHitpayPaymentRequest((string) $existingBill->hitpay_payment_id);
+
+                if ($existingRequest && $this->canReuseHitpayRequest($existingRequest, $final_amount)) {
+                    return [
+                        'id' => $existingBill->hitpay_payment_id,
+                        'url' => self::buildHitpayCheckoutUrl($existingBill->hitpay_payment_id),
+                        'reference' => $existingBill->hitpay_reference,
+                        'reference_number' => $existingBill->hitpay_reference,
+                    ];
+                }
+
+                $this->deleteHitpayPaymentRequest($existingBill);
+                $existingBill->update([
+                    'hitpay_reference' => null,
+                    'hitpay_payment_id' => null,
+                    'initiated_at' => null,
+                ]);
+            }
             // 🧾 Purpose formatting
             $purpose = "Amount Due: PHP {$amount}\nConvenience Fee: PHP {$additional_service_fee}\nAccount #: {$account_no}";
 
@@ -1023,6 +1179,13 @@ class PaymentController extends Controller
             }
 
             $data = $response->json();
+            if ($existingBill) {
+                $existingBill->update([
+                    'hitpay_reference' => $data['reference'] ?? $data['reference_number'] ?? null,
+                    'hitpay_payment_id' => $data['id'] ?? null,
+                    'initiated_at' => now(),
+                ]);
+            }
             // dd($data);
             return [
                 'id' => $data['id'] ?? null,
@@ -1038,6 +1201,39 @@ class PaymentController extends Controller
 
 
 
+
+    private function fetchHitpayPaymentRequest(string $paymentRequestId): ?array
+    {
+        try {
+            $response = \Http::withHeaders([
+                'X-BUSINESS-API-KEY' => env('HITPAY_API_KEY'),
+            ])->get(env('HITPAY_API_URL') . "/payment-requests/{$paymentRequestId}");
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            return $response->json();
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to fetch HitPay request for reuse check', [
+                'payment_request_id' => $paymentRequestId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    private function canReuseHitpayRequest(array $existingRequest, float $expectedAmount): bool
+    {
+        $status = strtolower((string) ($existingRequest['status'] ?? ''));
+        $nonReusableStatuses = ['completed', 'succeeded', 'success', 'cancelled', 'canceled', 'expired', 'failed'];
+        if (in_array($status, $nonReusableStatuses, true)) {
+            return false;
+        }
+
+        $existingAmount = round((float) ($existingRequest['amount'] ?? 0), 2);
+        return abs($existingAmount - round($expectedAmount, 2)) < 0.01;
+    }
 
     public function handleRedirect(Request $request)
     {

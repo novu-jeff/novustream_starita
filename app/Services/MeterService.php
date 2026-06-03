@@ -662,14 +662,6 @@ class MeterService {
             ];
         }
 
-        $lastBill = Bill::with('reading')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
-            })
-            ->latest('bill_period_to')
-            ->first();
-
         $readingIds = Reading::where('account_no', trim($payload['account_no']))
             ->where('isReRead', 0)
             ->pluck('id');
@@ -689,16 +681,15 @@ class MeterService {
         $latestUnpaidBill = null;
         $unpaidAmount = 0;
         $partialPaymentTotal = 0;
-        $remainingUnpaid = 0;
 
         if (!$forceZeroArrears && !$skipLegacyArrears) {
             $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
                 ->where('isInstallment', 0)
                 ->where(function ($q) {
                     $q->where('isPaid', 0)
-                    ->orWhere('isPartial', 1);
+                        ->orWhere('isPartial', 1);
                 })
-                ->orderBy('bill_period_to', 'desc')
+                ->orderByDesc('bill_period_to')
                 ->first();
 
             if ($latestUnpaidBill) {
@@ -724,8 +715,6 @@ class MeterService {
         if ($installmentSchedule) {
             $remainingUnpaid = (float) $installmentSchedule->amount;
         }
-
-        $arrearsForBreakdown = $remainingUnpaid;
 
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
@@ -839,7 +828,7 @@ class MeterService {
 
         if ($unpaidAmount != 0 && !$installmentSchedule && !$isPenaltyExempt) {
             $penalties = $this->paymentBreakdownService::getPenalty();
-            $amountPayable = $total - $arrears - $totalDiscount;
+            $amountPayable = $basic_charge - $totalDiscount;
 
             foreach ($penalties as $penalty) {
                 if (strtolower($penalty->amount_type) === 'percentage') {
@@ -848,7 +837,7 @@ class MeterService {
                     $penaltyAmount = $penalty->amount;
                 }
 
-                $amount_after_due = $overall_total + $penaltyAmount;
+                $amount_after_due = $overall_total + $penaltyAmount + $remainingUnpaid;
                 $hasPenalty = true;
             }
         } else {
@@ -893,28 +882,32 @@ class MeterService {
             $reading['reference_no'] = $billReferenceNo;
         }
 
-        if ($installmentSchedule) {
+        $finalTotal = $basic_charge + $remainingUnpaid;
 
-            $finalTotal = ($total - $partialPaymentTotal) + $remainingUnpaid;
+        $finalAmount = $basic_charge + $penaltyAmount + $remainingUnpaid;
 
-            $finalAmount = ($overall_total - $partialPaymentTotal)
-                + $remainingUnpaid
-                + $penaltyAmount;
+        $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
 
-            $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
-                + $remainingUnpaid
-                + $penaltyAmount;
+        // if ($installmentSchedule) {
 
-        } else {
+        //     $finalTotal = ($total - $partialPaymentTotal) + $remainingUnpaid;
 
-            $finalTotal = $total - $partialPaymentTotal;
+        //     $finalAmount = ($overall_total - $partialPaymentTotal)
+        //         + $remainingUnpaid
+        //         + $penaltyAmount;
 
-            $finalAmount = ($overall_total - $partialPaymentTotal)
-                + $penaltyAmount;
+        //     $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
+        //         + $remainingUnpaid
+        //         + $penaltyAmount;
 
-            $finalAmountAfterDue = ($overall_total - $partialPaymentTotal)
-                + $penaltyAmount;
-        }
+        // } else {
+
+        //     $finalTotal = $basic_charge + $remainingUnpaid;
+
+        //     $finalAmount = $basic_charge + $penaltyAmount + $remainingUnpaid;
+
+        //     $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
+        // }
 
         $payorName = optional($concessionaire->user)->name ?? null;
 
@@ -1174,6 +1167,11 @@ class MeterService {
             if (in_array($account_no, $penaltyExemptAccounts)) {
                 $penaltyAmount = 0;
             }
+
+            // Amount due from billData (basic + arrears − discounts). Do not add penalty to
+            // $bill->amount — create_breakdown already baked a penalty into that field.
+            $amountDue = round(max($total - $totalDiscount, 0), 2);
+            $amountAfterDue = round($amountDue + $penaltyAmount, 2);
 
             $bill->update([
                 'penalty' => $penaltyAmount,

@@ -117,24 +117,13 @@ public function index()
             ],
         ];
 
-        $hitpayCompletedId = $currentBill['hitpay_payment_id']
-            ?? $currentBill['hitpay_reference']
-            ?? null;
-        if (!empty($currentBill['isPaid']) && !empty($hitpayCompletedId)) {
-            $statement['current_bill_qr'] = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
-        } else {
-            // Call PaymentController to create HitPay payment link
-            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                ->createHitpayPaymentRequest($currentBill['reference_no'] ?? '', $payload);
-
-            if ($hitpayData && !empty($hitpayData['url'])) {
-                $statement['current_bill_qr'] = $hitpayData['url'];
-            } else {
-                $statement['current_bill_qr'] = env('NOVUPAY_URL')
-                    . '/payment/merchants/'
-                    . ($currentBill['reference_no'] ?? '');
-            }
-        }
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
+            $currentBill['reference_no'] ?? '',
+            $currentBill,
+            $payload
+        );
+        $statement['current_bill_qr'] = $qrResolved['url'];
     }
 
     return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
@@ -228,24 +217,14 @@ public function index()
             ],
         ];
 
-    $hitpayCompletedId = $data['current_bill']['hitpay_payment_id']
-        ?? $data['current_bill']['hitpay_reference']
-        ?? null;
-    if (!empty($data['current_bill']['isPaid']) && !empty($hitpayCompletedId)) {
-        $url = \App\Http\Controllers\PaymentController::buildHitpayCompletedUrl($hitpayCompletedId);
-    } else {
-        // 🔹 Generate HitPay checkout link (your logic)
-        $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-            ->createHitpayPaymentRequest($reference_no, $paymentPayload);
+    $paymentController = app(\App\Http\Controllers\PaymentController::class);
+    $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
+        $reference_no,
+        $data['current_bill'] ?? [],
+        $paymentPayload
+    );
+    $url = $qrResolved['url'];
 
-        if ($hitpayData && !empty($hitpayData['url'])) {
-            $url = $hitpayData['url']; // ✅ HitPay checkout link
-        } else {
-            $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
-        }
-    }
-
-    // $url = route('account-overview.bills.reference_no', ['reference_no' => $reference_no]);
     $qr_code = $this->generateService::qr_code($url, 80);
     $payment_url = $url;
     $isViewBill = true;
@@ -450,8 +429,12 @@ public function index()
         'amount' => $bill['current_bill']['amount'] ?? 0,
     ];
 
-    // Call PaymentController logic
-    $paymentController = new \App\Http\Controllers\PaymentController();
+    $paymentController = app(\App\Http\Controllers\PaymentController::class);
+
+    if (\App\Http\Controllers\PaymentController::isSoaQrVoided($bill['current_bill'] ?? [])) {
+        return redirect()->route('payments.qr-voided', ['reference_no' => $reference_no]);
+    }
+
     $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
 
     if (!$hitpayData || empty($hitpayData['url'])) {

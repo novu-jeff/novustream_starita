@@ -7,10 +7,15 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Run after create_installments_table (same-date migrations are ordered lexically;
+     * installments must exist before this FK).
      */
     public function up(): void
     {
+        if (Schema::hasTable('installment_schedules')) {
+            return;
+        }
+
         Schema::create('installment_schedules', function (Blueprint $table) {
 
             $table->id();
