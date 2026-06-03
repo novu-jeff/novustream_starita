@@ -175,12 +175,7 @@ class OfflineSyncController extends Controller
             'admin_id' => $request->user()?->id,
             'limit' => $limit,
         ]);
-        $query = ReadingOffline::where(function ($q) {
-                $q->whereNull('status')->orWhere('status', 'pending');
-            })
-            ->whereNull('synced_at')
-            ->whereNull('merged_into_reading_id')
-            ->orderBy('id');
+        $query = ReadingOffline::eligibleForMerge()->orderBy('id');
         $query->limit($limit);
         $pending = $query->get();
 

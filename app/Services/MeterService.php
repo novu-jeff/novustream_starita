@@ -662,14 +662,6 @@ class MeterService {
             ];
         }
 
-        $lastBill = Bill::with('reading')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
-            })
-            ->latest('bill_period_to')
-            ->first();
-
         $readingIds = Reading::where('account_no', trim($payload['account_no']))
             ->where('isReRead', 0)
             ->pluck('id');
@@ -689,21 +681,39 @@ class MeterService {
         $latestUnpaidBill = null;
         $unpaidAmount = 0;
         $partialPaymentTotal = 0;
-        $remainingUnpaid = 0;
 
-        if (!$forceZeroArrears && $latestBill) {
+        if (!$forceZeroArrears && !$skipLegacyArrears) {
+            $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+                ->where('isInstallment', 0)
+                ->where(function ($q) {
+                    $q->where('isPaid', 0)
+                        ->orWhere('isPartial', 1);
+                })
+                ->orderByDesc('bill_period_to')
+                ->first();
 
-            if (!$latestBill->isPaid && !$latestBill->isInstallment) {
-
-                // Only carry the actual remaining balance
-                $remainingUnpaid = max(
-                    (float)($latestBill->amount ?? 0)
-                    - (float)($latestBill->partial_payment ?? 0),
-                    0
-                );
-
-                $unpaidAmount = $remainingUnpaid;
+            if ($latestUnpaidBill) {
+                $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
+                $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
             }
+        }
+
+        if ($forceZeroArrears) {
+            $unpaidAmount = 0;
+            $partialPaymentTotal = 0;
+        }
+
+        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+
+        $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
+            ->whereHas('installment.bill.reading', function ($q) use ($payload) {
+                $q->where('account_no', $payload['account_no']);
+            })
+            ->orderBy('month_no')
+            ->first();
+
+        if ($installmentSchedule) {
+            $remainingUnpaid = (float) $installmentSchedule->amount;
         }
 
         $other_deductions = $this->paymentBreakdownService::getData();

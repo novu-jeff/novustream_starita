@@ -35,4 +35,18 @@ class ReadingOffline extends Model
     {
         return $this->belongsTo(Reading::class, 'merged_into_reading_id', 'id');
     }
+
+    /**
+     * Offline rows still in the merge queue (pending or failed merge retry).
+     */
+    public function scopeEligibleForMerge($query)
+    {
+        return $query
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhereIn('status', ['pending', 'rejected']);
+            })
+            ->whereNull('synced_at')
+            ->whereNull('merged_into_reading_id');
+    }
 }

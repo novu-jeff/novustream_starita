@@ -82,12 +82,7 @@ class MergeReadingsCommand extends Command
         MergeBillReadingDatesService $datesService,
         MeterService $meterService
     ): int {
-        $query = ReadingOffline::where(function ($q) {
-                $q->whereNull('status')->orWhere('status', 'pending');
-            })
-            ->whereNull('synced_at')
-            ->whereNull('merged_into_reading_id')
-            ->orderBy('id');
+        $query = ReadingOffline::eligibleForMerge()->orderBy('id');
         if ($limit !== null && $limit > 0) {
             $query->limit($limit);
         }

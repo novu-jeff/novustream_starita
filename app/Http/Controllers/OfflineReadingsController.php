@@ -36,12 +36,7 @@ class OfflineReadingsController extends Controller
         $limit = (int) $request->input('limit', 50);
         $limit = in_array($limit, [10, 20, 50, 100, 500], true) ? $limit : 50;
 
-        $query = ReadingOffline::where(function ($q) {
-            $q->whereNull('status')->orWhere('status', 'pending');
-        })
-            ->whereNull('synced_at')
-            ->whereNull('merged_into_reading_id')
-            ->orderBy('id');
+        $query = ReadingOffline::eligibleForMerge()->orderBy('id');
 
         $this->applyOfflineFilters($query, $request);
         $readings = $query->limit($limit)->get();
