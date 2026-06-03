@@ -826,7 +826,7 @@ class MeterService {
 
         $isPenaltyExempt = !is_null($penaltyExemption);
 
-        if ($unpaidAmount != 0 && !$installmentSchedule && !$isPenaltyExempt) {
+        if (!$installmentSchedule && !$isPenaltyExempt) {
             $penalties = $this->paymentBreakdownService::getPenalty();
             $amountPayable = $basic_charge - $totalDiscount;
 
@@ -884,9 +884,9 @@ class MeterService {
 
         $finalTotal = $basic_charge + $remainingUnpaid;
 
-        $finalAmount = $basic_charge + $penaltyAmount + $remainingUnpaid;
+        $finalAmount = round($basic_charge + $remainingUnpaid - $totalDiscount, 2);
 
-        $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
+        $finalAmountAfterDue = round($finalAmount + $penaltyAmount, 2);
 
         // if ($installmentSchedule) {
 
@@ -922,7 +922,7 @@ class MeterService {
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
             'isChangeForAdvancePayment' => $isChangeSaved,
-            'amount' => $finalAmount,
+            'amount' => $finalAmountAfterDue,
             'amount_after_due' => $finalAmountAfterDue,
             'due_date' => $due_date,
             'isHighConsumption' => $isHighConsumption,
@@ -930,7 +930,6 @@ class MeterService {
             'created_at' => $bill_period_to,
             'updated_at' => $bill_period_to,
         ];
-
 
         try {
             if ($billReferenceNo && $reference_no) {
@@ -1089,8 +1088,16 @@ class MeterService {
             $penaltyAmount = 0;
             $totalDiscount = 0;
             $billAmountBeforePostProcessing = (float) ($billData['amount'] ?? $bill->amount ?? 0);
+            $billAmountAfterDueBeforePostProcessing = (float) ($billData['amount_after_due'] ?? $bill->amount_after_due ?? $billAmountBeforePostProcessing);
             $existingPenalty = (float) ($billData['penalty'] ?? $bill->penalty ?? 0);
-            $baseAmountBeforePenalty = max($billAmountBeforePostProcessing - $existingPenalty, 0);
+            $baseAmountBeforePenalty = $billAmountBeforePostProcessing;
+
+            if (
+                $existingPenalty > 0
+                && abs($billAmountAfterDueBeforePostProcessing - $billAmountBeforePostProcessing) < 0.01
+            ) {
+                $baseAmountBeforePenalty = max($billAmountBeforePostProcessing - $existingPenalty, 0);
+            }
 
             $hardcodedDiscounts = [
                 '011-22-011450' => 0.02,
@@ -1168,16 +1175,20 @@ class MeterService {
                 $penaltyAmount = 0;
             }
 
-            // Amount due from billData (basic + arrears − discounts). Do not add penalty to
-            // $bill->amount — create_breakdown already baked a penalty into that field.
-            $amountDue = round(max($total - $totalDiscount, 0), 2);
+            $incomingDiscount = (float) ($billData['discount'] ?? 0);
+            $amountDue = $baseAmountBeforePenalty;
+            if ($incomingDiscount <= 0) {
+                $amountDue -= $totalDiscount;
+            }
+            $amountDue = round(max($amountDue, 0), 2);
             $amountAfterDue = round($amountDue + $penaltyAmount, 2);
 
             $bill->update([
                 'penalty' => $penaltyAmount,
-                'amount' => $baseAmountBeforePenalty + $penaltyAmount - $totalDiscount,
+                'amount' => $amountDue,
                 'discount' => $totalDiscount,
-                'amount_after_due' => $baseAmountBeforePenalty + $penaltyAmount,
+                'amount_after_due' => $amountAfterDue,
+                'hasPenalty' => $penaltyAmount > 0,
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
             ]);
 
