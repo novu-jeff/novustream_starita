@@ -716,6 +716,8 @@ class MeterService {
             $remainingUnpaid = (float) $installmentSchedule->amount;
         }
 
+        $arrearsForBreakdown = $remainingUnpaid;
+
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
