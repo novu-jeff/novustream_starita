@@ -94,6 +94,7 @@ class LedgerController extends Controller
     private function buildLedgerMetrics(Bill $bill): array
     {
         $amount = (float) ($bill->amount ?? 0);
+        $previousUnpaid = (float) ($bill->previous_unpaid ?? 0);
         $total = (float) ($bill->total ?? 0);
         $amountAfterDue = (float) ($bill->amount_after_due ?? 0);
         $penalty = (float) ($bill->penalty ?? 0);
@@ -110,7 +111,7 @@ class LedgerController extends Controller
             $amountAfterDue = $amount;
         }
 
-        $debit = max(0, round($total, 2));
+        $debit = max(0, round($total - $previousUnpaid, 2));
 
         $credit = round(max($amountPaid - $change, $partialPayment), 2);
         $balance = round(max(0, $debit - $credit), 2);
