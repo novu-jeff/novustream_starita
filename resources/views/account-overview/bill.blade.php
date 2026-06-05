@@ -340,7 +340,6 @@
 
                                     $amountDue = max(0, $amountDue);
 
-
                                     $amountAfter = (float) $data['current_bill']['amount'] - (float) $advance;
                                     $amountAfter = max(0, $amountAfter);
                                 @endphp
@@ -581,4 +580,3 @@ $(function () {
 
 
 @endsection
-
