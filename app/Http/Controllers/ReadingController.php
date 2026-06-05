@@ -881,7 +881,6 @@ class ReadingController extends Controller
             'hasPenalty' => $penaltyAmount > 0,
         ]);
 
-
         // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
         $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
 
