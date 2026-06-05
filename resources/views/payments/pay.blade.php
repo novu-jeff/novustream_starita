@@ -229,7 +229,7 @@
                                         $amountDue = max(0, $amountDue);
 
 
-                                        $amountAfter = (float) $data['current_bill']['amount'] - (float) $advance;
+                                        $amountAfter = (float) ($data['current_bill']['amount_after_due'] ?? $data['current_bill']['amount']) - (float) $advance;
                                         $amountAfter = max(0, $amountAfter);
                                         @endphp
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>

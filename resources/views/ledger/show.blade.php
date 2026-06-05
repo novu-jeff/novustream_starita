@@ -24,7 +24,7 @@
         <div class="col-md-4">
             <div class="card border-start border-primary border-4 shadow-sm">
                 <div class="card-body">
-                    <h6 class="text-muted uppercase small fw-bold">Total Invoiced</h6>
+                    <h6 class="text-muted uppercase small fw-bold">Total Debit</h6>
                     <h3 class="mb-0">PHP {{ number_format($bills->sum('computed_amount'), 2) }}</h3>
                 </div>
             </div>
@@ -32,7 +32,7 @@
         <div class="col-md-4">
             <div class="card border-start border-success border-4 shadow-sm">
                 <div class="card-body">
-                    <h6 class="text-muted uppercase small fw-bold">Total Paid</h6>
+                    <h6 class="text-muted uppercase small fw-bold">Total Credit</h6>
                     <h3 class="mb-0 text-success">PHP {{ number_format($bills->sum('computed_paid'), 2) }}</h3>
                 </div>
             </div>
@@ -53,10 +53,11 @@
                 <thead class="table-light">
                     <tr>
                         <th class="ps-3">Date / Reference</th>
-                        <th>Reading</th>
                         <th>Due Date</th>
-                        <th class="text-end">Amount</th>
-                        <th class="text-end">Payments</th>
+                        <th>Reading</th>
+                        <th>Usage</th>
+                        <th class="text-end">Debit</th>
+                        <th class="text-end">Credit</th>
                         <th class="text-end">Balance</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Action</th>
@@ -72,30 +73,33 @@
                             <small class="text-muted">{{ $bill->reference_no }}</small>
                         </td>
                         <td>
+                            <span class="{{ \Carbon\Carbon::parse($bill->due_date)->isPast() && $bill->computed_status !== 'PAID' ? 'text-danger fw-bold' : '' }}">
+                                {{ \Carbon\Carbon::parse($bill->due_date)->format('m/d/Y') }}
+                            </span>
+                        </td>
+                        <td>
                             <div class="fw-bold text-dark">
                                 {{ number_format((float) optional($bill->reading)->present_reading, 0) }}
                             </div>
                             <small class="text-muted">
                                 Prev: {{ number_format((float) optional($bill->reading)->previous_reading, 0) }}
-                                |
-                                Cub: {{ number_format((float) optional($bill->reading)->consumption, 0) }}
                             </small>
                         </td>
                         <td>
-                            <span class="{{ \Carbon\Carbon::parse($bill->due_date)->isPast() && $bill->computed_status !== 'PAID' ? 'text-danger fw-bold' : '' }}">
-                                {{ \Carbon\Carbon::parse($bill->due_date)->format('m/d/Y') }}
-                            </span>
+                            <div class="fw-bold text-dark">
+                                {{ number_format((float) optional($bill->reading)->consumption, 0) }}
+                            </div>
                         </td>
                         <td class="text-end">
                             <div>{{ number_format($bill->computed_amount, 2) }}</div>
                             @if($bill->computed_arrears > 0)
                                 <small class="text-muted d-block" style="font-size: 0.75rem;">
-                                    Includes arrears: {{ number_format($bill->computed_arrears, 2) }}
+                                    arrears: {{ number_format($bill->computed_arrears, 2) }}
                                 </small>
                             @endif
-                            @if($bill->computed_penalty > 0)
+                            @if($bill->computed_due_date < $bill->computed_date_paid)
                                 <small class="text-danger" style="font-size: 0.75rem;">
-                                    +{{ number_format($bill->computed_penalty, 2) }} (Penalty)
+                                   Penalty: {{ number_format($bill->computed_penalty, 2) }}
                                 </small>
                             @endif
                         </td>
