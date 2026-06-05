@@ -53,42 +53,19 @@ class LedgerController extends Controller
             ->get()
             ->values();
 
-        $openBalances = [];
-
-        foreach ($bills as $index => $bill) {
+        foreach ($bills as $bill) {
             $metrics = $this->buildLedgerMetrics($bill);
 
-            $bill->computed_amount = $metrics['display_amount'];
-            $bill->computed_paid = 0.0;
-            $bill->computed_balance = $metrics['row_due'];
-            $bill->computed_penalty = $metrics['display_penalty'];
-            $bill->computed_status = 'UNPAID';
+            $bill->computed_amount = $metrics['debit'];
+            $bill->computed_paid = $metrics['credit'];
+            $bill->computed_balance = $metrics['balance'];
+            $bill->computed_penalty = $metrics['penalty'];
+            $bill->computed_status = $metrics['status'];
             $bill->computed_arrears = $metrics['carried_arrears'];
-            $bill->computed_own_amount = $metrics['own_amount'];
-            $bill->computed_allocated_to_arrears = 0.0;
+            $bill->computed_change = $metrics['change'];
+            $bill->computed_date_paid = $metrics['date_paid'];
+            $bill->computed_due_date = $metrics['due_date'];
             $bill->advances = $bill->isChangeForAdvancePayment === true ? (float) ($bill->change ?? 0) : 0;
-
-            $arrearsPool = min($metrics['carried_arrears'], $metrics['raw_payment']);
-            $remainingArrearsPool = $arrearsPool;
-
-            foreach ($openBalances as $openIndex => $remaining) {
-                if ($remaining <= 0 || $remainingArrearsPool <= 0) {
-                    continue;
-                }
-
-                $applied = round(min($remaining, $remainingArrearsPool), 2);
-                $bills[$openIndex]->computed_balance = round(max(0, $bills[$openIndex]->computed_balance - $applied), 2);
-                $remainingArrearsPool = round($remainingArrearsPool - $applied, 2);
-                $openBalances[$openIndex] = round(max(0, $remaining - $applied), 2);
-            }
-
-            $bill->computed_allocated_to_arrears = $arrearsPool - $remainingArrearsPool;
-
-            $ownPayment = round(max(0, $metrics['raw_payment'] - $arrearsPool), 2);
-            $appliedOwnPayment = round(min($metrics['row_due'], $ownPayment), 2);
-
-            $bill->computed_balance = round(max(0, $bill->computed_amount - $bill->amount_paid), 2);
-            $openBalances[$index] = $bill->computed_balance;
         }
 
         foreach ($bills as $bill) {
@@ -98,7 +75,7 @@ class LedgerController extends Controller
             if ($bill->isPaid == 1) {
                 $bill->computed_status = 'PAID';
                 $bill->computed_balance = 0.0;
-                $bill->computed_paid = round((float) $bill->amount_paid, 2);
+                $bill->computed_paid = round((float) $bill->amount_paid - $bill->computed_change, 2);
                 continue;
             }
 
@@ -116,48 +93,54 @@ class LedgerController extends Controller
 
     private function buildLedgerMetrics(Bill $bill): array
     {
+        $amount = (float) ($bill->amount ?? 0);
         $total = (float) ($bill->total ?? 0);
+        $amountAfterDue = (float) ($bill->amount_after_due ?? 0);
         $penalty = (float) ($bill->penalty ?? 0);
-        $discount = (float) ($bill->discount ?? 0);
-        $advances = (float) ($bill->advances ?? 0);
-        $change = (float) ($bill->change ?? 0);
         $partialPayment = (float) ($bill->partial_payment ?? 0);
-        $carriedArrears = max(0, min((float) ($bill->previous_unpaid ?? 0), $total));
+        $amountPaid = (float) ($bill->amount_paid ?? 0);
+        $change = (float) ($bill->change ?? 0);
+        $carriedArrears = round((float) ($bill->previous_unpaid ?? 0), 2);
 
         $paidDate = !empty($bill->date_paid) ? Carbon::parse($bill->date_paid)->startOfDay() : null;
         $dueDate = !empty($bill->due_date) ? Carbon::parse($bill->due_date)->startOfDay() : null;
         $today = Carbon::today();
 
-        $displayPenalty = 0.0;
-        $displayAmount = $total;
-
-        if (!$paidDate && $dueDate && $today->gt($dueDate)) {
-            $displayPenalty = $penalty;
-            $displayAmount += $penalty;
-        } elseif ($paidDate && $dueDate && $paidDate->gt($dueDate)) {
-            $displayPenalty = $penalty;
-            $displayAmount += $penalty;
+        if ($amountAfterDue <= 0) {
+            $amountAfterDue = $amount;
         }
 
-        $displayAmount = max(0, round($displayAmount - $discount - $advances, 2));
-        $rowDue = max(0, round($displayAmount - $carriedArrears, 2));
+        $debit = max(0, round($total, 2));
 
-        $rawAmountPaid = (float) ($bill->amount_paid ?? 0);
-        $adjustedPaid = $bill->isChangeForAdvancePayment ? $rawAmountPaid : max(0, $rawAmountPaid - $change);
-        $rawPayment = max($adjustedPaid, $partialPayment);
-        $inferredSettledAmount = $this->billSettlementService->inferSettledAmount($bill, $paidDate ?? $today);
+        $credit = round(max($amountPaid - $change, $partialPayment), 2);
+        $balance = round(max(0, $debit - $credit), 2);
 
-        if ($bill->isPaid && $rawPayment + 0.009 < $inferredSettledAmount) {
-            $rawPayment = $inferredSettledAmount;
+        if ((int) $bill->isPaid === 1) {
+            $status = 'PAID';
+            $balance = 0.0;
+        } elseif ((int) $bill->isPartial === 1 || $partialPayment > 0) {
+            $status = 'PARTIAL';
+        } elseif ($dueDate && $today->gt($dueDate)) {
+            $status = 'OVERDUE';
+        } else {
+            $status = 'UNPAID';
+        }
+
+        $displayPenalty = 0.0;
+        if ($dueDate && $today->gt($dueDate)) {
+            $displayPenalty = round($penalty, 2);
         }
 
         return [
-            'display_amount' => $displayAmount,
-            'display_penalty' => $displayPenalty,
-            'carried_arrears' => round($carriedArrears, 2),
-            'own_amount' => $rowDue,
-            'row_due' => $rowDue,
-            'raw_payment' => round($rawPayment, 2),
+            'debit' => $debit,
+            'credit' => $credit,
+            'balance' => $balance,
+            'penalty' => $displayPenalty,
+            'carried_arrears' => $carriedArrears,
+            'status' => $status,
+            'change' => $change,
+            'date_paid' => $paidDate,
+            'due_date' => $dueDate,
         ];
     }
 
