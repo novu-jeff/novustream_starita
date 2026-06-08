@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\Bill;
 use App\Models\BillAdjustment;
+use App\Models\BillBreakdown;
 
 class BillingAdjustmentController extends Controller
 {
@@ -68,7 +69,19 @@ class BillingAdjustmentController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'reason' => 'required|string'
+            'reason' => 'required|string',
+            'previous_unpaid' => 'required|numeric|min:0',
+            'basic_charge' => 'required|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'amount_paid' => 'nullable|numeric|min:0',
+            'change' => 'nullable|numeric|min:0',
+            'partial_payment' => 'nullable|numeric|min:0',
+            'advances' => 'nullable|numeric|min:0',
+            'date_paid' => 'nullable|date',
+            'due_date' => 'nullable|date',
+            'isPaid' => 'required|boolean',
+            'isPartial' => 'nullable|boolean',
+            'isChangeForAdvancePayment' => 'nullable|boolean',
         ]);
 
         DB::beginTransaction();
@@ -77,16 +90,20 @@ class BillingAdjustmentController extends Controller
             $bill = Bill::findOrFail($id);
 
             $oldData = $bill->toArray();
+            $oldData['basic_charge'] = round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2);
+
+            $previousUnpaid = round((float) $request->previous_unpaid, 2);
+            $basicCharge = round((float) $request->basic_charge, 2);
+            $total = round($previousUnpaid + $basicCharge, 2);
+            $penalty = round(max(0, $basicCharge) * 0.10, 2);
+            $amount = round($total + $penalty, 2);
+            $amountAfterDue = $amount;
 
             $newData = $request->only([
                 'bill_period_from',
                 'bill_period_to',
                 'previous_unpaid',
-                'total',
                 'discount',
-                'penalty',
-                'amount',
-                'amount_after_due',
                 'amount_paid',
                 'change',
                 'isPaid',
@@ -98,21 +115,46 @@ class BillingAdjustmentController extends Controller
                 'isChangeForAdvancePayment'
             ]);
 
+            foreach (['amount_paid', 'change', 'partial_payment'] as $nullableField) {
+                $newData[$nullableField] = $request->filled($nullableField)
+                    ? round((float) $request->input($nullableField), 2)
+                    : null;
+            }
+
+            $newData['isPaid'] = $request->has('isPaid') ? (int) $request->boolean('isPaid') : 0;
+            $newData['isChangeForAdvancePayment'] = $request->has('isChangeForAdvancePayment') ? (int) $request->boolean('isChangeForAdvancePayment') : 0;
+
+            $newData['total'] = $total;
+            $newData['penalty'] = $penalty;
+            $newData['amount'] = $amount;
+            $newData['amount_after_due'] = $amountAfterDue;
+
+            $newDataForHistory = array_merge($newData, [
+                'basic_charge' => $basicCharge,
+            ]);
+
             BillAdjustment::create([
                 'bill_id' => $bill->id,
                 'old_amount' => $bill->amount,
-                'new_amount' => $request->amount,
+                'new_amount' => $amount,
                 'old_total' => $bill->total,
-                'new_total' => $request->total,
+                'new_total' => $total,
                 'old_data' => $oldData,
-                'new_data' => $newData,
+                'new_data' => $newDataForHistory,
                 'reason' => $request->reason,
                 'adjusted_by' => auth()->id(),
             ]);
 
-            if ($bill->isPaid && $request->amount != $bill->amount_paid) {
+            BillBreakdown::updateOrCreate([
+                'bill_id' => $bill->id,
+                'name' => 'Basic Charge',
+            ], [
+                'amount' => number_format($basicCharge, 2, '.', ''),
+                'description' => 'Updated by billing adjustment',
+            ]);
 
-                $difference = $request->amount - $bill->amount_paid;
+            if ($bill->isPaid && $amount != $bill->amount_paid) {
+                $difference = $amount - $bill->amount_paid;
 
                 if ($difference > 0) {
                     $newData['isPaid'] = 0;
