@@ -122,7 +122,18 @@
 
                 <div class="mb-2">
                     <label>Previous Reading</label>
-                    <input type="text" id="modal_previous" class="form-control" disabled>
+                    <div class="input-group">
+                        <input type="text" id="modal_previous" class="form-control" disabled>
+                        <div class="input-group-text">
+                            <input type="checkbox" id="check_edit_previous" title="Check to edit previous reading">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2" id="edit_previous_section" style="display: none;">
+                    <label>New Previous Reading</label>
+                    <input type="number" step="0.01" name="new_previous_reading"
+                           id="modal_new_previous" class="form-control">
                 </div>
 
                 <div class="mb-2">
@@ -140,6 +151,16 @@
                     <label>Consumption</label>
                     <input type="text" id="modal_consumption"
                            class="form-control bg-light" readonly>
+                </div>
+
+                <div class="mb-3 d-flex justify-content-center">
+                    <button
+                        type="button"
+                        class="btn border border-danger text-danger bg-danger-subtle w-50 mt-2 fw-bold"
+                        id="btn_reset_readings">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Reset Both Readings to 0
+                    </button>
                 </div>
 
                 <div class="mb-2">
@@ -244,19 +265,48 @@ document.addEventListener('click', function(e) {
         document.getElementById('modal_current').value = present;
 
         document.getElementById('modal_present').value = '';
+        document.getElementById('modal_new_previous').value = '';
         document.getElementById('modal_consumption').value = '';
+        document.getElementById('check_edit_previous').checked = false;
+        document.getElementById('edit_previous_section').style.display = 'none';
 
         document.getElementById('adjustForm').action = btn.dataset.action;
 
         let modal = new bootstrap.Modal(document.getElementById('adjustModal'));
         modal.show();
 
-        document.getElementById('modal_present').oninput = function() {
-            let newVal = parseFloat(this.value) || 0;
-            let consumption = newVal - previous;
+        // Calculate consumption based on current settings
+        const updateConsumption = () => {
+            let newPresent = parseFloat(document.getElementById('modal_present').value) || 0;
+            let newPrevious = parseFloat(document.getElementById('modal_new_previous').value);
+            let usePrevious = newPrevious !== null && !isNaN(newPrevious) ? newPrevious : previous;
+
+            let consumption = newPresent - usePrevious;
 
             document.getElementById('modal_consumption').value =
                 consumption >= 0 ? consumption : 0;
+        };
+
+        document.getElementById('modal_present').oninput = updateConsumption;
+        document.getElementById('modal_new_previous').oninput = updateConsumption;
+
+        // Toggle previous reading edit field
+        document.getElementById('check_edit_previous').onchange = function() {
+            document.getElementById('edit_previous_section').style.display =
+                this.checked ? 'block' : 'none';
+            if (!this.checked) {
+                document.getElementById('modal_new_previous').value = '';
+            }
+            updateConsumption();
+        };
+
+        // Reset both readings to 0
+        document.getElementById('btn_reset_readings').onclick = function() {
+            document.getElementById('modal_present').value = '0';
+            document.getElementById('modal_new_previous').value = '0';
+            document.getElementById('check_edit_previous').checked = true;
+            document.getElementById('edit_previous_section').style.display = 'block';
+            updateConsumption();
         };
     }
 });

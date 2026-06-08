@@ -14,13 +14,12 @@ return new class extends Migration
         Schema::create('reading_adjustments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('reading_id')->constrained()->cascadeOnDelete();
-
+            $table->decimal('old_previous_reading', 10, 2)->nullable()->after('reading_id');
+            $table->decimal('new_previous_reading', 10, 2)->nullable()->after('old_previous_reading');
             $table->decimal('old_present_reading', 10, 2);
             $table->decimal('new_present_reading', 10, 2);
-
             $table->decimal('old_consumption', 10, 2);
             $table->decimal('new_consumption', 10, 2);
-
             $table->text('reason');
             $table->unsignedBigInteger('adjusted_by')->nullable();
             $table->unsignedBigInteger('approved_by')->nullable();

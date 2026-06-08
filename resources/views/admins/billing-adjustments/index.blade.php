@@ -290,8 +290,9 @@
                                 $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
                             @endphp
 
-                            <tr class="table-secondary">
+                            <tr class="table-secondary adjustment-header" style="cursor: pointer;" data-adjustment-id="{{ $a->id }}">
                                 <td colspan="7">
+                                    <span class="toggle-icon">▼</span>
                                     <strong>{{ $a->created_at }}</strong> |
                                     {{ $a->account_no }} |
                                     {{ $a->concessioner_name ?? '-' }} |
@@ -309,7 +310,7 @@
                                 @endphp
 
                                 @if($oldVal != $newVal)
-                                    <tr>
+                                    <tr class="adjustment-detail" data-adjustment-id="{{ $a->id }}" style="display: none;">
                                         <td></td>
                                         <td colspan="2"><strong>{{ $key }}</strong></td>
 
@@ -366,6 +367,23 @@ const refreshBillingCalculations = () => {
 document.addEventListener('input', function(e) {
     if (['f_prev', 'f_basic_charge'].includes(e.target.id)) {
         refreshBillingCalculations();
+    }
+});
+
+// Bill adjustment history collapse/expand
+document.addEventListener('click', function(e) {
+    const header = e.target.closest('.adjustment-header');
+    if (header) {
+        const adjustmentId = header.dataset.adjustmentId;
+        const details = document.querySelectorAll(`.adjustment-detail[data-adjustment-id="${adjustmentId}"]`);
+        const toggleIcon = header.querySelector('.toggle-icon');
+        const isCollapsed = details[0]?.style.display === 'none';
+
+        details.forEach(row => {
+            row.style.display = isCollapsed ? 'table-row' : 'none';
+        });
+
+        toggleIcon.textContent = isCollapsed ? '▼' : '▶';
     }
 });
 
