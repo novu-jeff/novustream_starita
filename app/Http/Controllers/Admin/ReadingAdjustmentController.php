@@ -71,6 +71,7 @@ class ReadingAdjustmentController extends Controller
     {
         $request->validate([
             'present_reading' => 'required|numeric|min:0',
+            'new_previous_reading' => 'nullable|numeric|min:0',
             'reason' => 'required|string'
         ]);
 
@@ -80,16 +81,20 @@ class ReadingAdjustmentController extends Controller
             $reading = Reading::findOrFail($id);
 
             $oldPresent = $reading->present_reading;
+            $oldPrevious = $reading->previous_reading;
             $oldConsumption = $reading->consumption;
 
             $newPresent = $request->present_reading;
-            $previous = $reading->previous_reading;
+            $newPrevious = $request->new_previous_reading !== null && $request->new_previous_reading !== ''
+                ? $request->new_previous_reading
+                : $oldPrevious;
 
-            if ($newPresent < $previous) {
+            // Validation: present reading should not be less than previous reading
+            if ($newPresent < $newPrevious) {
                 return back()->withErrors('Present reading cannot be less than previous reading.');
             }
 
-            $newConsumption = $newPresent - $previous;
+            $newConsumption = $newPresent - $newPrevious;
 
             $account = ConcessionerAccount::where('account_no', $reading->account_no)->first();
 
@@ -116,6 +121,7 @@ class ReadingAdjustmentController extends Controller
             ]);
 
             $reading->update([
+                'previous_reading' => $newPrevious,
                 'present_reading' => $newPresent,
                 'consumption' => $newConsumption,
             ]);
