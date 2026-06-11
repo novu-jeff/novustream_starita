@@ -97,7 +97,7 @@
                                     arrears: {{ number_format($bill->computed_arrears, 2) }}
                                 </small>
                             @endif
-                            @if($bill->computed_due_date < $bill->computed_date_paid)
+                            @if($bill->computed_due_date < \Carbon\Carbon::today())
                                 <small class="text-danger" style="font-size: 0.75rem;">
                                    Penalty: {{ number_format($bill->computed_penalty, 2) }}
                                 </small>
