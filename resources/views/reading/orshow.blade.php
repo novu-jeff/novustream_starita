@@ -204,19 +204,25 @@
         $arrears = (float) $arrears;
     }
 
-    $penaltyDate = isset($cb['penalty_date'])
-        ? Carbon\Carbon::parse($cb['penalty_date'])->startOfDay()
+    $penaltyDate = !empty($cb['penalty_date'])
+        ? \Carbon\Carbon::parse($cb['penalty_date'])->startOfDay()
+        : (
+            !empty($cb['due_date'])
+                ? \Carbon\Carbon::parse($cb['due_date'])->addDay()->startOfDay()
+                : null
+        );
+
+    $datePaidCarbon = !empty($cb['date_paid'])
+        ? \Carbon\Carbon::parse($cb['date_paid'])->startOfDay()
         : null;
 
-    $datePaidCarbon = isset($cb['date_paid'])
-        ? Carbon\Carbon::parse($cb['date_paid'])->startOfDay()
-        : null;
-
-    $applicablePenalty = 0;
-
-    if ($penaltyDate && $datePaidCarbon && $datePaidCarbon->gte($penaltyDate)) {
-        $applicablePenalty = $penalty;
-    }
+    $applicablePenalty = (
+        $penaltyDate &&
+        $datePaidCarbon &&
+        $datePaidCarbon->gte($penaltyDate)
+    )
+        ? $penalty
+        : 0;
 
     $discount = $cb['discount'] ?? 0;
     if (is_array($discount)) {
