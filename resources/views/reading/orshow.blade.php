@@ -204,17 +204,17 @@
         $arrears = (float) $arrears;
     }
 
-    $dueDate = isset($data['current_bill']['due_date'])
-        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+    $penaltyDate = isset($cb['penalty_date'])
+        ? Carbon\Carbon::parse($cb['penalty_date'])->startOfDay()
         : null;
 
     $datePaidCarbon = isset($cb['date_paid'])
-        ? \Carbon\Carbon::parse($cb['date_paid'])
+        ? Carbon\Carbon::parse($cb['date_paid'])->startOfDay()
         : null;
 
     $applicablePenalty = 0;
 
-    if ($dueDate && $datePaidCarbon && $datePaidCarbon->gt($dueDate)) {
+    if ($penaltyDate && $datePaidCarbon && $datePaidCarbon->gte($penaltyDate)) {
         $applicablePenalty = $penalty;
     }
 
