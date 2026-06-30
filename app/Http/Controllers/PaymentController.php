@@ -1291,13 +1291,9 @@ class PaymentController extends Controller
         $payment = $response->json();
         \Log::info('HitPay verified payment', $payment);
 
-        $status = strtolower($payment['status'] ?? $status);
-        $pendingStatuses = ['pending', 'processing', 'open', 'initiated'];
-        if (in_array($status, $pendingStatuses, true)) {
-            $status = 'pending';
-        }
+        $status = $this->resolveHitpayStatus($payment, $status);
         $reference_number = $payment['reference_number'] ?? null;
-        $amount = (float) ($payment['amount'] ?? 0);
+        $amount = $this->parseHitpayAmount($payment['amount'] ?? 0);
         $payor = $payment['name'] ?? 'Unknown';
         $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
 
@@ -1473,8 +1469,8 @@ class PaymentController extends Controller
 
         $reference_number = $payload['reference_number'] ?? $payload['reference_no'] ?? null;
         $payment_request_id = $payload['payment_request_id'] ?? $payload['id'] ?? null;
-        $payment_status = strtolower($payload['status'] ?? '');
-        $payment_amount = (float) ($payload['amount'] ?? 0);
+        $payment_status = $this->resolveHitpayStatus($payload);
+        $payment_amount = $this->parseHitpayAmount($payload['amount'] ?? 0);
         $payor = $payload['customer']['name'] ?? $payload['name'] ?? 'Unknown';
 
         if (empty($reference_number) && empty($payment_request_id)) {
@@ -1589,6 +1585,45 @@ class PaymentController extends Controller
             })
             ->rawColumns(['status', 'actions'])
             ->make(true);
+    }
+
+    private function parseHitpayAmount($value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+
+        if (is_numeric($value)) {
+            return round((float) $value, 2);
+        }
+
+        $normalized = preg_replace('/[^0-9.\-]/', '', (string) $value);
+
+        return round((float) ($normalized !== '' ? $normalized : 0), 2);
+    }
+
+    /**
+     * HitPay may return top-level status "pending" while payments[] is already succeeded.
+     */
+    private function resolveHitpayStatus(array $payment, ?string $fallbackStatus = null): string
+    {
+        $payments = $payment['payments'] ?? [];
+        if (is_array($payments)) {
+            foreach ($payments as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $entryStatus = strtolower((string) ($entry['status'] ?? ''));
+                if (in_array($entryStatus, ['completed', 'succeeded', 'success'], true)) {
+                    return 'completed';
+                }
+            }
+        }
+
+        $status = strtolower((string) ($payment['status'] ?? $fallbackStatus ?? ''));
+        $pendingStatuses = ['pending', 'processing', 'open', 'initiated'];
+
+        return in_array($status, $pendingStatuses, true) ? 'pending' : $status;
     }
 
 }

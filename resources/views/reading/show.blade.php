@@ -289,7 +289,7 @@
                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                             <div style="text-transform: uppercase; font-size: 20px;">
-                                {{number_format($amountAfter, 2)}}
+                                {{number_format($amountAfter - $discount - $advance, 2)}}
                             </div>
                         </div>
                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -375,6 +375,7 @@
                                 Note: {{ $note }}
                             </div>
                         @endif
+                        <p class="text-center mt-2 fw-bold">Please disregard any arrears if payment has already been made.</p>
                         <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
                             <div class="emp">This is NOT valid as Official Receipt</div>
                         </div>
