@@ -372,6 +372,7 @@
                                                 </div>
                                             </div>
                                         @endif
+                                        <p class="text-center mt-2 fw-bold">Please disregard any arrears if payment has already been made.</p>
                                         <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
                                             <div style="background-color: #000; padding: 8px 10px 8px 10px; color: #fff; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 20px;">This is NOT valid as Official Receipt</div>
                                         </div>
