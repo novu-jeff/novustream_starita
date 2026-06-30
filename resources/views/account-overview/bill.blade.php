@@ -467,7 +467,7 @@
                                         Note: {{ $note }}
                                     </div>
                                 @endif
-                                <p class="text-center mt-2 fw-bold">Please disregard any arrears if payment has already been made.</p>
+                                <p class="text-center mt-2 fw-bold">Please disregard any arrears if payment </br>has already been made.</p>
                                 <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
                                     <div class="emp">This is NOT valid as Official Receipt</div>
                                 </div>
