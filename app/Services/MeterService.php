@@ -1185,7 +1185,7 @@ class MeterService {
 
             $bill->update([
                 'penalty' => $penaltyAmount,
-                'amount' => $amountDue,
+                'amount' => $amountAfterDue,
                 'discount' => $totalDiscount,
                 'amount_after_due' => $amountAfterDue,
                 'hasPenalty' => $penaltyAmount > 0,
