@@ -39,6 +39,14 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-12 col-md-3 mb-3">
+                        <label class="mb-1">List Filter</label>
+                        <select name="list_filter" id="list_filter" class="form-select text-uppercase dropdown-toggle">
+                            <option value="all" {{ $listFilter === 'all' ? 'selected' : '' }}>All</option>
+                            <option value="seniors" {{ $listFilter === 'seniors' ? 'selected' : '' }}>Seniors</option>
+                            <option value="inactive" {{ $listFilter === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                        </select>
+                    </div>
                     <div class="col-12 col-md-4 mb-3">
                         <label class="mb-1">Search</label>
                         <div class="position-relative">
@@ -125,7 +133,7 @@
         function updateUrl() {
             const params = new URLSearchParams(window.location.search);
 
-            ['search', 'entries', 'zone_no'].forEach(id => {
+            ['search', 'entries', 'zone_no', 'list_filter'].forEach(id => {
                 const val = $('#' + id).val();
                 const key = id === 'zone_no' ? 'zone' : id;
 
@@ -145,7 +153,7 @@
             }, 400); // 400ms debounce
         });
 
-        $('#entries, #zone_no').on('change', updateUrl);
+        $('#entries, #zone_no, #list_filter').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');
