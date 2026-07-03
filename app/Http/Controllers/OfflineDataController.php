@@ -222,7 +222,7 @@ class OfflineDataController extends Controller
      * Build minimal SOA data for offline download (enough to generate/view/print SOA).
      * Omits client dump, previous_payment, active_payment, unpaid_bills, previousConsumption.
      */
-    private static function minimalSoaForDownload($fullBill, string $refNo, $reading, $bill): array
+    public static function minimalSoaForDownload($fullBill, string $refNo, $reading, $bill): array
     {
         if (!is_array($fullBill) || ($fullBill['status'] ?? null) === 'error') {
             return self::minimalSoaFromModels($refNo, $reading, $bill);
@@ -272,7 +272,7 @@ class OfflineDataController extends Controller
         ];
     }
 
-    private static function minimalSoaFromModels(string $refNo, $reading, $bill): array
+    public static function minimalSoaFromModels(string $refNo, $reading, $bill): array
     {
         $breakdown = [];
         if ($bill->relationLoaded('breakdown') && $bill->breakdown) {

@@ -342,7 +342,7 @@ Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'sho
 Route::post('/readings', [OfflineSyncController::class, 'store']);
 Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
 
-Route::get('/admin/offline/download', [OfflineDataController::class, 'download'])
+Route::get('/admin/offline/download', [OfflineSyncController::class, 'download'])
     ->name('offline.download')
     ->middleware('auth');
 
@@ -362,4 +362,4 @@ Route::get('/payment/test-status', function () {
 });
 
 
-Route::get('/offline/download', [OfflineDataController::class, 'download']);
+Route::get('/offline/download', [OfflineSyncController::class, 'download']);
