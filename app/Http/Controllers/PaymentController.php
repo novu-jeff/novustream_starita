@@ -900,7 +900,7 @@ class PaymentController extends Controller
         $isOverdue = now()->greaterThan($dueDate);
 
         $collectible = $isOverdue
-            ? (float)$currentBill->amount_after_due - $discount
+            ? (float)$currentBill->amount_after_due
             : (float)$currentBill->total - $discount;
 
         $alreadyPaid = (float)$currentBill->amount_paid + (float)$currentBill->partial_payment;

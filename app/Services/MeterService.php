@@ -1175,12 +1175,7 @@ class MeterService {
                 $penaltyAmount = 0;
             }
 
-            $incomingDiscount = (float) ($billData['discount'] ?? 0);
-            $amountDue = $baseAmountBeforePenalty;
-            if ($incomingDiscount <= 0) {
-                $amountDue -= $totalDiscount;
-            }
-            $amountDue = round(max($amountDue, 0), 2);
+            $amountDue = round(max($total - $totalDiscount, 0), 2);
             $amountAfterDue = round($amountDue + $penaltyAmount, 2);
 
             $bill->update([
