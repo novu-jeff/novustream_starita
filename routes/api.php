@@ -80,7 +80,7 @@ Route::middleware(['log.offline.api', 'auth.offline'])->group(function () {
     Route::match(['get', 'post'], '/offline/sync', [OfflineSyncController::class, 'sync']);
     Route::post('/offline/store', [OfflineSyncController::class, 'store']);
     Route::post('/offline/merge', [OfflineSyncController::class, 'merge']);
-    Route::get('/offline/download', [OfflineDataController::class, 'download']);
+    Route::get('/offline/download', [OfflineSyncController::class, 'download']);
     Route::get('/offline/reading-dates', [OfflineDataController::class, 'readingDates']);
 });
 
