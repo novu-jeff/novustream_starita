@@ -45,6 +45,7 @@ class ConcessionaireController extends Controller
         $zone     = $request->zone ?? 'all';
         $entries  = $request->entries ?? 10;
         $search   = trim($request->search ?? '');
+        $listFilter = $request->list_filter ?? 'all';
 
         $zones = $this->meterService->getZones()->pluck('area', 'zone');
 
@@ -55,6 +56,21 @@ class ConcessionaireController extends Controller
         if ($zone !== 'all') {
             $query->whereHas('accounts', function ($q) use ($zone) {
                 $q->where('zone', $zone);
+            });
+        }
+
+        if ($listFilter === 'seniors') {
+            $query->whereHas('accounts', function ($q) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('discount')
+                        ->whereColumn('discount.account_no', 'concessioner_accounts.account_no')
+                        ->where('discount.discount_type_id', 1);
+                });
+            });
+        } elseif ($listFilter === 'inactive') {
+            $query->whereHas('accounts', function ($q) {
+                $q->whereIn('status', ['BL', 'ID', 'IV']);
             });
         }
 
@@ -95,7 +111,8 @@ class ConcessionaireController extends Controller
             'data',
             'entries',
             'zone',
-            'zones'
+            'zones',
+            'listFilter'
         ))->with('toSearch', $search);
     }
 
