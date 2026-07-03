@@ -2542,7 +2542,7 @@ $penalty = DB::table('bill')
     ])
     ->where('bill.penalty', '>', 0)
 
-    ->whereBetween('bill.bill_period_to', [
+    ->whereBetween('bill.created_at', [
         Carbon::parse($startDate)->startOfDay(),
         Carbon::parse($endDate)->endOfDay(),
     ])
@@ -2565,7 +2565,7 @@ $senior = DB::table('discount as d')
     ->join('readings as r', 'ca.account_no','=','r.account_no')
     ->join('bill as b', 'r.id','=','b.reading_id')
     ->selectRaw('r.zone, COUNT(DISTINCT ca.account_no) as cnt, SUM(b.discount) as amt')
-    ->whereBetween('b.bill_period_from', [
+    ->whereBetween('b.created_at', [
         $startDate . ' 00:00:00',
         $endDate . ' 23:59:59'
     ])
@@ -2580,7 +2580,7 @@ $seniorPenalty = DB::table('discount as d')
     ->join('bill as b', 'r.id','=','b.reading_id')
     ->selectRaw('r.zone, COUNT(*) as cnt, SUM(b.penalty) as amt')
     ->where('b.penalty','>',0)
-    ->whereBetween('b.bill_period_from', [
+    ->whereBetween('b.created_at', [
         $startDate . ' 00:00:00',
         $endDate . ' 23:59:59'
     ])
@@ -2594,7 +2594,7 @@ $inactive = DB::table('bill')
     ->join('concessioner_accounts','readings.account_no','=','concessioner_accounts.account_no')
     ->selectRaw('readings.zone, COUNT(*) as cnt, SUM(bill.total) as amt')
     ->whereIn('concessioner_accounts.status',['ID','IV','BL'])
-    ->whereBetween('bill.bill_period_from', [
+    ->whereBetween('bill.created_at', [
         $startDate . ' 00:00:00',
         $endDate . ' 23:59:59'
     ])
@@ -2630,7 +2630,7 @@ $billingData = DB::table('readings as r')
 
     ->where('ca.status', 'AB')
 
-    ->whereBetween('b.bill_period_from', [
+    ->whereBetween('b.created_at', [
         $startDate . ' 00:00:00',
         $endDate . ' 23:59:59'
     ])

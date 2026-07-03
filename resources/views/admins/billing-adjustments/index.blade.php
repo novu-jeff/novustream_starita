@@ -407,7 +407,8 @@ document.addEventListener('click', function(e) {
         document.getElementById('f_partial').value = b.partial || null;
         document.getElementById('f_advances').value = b.advances || 0;
         document.getElementById('f_date_paid').value = b.datePaid || '';
-        document.getElementById('f_due').value = b.due || '';
+        document.getElementById('f_due').value =
+        b.due ? new Date(b.due).toISOString().split('T')[0] : '';
 
         document.getElementById('f_paid_status').value = b.isPaid;
         document.getElementById('f_is_partial').value = b.isPartial;
