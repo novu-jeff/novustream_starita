@@ -127,27 +127,39 @@ class InstallmentController extends Controller
     }
 
     public function getBillsByAccount(Request $request)
-{
-    $accountNo = $request->account_no;
+    {
+        $search = $request->search;
 
-    $bills = Bill::where('isPaid', 0)
-        ->where('isInstallment', false)
-        ->whereHas('reading', function ($q) use ($accountNo) {
-            $q->where('account_no', $accountNo);
-        })
-        ->get()
-        ->map(function ($bill) {
-            return [
-                'id' => $bill->id,
-                'reference_no' => $bill->reference_no,
-                'bill_period_to' => $bill->bill_period_to,
-                'due_date' => $bill->due_date,
-                'total' => (float) ($bill->total ?? 0),
-                'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
-                'partial_payment' => (float) ($bill->partial_payment ?? 0),
-            ];
-        });
+        $bills = Bill::where('isPaid', 0)
+            ->where('isInstallment', false)
+            ->whereHas('reading', function ($reading) use ($search) {
 
-    return response()->json($bills);
-}
+                $reading->where('account_no', 'like', "%{$search}%")
+                    ->orWhereHas('concessionaire.user', function ($user) use ($search) {
+
+                        $user->where('name', 'like', "%{$search}%");
+
+                    });
+
+            })
+            ->with('reading.concessionaire.user')
+            ->get()
+            ->map(function ($bill) {
+
+                return [
+                    'id' => $bill->id,
+                    'reference_no' => $bill->reference_no,
+                    'bill_period_to' => $bill->bill_period_to,
+                    'due_date' => $bill->due_date,
+                    'total' => (float) ($bill->total ?? 0),
+                    'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
+                    'partial_payment' => (float) ($bill->partial_payment ?? 0),
+                    'account_no' => $bill->reading->account_no,
+                    'name' => optional($bill->reading->concessionaire->user)->name,
+                ];
+
+            });
+
+        return response()->json($bills);
+    }
 }
