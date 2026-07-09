@@ -158,9 +158,9 @@
                     <div class="input-group">
 
                         <input type="text"
-                            id="account_no"
+                            id="search_keyword"
                             class="form-control"
-                            placeholder="Enter Account Number">
+                            placeholder="Enter Name or Account Number">
 
                         <button type="button"
                                 class="btn btn-primary"
@@ -236,6 +236,7 @@
                     <p><strong>Bill Ref:</strong> <span id="detail_reference"></span></p>
                     <p><strong>Total Bill:</strong> ₱<span id="detail_bill_amount"></span></p>
                     <p><strong>Monthly:</strong> ₱<span id="detail_monthly"></span></p>
+                    <p><strong>Installment Span:</strong> <span id="detail_span"></span></p>
 
                     <hr>
 
@@ -273,9 +274,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const monthlyInput = document.getElementById('monthly_amount');
     const searchBtn = document.getElementById('search_account');
 
-    /* ----------------------------
-       Monthly Payment Calculation
-    -----------------------------*/
     if(monthsInput){
         monthsInput.addEventListener('input', function(){
 
@@ -293,31 +291,38 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    /* ----------------------------
-       Search Account Bills
-    -----------------------------*/
     if(searchBtn){
-        searchBtn.addEventListener('click', function(){
+        searchBtn.addEventListener('click', function () {
 
-            let accountNo = document.getElementById('account_no').value;
+        let keyword = document.getElementById('search_keyword').value.trim();
 
-            if(accountNo === ''){
-                alert('Please enter account number');
-                return;
-            }
+        if (keyword === '') {
+            alert('Please enter an account number or customer name.');
+            return;
+        }
 
-            fetch(`/admin/installment/bills-by-account?account_no=${accountNo}`)
+        billSelect.disabled = true;
+        billSelect.innerHTML = `
+            <option>Loading bills...</option>
+        `;
+
+        fetch(`/admin/installment/bills-by-account?search=${encodeURIComponent(keyword)}`)
             .then(response => response.json())
             .then(data => {
 
+                billSelect.disabled = false;
                 billSelect.innerHTML = '';
 
-                if(data.length === 0){
-                    billSelect.innerHTML = '<option>No unpaid bills found</option>';
+                if (data.length === 0) {
+                    billSelect.innerHTML = `
+                        <option value="">No unpaid bills found</option>
+                    `;
                     return;
                 }
 
-                billSelect.innerHTML = '<option value="">Select Bill</option>';
+                billSelect.innerHTML = `
+                    <option value="">Select Bill</option>
+                `;
 
                 data.forEach(bill => {
 
@@ -325,89 +330,116 @@ document.addEventListener("DOMContentLoaded", function () {
                     const dueDate = new Date(bill.due_date);
 
                     let rawAmount = (today <= dueDate)
-                        ? (bill.total ?? 0)
-                        : (bill.amount_after_due ?? 0);
+                        ? bill.total
+                        : bill.amount_after_due;
 
-                    let partialPayment = parseFloat(bill.partial_payment ?? 0);
+                    let amount = rawAmount - bill.partial_payment;
 
-                    let amount = parseFloat(rawAmount) - partialPayment;
-
-                    if (isNaN(amount) || amount < 0) {
-                        amount = 0;
-                    }
+                    if (amount < 0) amount = 0;
 
                     const date = new Date(bill.bill_period_to);
+
                     const monthName = date.toLocaleString('en-US', {
                         month: 'long'
                     });
 
                     billSelect.innerHTML += `
                         <option value="${bill.id}" data-amount="${amount}">
-                            ${monthName} - ₱${amount.toFixed(2)}
+                            ${bill.account_no} - ${bill.name} | ${monthName} | ₱${amount.toFixed(2)}
                         </option>
                     `;
                 });
 
             })
-            .catch(err => {
-                console.error(err);
-                alert('Error retrieving bills');
-            });
+            .catch(error => {
 
-        });
-    }
+                console.error(error);
 
-    /* ----------------------------
-   View Installment
------------------------------*/
-document.addEventListener('click', function(e){
-
-    if(e.target.classList.contains('view-installment')){
-
-        let id = e.target.dataset.installment;
-
-        let url = "{{ route('installment.details', ':id') }}";
-        url = url.replace(':id', id);
-
-        fetch(url)
-        .then(res => res.json())
-        .then(data => {
-
-            document.getElementById('detail_account').innerText = data.account_no;
-            document.getElementById('detail_name').innerText = data.name ?? '-';
-            document.getElementById('detail_reference').innerText = data.reference_no;
-            document.getElementById('detail_bill_amount').innerText = parseFloat(data.bill_amount).toFixed(2);
-            document.getElementById('detail_monthly').innerText = parseFloat(data.monthly_amount).toFixed(2);
-
-            let scheduleTable = document.getElementById('schedule_table');
-            scheduleTable.innerHTML = '';
-
-            data.schedules.forEach(row => {
-
-                scheduleTable.innerHTML += `
-                    <tr>
-                        <td>${row.month_no}</td>
-                        <td>₱${parseFloat(row.amount).toFixed(2)}</td>
-                        <td>
-                            ${row.is_paid
-                                ? '<span class="badge bg-success">Paid</span>'
-                                : '<span class="badge bg-warning text-dark">Pending</span>'}
-                        </td>
-                    </tr>
+                billSelect.disabled = false;
+                billSelect.innerHTML = `
+                    <option value="">Error loading bills</option>
                 `;
+            });
+
+    });
+    }
+
+    document.addEventListener('click', function(e){
+
+        if(e.target.classList.contains('view-installment')){
+
+            let id = e.target.dataset.installment;
+
+            let url = "{{ route('installment.details', ':id') }}";
+            url = url.replace(':id', id);
+
+            fetch(url)
+            .then(res => res.json())
+            .then(data => {
+
+                document.getElementById('detail_account').innerText = data.account_no;
+                document.getElementById('detail_name').innerText = data.name ?? '-';
+                document.getElementById('detail_reference').innerText = data.reference_no;
+                document.getElementById('detail_bill_amount').innerText = parseFloat(data.bill_amount).toFixed(2);
+                document.getElementById('detail_monthly').innerText = parseFloat(data.monthly_amount).toFixed(2);
+                if (data.schedules.length) {
+
+                    const first = new Date(data.schedules[0].due_date);
+                    const last = new Date(data.schedules[data.schedules.length - 1].due_date);
+
+                    const firstMonth = first.toLocaleString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+
+                    const lastMonth = last.toLocaleString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+
+                    document.getElementById('detail_span').innerText =
+                        `${data.schedules.length} Months (${firstMonth} - ${lastMonth})`;
+
+                }
+
+                let scheduleTable = document.getElementById('schedule_table');
+                scheduleTable.innerHTML = '';
+
+
+                data.schedules.forEach(row => {
+                    const dueDate = new Date(row.due_date);
+
+                    const monthName = dueDate.toLocaleString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                    });
+
+                    scheduleTable.innerHTML += `
+                        <tr>
+                            <td>${row.month_no} - ${monthName}</td>
+                            <td>₱${parseFloat(row.amount).toFixed(2)}</td>
+                            <td>
+                                ${row.is_paid
+                                    ? '<span class="badge bg-success">Paid</span>'
+                                    : '<span class="badge bg-warning text-dark">Pending</span>'}
+                            </td>
+                        </tr>
+                    `;
+
+                });
+
+                new bootstrap.Modal(
+                    document.getElementById('viewInstallmentModal')
+                ).show();
 
             });
 
-            new bootstrap.Modal(
-                document.getElementById('viewInstallmentModal')
-            ).show();
+        }
 
-        });
-
-    }
-
-});
+    });
 
 });
 
 </script>
+
+
