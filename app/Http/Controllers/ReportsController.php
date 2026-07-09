@@ -29,6 +29,7 @@ class ReportsController extends Controller
             'Franchise Tax Report(Detailed)',
             'Franchise Tax Report(Summary)',
             'Monthly Billing Summary',
+            'Billing Report',
             'Billed Con by Category and Size',
             'Consumption by Category & Size',
             'All Payments',
@@ -422,16 +423,31 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
         // ✅ FORMATTED (MATRIX)
         if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
 
-            $sourceSheet = $data['spreadsheet']->getActiveSheet();
-            $clonedSheet = clone $sourceSheet;
-            $clonedSheet->setTitle(substr($reportName, 0, 31));
+            $sourceSheets = $data['spreadsheet']->getAllSheets();
 
-            if ($firstSheet) {
-                $spreadsheet->removeSheetByIndex(0);
-                $spreadsheet->addSheet($clonedSheet, 0);
-                $firstSheet = false;
-            } else {
-                $spreadsheet->addSheet($clonedSheet);
+            if (count($sourceSheets) === 1) {
+                $sourceSheets[0]->setTitle(substr($reportName, 0, 31));
+            }
+
+            foreach ($sourceSheets as $sourceSheet) {
+                $baseTitle = substr($sourceSheet->getTitle(), 0, 31);
+                $title = $baseTitle;
+                $suffix = 1;
+
+                while ($spreadsheet->sheetNameExists($title)) {
+                    $suffixText = ' ' . $suffix++;
+                    $title = substr($baseTitle, 0, 31 - strlen($suffixText)) . $suffixText;
+                }
+
+                $sourceSheet->setTitle($title);
+
+                if ($firstSheet) {
+                    $spreadsheet->removeSheetByIndex(0);
+                    $spreadsheet->addExternalSheet($sourceSheet, 0);
+                    $firstSheet = false;
+                } else {
+                    $spreadsheet->addExternalSheet($sourceSheet);
+                }
             }
 
             continue;
@@ -1217,6 +1233,151 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 }
 
                 $result[$report] = $rows;
+                break;
+
+                case 'Billing Report':
+                $query = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->join(
+                        'concessioner_accounts',
+                        'concessioner_accounts.account_no',
+                        '=',
+                        'readings.account_no'
+                    )
+                    ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
+                    ->whereIn('concessioner_accounts.status', ['AB', 'ID', 'BL', 'IV'])
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                    ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
+                        $q->whereBetween('bill.bill_period_to', [
+                            $startDate . ' 00:00:00',
+                            $endDate . ' 23:59:59',
+                        ]);
+                    })
+                    ->select([
+                        'concessioner_accounts.zone',
+                        'readings.account_no',
+                        'users.name',
+                        'concessioner_accounts.status',
+                        'concessioner_accounts.rate_code',
+                        'bill.created_at as bill_date',
+                        'bill.bill_period_to',
+                        'bill.reference_no',
+                        'readings.consumption',
+                        'bill.total',
+                        'bill.previous_unpaid',
+                        'bill.discount',
+                        'bill.amount',
+                        'bill.high_consumption_note',
+                        'concessioner_accounts.sequence_no',
+                    ])
+                    ->orderBy('concessioner_accounts.zone', 'asc')
+                    ->orderBy('concessioner_accounts.sequence_no', 'asc')
+                    ->orderBy('bill.bill_period_to', 'asc')
+                    ->get();
+
+                $headers = [
+                    'Zone',
+                    'Account No',
+                    'Name',
+                    'Status (AB, ID, BL, IV)',
+                    'Rate',
+                    'Bill Date',
+                    'Bill No (reference_no)',
+                    'Consumption',
+                    'Basic',
+                    'SC Discount',
+                    'Ammount Billed',
+                    'Arrears',
+                    'Bill Mode',
+                    'Remarks',
+                ];
+
+                $rowsByZone = [];
+
+                foreach ($query as $row) {
+                    $total = (float) ($row->total ?? 0);
+                    $previousUnpaid = (float) ($row->previous_unpaid ?? 0);
+                    $amount_billed = $total - $previousUnpaid;
+                    $discount = (float) ($row->discount ?? 0);
+                    $zoneKey = $row->zone ?? 'N/A';
+
+                    $rowsByZone[$zoneKey][] = [
+                        'Zone' => $row->zone ?? 'N/A',
+                        'Account No' => $row->account_no ?? 'N/A',
+                        'Name' => $row->name ?? 'N/A',
+                        'Status (AB, ID, BL, IV)' => $row->status ?? 'N/A',
+                        'Rate' => $row->rate_code ?? 'N/A',
+                        'Bill Date' => $row->bill_date ? Carbon::parse($row->bill_date)->format('m/d/Y') : 'N/A',
+                        'Bill No (reference_no)' => $row->reference_no ?? 'N/A',
+                        'Consumption' => $row->consumption ?? 0,
+                        'Basic' => $amount_billed ?? 0,
+                        'SC Discount' => $discount ?? 0,
+                        'Ammount Billed' => $amount_billed - $discount ?? 0,
+                        'Arrears' => $previousUnpaid,
+                        'Bill Mode' => 'Metered',
+                        'Remarks' => $row->high_consumption_note ?? '',
+                    ];
+                }
+
+                $spreadsheet = new Spreadsheet();
+
+                $reportMonth = $startDate
+                    ? Carbon::parse($startDate)->format('F Y')
+                    : ($endDate ? Carbon::parse($endDate)->format('F Y') : now()->format('F Y'));
+
+                if (empty($rowsByZone)) {
+                    $rowsByZone = ['NO DATA' => []];
+                }
+
+                $firstSheet = true;
+
+                foreach ($rowsByZone as $zoneKey => $zoneRows) {
+                    if ($firstSheet) {
+                        $sheet = $spreadsheet->getActiveSheet();
+                        $firstSheet = false;
+                    } else {
+                        $sheet = $spreadsheet->createSheet();
+                    }
+
+                    $sheet->setTitle(substr('Zone ' . $zoneKey, 0, 31));
+                    $sheet->setCellValue('A1', 'STA RITA WATER DISTRICT');
+                    $sheet->setCellValue('A2', 'BILLING REPORT');
+                    $sheet->setCellValue('A3', 'FOR THE MONTH OF ' . strtoupper($reportMonth));
+                    $sheet->fromArray([$headers], null, 'A4');
+
+                    if (!empty($zoneRows)) {
+                        $sheet->fromArray($zoneRows, null, 'A5');
+                    } else {
+                        $sheet->setCellValue('A5', 'No data found');
+                    }
+
+                    foreach (['A1:N1', 'A2:N2', 'A3:N3'] as $range) {
+                        $sheet->mergeCells($range);
+                        $sheet->getStyle($range)->getAlignment()->setHorizontal('center');
+                    }
+
+                    $sheet->getStyle('A1:A3')->getFont()->setBold(true);
+                    $sheet->getStyle('A1')->getFont()->setSize(14);
+                    $sheet->getStyle('A4:N4')->getFont()->setBold(true);
+                    $sheet->getStyle('A4:N4')->getAlignment()
+                        ->setHorizontal('center')
+                        ->setVertical('center');
+
+                    $lastRow = max(5, count($zoneRows) + 4);
+                    $sheet->getStyle("A4:N{$lastRow}")
+                        ->getBorders()
+                        ->getAllBorders()
+                        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+                    foreach (range('A', 'N') as $col) {
+                        $sheet->getColumnDimension($col)->setAutoSize(true);
+                    }
+                }
+
+                $result[$report] = [
+                    'type' => 'formatted',
+                    'spreadsheet' => $spreadsheet,
+                ];
                 break;
 
                 case 'Billed Con by Category and Size':

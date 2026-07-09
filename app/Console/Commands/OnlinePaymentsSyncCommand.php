@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\StaritaNovupayBillService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
@@ -18,7 +19,7 @@ class OnlinePaymentsSyncCommand extends Command
 
     protected $description = 'Sync Novupay starita_bills to readings_offline, then merge into readings and bills (runs automatically on schedule)';
 
-    public function handle(): int
+    public function handle(StaritaNovupayBillService $staritaNovupayBillService): int
     {
         $limit = (int) $this->option('limit') ?: 500;
 
@@ -37,6 +38,11 @@ class OnlinePaymentsSyncCommand extends Command
             $this->info('Running novupay:sync-readings...');
             Artisan::call('novupay:sync-readings', ['--limit' => $limit]);
             $this->line(trim(Artisan::output()));
+
+            $backfilled = $staritaNovupayBillService->backfillMissingFromLocalBills(min(50, $limit));
+            if ($backfilled > 0) {
+                $this->info("Backfilled {$backfilled} direct HitPay payment(s) into starita_bills.");
+            }
 
             $this->info('Running readings:merge...');
             Artisan::call('readings:merge', ['--limit' => $limit]);

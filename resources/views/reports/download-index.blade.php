@@ -11,12 +11,12 @@
             <label class="form-label">Pick reports</label>
 
             {{-- Select All Checkbox --}}
-            <div class="form-check">
+            <!-- <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="select-all-reports">
                 <label class="form-check-label mt-1" for="select-all-reports">
                     Select All
                 </label>
-            </div>
+            </div> -->
 
             <div class="row">
                 @foreach($availableReports as $report)
