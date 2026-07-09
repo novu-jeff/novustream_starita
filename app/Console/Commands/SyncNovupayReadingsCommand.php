@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Models\NovupayStaritaBill;
 use App\Services\BillSettlementService;
 use App\Services\MeterService;
+use App\Services\StaritaNovupayBillService;
 use Illuminate\Support\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,8 @@ class SyncNovupayReadingsCommand extends Command
 
     public function __construct(
         private readonly MeterService $meterService,
-        private readonly BillSettlementService $billSettlementService
+        private readonly BillSettlementService $billSettlementService,
+        private readonly StaritaNovupayBillService $staritaNovupayBillService,
     )
     {
         parent::__construct();
@@ -46,20 +48,36 @@ class SyncNovupayReadingsCommand extends Command
             // create_breakdown uses Auth::user() for reader_name; set a deterministic CLI user context
             auth()->setUser(Admin::first());
 
-            // Only sync rows that are paid: status = 'paid' and/or paid_at set
-            $bills = NovupayStaritaBill::query()
+            // Sync paid rows not yet applied to Sta-Rita, then repair misapplied payments.
+            $unsynced = NovupayStaritaBill::query()
                 ->where(function ($q) {
                     $q->where('status', 'paid')
                         ->orWhereNotNull('paid_at');
                 })
+                ->whereNull('synced_to_sta_rita_at')
                 ->orderByDesc('paid_at')
                 ->orderByDesc('id')
                 ->limit($limit)
                 ->get();
 
+            $repair = NovupayStaritaBill::query()
+                ->where(function ($q) {
+                    $q->where('status', 'paid')
+                        ->orWhereNotNull('paid_at');
+                })
+                ->whereNotNull('synced_to_sta_rita_at')
+                ->orderByDesc('paid_at')
+                ->orderByDesc('id')
+                ->limit(min($limit, 200))
+                ->get()
+                ->filter(fn (NovupayStaritaBill $nb) => $this->staritaNovupayBillService->needsMisappliedPaymentRepair($nb));
+
+            $bills = $unsynced->concat($repair)->unique('id')->values();
+
             $updated = 0;
             $created = 0;
             $loggedOnly = 0;
+            $repaired = 0;
             $accountsPaid = [];
             foreach ($bills as $nb) {
                 try {
@@ -75,10 +93,8 @@ class SyncNovupayReadingsCommand extends Command
                         continue;
                     }
 
-                    $localBill = Bill::where('reference_no', $referenceNo)->first();
-                    if (!$localBill) {
-                        $localBill = $this->findAccountPeriodMatch($accountNo, $nb);
-                    }
+                    $billByRef = Bill::where('reference_no', $referenceNo)->first();
+                    $localBill = $this->staritaNovupayBillService->resolveLocalBillForPayment($nb, $billByRef);
 
                     if (!$localBill) {
                         $localBill = $this->createLocalBillFromNovupay($nb);
@@ -87,6 +103,8 @@ class SyncNovupayReadingsCommand extends Command
                             continue;
                         }
                         $created++;
+                    } elseif ($billByRef && (int) $localBill->id !== (int) $billByRef->id) {
+                        $repaired++;
                     } else {
                         $updated++;
                     }
@@ -108,13 +126,14 @@ class SyncNovupayReadingsCommand extends Command
             $summary = [
                 'updated' => $updated,
                 'created' => $created,
+                'repaired' => $repaired,
                 'logged_only' => $loggedOnly,
                 'processed' => $bills->count(),
                 'accounts_paid_count' => $accountsPaidCount,
                 'accounts_paid' => $accountsPaid,
             ];
 
-            $this->info("Synced local bill records. Updated: {$updated}, Created: {$created}, Logged-only: {$loggedOnly}. Accounts paid: {$accountsPaidCount}");
+            $this->info("Synced local bill records. Updated: {$updated}, Created: {$created}, Repaired: {$repaired}, Logged-only: {$loggedOnly}. Accounts paid: {$accountsPaidCount}");
             if ($accountsPaidCount > 0) {
                 $this->table(['account_no', 'payor_name'], array_map(fn ($a) => [$a['account_no'], $a['payor_name'] ?? '-'], $accountsPaid));
             }
@@ -128,34 +147,6 @@ class SyncNovupayReadingsCommand extends Command
             $this->error($e->getMessage());
             return self::FAILURE;
         }
-    }
-
-    private function findAccountPeriodMatch(string $accountNo, NovupayStaritaBill $nb): ?Bill
-    {
-        $sourceDate = $nb->paid_at
-            ?? $nb->initiated_at
-            ?? $nb->created_at
-            ?? now();
-
-        $candidates = Bill::whereHas('reading', function ($q) use ($accountNo, $sourceDate) {
-            $q->where('account_no', $accountNo)
-                ->whereYear('created_at', Carbon::parse($sourceDate)->year)
-                ->whereMonth('created_at', Carbon::parse($sourceDate)->month);
-        })->orderByDesc('id')->get();
-
-        if ($candidates->count() === 1) {
-            return $candidates->first();
-        }
-
-        if ($candidates->count() > 1) {
-            Log::warning('SyncNovupayReadings: ambiguous account-period match; skipped auto-link', [
-                'reference_no' => $nb->reference_no,
-                'account_no' => $accountNo,
-                'candidate_bill_ids' => $candidates->pluck('id')->all(),
-            ]);
-        }
-
-        return null;
     }
 
     private function createLocalBillFromNovupay(NovupayStaritaBill $nb): ?Bill

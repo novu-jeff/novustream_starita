@@ -259,13 +259,19 @@ class NovupaySyncController extends Controller
         if ($request && $request->filled('date_from') && $request->filled('date_to')) {
             $dateFrom = $request->input('date_from');
             $dateTo = $request->input('date_to');
-            $referenceNos = $this->getReferenceNosByBillUpdatedAtRange($dateFrom, $dateTo);
-            $query->whereIn('reference_no', $referenceNos);
+            $query->where(function ($q) use ($dateFrom, $dateTo) {
+                $q->whereRaw('DATE(paid_at) >= ?', [$dateFrom])
+                    ->whereRaw('DATE(paid_at) <= ?', [$dateTo])
+                    ->orWhere(function ($q2) use ($dateFrom, $dateTo) {
+                        $q2->whereNull('paid_at')
+                            ->whereRaw('DATE(synced_to_sta_rita_at) >= ?', [$dateFrom])
+                            ->whereRaw('DATE(synced_to_sta_rita_at) <= ?', [$dateTo]);
+                    });
+            });
             Log::channel('single')->info('[OnlinePayments] queryRecentSyncedPaid date filter applied', [
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
-                'source' => 'sta_rita bill.updated_at',
-                'reference_no_count' => count($referenceNos),
+                'source' => 'starita_bills.paid_at (fallback synced_to_sta_rita_at)',
             ]);
         } else {
             Log::channel('single')->info('[OnlinePayments] queryRecentSyncedPaid date filter skipped', [

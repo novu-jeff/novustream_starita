@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Services\GenerateService;
 use App\Services\BillSettlementService;
 use App\Services\MeterService;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -30,13 +31,16 @@ class PaymentController extends Controller
     public $meterService;
     public $generateService;
     public $billSettlementService;
+    public $staritaNovupayBillService;
 
     public function __construct(MeterService $meterService,
         GenerateService $generateService,
-        BillSettlementService $billSettlementService) {
+        BillSettlementService $billSettlementService,
+        StaritaNovupayBillService $staritaNovupayBillService) {
         $this->meterService = $meterService;
         $this->generateService = $generateService;
         $this->billSettlementService = $billSettlementService;
+        $this->staritaNovupayBillService = $staritaNovupayBillService;
     }
 
     /**
@@ -1479,6 +1483,7 @@ class PaymentController extends Controller
         }
 
         $existingBill = Bill::query()
+            ->with('reading')
             ->where(function ($q) use ($reference_number, $payment_request_id) {
                 if (!empty($reference_number)) {
                     $q->where('reference_no', $reference_number)
@@ -1499,8 +1504,14 @@ class PaymentController extends Controller
         }
 
         if ($existingBill->isPaid) {
-            Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
-            return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
+            $redirectBill = $this->staritaNovupayBillService->findOldestUnpaidBillForAccount(
+                (string) optional($existingBill->reading)->account_no
+            );
+            if (!$redirectBill) {
+                Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
+                return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
+            }
+            $existingBill = $redirectBill;
         }
 
         if (!in_array($payment_status, ['completed', 'succeeded', 'success'], true)) {
@@ -1523,6 +1534,8 @@ class PaymentController extends Controller
                     'payment_method' => 'online',
                 ]
             );
+            $existingBill->refresh();
+            $this->staritaNovupayBillService->upsertFromLocalBill($existingBill);
             Log::info('HitPay webhook: bill marked as paid', [
                 'bill_id' => $existingBill->id,
                 'reference_no' => $existingBill->reference_no,
