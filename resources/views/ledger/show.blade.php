@@ -47,6 +47,23 @@
         </div>
     </div>
 
+    <div class="d-flex justify-content-start mb-3">
+        <form method="GET">
+            <div class="input-group">
+                <label class="input-group-text">Year</label>
+
+                <select name="year" class="form-select" onchange="this.form.submit()">
+                    @foreach($years as $year)
+                        <option value="{{ $year }}"
+                            {{ $selectedYear == $year ? 'selected' : '' }}>
+                            {{ $year }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        </form>
+    </div>
+
     <div class="card shadow-sm">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-20">

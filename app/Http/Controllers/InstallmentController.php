@@ -18,8 +18,15 @@ class InstallmentController extends Controller
 
         $completedInstallments = Installment::where('status','completed')->count();
 
-        $monthlyCollectible = InstallmentSchedule::where('is_paid',false)
-                            ->sum('amount');
+        $monthlyCollectible = Installment::where('status', 'active')
+        ->with(['schedules' => function ($query) {
+            $query->where('is_paid', 0)
+                ->orderBy('due_date');
+        }])
+        ->get()
+        ->sum(function ($installment) {
+            return optional($installment->schedules->first())->amount ?? 0;
+        });
 
         $installments = Installment::with('bill','schedules')
                         ->latest()
@@ -50,12 +57,9 @@ class InstallmentController extends Controller
         $today = Carbon::today();
         $dueDate = Carbon::parse($bill->due_date);
 
-        // ✅ Determine base amount
         if ($today->lte($dueDate)) {
-            // NOT overdue → use total
             $baseAmount = $bill->total;
         } else {
-            // overdue → use amount_after_due
             $baseAmount = $bill->amount_after_due;
         }
 
@@ -75,13 +79,15 @@ class InstallmentController extends Controller
             'monthly_amount' => $monthly
         ]);
 
+        $firstDueDate = Carbon::parse($bill->due_date);
+
         for($i=1;$i<=$months;$i++){
 
             InstallmentSchedule::create([
                 'installment_id'=>$installment->id,
                 'month_no'=>$i,
                 'amount'=>$monthly,
-                'due_date'=>now()->addMonths($i)
+                'due_date'=>$firstDueDate->copy()->addMonths($i - 1),
             ]);
         }
 
