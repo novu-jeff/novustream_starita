@@ -39,19 +39,30 @@ class LedgerController extends Controller
     }
 
 
-    public function show($userId)
+    public function show(Request $request,$userId)
     {
         $user = User::with('accounts')->findOrFail($userId);
 
         $accountNumbers = $user->accounts->pluck('account_no');
 
-        $bills = Bill::with(['reading'])
-            ->whereHas('reading', function ($query) use ($accountNumbers) {
+        $years = Bill::whereHas('reading', function ($query) use ($accountNumbers) {
                 $query->whereIn('account_no', $accountNumbers);
             })
-            ->orderBy('bill_period_to', 'asc')
-            ->get()
-            ->values();
+            ->selectRaw('YEAR(bill_period_to) as year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year');
+
+        $selectedYear = $request->year ?? $years->first();
+
+        $bills = Bill::with('reading')
+        ->whereHas('reading', function ($query) use ($accountNumbers) {
+            $query->whereIn('account_no', $accountNumbers);
+        })
+        ->whereYear('bill_period_to', $selectedYear)
+        ->orderBy('bill_period_to', 'asc')
+        ->get()
+        ->values();
 
         foreach ($bills as $bill) {
             $metrics = $this->buildLedgerMetrics($bill);
@@ -88,7 +99,7 @@ class LedgerController extends Controller
             $bill->computed_status = ($dueDate && $today->gt($dueDate)) ? 'OVERDUE' : 'UNPAID';
         }
 
-        return view('ledger.show', compact('user', 'bills'));
+        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years'));
     }
 
     private function buildLedgerMetrics(Bill $bill): array
