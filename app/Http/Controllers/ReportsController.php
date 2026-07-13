@@ -575,7 +575,6 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                     break;
 
                 case 'Ageing (Summary)':
-                // Fetch readings with their bill; limit to one reading per account
                 $query = Reading::with('bill')
                     ->select('readings.*')
                     ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
