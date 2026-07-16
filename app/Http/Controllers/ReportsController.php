@@ -533,43 +533,89 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
         foreach ($reports as $report) {
             switch ($report) {
                 case 'Ageing (Detailed)':
-                    $readings = Reading::with(['concessionaire.user', 'bill'])
-                        ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
-                        ->whereHas('bill', function ($q) use ($startDate, $endDate) {
-                            if ($startDate && $endDate) {
-                                $q->whereBetween('bill.bill_period_to', [
-                                    $startDate . ' 00:00:00',
-                                    $endDate . ' 23:59:59'
-                                ]);
-                            }
-                        })
+                    $anchorDate = $endDate
+                        ? Carbon::parse($endDate)
+                        : ($startDate ? Carbon::parse($startDate) : now());
+
+                    $cutoffDate = $anchorDate->copy()->endOfMonth();
+
+                    $oldestBillPeriod = Bill::query()
+                        ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                        ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                        ->where('bill.isPaid', 0)
+                        ->where('bill.amount', '>', 0)
+                        ->whereIn('concessioner_accounts.status', ['AB', 'ID', 'BL', 'IV'])
+                        ->where('bill.bill_period_to', '<=', $cutoffDate->format('Y-m-d H:i:s'))
+                        ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                        ->min('bill.bill_period_to');
+
+                    $oldestMonth = $oldestBillPeriod
+                        ? Carbon::parse($oldestBillPeriod)->startOfMonth()
+                        : $anchorDate->copy()->subMonths(3)->startOfMonth();
+
+                    $monthCount = max(4, $oldestMonth->diffInMonths($anchorDate->copy()->startOfMonth()) + 1);
+
+                    $months = collect(range(0, $monthCount - 1))
+                        ->map(fn ($offset) => $anchorDate->copy()->subMonths($offset))
+                        ->values();
+
+                    $monthStart = $months->last()->copy()->startOfMonth();
+                    $monthEnd = $cutoffDate;
+
+                    $monthSelects = $months->map(function ($month, $index) {
+                        $start = $month->copy()->startOfMonth()->format('Y-m-d H:i:s');
+                        $end = $month->copy()->endOfMonth()->format('Y-m-d H:i:s');
+                        $alias = 'month_' . $index . '_amount';
+
+                        return "SUM(CASE WHEN bill.bill_period_to BETWEEN '{$start}' AND '{$end}' THEN CAST(bill.amount AS DECIMAL(12,2)) ELSE 0 END) AS {$alias}";
+                    })->implode(",\n                        ");
+
+                    $accounts = Bill::query()
+                        ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                        ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                        ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
+                        ->where('bill.isPaid', 0)
+                        ->where('bill.amount', '>', 0)
+                        ->whereIn('concessioner_accounts.status', ['AB', 'ID', 'BL', 'IV'])
+                        ->where('bill.bill_period_to', '>=', $monthStart->format('Y-m-d H:i:s'))
+                        ->where('bill.bill_period_to', '<=', $monthEnd->format('Y-m-d H:i:s'))
+                        ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                        ->selectRaw("
+                            concessioner_accounts.zone AS zone,
+                            readings.account_no AS account_no,
+                            users.name AS name,
+                            concessioner_accounts.status AS status,
+                            concessioner_accounts.sequence_no AS sequence_no,
+                            {$monthSelects},
+                            SUM(CAST(bill.amount AS DECIMAL(12,2))) AS total
+                        ")
+                        ->groupBy(
+                            'concessioner_accounts.zone',
+                            'readings.account_no',
+                            'users.name',
+                            'concessioner_accounts.status',
+                            'concessioner_accounts.sequence_no'
+                        )
+                        ->orderBy('concessioner_accounts.zone', 'asc')
+                        ->orderBy('concessioner_accounts.sequence_no', 'asc')
                         ->get();
 
                     $rows = [];
-                    foreach ($readings as $reading) {
-                        $bill = $reading->bill;
-                        if (!$bill) continue;
+                    foreach ($accounts as $account) {
+                        $monthAmounts = [];
 
-                        $dueDate = Carbon::parse($bill->due_date);
-                        $daysOverdue = $dueDate->diffInDays(now(), false);
+                        foreach ($months as $index => $month) {
+                            $monthAmounts[strtoupper($month->format('F'))] = $account->{'month_' . $index . '_amount'} ?? 0;
+                        }
 
-                        $amount = (float) ($bill->amount ?? 0);
-                        $current = $daysOverdue <= 0 ? $amount : 0;
-                        $oneTo30 = $daysOverdue > 0 && $daysOverdue <= 30 ? $amount : 0;
-                        $thirtyOneTo60 = $daysOverdue > 30 && $daysOverdue <= 60 ? $amount : 0;
-                        $sixtyOneTo90 = $daysOverdue > 60 && $daysOverdue <= 90 ? $amount : 0;
-                        $over90 = $daysOverdue > 90 ? $amount : 0;
-
-                        $rows[] = [
-                            'account_number' => $reading->account_no,
-                            'name' => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
-                            'current' => $current,
-                            '1_30' => $oneTo30,
-                            '31_60' => $thirtyOneTo60,
-                            '61_90' => $sixtyOneTo90,
-                            'over_90' => $over90,
-                            'total' => $current + $oneTo30 + $thirtyOneTo60 + $sixtyOneTo90 + $over90,
-                        ];
+                        $rows[] = array_merge([
+                            'zone' => $account->zone ?? 'N/A',
+                            'account_number' => $account->account_no ?? 'N/A',
+                            'name' => $account->name ?? 'N/A',
+                            'status' => $account->status ?? 'N/A',
+                        ], $monthAmounts, [
+                            'total' => $account->total ?? 0,
+                        ]);
                     }
                     $result[$report] = $rows;
                     break;
@@ -748,46 +794,61 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 break;
 
                 case 'List of Disconnected Con.':
-                $readings = Reading::with([
-                        'concessionaire.user',
-                        'concessionaire.propertyType',
-                        'concessionaire.statusCode',
-                        'bill'
-                    ])
-                    ->when($zone !== 'all', fn($q) => $q->where('zone', $zone))
-                    ->whereHas('concessionaire', fn($q) => $q->whereIn('status', ['ID', 'IV', 'BL']))
-                    ->whereHas('bill', function ($q) use ($startDate, $endDate) {
-                        if ($startDate && $endDate) {
-                            $q->whereBetween('bill.bill_period_to', [
-                                $startDate . ' 00:00:00',
-                                $endDate . ' 23:59:59'
-                            ]);
-                        }
+                $bills = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                    ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
+                    ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
+                    ->where('bill.isPaid', 0)
+                    ->where('bill.amount', '>', 0)
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                    ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
+                        $q->whereBetween('bill.bill_period_to', [
+                            $startDate . ' 00:00:00',
+                            $endDate . ' 23:59:59',
+                        ]);
                     })
+                    ->selectRaw("
+                        users.name as consumer_name,
+                        concessioner_accounts.zone,
+                        concessioner_accounts.address,
+                        concessioner_accounts.account_no,
+                        concessioner_accounts.property_type,
+                        concessioner_accounts.status,
+                        concessioner_accounts.sequence_no,
+                        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS amount,
+                        MIN(bill.due_date) AS due_date
+                    ")
+                    ->groupBy(
+                        'users.name',
+                        'concessioner_accounts.zone',
+                        'concessioner_accounts.address',
+                        'concessioner_accounts.account_no',
+                        'concessioner_accounts.property_type',
+                        'concessioner_accounts.status',
+                        'concessioner_accounts.sequence_no'
+                    )
+                    ->orderBy('concessioner_accounts.zone', 'asc')
+                    ->orderBy('concessioner_accounts.sequence_no', 'asc')
                     ->get();
 
                 $rows = [];
 
-                foreach ($readings as $reading) {
-                    $con = $reading->concessionaire;
-                    $lastBill = $reading->bill;
-
-                    $arrears = $lastBill ? $lastBill->amount : 0;
-                    $monthInArrears = $lastBill ? now()->diffInMonths(Carbon::parse($lastBill->due_date)) : 0;
+                foreach ($bills as $bill) {
+                    $arrears = (float) ($bill->amount ?? 0);
+                    $monthInArrears = $bill->due_date ? now()->diffInMonths(Carbon::parse($bill->due_date)) : 0;
 
                     $rows[] = [
-                        'Name of Consumers' => optional($con->user)->name ?? 'N/A',
-                        'Zone' => $con->zone ?? 'N/A',
-                        'Service Address' => $con->address ?? 'N/A',
-                        'Account no.' => $con->account_no ?? 'N/A',
-                        'Type' => optional($con->propertyType)->name ?? $con->property_type ?? 'N/A',
+                        'Name of Consumers' => $bill->consumer_name ?? 'N/A',
+                        'Zone' => $bill->zone ?? 'N/A',
+                        'Service Address' => $bill->address ?? 'N/A',
+                        'Account no.' => $bill->account_no ?? 'N/A',
+                        'Type' => $bill->property_type ?? 'N/A',
+                        'Status' => $bill->status ?? 'N/A',
                         'Arrears' => $arrears,
-                        'Date closed' => $reading->closed_date ?? 'N/A',
                         'Month in arrears' => $monthInArrears,
                     ];
                 }
-
-                $rows = collect($rows)->sortBy('Zone')->values()->all();
 
                 $totalArrears = collect($rows)->sum('Arrears');
                 $rows[] = [
@@ -796,8 +857,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                     'Service Address' => '',
                     'Account no.' => '',
                     'Type' => '',
+                    'Status' => '',
                     'Arrears' => $totalArrears,
-                    'Date closed' => '',
                     'Month in arrears' => '',
                 ];
 
@@ -1602,25 +1663,27 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 case 'Unpaid Bills':
 
                 $query = Bill::query()
-                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
-                    ->join(
-                        'concessioner_accounts',
-                        'concessioner_accounts.account_no',
-                        '=',
-                        'readings.account_no'
-                    )
-                    ->with(['reading.concessionaire.user'])
-                    ->where('bill.isPaid', 0)
-                    ->whereNull('bill.amount_paid')
-                    ->when($zone !== 'all', function ($q) use ($zone) {
-                        $q->where('concessioner_accounts.zone', $zone);
-                    })
-                    ->when($startDate, fn ($q) => $q->whereDate('bill.created_at', '>=', $startDate))
-                    ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
-                    ->orderBy('concessioner_accounts.sequence_no', 'asc')
-                    ->orderBy('bill.created_at', 'asc')
-                    ->select('bill.*', 'concessioner_accounts.sequence_no as sequence_no')
-                    ->get();
+                ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                ->join(
+                    'concessioner_accounts',
+                    'concessioner_accounts.account_no',
+                    '=',
+                    'readings.account_no'
+                )
+                ->with(['reading.concessionaire.user'])
+                ->when($zone !== 'all', function ($q) use ($zone) {
+                    $q->where('concessioner_accounts.zone', $zone);
+                })
+                ->when($startDate, fn ($q) => $q->whereDate('bill.created_at', '>=', $startDate))
+                ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
+                ->where(function ($q) use ($endDate) {
+                    $q->whereNull('bill.date_paid')
+                    ->orWhereDate('bill.date_paid', '>', $endDate);
+                })
+                ->orderBy('concessioner_accounts.sequence_no')
+                ->orderBy('bill.created_at')
+                ->select('bill.*', 'concessioner_accounts.sequence_no')
+                ->get();
 
                 $rows = [];
 
@@ -1628,19 +1691,16 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                     $reading = $bill->reading;
 
                     $rows[] = [
-                        'REFERENCE NO'          => $bill->reference_no ?? 'N/A',
                         'ACCOUNT NO'            => $reading->account_no ?? 'N/A',
                         'CONCESSIONAIRE'        => optional(optional($reading->concessionaire)->user)->name ?? 'N/A',
                         'PREVIOUS CONSUMPTION'  => $reading->previous_reading ?? 0,
-                        'CURRENT CONSUMPTION'   => $reading->present_reading ?? 0,
-                        'CONSUMPTION'           => $reading->consumption ?? 0,
-                        'PREVIOUS UNPAID'       => $bill->previous_unpaid ?? 0,
                         'BASIC CHARGE'          => $bill->total - $bill->previous_unpaid ?? 0,
                         'TOTAL'                 => $bill->total ?? 0,
                         'DISCOUNT'              => $bill->discount ?? 0,
                         'PENALTY'               => $bill->penalty ?? 0,
                         'AMOUNT AFTER DUE'      => $bill->amount ?? 0,
-                        'SEQUENCE NO'           => $bill->sequence_no ?? 0,
+                        'CREATED AT'            => $bill->created_at ?? 'N/A',
+                        'DATE PAID'             => $bill->date_paid ?? 'N/A',
                     ];
                 }
 
@@ -1698,17 +1758,39 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
 
                 case 'Readings (90days)':
 
+                    $anchorDate = $endDate
+                        ? Carbon::parse($endDate)
+                        : ($startDate ? Carbon::parse($startDate) : now());
+
+                    $months = collect(range(0, 3))
+                        ->map(fn ($offset) => $anchorDate->copy()->subMonths($offset))
+                        ->values();
+
+                    $monthStart = $months->last()->copy()->startOfMonth();
+                    $monthEnd = $months->first()->copy()->endOfMonth();
+
+                    $monthSelects = $months->map(function ($month, $index) {
+                        $start = $month->copy()->startOfMonth()->format('Y-m-d H:i:s');
+                        $end = $month->copy()->endOfMonth()->format('Y-m-d H:i:s');
+                        $alias = 'month_' . $index . '_amount';
+
+                        return "SUM(CASE WHEN bill.bill_period_to BETWEEN '{$start}' AND '{$end}' THEN CAST(bill.amount AS DECIMAL(12,2)) ELSE 0 END) AS {$alias}";
+                    })->implode(",\n                            ");
+
                     $query = Bill::query()
                         ->join('readings', 'readings.id', '=', 'bill.reading_id')
                         ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
                         ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
 
+                        ->where('bill.isPaid', 0)
+                        ->whereIn('concessioner_accounts.status', ['AB', 'ID', 'BL', 'IV'])
+                        ->whereBetween('bill.bill_period_to', [
+                            $monthStart->format('Y-m-d H:i:s'),
+                            $monthEnd->format('Y-m-d H:i:s'),
+                        ])
+
                         ->when($zone !== 'all', fn ($q) =>
                             $q->where('concessioner_accounts.zone', $zone)
-                        )
-
-                        ->when($startDate && $endDate, fn ($q) =>
-                            $q->whereBetween('bill.bill_period_to', [$startDate, $endDate])
                         )
 
                         ->selectRaw("
@@ -1719,21 +1801,11 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                             MAX(concessioner_accounts.sequence_no) AS sequence_no,
                             MAX(CAST(readings.present_reading AS UNSIGNED)) AS current_reading,
 
-                            SUM(CASE WHEN CAST(readings.consumption AS UNSIGNED) BETWEEN 1 AND 30
-                                THEN CAST(readings.consumption AS UNSIGNED) ELSE 0 END) AS cons_1_30,
-
-                            SUM(CASE WHEN CAST(readings.consumption AS UNSIGNED) BETWEEN 31 AND 60
-                                THEN CAST(readings.consumption AS UNSIGNED) ELSE 0 END) AS cons_31_60,
-
-                            SUM(CASE WHEN CAST(readings.consumption AS UNSIGNED) BETWEEN 61 AND 90
-                                THEN CAST(readings.consumption AS UNSIGNED) ELSE 0 END) AS cons_61_90,
-
-                            SUM(CASE WHEN CAST(readings.consumption AS UNSIGNED) > 90
-                                THEN CAST(readings.consumption AS UNSIGNED) ELSE 0 END) AS cons_over_90,
+                            {$monthSelects},
 
                             SUM(CAST(readings.consumption AS UNSIGNED)) AS total_consumption,
 
-                            SUM(CAST(bill.total - bill.previous_unpaid AS DECIMAL(12,2))) AS total_amount,
+                            SUM(CAST(bill.amount AS DECIMAL(12,2))) AS total_amount,
                             SUM(CAST(bill.previous_unpaid AS DECIMAL(12,2))) AS arrears,
                             SUM(CAST(bill.discount AS DECIMAL(12,2))) AS discount,
 
@@ -1763,23 +1835,25 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                     foreach ($query as $row) {
 
                         $sheetName = 'ZONE ' . $row->zone;
+                        $monthAmounts = [];
 
-                        $result[$sheetName][] = [
+                        foreach ($months as $index => $month) {
+                            $monthAmounts[strtoupper($month->format('F'))] = $row->{'month_' . $index . '_amount'} ?? 0;
+                        }
+
+                        $result[$sheetName][] = array_merge([
                             'ACCOUNT NUMBER'      => $row->account_no,
                             'NAME'                => $row->concessionaire_name ?? 'N/A',
                             'STATUS'              => $row->status ?? 'N/A',
                             'RATE CODE'           => $row->rate_code ?? 'N/A',
                             'CURRENT READING'     => $row->current_reading ?? 0,
-                            '1–30 CONSUMPTION'    => $row->cons_1_30 ?? 0,
-                            '31–60 CONSUMPTION'   => $row->cons_31_60 ?? 0,
-                            '61–90 CONSUMPTION'   => $row->cons_61_90 ?? 0,
-                            'OVER 90 CONSUMPTION' => $row->cons_over_90 ?? 0,
+                        ], $monthAmounts, [
                             'TOTAL CONSUMPTION'   => $row->total_consumption ?? 0,
                             'TOTAL AMOUNT'        => $row->total_amount ?? 0,
                             'ARREARS'             => $row->arrears ?? 0,
                             'DISCOUNT'            => $row->discount ?? 0,
                             'TOTAL DUE'           => $row->amount ?? 0,
-                        ];
+                        ]);
                     }
 
                     break;
@@ -1960,33 +2034,77 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
 
                 case 'List of Inactive':
 
-                $data = ConcessionerAccount::query()
-                    ->leftJoin('readings', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-                    ->leftJoin('bill', function ($join) use ($startDate, $endDate) {
-                        $join->on('bill.reading_id', '=', 'readings.id')
-                            ->where('bill.isPaid', 0); // unpaid only
-                    })
+                $inactiveCutoff = $endDate
+                    ? Carbon::parse($endDate)->endOfDay()
+                    : ($startDate ? Carbon::parse($startDate)->endOfMonth() : now()->endOfDay());
+
+                $data = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->join('concessioner_accounts', 'concessioner_accounts.account_no', '=', 'readings.account_no')
+                    ->leftJoin('users', 'users.id', '=', 'concessioner_accounts.user_id')
                     ->whereIn('concessioner_accounts.status', ['ID', 'IV', 'BL'])
+                    ->where('bill.isPaid', 0)
+                    ->where('bill.amount', '>', 0)
+                    ->when($zone !== 'all', fn($q) => $q->where('concessioner_accounts.zone', $zone))
+                    ->where('bill.bill_period_to', '<=', $inactiveCutoff->format('Y-m-d H:i:s'))
                     ->selectRaw("
                         concessioner_accounts.zone AS zone,
-                        COUNT(DISTINCT concessioner_accounts.account_no) AS total_inactive,
-                        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS total_unpaid_amount
+                        concessioner_accounts.sequence_no AS sequence_no,
+                        concessioner_accounts.account_no AS account_no,
+                        users.name AS customer_name,
+                        concessioner_accounts.status AS status,
+                        COALESCE(SUM(CAST(bill.amount AS DECIMAL(12,2))), 0) AS balance
                     ")
-                    ->groupBy('concessioner_accounts.zone')
+                    ->groupBy(
+                        'concessioner_accounts.zone',
+                        'concessioner_accounts.sequence_no',
+                        'concessioner_accounts.account_no',
+                        'users.name',
+                        'concessioner_accounts.status'
+                    )
                     ->orderBy('concessioner_accounts.zone')
+                    ->orderBy('concessioner_accounts.sequence_no')
                     ->get();
 
-                $rows = [];
+                $result[$report] = [];
+                $zoneCounters = [];
+                $zoneTotals = [];
 
                 foreach ($data as $row) {
-                    $rows[] = [
-                        'ZONE'         => 'ZONE ' . $row->zone,
-                        'TOTAL'        => $row->total_inactive,
-                        'TOTAL AMOUNT' => $row->total_unpaid_amount,
+                    $sheetName = 'ZONE ' . ($row->zone ?? 'N/A');
+                    $zoneCounters[$sheetName] = ($zoneCounters[$sheetName] ?? 0) + 1;
+                    $zoneTotals[$sheetName] = ($zoneTotals[$sheetName] ?? 0) + (float) ($row->balance ?? 0);
+
+                    $result[$report][$sheetName][] = [
+                        'NO.' => $zoneCounters[$sheetName],
+                        'ACCOUNT NO.' => $row->account_no ?? 'N/A',
+                        'CUSTOMER NAME' => $row->customer_name ?? 'N/A',
+                        'STATUS' => $row->status ?? 'N/A',
+                        'BALANCE' => $row->balance ?? 0,
                     ];
                 }
 
-                $result[$report] = $rows;
+                foreach ($zoneTotals as $sheetName => $total) {
+                    $result[$report][$sheetName][] = [
+                        'NO.' => '',
+                        'ACCOUNT NO.' => '',
+                        'CUSTOMER NAME' => 'TOTAL',
+                        'STATUS' => '',
+                        'BALANCE' => $total,
+                    ];
+                }
+
+                if (empty($result[$report])) {
+                    $result[$report] = [
+                        'NO DATA' => [[
+                            'NO.' => '',
+                            'ACCOUNT NO.' => '',
+                            'CUSTOMER NAME' => 'No data found',
+                            'STATUS' => '',
+                            'BALANCE' => 0,
+                        ]],
+                    ];
+                }
                 break;
 
 
@@ -2669,8 +2787,7 @@ $start = $row + 3;
 // TOP PANELS
 $sheet->setCellValue("A{$start}", 'PENALTY');
 $sheet->setCellValue("E{$start}", 'SENIOR DISCOUNT');
-$sheet->setCellValue("I{$start}", 'SENIOR PENALTY');
-$sheet->setCellValue("M{$start}", 'TOTAL INACTIVE ARREARS');
+$sheet->setCellValue("I{$start}", 'TOTAL INACTIVE ARREARS');
 
 // LOWER PANELS (separate row)
 $lowerStart = $start + count($zones) + 4;
@@ -2733,31 +2850,18 @@ $senior = DB::table('discount as d')
     ->get()
     ->keyBy('zone');
 
-// SENIOR PENALTY (same penalty but flagged)
-$seniorPenalty = DB::table('discount as d')
-    ->join('concessioner_accounts as ca', 'd.account_no','=','ca.account_no')
-    ->join('readings as r', 'ca.account_no','=','r.account_no')
-    ->join('bill as b', 'r.id','=','b.reading_id')
-    ->selectRaw('r.zone, COUNT(*) as cnt, SUM(b.penalty) as amt')
-    ->where('b.penalty','>',0)
-    ->whereBetween('b.created_at', [
-        $startDate . ' 00:00:00',
-        $endDate . ' 23:59:59'
-    ])
-    ->groupBy('r.zone')
-    ->get()
-    ->keyBy('zone');
+// INACTIVE ARREARS (ID, IV, BL) - lifetime until selected end date
+$inactiveCutoff = $endDate
+    ? Carbon::parse($endDate)->endOfDay()
+    : now()->endOfDay();
 
-// INACTIVE ARREARS (ID, IV, BL)
 $inactive = DB::table('bill')
     ->join('readings','bill.reading_id','=','readings.id')
     ->join('concessioner_accounts','readings.account_no','=','concessioner_accounts.account_no')
-    ->selectRaw('readings.zone, COUNT(*) as cnt, SUM(bill.total) as amt')
+    ->selectRaw('readings.zone, COUNT(DISTINCT concessioner_accounts.account_no) as cnt, SUM(bill.total) as amt')
     ->whereIn('concessioner_accounts.status',['ID','IV','BL'])
-    ->whereBetween('bill.created_at', [
-        $startDate . ' 00:00:00',
-        $endDate . ' 23:59:59'
-    ])
+    ->where('bill.isPaid', 0)
+    ->where('bill.created_at', '<=', $inactiveCutoff)
     ->groupBy('readings.zone')
     ->get()
     ->keyBy('zone');
@@ -2768,11 +2872,8 @@ $inactiveSummary = DB::table('concessioner_accounts as ca')
 
     ->whereIn('ca.status', ['ID', 'IV', 'BL'])
 
-    ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
-        $q->whereBetween('b.bill_period_to', [
-            $startDate . ' 00:00:00',
-            $endDate . ' 23:59:59'
-        ]);
+    ->when($endDate, function ($q) use ($endDate) {
+        $q->where('b.bill_period_to', '<=', $endDate . ' 23:59:59');
     })
 
     ->selectRaw("
@@ -2895,30 +2996,6 @@ $sheet->setCellValue("E{$r}", 'TOTAL');
 $sheet->setCellValue("F{$r}", $totalSeniorCnt);
 $sheet->setCellValue("G{$r}", $totalSeniorAmt);
 
-//SENIOR PENALTY
-$r = $start + 1;
-
-$totalSPCnt = 0;
-$totalSPAmt = 0;
-
-foreach ($zones as $z) {
-    $cnt = $seniorPenalty[$z]->cnt ?? 0;
-    $amt = $seniorPenalty[$z]->amt ?? 0;
-
-    $sheet->setCellValue("I{$r}", 'ZONE '.$z);
-    $sheet->setCellValue("J{$r}", $cnt);
-    $sheet->setCellValue("K{$r}", $amt);
-
-    $totalSPCnt += $cnt;
-    $totalSPAmt += $amt;
-
-    $r++;
-}
-
-$sheet->setCellValue("I{$r}", 'TOTAL');
-$sheet->setCellValue("J{$r}", $totalSPCnt);
-$sheet->setCellValue("K{$r}", $totalSPAmt);
-
 //TOTAL INACTIVE ARREARS
 $r = $start + 1;
 
@@ -2929,9 +3006,9 @@ foreach ($zones as $z) {
     $cnt = $inactive[$z]->cnt ?? 0;
     $amt = $inactive[$z]->amt ?? 0;
 
-    $sheet->setCellValue("M{$r}", 'ZONE '.$z);
-    $sheet->setCellValue("N{$r}", $cnt);
-    $sheet->setCellValue("O{$r}", $amt);
+    $sheet->setCellValue("I{$r}", 'ZONE '.$z);
+    $sheet->setCellValue("J{$r}", $cnt);
+    $sheet->setCellValue("K{$r}", $amt);
 
     $totalInactiveCnt += $cnt;
     $totalInactiveAmt += $amt;
@@ -2939,9 +3016,9 @@ foreach ($zones as $z) {
     $r++;
 }
 
-$sheet->setCellValue("M{$r}", 'TOTAL');
-$sheet->setCellValue("N{$r}", $totalInactiveCnt);
-$sheet->setCellValue("O{$r}", $totalInactiveAmt);
+$sheet->setCellValue("I{$r}", 'TOTAL');
+$sheet->setCellValue("J{$r}", $totalInactiveCnt);
+$sheet->setCellValue("K{$r}", $totalInactiveAmt);
 
 
 $r2 = $start + 1;
@@ -3076,10 +3153,6 @@ $sheet->getStyle("E{$start}:G{$panelEnd}")
     ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
 $sheet->getStyle("I{$start}:K{$panelEnd}")
-    ->getBorders()->getAllBorders()
-    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-
-$sheet->getStyle("M{$start}:O{$panelEnd}")
     ->getBorders()->getAllBorders()
     ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
