@@ -1678,7 +1678,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
                 ->where(function ($q) use ($endDate) {
                     $q->whereNull('bill.date_paid')
-                    ->orWhereDate('bill.date_paid', '>', $endDate);
+                    ->orWhereDate('bill.date_paid', '>', $endDate)
+                    ->orWhere('bill.partial_payment', '>', 0);
                 })
                 ->orderBy('concessioner_accounts.sequence_no')
                 ->orderBy('bill.created_at')
