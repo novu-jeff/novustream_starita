@@ -1699,8 +1699,6 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                         'DISCOUNT'              => $bill->discount ?? 0,
                         'PENALTY'               => $bill->penalty ?? 0,
                         'AMOUNT AFTER DUE'      => $bill->amount ?? 0,
-                        'CREATED AT'            => $bill->created_at ?? 'N/A',
-                        'DATE PAID'             => $bill->date_paid ?? 'N/A',
                     ];
                 }
 
