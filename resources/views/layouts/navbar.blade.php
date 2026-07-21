@@ -80,6 +80,9 @@
 					</div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
 				@endcanany
+                @can('cashier')
+                <a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a>
+                @endcan
 				@can('admin')
 					<div class="dropdown px-0 mx-0">
 						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
