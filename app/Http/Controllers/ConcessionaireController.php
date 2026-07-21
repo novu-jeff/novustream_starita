@@ -28,7 +28,7 @@ class ConcessionaireController extends Controller
 
         $this->middleware(function ($request, $next) {
 
-            if (!Gate::any(['admin'])) {
+            if (!Gate::any(['admin', 'cashier'])) {
                 abort(403, 'Unauthorized');
             }
 

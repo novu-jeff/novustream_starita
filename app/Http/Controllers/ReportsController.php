@@ -1674,15 +1674,17 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 ->when($zone !== 'all', function ($q) use ($zone) {
                     $q->where('concessioner_accounts.zone', $zone);
                 })
-                ->when($startDate, fn ($q) => $q->whereDate('bill.created_at', '>=', $startDate))
-                ->when($endDate, fn ($q) => $q->whereDate('bill.created_at', '<=', $endDate))
+                ->when($endDate, function ($q) use ($endDate) {
+                    $q->whereDate('bill.bill_period_to', '<=', $endDate);
+                })
                 ->where(function ($q) use ($endDate) {
                     $q->whereNull('bill.date_paid')
-                    ->orWhereDate('bill.date_paid', '>', $endDate)
-                    ->orWhere('bill.partial_payment', '>', 0);
+                        ->orWhereDate('bill.date_paid', '>', $endDate)
+                        ->orWhere('bill.partial_payment', '>', 0)
+                        ->orWhere('bill.previous_unpaid', '>', 0);
                 })
                 ->orderBy('concessioner_accounts.sequence_no')
-                ->orderBy('bill.created_at')
+                ->orderBy('bill.bill_period_to')
                 ->select('bill.*', 'concessioner_accounts.sequence_no')
                 ->get();
 
