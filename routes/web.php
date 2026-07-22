@@ -52,8 +52,6 @@ Route::get('/login', [LoginController::class, 'index'])
 Route::post('/login', [LoginController::class, 'login'])
     ->name('auth.login');
 
-Route::get('/login', [LoginController::class, 'index']);
-
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
 

@@ -75,6 +75,7 @@
                         {{ __('Forgot Your Password?') }}
                     </a>
                 @endif
+                <a href="{{ route('register') }}" class="mt-1 mb-0">Don't have an account? Sign up</a>
                 <p class="position-absolute bottom-0 start-0 m-2 ps-3 text-muted" style="font-size: 10px;">
                     Powered By Novulutions Inc | <a href="#" class="text-decoration-none" style="font-size: 10px;" data-bs-toggle="modal" data-bs-target="#privacyModal">Data Privacy Policy</a>
                 </p>
@@ -90,7 +91,7 @@
                 <div class="overlay-panel overlay-right">
                     <img src="{{ asset(config('app.product') === 'novustream' ? 'images/clientnobg.png' : 'images/novusurgelogo.png') }}" alt="" class="w-75">
                     <p>Are you ready to view your bills? and proceed to payments? Start now by creating an account!</p>
-                    <!-- <a href="{{ route('register')  }}" class="btn btn-primary fw-bold text-white border-2 fs-6 px-5 py-3 text-uppercase fw-bold" id="signUp">Sign Up</a> -->
+                    <a href="{{ route('register') }}" class="btn btn-primary fw-bold text-white border-2 fs-6 px-5 py-3 text-uppercase" id="signUp">Sign Up</a>
                 </div>
             </div>
         </div>
