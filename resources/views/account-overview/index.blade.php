@@ -47,7 +47,38 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="main-header">
                 <h1>Account Overview</h1>
             </div>
+            @if(!empty($applicationNotification))
+                <div class="application-notification">
+                    <button type="button" class="application-notification-button" id="applicationNotificationToggle" aria-label="View application notification">
+                        <i class="bx bx-bell"></i>
+                        <span class="application-notification-dot bg-{{ $applicationNotification['status'] ?? 'primary' }}"></span>
+                    </button>
+                    <div class="application-notification-panel d-none" id="applicationNotificationPanel">
+                        <div class="d-flex align-items-start justify-content-between gap-3">
+                            <div>
+                                <div class="fw-bold text-uppercase mb-1">{{ $applicationNotification['title'] }}</div>
+                                <div class="small text-muted">{{ $applicationNotification['message'] }}</div>
+                                @if(!empty($applicationNotification['date']))
+                                    <div class="small text-muted mt-2">{{ $applicationNotification['date'] }}</div>
+                                @endif
+                            </div>
+                            <span class="badge bg-{{ $applicationNotification['status'] ?? 'primary' }}">
+                                {{ ucfirst($applicationNotification['status'] ?? 'info') }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            @endif
             <div class="inner-content mt-5 pb-5">
+                @php
+                    $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
+                @endphp
+
+                @if(!empty($visibleApprovalNotice))
+                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
+                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
+                    </div>
+                @endif
 
                 @php
 
@@ -280,6 +311,61 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
     </main>
+    <style>
+        .application-notification {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 1050;
+        }
+
+        .application-notification-button {
+            position: relative;
+            width: 52px;
+            height: 52px;
+            border: 0;
+            border-radius: 50%;
+            background: #0d6efd;
+            color: #fff;
+            box-shadow: 0 12px 30px rgba(13, 110, 253, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .application-notification-button i {
+            font-size: 1.55rem;
+        }
+
+        .application-notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+
+        .application-notification-panel {
+            position: absolute;
+            right: 0;
+            bottom: 64px;
+            width: min(340px, calc(100vw - 32px));
+            background: #fff;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+        }
+
+        @media (max-width: 600px) {
+            .application-notification {
+                right: 16px;
+                bottom: 16px;
+            }
+        }
+    </style>
 @endsection
 
 @section('script')
@@ -294,6 +380,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 statementContent.slideDown('slow');
                 $(this).text('Hide Statement');
             }
+            });
+
+            $('#applicationNotificationToggle').on('click', function () {
+                $('#applicationNotificationPanel').toggleClass('d-none');
+            });
+
+            $(document).on('click', function (event) {
+                if (!$(event.target).closest('.application-notification').length) {
+                    $('#applicationNotificationPanel').addClass('d-none');
+                }
             });
         });
     </script>

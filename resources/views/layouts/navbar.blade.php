@@ -80,6 +80,9 @@
 					</div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
 				@endcanany
+                @can('cashier')
+                <a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a>
+                @endcan
 				@can('admin')
 					<div class="dropdown px-0 mx-0">
 						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -88,6 +91,7 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
+							<li><a class="dropdown-item" href="{{route('registrants.index')}}">Registrants</a></li>
 							@can('superadmin')
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 							@endcan

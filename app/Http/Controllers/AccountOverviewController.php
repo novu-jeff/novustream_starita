@@ -34,11 +34,16 @@ public function index()
 
     $data = $this->clientService::getData($id);
     $accounts = $data->accounts ?? [];
+    $approvalNotice = $this->approvalNotice($accounts);
+    $applicationNotification = $this->applicationNotification($accounts);
+    $approvedAccounts = collect($accounts)->filter(function ($account) {
+        return $this->canUseAccount($account);
+    });
 
     $statement = [];
     $statement['transactions'] = [];
 
-    foreach ($accounts as $account) {
+    foreach ($approvedAccounts as $account) {
         $bill = $this->meterService::getBills($account->account_no);
 
         // Only include unpaid bills
@@ -126,7 +131,7 @@ public function index()
         $statement['current_bill_qr'] = $qrResolved['url'];
     }
 
-    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts'));
+    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts', 'approvalNotice', 'applicationNotification'));
 }
 
 
@@ -142,6 +147,18 @@ public function index()
             public function bills(Request $request, ?string $reference_no = null)
 {
     $userId = Auth::id();
+    $clientData = $this->clientService::getData($userId);
+    $accounts = $clientData->accounts ?? [];
+
+    if (!$this->hasUsableAccount($accounts)) {
+        return redirect()
+            ->route('account-overview.index')
+            ->with('approval_notice', $this->approvalNotice($accounts));
+    }
+
+    $accounts = collect($accounts)->filter(function ($account) {
+        return $this->canUseAccount($account);
+    })->values();
 
     // View specific bill by reference number
     if ($reference_no) {
@@ -154,8 +171,17 @@ public function index()
         ]);
     }
 
+    $validAccountNos = $accounts->pluck('account_no')->toArray();
+    if (!in_array($data['current_bill']['account_no'] ?? null, $validAccountNos)) {
+        return redirect()->route('account-overview.bills')->with('alert', [
+            'status' => 'error',
+            'message' => 'Invalid bill reference for your account.',
+        ]);
+    }
+
     // Compute penalties
     $data['current_bill'] = $this->computeBillPenalty($data['current_bill']);
+    $currentBill = $data['current_bill'];
 
     // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
         $amount = (float)($currentBill['total'] ?? 0);
@@ -167,7 +193,7 @@ public function index()
             ->where('due_to', '>=', $currentDay)
             ->first();
 
-        $penalty = $statement['current_bill']['penalty'] ?? 0;
+        $penalty = $currentBill['penalty'] ?? 0;
         $dueDate = isset($data['current_bill']['due_date'])
                         ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
                         : null;
@@ -237,9 +263,6 @@ public function index()
 
     $account_no = $request->query('account_no');
     $view = $request->query('view');
-
-    $clientData = $this->clientService::getData($userId);
-    $accounts = $clientData->accounts ?? [];
 
     $validAccountNos = $accounts->pluck('account_no')->toArray();
 
@@ -404,6 +427,16 @@ public function index()
     $clientData = $this->clientService::getData($userId);
     $accounts = $clientData->accounts ?? [];
 
+    if (!$this->hasUsableAccount($accounts)) {
+        return redirect()
+            ->route('account-overview.index')
+            ->with('approval_notice', $this->approvalNotice($accounts));
+    }
+
+    $accounts = collect($accounts)->filter(function ($account) {
+        return $this->canUseAccount($account);
+    });
+
     // Check if reference_no belongs to this user's accounts
     $validReference = false;
     foreach ($accounts as $account) {
@@ -446,6 +479,126 @@ public function index()
 
     return redirect($hitpayData['url']);
 }
+
+    private function hasUsableAccount($accounts): bool
+    {
+        return collect($accounts)->contains(function ($account) {
+            return $this->canUseAccount($account);
+        });
+    }
+
+    private function canUseAccount($account): bool
+    {
+        if (!$account) {
+            return false;
+        }
+
+        if ($this->applicationStatus($account) === 'denied') {
+            return false;
+        }
+
+        if ($this->applicationStatus($account) === 'approved') {
+            return true;
+        }
+
+        return !$this->isRegistrationApplication($account);
+    }
+
+    private function isRegistrationApplication($account): bool
+    {
+        return !empty($account->application_status)
+            || !empty($account->application_soa_path)
+            || !empty($account->application_id_path);
+    }
+
+    private function approvalNotice($accounts): ?array
+    {
+        $accounts = collect($accounts);
+
+        if ($accounts->isEmpty() || $this->hasUsableAccount($accounts)) {
+            return null;
+        }
+
+        $deniedApplication = $accounts->first(fn ($account) => $this->applicationStatus($account) === 'denied');
+
+        if ($deniedApplication) {
+            $message = 'Your concessionaire application was denied. Please contact Sta. Rita Water District for more information.';
+
+            if (!empty($deniedApplication->approval_denial_reason)) {
+                $message .= ' Reason: ' . $deniedApplication->approval_denial_reason;
+            }
+
+            return [
+                'status' => 'danger',
+                'message' => $message,
+            ];
+        }
+
+        return [
+            'status' => 'warning',
+            'message' => 'Your application is currently in the approval stage. You can view your account overview, but online services are unavailable until approval.',
+        ];
+    }
+
+    private function applicationNotification($accounts): ?array
+    {
+        $application = collect($accounts)
+            ->filter(fn ($account) => $this->isRegistrationApplication($account))
+            ->sortByDesc('updated_at')
+            ->first();
+
+        if (!$application) {
+            return null;
+        }
+
+        if ($this->applicationStatus($application) === 'approved') {
+            return [
+                'status' => 'success',
+                'title' => 'Application approved',
+                'message' => 'Your concessionaire application has been approved. You can now use your online account services.',
+                'date' => optional($application->approved_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        if ($this->applicationStatus($application) === 'denied') {
+            $message = 'Your concessionaire application was denied. Please contact Sta. Rita Water District for more information.';
+
+            if (!empty($application->approval_denial_reason)) {
+                $message .= ' Reason: ' . $application->approval_denial_reason;
+            }
+
+            return [
+                'status' => 'danger',
+                'title' => 'Application denied',
+                'message' => $message,
+                'date' => optional($application->denied_at)->format('M d, Y h:i A'),
+            ];
+        }
+
+        return [
+            'status' => 'warning',
+            'title' => 'Application pending',
+            'message' => 'Your application is currently in the approval stage.',
+            'date' => optional($application->created_at)->format('M d, Y h:i A'),
+        ];
+    }
+
+    private function applicationStatus($account): ?string
+    {
+        if (!empty($account->application_status)) {
+            return $account->application_status;
+        }
+
+        if ((bool) ($account->isApproved ?? false)) {
+            return 'approved';
+        }
+
+        if (!empty($account->denied_at)) {
+            return 'denied';
+        }
+
+        return $this->isRegistrationApplication($account) ? 'pending' : null;
+    }
 
 
     private function computeBillPenalty(array $bill): array

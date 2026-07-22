@@ -52,8 +52,6 @@ Route::get('/login', [LoginController::class, 'index'])
 Route::post('/login', [LoginController::class, 'login'])
     ->name('auth.login');
 
-Route::get('/login', [LoginController::class, 'index']);
-
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
 
@@ -152,6 +150,15 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::resource('roles', RoleController::class)
             ->names('roles')
             ->only('index', 'destroy');
+
+        Route::get('registrants', [ConcessionaireController::class, 'registrants'])
+            ->name('registrants.index');
+
+        Route::patch('registrants/{account}/approve', [ConcessionaireController::class, 'approveApplication'])
+            ->name('registrants.approve');
+
+        Route::patch('registrants/{account}/deny', [ConcessionaireController::class, 'denyApplication'])
+            ->name('registrants.deny');
 
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
