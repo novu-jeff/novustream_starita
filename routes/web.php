@@ -151,6 +151,15 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->names('roles')
             ->only('index', 'destroy');
 
+        Route::get('registrants', [ConcessionaireController::class, 'registrants'])
+            ->name('registrants.index');
+
+        Route::patch('registrants/{account}/approve', [ConcessionaireController::class, 'approveApplication'])
+            ->name('registrants.approve');
+
+        Route::patch('registrants/{account}/deny', [ConcessionaireController::class, 'denyApplication'])
+            ->name('registrants.deny');
+
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
             ->except('show');

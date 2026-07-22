@@ -6,6 +6,7 @@
     <div class="container right-panel-active scroll" id="container">
         <div class="form-container sign-up-container">
             <form id="registerForm" novalidate>
+                <input type="hidden" name="data_privacy_consent" id="data_privacy_consent" value="">
                 <h1 class="fw-bold mb-1">Create Account</h1>
                 <span>Register as a concessionaire</span>
 
@@ -13,7 +14,7 @@
 
                 <div class="register-fields w-100">
                     <div class="w-100">
-                        <input type="text" class="form-control" name="name" id="name" placeholder="Full Name *" required />
+                        <input type="text" class="form-control" name="name" id="name" placeholder="LASTNAME, FIRSTNAME M.I. (e.g. DELA CRUZ, JUAN P.) *" style="text-transform: uppercase;" required/>
                     </div>
                     <div class="w-100">
                         <input type="email" class="form-control" name="email" id="email" placeholder="Email *" required />
@@ -62,7 +63,7 @@
         <div class="overlay-container">
             <div class="overlay">
                 <div class="overlay-panel overlay-left">
-                    <img src="{{ asset(config('app.product') === 'novustream' ? 'images/clientnobg.png' : 'images/novusurgelogo.png') }}" alt="" class="w-75">
+                    <img src="{{ asset(config('app.product') === 'novustream' ? 'images/client1nobg.png' : 'images/novusurgelogo.png') }}" alt="" class="w-75">
                     <p>Already registered? Sign in to view your bills and make payments.</p>
                     <a href="{{ route('auth.index') }}" class="btn btn-primary border-2 fs-6 px-5 py-3 text-white fw-bold text-uppercase" id="signIn">Sign In</a>
                 </div>
@@ -75,6 +76,35 @@
         </div>
     </div>
 </div>
+
+<div class="consent-modal d-none" id="dataConsentModal" role="dialog" aria-modal="true" aria-labelledby="dataConsentTitle">
+    <div class="consent-dialog">
+        <h2 id="dataConsentTitle">Data Verification Consent</h2>
+
+        <p>
+            Sta. Rita Water District will use the information and documents you submit to verify your concessionaire application, account ownership, billing history, and identity.
+        </p>
+
+        <p>
+            By continuing, you confirm that the details are accurate and you allow the district to review your submitted data for registration approval.
+        </p>
+
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="confirmConsent">
+            <label class="form-check-label" for="confirmConsent">
+                I have read and agree to the data verification consent above.
+            </label>
+        </div>
+
+        <div class="consent-actions">
+            <button type="button" class="btn-cancel" id="declineConsent">Cancel</button>
+            <button type="button" class="btn-accept" id="acceptConsent" disabled>
+                I Agree
+            </button>
+        </div>
+    </div>
+</div>
+
 
 <style>
     .register-page .container.scroll {
@@ -175,6 +205,69 @@
         background-color: #fff5f5;
     }
 
+    .consent-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 20px;
+    }
+
+    .consent-modal.d-none {
+        display: none;
+    }
+
+    .consent-dialog {
+        width: min(460px, 100%);
+        background: #fff;
+        color: #222;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        text-align: left;
+    }
+
+    .consent-dialog h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 0 12px;
+    }
+
+    .consent-dialog p {
+        font-size: 0.9rem;
+        line-height: 1.5;
+        margin: 0 0 12px;
+        text-transform: none;
+    }
+
+    .consent-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .consent-actions button {
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 18px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .btn-cancel {
+        background: #e9ecef;
+        color: #333;
+    }
+
+    .btn-accept {
+        background: #3771c1;
+        color: #fff;
+    }
+
     @media (min-width: 0px) and (max-width: 600px) {
         .overlay-container {
             display: none;
@@ -215,6 +308,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('registerForm');
     const alertBox = document.getElementById('registerAlert');
     const contactInput = document.getElementById('contact_no');
+    const consentModal = document.getElementById('dataConsentModal');
+    const consentInput = document.getElementById('data_privacy_consent');
+    const acceptConsent = document.getElementById('acceptConsent');
+    const declineConsent = document.getElementById('declineConsent');
+    const confirmConsent = document.getElementById('confirmConsent');
+    const nameInput = document.getElementById('name');
+
+    nameInput.addEventListener('input', function () {
+        this.value = this.value.toUpperCase();
+    });
 
     function bindFileLabel(inputId, nameId) {
         const input = document.getElementById(inputId);
@@ -254,10 +357,7 @@ document.addEventListener('DOMContentLoaded', function () {
         alertBox.classList.add('d-none');
     }
 
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        clearErrors();
-
+    function validateRegistrationForm() {
         const name = form.name.value.trim();
         const email = form.email.value.trim();
         const contact = form.contact_no.value.trim();
@@ -288,17 +388,84 @@ document.addEventListener('DOMContentLoaded', function () {
         if (firstInvalid) {
             showAlert('danger', 'Please fill in all required fields correctly.');
             firstInvalid.focus();
+            return false;
+        }
+
+        return true;
+    }
+
+    function submitRegistration() {
+        const submitButton = form.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+
+        fetch('{{ route('auth.register.store') }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+            body: new FormData(form),
+        })
+        .then(async function (response) {
+            const payload = await response.json().catch(function () {
+                return {};
+            });
+
+            if (!response.ok) {
+                const firstError = payload.errors
+                    ? Object.values(payload.errors).flat()[0]
+                    : null;
+                throw new Error(firstError || payload.message || 'Registration failed.');
+            }
+
+            return payload;
+        })
+        .then(function (payload) {
+            showAlert('success', payload.message || 'Registration submitted for review.');
+            window.location.href = payload.redirect || '{{ route('account-overview.index') }}';
+        })
+        .catch(function (error) {
+            showAlert('danger', error.message);
+            submitButton.disabled = false;
+            submitButton.textContent = 'Submit Registration';
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErrors();
+        consentInput.value = '';
+
+        if (!validateRegistrationForm()) {
             return;
         }
 
-        // Frontend only — no backend save yet
-        showAlert('success', 'Registration submitted for review. You may sign in once your account is approved.');
-        form.reset();
-        document.getElementById('soa_file_name').textContent = 'Choose file';
-        document.getElementById('soa_file_name').classList.remove('has-file');
-        document.getElementById('id_file_name').textContent = 'Choose file';
-        document.getElementById('id_file_name').classList.remove('has-file');
+        consentModal.classList.remove('d-none');
     });
+
+    declineConsent.addEventListener('click', function () {
+        consentInput.value = '';
+        confirmConsent.checked = false;
+        acceptConsent.disabled = true;
+        consentModal.classList.add('d-none');
+    });
+
+
+    acceptConsent.addEventListener('click', function () {
+        if (!confirmConsent.checked) {
+            return;
+        }
+
+        consentInput.value = '1';
+        consentModal.classList.add('d-none');
+        submitRegistration();
+    });
+
+    confirmConsent.addEventListener('change', function () {
+        acceptConsent.disabled = !this.checked;
+    });
+
 });
 </script>
 @endsection

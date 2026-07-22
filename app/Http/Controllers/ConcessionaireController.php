@@ -7,11 +7,13 @@ use App\Http\Requests\UpdateClientRequest;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\MeterService;
+use App\Models\UserAccounts;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
@@ -114,6 +116,118 @@ class ConcessionaireController extends Controller
             'zones',
             'listFilter'
         ))->with('toSearch', $search);
+    }
+
+    public function registrants(Request $request)
+    {
+        $entries = $request->entries ?? 10;
+        $search = trim($request->search ?? '');
+        $status = $request->status ?? 'pending';
+
+        $query = UserAccounts::with('user')
+            ->where(function ($q) {
+                $q->whereNotNull('application_soa_path')
+                    ->orWhereNotNull('application_id_path');
+            });
+
+        if ($status === 'pending') {
+            $query->where('application_status', 'pending');
+        } elseif ($status === 'approved') {
+            $query->where('application_status', 'approved');
+        } elseif ($status === 'denied') {
+            $query->where('application_status', 'denied');
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('account_no', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $data = $query
+            ->orderByDesc('created_at')
+            ->paginate($entries)
+            ->withQueryString();
+
+        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status'));
+    }
+
+    public function approveApplication(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        $account->update([
+            'isApproved' => true,
+            'application_status' => 'approved',
+            'approved_at' => now(),
+            'denied_at' => null,
+            'approval_denial_reason' => null,
+        ]);
+
+        $this->sendApplicationDecisionNotification($account, 'approved');
+
+        return redirect()
+            ->back()
+            ->with('status', 'Application approved.');
+    }
+
+    public function denyApplication(Request $request, int $account)
+    {
+        $payload = $request->validate([
+            'approval_denial_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        $account->update([
+            'isApproved' => false,
+            'application_status' => 'denied',
+            'approved_at' => null,
+            'denied_at' => now(),
+            'approval_denial_reason' => $payload['approval_denial_reason'] ?? null,
+        ]);
+
+        $this->sendApplicationDecisionNotification($account, 'denied');
+
+        return redirect()
+            ->back()
+            ->with('status', 'Application denied.');
+    }
+
+    private function sendApplicationDecisionNotification(UserAccounts $account, string $decision): void
+    {
+        $user = $account->user;
+
+        if (!$user || empty($user->email)) {
+            return;
+        }
+
+        $message = $decision === 'approved'
+            ? 'Your concessionaire application has been approved. You can now use your online account services.'
+            : 'Your concessionaire application has been denied. Please contact Sta. Rita Water District for more information.';
+
+        if ($decision === 'denied' && !empty($account->approval_denial_reason)) {
+            $message .= "\n\nReason: " . $account->approval_denial_reason;
+        }
+
+        try {
+            Mail::raw($message, function ($mail) use ($user, $decision) {
+                $mail->to($user->email)
+                    ->subject('Concessionaire Application ' . ucfirst($decision));
+            });
+        } catch (\Throwable $e) {
+            Log::warning('Unable to send application decision email.', [
+                'user_id' => $user->id,
+                'account_id' => $account->id,
+                'decision' => $decision,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
 
@@ -235,6 +349,8 @@ class ConcessionaireController extends Controller
     public function update(int $id, UpdateClientRequest $request)
     {
         $payload = $request->validated();
+
+        $payload['name'] = strtoupper(trim($payload['name']));
 
         $existingClient = $this->clientService::getData($id);
         $oldAccountNo = $existingClient->accounts[0]->account_no ?? null;

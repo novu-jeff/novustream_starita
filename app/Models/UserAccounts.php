@@ -18,6 +18,12 @@ class UserAccounts extends Model
         'updated_at'
     ];
 
+    protected $casts = [
+        'isApproved' => 'boolean',
+        'approved_at' => 'datetime',
+        'denied_at' => 'datetime',
+    ];
+
     public function user() {
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
