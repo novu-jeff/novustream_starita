@@ -91,6 +91,7 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
+							<li><a class="dropdown-item" href="{{route('registrants.index')}}">Registrants</a></li>
 							@can('superadmin')
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 							@endcan

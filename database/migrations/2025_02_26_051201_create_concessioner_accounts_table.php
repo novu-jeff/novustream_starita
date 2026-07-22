@@ -44,6 +44,8 @@ return new class extends Migration
             $table->boolean('isErcSealed')->default(true);
             $table->string('inspection_image')
                 ->nullable();
+            $table->boolean('isApproved')->default(false);
+            $table->timestamp('approved_at')->nullable();
             $table->timestamps();
         });
     }

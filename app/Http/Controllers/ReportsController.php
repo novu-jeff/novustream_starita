@@ -1662,9 +1662,42 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
 
                 case 'Unpaid Bills':
 
+                $selectedStart = $startDate
+                    ? Carbon::parse($startDate)->startOfDay()
+                    : ($endDate ? Carbon::parse($endDate)->startOfMonth() : now()->startOfMonth());
+
+                $selectedEnd = $endDate
+                    ? Carbon::parse($endDate)->endOfDay()
+                    : now()->endOfDay();
+
+                $accountsWithSelectedMonthBill = Bill::query()
+                    ->join('readings', 'readings.id', '=', 'bill.reading_id')
+                    ->joinSub(
+                        DB::table('concessioner_accounts')
+                            ->select('account_no')
+                            ->selectRaw('MIN(zone) as zone')
+                            ->groupBy('account_no'),
+                        'concessioner_accounts',
+                        'concessioner_accounts.account_no',
+                        '=',
+                        'readings.account_no'
+                    )
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->where('concessioner_accounts.zone', $zone);
+                    })
+                    ->whereBetween('bill.bill_period_to', [$selectedStart, $selectedEnd])
+                    ->pluck('readings.account_no')
+                    ->unique()
+                    ->values();
+
                 $query = Bill::query()
                 ->join('readings', 'readings.id', '=', 'bill.reading_id')
-                ->join(
+                ->joinSub(
+                    DB::table('concessioner_accounts')
+                        ->select('account_no')
+                        ->selectRaw('MIN(sequence_no) as sequence_no')
+                        ->selectRaw('MIN(zone) as zone')
+                        ->groupBy('account_no'),
                     'concessioner_accounts',
                     'concessioner_accounts.account_no',
                     '=',
@@ -1674,12 +1707,10 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 ->when($zone !== 'all', function ($q) use ($zone) {
                     $q->where('concessioner_accounts.zone', $zone);
                 })
-                ->when($endDate, function ($q) use ($endDate) {
-                    $q->whereDate('bill.bill_period_to', '<=', $endDate);
-                })
-                ->where(function ($q) use ($endDate) {
+                ->where('bill.bill_period_to', '<=', $selectedEnd)
+                ->where(function ($q) use ($selectedEnd) {
                     $q->whereNull('bill.date_paid')
-                        ->orWhereDate('bill.date_paid', '>', $endDate)
+                        ->orWhere('bill.date_paid', '>', $selectedEnd)
                         ->orWhere('bill.partial_payment', '>', 0)
                         ->orWhere('bill.previous_unpaid', '>', 0);
                 })
@@ -1687,6 +1718,25 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 ->orderBy('bill.bill_period_to')
                 ->select('bill.*', 'concessioner_accounts.sequence_no')
                 ->get();
+
+                $query = $query
+                    ->groupBy(fn ($bill) => optional($bill->reading)->account_no)
+                    ->flatMap(function ($accountBills, $accountNo) use ($selectedStart, $selectedEnd, $accountsWithSelectedMonthBill) {
+                        $selectedMonthBills = $accountBills->filter(function ($bill) use ($selectedStart, $selectedEnd) {
+                            return Carbon::parse($bill->bill_period_to)->between($selectedStart, $selectedEnd);
+                        });
+
+                        return $accountsWithSelectedMonthBill->contains($accountNo)
+                            ? $selectedMonthBills
+                            : $accountBills
+                                ->sortByDesc(fn ($bill) => Carbon::parse($bill->bill_period_to)->timestamp)
+                                ->take(1);
+                    })
+                    ->sortBy([
+                        ['sequence_no', 'asc'],
+                        ['bill_period_to', 'asc'],
+                    ])
+                    ->values();
 
                 $rows = [];
 
