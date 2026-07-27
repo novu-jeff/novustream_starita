@@ -53,7 +53,11 @@ class ConcessionaireController extends Controller
 
         $query = \App\Models\User::with('accounts')
         ->leftJoin('concessioner_accounts', 'users.id', '=', 'concessioner_accounts.user_id')
-        ->select('users.*');
+        ->select('users.*')
+        ->whereHas('accounts', function ($q) {
+            $q->whereNull('application_status')
+                ->orWhere('application_status', 'approved');
+        });
 
         if ($zone !== 'all') {
             $query->whereHas('accounts', function ($q) use ($zone) {
@@ -123,12 +127,10 @@ class ConcessionaireController extends Controller
         $entries = $request->entries ?? 10;
         $search = trim($request->search ?? '');
         $status = $request->status ?? 'pending';
+        $type = $request->type ?? 'all';
 
         $query = UserAccounts::with('user')
-            ->where(function ($q) {
-                $q->whereNotNull('application_soa_path')
-                    ->orWhereNotNull('application_id_path');
-            });
+            ->whereNotNull('application_status');
 
         if ($status === 'pending') {
             $query->where('application_status', 'pending');
@@ -136,6 +138,15 @@ class ConcessionaireController extends Controller
             $query->where('application_status', 'approved');
         } elseif ($status === 'denied') {
             $query->where('application_status', 'denied');
+        }
+
+        if ($type === 'existing_account') {
+            $query->where(function ($q) {
+                $q->where('application_type', 'existing_account')
+                    ->orWhereNull('application_type');
+            });
+        } elseif ($type === 'new_connection') {
+            $query->where('application_type', 'new_connection');
         }
 
         if (!empty($search)) {
@@ -154,7 +165,27 @@ class ConcessionaireController extends Controller
             ->paginate($entries)
             ->withQueryString();
 
-        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status'));
+        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type'));
+    }
+
+    public function completeRegistrant(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        if ($account->application_type !== 'new_connection') {
+            return redirect()
+                ->route('registrants.index')
+                ->with('error', 'Only new connection requests need remaining account details.');
+        }
+
+        if ($account->application_status !== 'pending') {
+            return redirect()
+                ->route('registrants.index', ['type' => 'new_connection'])
+                ->with('error', 'Only pending new connection requests can be completed.');
+        }
+
+        return redirect()
+            ->route('concessionaires.edit', ['concessionaire' => $account->user_id, 'registrant' => $account->id]);
     }
 
     public function approveApplication(int $account)
@@ -329,6 +360,7 @@ class ConcessionaireController extends Controller
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);
+        $registrantId = request('registrant');
 
         foreach ($data->accounts as $account) {
 
@@ -343,7 +375,7 @@ class ConcessionaireController extends Controller
         $property_types = $this->propertyTypesService::getData();
         $status_code = $this->clientService::getStatusCode();
 
-        return view('concessionaires.form', compact('data', 'status_code', 'property_types'));
+        return view('concessionaires.form', compact('data', 'status_code', 'property_types', 'registrantId'));
     }
 
     public function update(int $id, UpdateClientRequest $request)
@@ -365,10 +397,43 @@ class ConcessionaireController extends Controller
 
         $newAccountNo = $payload['accounts'][0]['account_no'] ?? null;
 
+        if ($request->filled('registrant_id') && $newAccountNo) {
+            $newAccountId = $payload['accounts'][0]['id'] ?? null;
+
+            if (str_starts_with(strtoupper($newAccountNo), 'NEW-')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'accounts.0.account_no' => ['Please replace the temporary account number before approving this new connection.'],
+                ]);
+            }
+
+            $accountExists = UserAccounts::where('account_no', $newAccountNo)
+                ->when($newAccountId, fn ($q) => $q->where('id', '!=', $newAccountId))
+                ->exists();
+
+            if ($accountExists) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'accounts.0.account_no' => ['The account number is already registered.'],
+                ]);
+            }
+        }
+
         DB::beginTransaction();
 
         try {
             $client = $this->clientService::update($payload, $id);
+
+            if ($request->filled('registrant_id')) {
+                UserAccounts::where('id', $request->registrant_id)
+                    ->where('user_id', $id)
+                    ->where('application_type', 'new_connection')
+                    ->update([
+                        'isApproved' => true,
+                        'application_status' => 'approved',
+                        'approved_at' => now(),
+                        'denied_at' => null,
+                        'approval_denial_reason' => null,
+                    ]);
+            }
 
             if ($oldAccountNo && $newAccountNo && $oldAccountNo !== $newAccountNo) {
                 DB::table('readings')

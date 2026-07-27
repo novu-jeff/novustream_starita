@@ -48,6 +48,7 @@ class UpdateClientRequest extends FormRequest
             ->toArray();
 
         $id = $this->route('concessionaire');
+        $accountRule = $this->filled('registrant_id') ? 'required' : 'nullable';
 
         return [
             'name' => 'nullable|string|max:255',
@@ -55,19 +56,20 @@ class UpdateClientRequest extends FormRequest
             'password' => 'nullable|min:8|confirmed',
             'confirm_password' => 'nullable|same:password',
             'contact_no' => 'nullable|string',
+            'registrant_id' => 'nullable|exists:concessioner_accounts,id',
 
             'accounts' => 'nullable|array',
             'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',
-            'accounts.*.account_no' => 'nullable|string',
-            'accounts.*.address' => 'nullable|string|max:255',
-            'accounts.*.property_type' => 'nullable|exists:property_types,id',
-            'accounts.*.rate_code' => 'nullable|numeric|gt:0',
-            'accounts.*.status' => ['nullable', Rule::in($validStatusCodes)],
-            'accounts.*.sc_no' => 'nullable|string',
+            'accounts.*.account_no' => $accountRule . '|string',
+            'accounts.*.address' => $accountRule . '|string|max:255',
+            'accounts.*.property_type' => $accountRule . '|exists:property_types,id',
+            'accounts.*.rate_code' => $accountRule . '|numeric|gt:0',
+            'accounts.*.status' => [$accountRule, Rule::in($validStatusCodes)],
+            'accounts.*.sc_no' => $accountRule . '|string',
             'accounts.*.meter_brand' => 'nullable|string|max:256',
-            'accounts.*.meter_serial_no' => 'nullable|string',
-            'accounts.*.date_connected' => 'nullable|date',
-            'accounts.*.sequence_no' => 'nullable|string',
+            'accounts.*.meter_serial_no' => $accountRule . '|string',
+            'accounts.*.date_connected' => $accountRule . '|date',
+            'accounts.*.sequence_no' => $accountRule . '|string',
 
             'accounts.*.meter_type' => 'nullable|string|max:120',
             'accounts.*.meter_wire' => 'nullable|string|max:120',

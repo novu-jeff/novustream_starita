@@ -154,6 +154,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::get('registrants', [ConcessionaireController::class, 'registrants'])
             ->name('registrants.index');
 
+        Route::get('registrants/{account}/complete', [ConcessionaireController::class, 'completeRegistrant'])
+            ->name('registrants.complete');
+
         Route::patch('registrants/{account}/approve', [ConcessionaireController::class, 'approveApplication'])
             ->name('registrants.approve');
 
