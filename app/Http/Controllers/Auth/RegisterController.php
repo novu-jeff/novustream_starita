@@ -77,7 +77,8 @@ class RegisterController extends Controller
             }
 
             $accountNo = trim($request->account_no);
-            $matchingAccounts = UserAccounts::where('account_no', $accountNo)
+            $matchingAccounts = UserAccounts::with('user')
+                ->where('account_no', $accountNo)
                 ->lockForUpdate()
                 ->get();
 
@@ -102,10 +103,9 @@ class RegisterController extends Controller
             $account = $matchingAccounts
                 ->first(fn ($account) => !$this->hasRegistrationApplication($account));
 
-            $user = $this->create($request->all());
+            $user = $this->updateExistingAccountRegistrant($request->all(), $account);
 
             $account->update([
-                'user_id' => $user->id,
                 'zone' => $account->zone ?: substr($accountNo, 0, 3),
                 'account_no' => $accountNo,
                 'address' => $account->address ?: $request->address,
@@ -180,6 +180,32 @@ class RegisterController extends Controller
             'user_type' => 'concessionaire',
             'password' => Hash::make($data['password']),
         ]);
+    }
+
+    protected function updateExistingAccountRegistrant(array $data, UserAccounts $account): User
+    {
+        $user = $account->user;
+
+        if (!$user) {
+            return User::create([
+                'name' => $data['name'],
+                'registrants' => $data['name'],
+                'contact_no' => $data['contact_no'],
+                'email' => $data['email'],
+                'user_type' => 'concessionaire',
+                'password' => Hash::make($data['password']),
+            ]);
+        }
+
+        $user->update([
+            'registrants' => $data['name'],
+            'contact_no' => $data['contact_no'],
+            'email' => $data['email'],
+            'user_type' => 'concessionaire',
+            'password' => Hash::make($data['password']),
+        ]);
+
+        return $user->refresh();
     }
 
     private function sequenceNoFromAccountNo(string $accountNo): int

@@ -483,10 +483,27 @@ document.addEventListener('DOMContentLoaded', function () {
             return payload;
         })
         .then(function (payload) {
-            showAlert('success', payload.message || 'Registration submitted for review.');
+
+            showAlert('success', payload.message || 'Registration submitted successfully.');
+
+            const registrationType = document.querySelector(
+                'input[name="registration_type"]:checked'
+            ).value;
+
             setTimeout(function () {
-                window.location.href = payload.redirect || '{{ route('account-overview.index') }}';
-            }, 900);
+
+                if (registrationType === 'new_connection') {
+
+                    window.location.href = "{{ route('application.create') }}";
+
+                } else {
+
+                    window.location.href = payload.redirect || "{{ route('account-overview.index') }}";
+
+                }
+
+            }, 1000);
+
         })
         .catch(function (error) {
             showAlert('danger', error.message);

@@ -82,13 +82,31 @@ class ConcessionaireController extends Controller
 
         if (!empty($search)) {
 
-            if (is_numeric($search)) {
+            if ($listFilter === 'sequence') {
 
-                $query->where(
-                    'concessioner_accounts.sequence_no',
-                    '>=',
-                    $search
-                );
+                $baseUser = \App\Models\User::where('name', 'like', "%{$search}%")
+                    ->whereHas('accounts')
+                    ->with('accounts')
+                    ->first();
+
+                if ($baseUser && $baseUser->accounts->first()) {
+
+                    $startSequence = $baseUser->accounts->first()->sequence_no;
+
+                    $ids = UserAccounts::where('sequence_no', '>=', $startSequence)
+                        ->orderBy('sequence_no')
+                        ->limit(10)
+                        ->pluck('user_id');
+
+                    $query->whereIn('users.id', $ids);
+
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+
+            } elseif (is_numeric($search)) {
+
+                $query->where('concessioner_accounts.sequence_no', '>=', $search);
 
             } else {
 
@@ -104,7 +122,9 @@ class ConcessionaireController extends Controller
                         $aq->where('account_no', 'like', "%{$search}%")
                         ->orWhere('address', 'like', "%{$search}%");
                     });
+
                 });
+
             }
         }
 
@@ -155,6 +175,7 @@ class ConcessionaireController extends Controller
                     ->orWhere('address', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($userQuery) use ($search) {
                         $userQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('registrants', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     });
             });
@@ -188,6 +209,36 @@ class ConcessionaireController extends Controller
             ->route('concessionaires.edit', ['concessionaire' => $account->user_id, 'registrant' => $account->id]);
     }
 
+    public function printRegistrantForm(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        if ($account->application_type !== 'new_connection') {
+            return redirect()
+                ->route('registrants.index')
+                ->with('error', 'Only new connection requests have an application form.');
+        }
+
+        $user = $account->user;
+        $printData = [
+            'sc_no' => $account->sc_no ?? '',
+            'meter_no' => $account->meter_serial_no ?? '',
+            'account_no' => str_starts_with((string) $account->account_no, 'NEW-') ? '' : ($account->account_no ?? ''),
+            'cellphone' => $user->contact_no ?? '',
+            'applicant_name' => $user->registrants ?? $user->name ?? '',
+            'service_address' => $account->address ?? '',
+            'application_type' => 'Water Service Connection',
+            'connection_size' => '',
+            'installation_location' => $account->address ?? '',
+            'signature_name' => $user->registrants ?? $user->name ?? '',
+            'application_date' => optional($account->created_at)->format('Y-m-d'),
+            'property_owner' => $user->registrants ?? $user->name ?? '',
+            'promissory_amount' => '',
+        ];
+
+        return view('application.print', compact('printData'));
+    }
+
     public function approveApplication(int $account)
     {
         $account = UserAccounts::with('user')->findOrFail($account);
@@ -204,7 +255,12 @@ class ConcessionaireController extends Controller
 
         return redirect()
             ->back()
-            ->with('status', 'Application approved.');
+            ->with('status', 'Application approved.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Application approved',
+                'message' => 'The registrant application was approved successfully.',
+            ]);
     }
 
     public function denyApplication(Request $request, int $account)
@@ -227,7 +283,12 @@ class ConcessionaireController extends Controller
 
         return redirect()
             ->back()
-            ->with('status', 'Application denied.');
+            ->with('status', 'Application denied.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Application denied',
+                'message' => 'The registrant application was denied successfully.',
+            ]);
     }
 
     private function sendApplicationDecisionNotification(UserAccounts $account, string $decision): void

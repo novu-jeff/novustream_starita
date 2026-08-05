@@ -81,16 +81,18 @@
                     </thead>
                     <tbody>
                         @forelse ($data as $account)
+                            @php
+                                $applicationType = $account->application_type ?: 'existing_account';
+                                $applicationStatus = $account->application_status
+                                    ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
+                                $registrant = $account->user;
+                            @endphp
                             <tr>
                                 <td>{{ optional($account->created_at)->format('M d, Y') }}</td>
-                                <td>{{ $account->user->name ?? 'N/A' }}</td>
-                                <td>{{ $account->user->email ?? 'N/A' }}</td>
-                                <td>{{ $account->user->contact_no ?? 'N/A' }}</td>
+                                <td>{{ $registrant->registrants ?? $registrant->name ?? 'N/A' }}</td>
+                                <td>{{ $registrant->email ?? 'N/A' }}</td>
+                                <td>{{ $registrant->contact_no ?? 'N/A' }}</td>
                                 <td>
-                                    @php
-                                        $applicationType = $account->application_type ?: 'existing_account';
-                                    @endphp
-
                                     @if($applicationType === 'new_connection')
                                         <span class="badge bg-info text-dark">New Connection</span>
                                     @else
@@ -100,11 +102,6 @@
                                 <td>{{ $applicationType === 'new_connection' ? 'N/A' : $account->account_no }}</td>
                                 <td>{{ $account->address }}</td>
                                 <td>
-                                    @php
-                                        $applicationStatus = $account->application_status
-                                            ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
-                                    @endphp
-
                                     @if($applicationStatus === 'approved')
                                         <span class="badge bg-success">Approved</span>
                                         @if($account->approved_at)
@@ -121,6 +118,9 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
+                                        @if($applicationType === 'new_connection')
+                                            <a href="{{ route('registrants.form', $account->id) }}" target="_blank" class="btn btn-outline-primary btn-sm">Form</a>
+                                        @endif
                                         @if($account->application_soa_path)
                                             <a href="{{ asset('storage/' . $account->application_soa_path) }}" target="_blank" class="btn btn-outline-primary btn-sm">SOA</a>
                                         @endif
@@ -134,7 +134,7 @@
                                         <div class="d-flex align-items-center gap-2">
                                             @if($applicationType === 'new_connection')
                                                 <a href="{{ route('registrants.complete', $account->id) }}" class="btn btn-primary text-uppercase fw-bold">
-                                                    Complete Details
+                                                    Complete
                                                 </a>
                                             @else
                                                 <form method="POST" action="{{ route('registrants.approve', $account->id) }}" class="registrant-action-form" data-action="approve">
@@ -245,6 +245,18 @@
 	                }
 	            });
         });
+
+        const registrantAction = @json(session('registrant_action'));
+
+        if (registrantAction && typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: registrantAction.icon || 'success',
+                title: registrantAction.title || 'Action successful',
+                text: registrantAction.message || 'The action was completed successfully.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#198754',
+            });
+        }
     });
 </script>
 @endsection
