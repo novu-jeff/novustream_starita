@@ -12,6 +12,20 @@ class Authenticate extends Middleware
      */
     protected function redirectTo(Request $request): ?string
     {
-        return $request->expectsJson() ? null : route('auth.login');
+        if ($request->expectsJson()) {
+            return null;
+        }
+
+        $host = strtolower($request->getHost());
+
+        if ($host === EnforceStaritaHost::ADMIN_HOST) {
+            return 'https://'.EnforceStaritaHost::ADMIN_HOST.'/login';
+        }
+
+        if ($host === EnforceStaritaHost::PORTAL_HOST) {
+            return 'https://'.EnforceStaritaHost::PORTAL_HOST.'/login';
+        }
+
+        return route('auth.index');
     }
 }

@@ -58,17 +58,17 @@ If you call the API instead of Artisan, you need an admin/technician token (e.g.
 
 ```bash
 # Merge (default limit 100); replace TOKEN with your Bearer token
-curl -X POST "https://staritawaterdistrictpamp.gov.ph/api/readings/merge" \
+curl -X POST "https://admin.staritawaterdistrictpamp.gov.ph/api/readings/merge" \
   -H "Authorization: Bearer TOKEN" \
   -H "Accept: application/json"
 
 # Merge with limit 200 (query string)
-curl -X POST "https://staritawaterdistrictpamp.gov.ph/api/readings/merge?limit=200" \
+curl -X POST "https://admin.staritawaterdistrictpamp.gov.ph/api/readings/merge?limit=200" \
   -H "Authorization: Bearer TOKEN" \
   -H "Accept: application/json"
 
 # Same with limit in JSON body
-curl -X POST "https://staritawaterdistrictpamp.gov.ph/api/readings/merge" \
+curl -X POST "https://admin.staritawaterdistrictpamp.gov.ph/api/readings/merge" \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
