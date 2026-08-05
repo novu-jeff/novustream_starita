@@ -54,13 +54,14 @@ class RegisterController extends Controller
     protected function validator(array $data)
     {
         return Validator::make($data, [
+            'registration_type' => ['required', 'in:existing_account,new_connection'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'contact_no' => ['required', 'string', 'max:20'],
-            'account_no' => ['required', 'string', 'max:255'],
+            'account_no' => ['required_if:registration_type,existing_account', 'nullable', 'string', 'max:255'],
             'address' => ['required', 'string', 'max:500'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'soa_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'soa_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'data_privacy_consent' => ['accepted'],
         ]);
@@ -71,8 +72,13 @@ class RegisterController extends Controller
         $this->validator($request->all())->validate();
 
         $user = DB::transaction(function () use ($request) {
+            if ($request->registration_type === 'new_connection') {
+                return $this->createNewConnectionApplication($request);
+            }
+
             $accountNo = trim($request->account_no);
-            $matchingAccounts = UserAccounts::where('account_no', $accountNo)
+            $matchingAccounts = UserAccounts::with('user')
+                ->where('account_no', $accountNo)
                 ->lockForUpdate()
                 ->get();
 
@@ -97,10 +103,9 @@ class RegisterController extends Controller
             $account = $matchingAccounts
                 ->first(fn ($account) => !$this->hasRegistrationApplication($account));
 
-            $user = $this->create($request->all());
+            $user = $this->updateExistingAccountRegistrant($request->all(), $account);
 
             $account->update([
-                'user_id' => $user->id,
                 'zone' => $account->zone ?: substr($accountNo, 0, 3),
                 'account_no' => $accountNo,
                 'address' => $account->address ?: $request->address,
@@ -108,6 +113,7 @@ class RegisterController extends Controller
                 'application_soa_path' => $request->file('soa_file')->store('applications/soa', 'public'),
                 'application_id_path' => $request->file('id_file')->store('applications/id', 'public'),
                 'application_status' => 'pending',
+                'application_type' => 'existing_account',
                 'isApproved' => false,
                 'approved_at' => null,
                 'denied_at' => null,
@@ -132,6 +138,33 @@ class RegisterController extends Controller
             ->with('status', 'Registration submitted for review.');
     }
 
+    private function createNewConnectionApplication(Request $request): User
+    {
+        $user = $this->create($request->all());
+
+        UserAccounts::create([
+            'user_id' => $user->id,
+            'zone' => null,
+            'account_no' => 'NEW-' . $user->id,
+            'address' => $request->address,
+            'property_type' => null,
+            'rate_code' => 1,
+            'status' => 'AB',
+            'sc_no' => '',
+            'date_connected' => now()->toDateString(),
+            'sequence_no' => $user->id,
+            'application_id_path' => $request->file('id_file')->store('applications/id', 'public'),
+            'application_status' => 'pending',
+            'application_type' => 'new_connection',
+            'isApproved' => false,
+            'approved_at' => null,
+            'denied_at' => null,
+            'approval_denial_reason' => null,
+        ]);
+
+        return $user;
+    }
+
     /**
      * Create a new user instance after a valid registration.
      *
@@ -147,6 +180,32 @@ class RegisterController extends Controller
             'user_type' => 'concessionaire',
             'password' => Hash::make($data['password']),
         ]);
+    }
+
+    protected function updateExistingAccountRegistrant(array $data, UserAccounts $account): User
+    {
+        $user = $account->user;
+
+        if (!$user) {
+            return User::create([
+                'name' => $data['name'],
+                'registrants' => $data['name'],
+                'contact_no' => $data['contact_no'],
+                'email' => $data['email'],
+                'user_type' => 'concessionaire',
+                'password' => Hash::make($data['password']),
+            ]);
+        }
+
+        $user->update([
+            'registrants' => $data['name'],
+            'contact_no' => $data['contact_no'],
+            'email' => $data['email'],
+            'user_type' => 'concessionaire',
+            'password' => Hash::make($data['password']),
+        ]);
+
+        return $user->refresh();
     }
 
     private function sequenceNoFromAccountNo(string $accountNo): int

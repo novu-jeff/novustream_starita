@@ -99,6 +99,47 @@
         {{ $readings->links() }}
     </div>
 
+    @if(request('search') && $missingAccounts->isNotEmpty())
+        <div class="card shadow-sm mt-4">
+            <div class="card-header fw-semibold">
+                Concessionaires Without Readings
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Account</th>
+                            <th>Name</th>
+                            <th>Sequence No.</th>
+                            <th>Address</th>
+                            <th width="150">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($missingAccounts as $account)
+                            <tr>
+                                <td class="fw-semibold">{{ $account->account_no }}</td>
+                                <td>{{ $account->user->name ?? '-' }}</td>
+                                <td>{{ $account->sequence_no ?? '-' }}</td>
+                                <td>{{ $account->address ?? '-' }}</td>
+                                <td>
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-success open-create-reading-modal"
+                                        data-account="{{ $account->account_no }}"
+                                        data-name="{{ $account->user->name ?? '-' }}"
+                                    >
+                                        Create Reading
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
 </div>
 
 {{-- MODAL --}}
@@ -179,6 +220,47 @@
     </div>
 </div>
 
+<div class="modal fade" id="createReadingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ route('admins.reading-adjustments.create-initial') }}" class="modal-content">
+            @csrf
+
+            <div class="modal-header">
+                <h5 class="modal-title">Create Initial Reading</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" name="account_no" id="create_account_no">
+
+                <div class="mb-2">
+                    <label>Account No</label>
+                    <input type="text" id="create_account_display" class="form-control" disabled>
+                </div>
+
+                <div class="mb-2">
+                    <label>Name</label>
+                    <input type="text" id="create_name_display" class="form-control" disabled>
+                </div>
+
+                <div class="mb-2">
+                    <label>Reading Date</label>
+                    <input type="date" name="reading_date" class="form-control" value="{{ now()->format('Y-m-d') }}" required>
+                </div>
+
+                <div class="alert alert-info mb-0">
+                    This will create a paid zero bill with previous, present, consumption, total, penalty, discount, amount, and amount after due set to 0.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success">Create Reading</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="modal fade" id="globalHistoryModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -251,6 +333,17 @@
 <script>
 
 document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('open-create-reading-modal')) {
+        let btn = e.target;
+
+        document.getElementById('create_account_no').value = btn.dataset.account;
+        document.getElementById('create_account_display').value = btn.dataset.account;
+        document.getElementById('create_name_display').value = btn.dataset.name;
+
+        let modal = new bootstrap.Modal(document.getElementById('createReadingModal'));
+        modal.show();
+    }
+
     if (e.target.classList.contains('open-adjust-modal')) {
 
         let btn = e.target;

@@ -30,7 +30,15 @@
                             <option value="denied" {{ $status === 'denied' ? 'selected' : '' }}>Denied</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-7 mb-3">
+                    <div class="col-12 col-md-3 mb-3">
+                        <label class="mb-1">Registrant Type</label>
+                        <select name="type" id="type" class="form-select text-uppercase dropdown-toggle">
+                            <option value="all" {{ $type === 'all' ? 'selected' : '' }}>All</option>
+                            <option value="existing_account" {{ $type === 'existing_account' ? 'selected' : '' }}>Existing Accounts</option>
+                            <option value="new_connection" {{ $type === 'new_connection' ? 'selected' : '' }}>New Connections</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4 mb-3">
                         <label class="mb-1">Search</label>
                         <div class="position-relative">
                             <input
@@ -63,6 +71,7 @@
                             <th>Name</th>
                             <th>Email</th>
                             <th>Contact No.</th>
+                            <th>Type</th>
                             <th>Account No.</th>
                             <th>Address</th>
                             <th>Status</th>
@@ -72,19 +81,27 @@
                     </thead>
                     <tbody>
                         @forelse ($data as $account)
+                            @php
+                                $applicationType = $account->application_type ?: 'existing_account';
+                                $applicationStatus = $account->application_status
+                                    ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
+                                $registrant = $account->user;
+                            @endphp
                             <tr>
                                 <td>{{ optional($account->created_at)->format('M d, Y') }}</td>
-                                <td>{{ $account->user->name ?? 'N/A' }}</td>
-                                <td>{{ $account->user->email ?? 'N/A' }}</td>
-                                <td>{{ $account->user->contact_no ?? 'N/A' }}</td>
-                                <td>{{ $account->account_no }}</td>
+                                <td>{{ $registrant->registrants ?? $registrant->name ?? 'N/A' }}</td>
+                                <td>{{ $registrant->email ?? 'N/A' }}</td>
+                                <td>{{ $registrant->contact_no ?? 'N/A' }}</td>
+                                <td>
+                                    @if($applicationType === 'new_connection')
+                                        <span class="badge bg-info text-dark">New Connection</span>
+                                    @else
+                                        <span class="badge bg-secondary">Existing Account</span>
+                                    @endif
+                                </td>
+                                <td>{{ $applicationType === 'new_connection' ? 'N/A' : $account->account_no }}</td>
                                 <td>{{ $account->address }}</td>
                                 <td>
-                                    @php
-                                        $applicationStatus = $account->application_status
-                                            ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
-                                    @endphp
-
                                     @if($applicationStatus === 'approved')
                                         <span class="badge bg-success">Approved</span>
                                         @if($account->approved_at)
@@ -101,6 +118,9 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
+                                        @if($applicationType === 'new_connection')
+                                            <a href="{{ route('registrants.form', $account->id) }}" target="_blank" class="btn btn-outline-primary btn-sm">Form</a>
+                                        @endif
                                         @if($account->application_soa_path)
                                             <a href="{{ asset('storage/' . $account->application_soa_path) }}" target="_blank" class="btn btn-outline-primary btn-sm">SOA</a>
                                         @endif
@@ -112,13 +132,19 @@
                                 <td>
                                     @if($applicationStatus === 'pending')
                                         <div class="d-flex align-items-center gap-2">
-                                            <form method="POST" action="{{ route('registrants.approve', $account->id) }}" class="registrant-action-form" data-action="approve">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="btn btn-success text-uppercase fw-bold">
-                                                    Approve
-                                                </button>
-                                            </form>
+                                            @if($applicationType === 'new_connection')
+                                                <a href="{{ route('registrants.complete', $account->id) }}" class="btn btn-primary text-uppercase fw-bold">
+                                                    Complete
+                                                </a>
+                                            @else
+                                                <form method="POST" action="{{ route('registrants.approve', $account->id) }}" class="registrant-action-form" data-action="approve">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" class="btn btn-success text-uppercase fw-bold">
+                                                        Approve
+                                                    </button>
+                                                </form>
+                                            @endif
 	                                            <form method="POST" action="{{ route('registrants.deny', $account->id) }}" class="registrant-action-form" data-action="deny">
 	                                                @csrf
 	                                                @method('PATCH')
@@ -135,7 +161,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center">No registrants found.</td>
+                                <td colspan="10" class="text-center">No registrants found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -155,7 +181,7 @@
         function updateUrl() {
             const params = new URLSearchParams(window.location.search);
 
-            ['search', 'entries', 'status'].forEach(id => {
+            ['search', 'entries', 'status', 'type'].forEach(id => {
                 const val = $('#' + id).val();
                 val ? params.set(id, val) : params.delete(id);
             });
@@ -170,7 +196,7 @@
             searchTimer = setTimeout(updateUrl, 400);
         });
 
-        $('#entries, #status').on('change', updateUrl);
+        $('#entries, #status, #type').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');
@@ -219,6 +245,18 @@
 	                }
 	            });
         });
+
+        const registrantAction = @json(session('registrant_action'));
+
+        if (registrantAction && typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: registrantAction.icon || 'success',
+                title: registrantAction.title || 'Action successful',
+                text: registrantAction.message || 'The action was completed successfully.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#198754',
+            });
+        }
     });
 </script>
 @endsection

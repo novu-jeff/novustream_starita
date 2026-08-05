@@ -8,13 +8,25 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="mb-0">Installment Dashboard</h4>
 
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#installmentModal">
-            Create Installment
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#installmentHistoryModal">
+                View History
+            </button>
+
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#installmentModal">
+                Create Installment
+            </button>
+        </div>
     </div>
 
     @if(session('success'))
         <div class="alert alert-success shadow-sm">{{ session('success') }}</div>
+    @endif
+
+    @if($errors->any())
+        <div class="alert alert-danger shadow-sm">
+            {{ $errors->first() }}
+        </div>
     @endif
 
     <!-- Summary Cards -->
@@ -79,7 +91,7 @@
                             <th>Monthly</th>
                             <th>Months</th>
                             <th>Status</th>
-                            <th width="100">Action</th>
+                            <th width="190">Action</th>
                         </tr>
                     </thead>
 
@@ -108,16 +120,40 @@
                             </td>
 
                             <td>
-                                <button class="btn btn-sm btn-primary view-installment"
-                                        data-installment="{{ $installment->id }}">
-                                    View
-                                </button>
+                                @php
+                                    $firstDueDate = optional($installment->schedules->sortBy('month_no')->first())->due_date;
+                                @endphp
+
+                                <div class="d-flex gap-1">
+                                    <button type="button"
+                                            class="btn btn-primary btn-sm px-2 py-1 view-installment"
+                                            data-installment="{{ $installment->id }}">
+                                        View
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-warning btn-sm px-2 py-1 edit-installment"
+                                            data-action="{{ route('installment.update', $installment->id) }}"
+                                            data-reference="{{ $installment->bill->reference_no }}"
+                                            data-months="{{ $installment->months }}"
+                                            data-first-due-date="{{ $firstDueDate ? \Carbon\Carbon::parse($firstDueDate)->format('Y-m-d') : now()->format('Y-m-d') }}"
+                                            data-bill-amount="{{ $installment->bill_amount }}">
+                                        Edit
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm px-2 py-1 delete-installment"
+                                            data-action="{{ route('installment.destroy', $installment->id) }}"
+                                            data-reference="{{ $installment->bill->reference_no }}">
+                                        Delete
+                                    </button>
+                                </div>
                             </td>
                         </tr>
 
                         @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted">
+                            <td colspan="8" class="text-center text-muted">
                                 No installment records found.
                             </td>
                         </tr>
@@ -204,6 +240,11 @@
                         readonly>
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label">Reason / Remarks</label>
+                    <textarea name="reason" class="form-control" rows="2" placeholder="Optional remarks"></textarea>
+                </div>
+
             </div>
 
             <div class="modal-footer">
@@ -215,6 +256,90 @@
             </form>
 
         </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editInstallmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" id="editInstallmentForm" class="modal-content">
+            @csrf
+            @method('PUT')
+
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Installment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Bill Reference</label>
+                    <input type="text" id="edit_reference" class="form-control" disabled>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Months</label>
+                    <input type="number" name="months" id="edit_months" class="form-control" min="1" max="60" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">First Due Date</label>
+                    <input type="date" name="first_due_date" id="edit_first_due_date" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Monthly Payment</label>
+                    <input type="text" id="edit_monthly_amount" class="form-control" readonly>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <textarea name="reason" class="form-control" rows="3" required></textarea>
+                </div>
+
+                <div class="alert alert-warning mb-0">
+                    Editing is allowed only while no installment schedule has been paid.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-success">Save Changes</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteInstallmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" id="deleteInstallmentForm" class="modal-content">
+            @csrf
+            @method('DELETE')
+
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Installment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <p class="mb-2">
+                    Delete installment for <strong id="delete_reference"></strong>?
+                </p>
+
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <textarea name="reason" class="form-control" rows="3" required></textarea>
+                </div>
+
+                <div class="alert alert-danger mb-0">
+                    This will delete unpaid schedules and restore the bill. Deleting is allowed only before any installment payment is made.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger">Delete Installment</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -263,6 +388,72 @@
     </div>
 </div>
 
+<div class="modal fade" id="installmentHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Installment History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Action</th>
+                                <th>Account</th>
+                                <th>Bill Ref</th>
+                                <th>Old</th>
+                                <th>New</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($installmentAdjustments as $history)
+                                @php
+                                    $oldMonths = data_get($history->old_data, 'installment.months');
+                                    $oldMonthly = data_get($history->old_data, 'installment.monthly_amount');
+                                    $newMonths = data_get($history->new_data, 'installment.months');
+                                    $newMonthly = data_get($history->new_data, 'installment.monthly_amount');
+                                @endphp
+                                <tr>
+                                    <td>{{ optional($history->created_at)->format('M d, Y h:i A') }}</td>
+                                    <td><span class="badge bg-secondary text-uppercase">{{ $history->action }}</span></td>
+                                    <td>{{ $history->bill->reading->account_no ?? '-' }}</td>
+                                    <td>{{ $history->bill->reference_no ?? '-' }}</td>
+                                    <td>
+                                        @if($oldMonths)
+                                            {{ $oldMonths }} mos / ₱{{ number_format((float) $oldMonthly, 2) }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($newMonths)
+                                            {{ $newMonths }} mos / ₱{{ number_format((float) $newMonthly, 2) }}
+                                        @elseif($history->action === 'deleted')
+                                            Deleted
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>{{ $history->reason ?? '-' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No installment history found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 <script>
@@ -273,6 +464,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const billSelect = document.getElementById('bill_select');
     const monthlyInput = document.getElementById('monthly_amount');
     const searchBtn = document.getElementById('search_account');
+    const editMonthsInput = document.getElementById('edit_months');
+    const editMonthlyInput = document.getElementById('edit_monthly_amount');
+    let editBillAmount = 0;
 
     if(monthsInput){
         monthsInput.addEventListener('input', function(){
@@ -365,6 +559,29 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     document.addEventListener('click', function(e){
+        const editButton = e.target.closest('.edit-installment');
+        const deleteButton = e.target.closest('.delete-installment');
+
+        if (editButton) {
+            editBillAmount = parseFloat(editButton.dataset.billAmount || 0);
+
+            document.getElementById('editInstallmentForm').action = editButton.dataset.action;
+            document.getElementById('edit_reference').value = editButton.dataset.reference;
+            document.getElementById('edit_months').value = editButton.dataset.months;
+            document.getElementById('edit_first_due_date').value = editButton.dataset.firstDueDate;
+            document.getElementById('edit_monthly_amount').value = (editBillAmount / parseInt(editButton.dataset.months || 1)).toFixed(2);
+
+            new bootstrap.Modal(document.getElementById('editInstallmentModal')).show();
+            return;
+        }
+
+        if (deleteButton) {
+            document.getElementById('deleteInstallmentForm').action = deleteButton.dataset.action;
+            document.getElementById('delete_reference').innerText = deleteButton.dataset.reference;
+
+            new bootstrap.Modal(document.getElementById('deleteInstallmentModal')).show();
+            return;
+        }
 
         if(e.target.classList.contains('view-installment')){
 
@@ -438,8 +655,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     });
 
+    if (editMonthsInput) {
+        editMonthsInput.addEventListener('input', function () {
+            const months = parseInt(this.value || 0);
+            editMonthlyInput.value = months > 0 ? (editBillAmount / months).toFixed(2) : '';
+        });
+    }
+
 });
 
 </script>
-
 
