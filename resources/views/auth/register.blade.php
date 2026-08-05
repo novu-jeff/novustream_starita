@@ -13,6 +13,16 @@
                 <div id="registerAlert" class="alert d-none w-100 py-2 px-3 mb-2" role="alert"></div>
 
                 <div class="register-fields w-100">
+                    <div class="registration-type w-100">
+                        <label class="registration-type-option">
+                            <input type="radio" name="registration_type" value="existing_account" checked>
+                            <span>Existing Sta. Rita Account</span>
+                        </label>
+                        <label class="registration-type-option">
+                            <input type="radio" name="registration_type" value="new_connection">
+                            <span>New Concessionaire</span>
+                        </label>
+                    </div>
                     <div class="w-100">
                         <input type="text" class="form-control" name="name" id="name" placeholder="LASTNAME, FIRSTNAME M.I. (e.g. DELA CRUZ, JUAN P.) *" style="text-transform: uppercase;" required/>
                     </div>
@@ -22,7 +32,7 @@
                     <div class="w-100">
                         <input type="tel" class="form-control" name="contact_no" id="contact_no" placeholder="Contact No. *" maxlength="11" inputmode="numeric" required />
                     </div>
-                    <div class="w-100">
+                    <div class="w-100 existing-account-field">
                         <input type="text" class="form-control" name="account_no" id="account_no" placeholder="Account No. *" required />
                     </div>
                     <div class="w-100">
@@ -35,7 +45,7 @@
                         <input type="password" class="form-control" name="password_confirmation" id="password_confirmation" placeholder="Confirm Password *" minlength="8" required />
                     </div>
 
-                    <div class="file-upload w-100">
+                    <div class="file-upload w-100 existing-account-field">
                         <label for="soa_file" class="file-label">
                             <i class="bx bx-file"></i>
                             <span class="file-text">Last SOA *</span>
@@ -123,6 +133,33 @@
 
     .register-page .file-upload {
         margin: 6px 0;
+    }
+
+    .register-page .registration-type {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 8px 0;
+    }
+
+    .register-page .registration-type-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f1f4f8;
+        border: 1px solid #d8dee8;
+        border-radius: 6px;
+        padding: 10px;
+        cursor: pointer;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #333;
+        text-transform: none;
+    }
+
+    .register-page .registration-type-option input {
+        width: auto;
+        margin: 0;
     }
 
     .register-page .file-upload input[type="file"] {
@@ -314,10 +351,33 @@ document.addEventListener('DOMContentLoaded', function () {
     const declineConsent = document.getElementById('declineConsent');
     const confirmConsent = document.getElementById('confirmConsent');
     const nameInput = document.getElementById('name');
+    const registrationTypeInputs = form.querySelectorAll('input[name="registration_type"]');
+    const existingAccountFields = form.querySelectorAll('.existing-account-field');
 
     nameInput.addEventListener('input', function () {
         this.value = this.value.toUpperCase();
     });
+
+    function selectedRegistrationType() {
+        return form.querySelector('input[name="registration_type"]:checked').value;
+    }
+
+    function syncRegistrationTypeFields() {
+        const isExisting = selectedRegistrationType() === 'existing_account';
+
+        existingAccountFields.forEach(function (field) {
+            field.classList.toggle('d-none', !isExisting);
+        });
+
+        form.account_no.required = isExisting;
+        form.soa_file.required = isExisting;
+    }
+
+    registrationTypeInputs.forEach(function (input) {
+        input.addEventListener('change', syncRegistrationTypeFields);
+    });
+
+    syncRegistrationTypeFields();
 
     function bindFileLabel(inputId, nameId) {
         const input = document.getElementById(inputId);
@@ -367,6 +427,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const passwordConfirm = form.password_confirmation.value;
         const soaFile = form.soa_file.files[0];
         const idFile = form.id_file.files[0];
+        const isExisting = selectedRegistrationType() === 'existing_account';
 
         let firstInvalid = null;
 
@@ -378,11 +439,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!name) markInvalid(form.name);
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) markInvalid(form.email);
         if (!contact || contact.length < 10) markInvalid(form.contact_no);
-        if (!accountNo) markInvalid(form.account_no);
+        if (isExisting && !accountNo) markInvalid(form.account_no);
         if (!address) markInvalid(form.address);
         if (!password || password.length < 8) markInvalid(form.password);
         if (!passwordConfirm || password !== passwordConfirm) markInvalid(form.password_confirmation);
-        if (!soaFile) markInvalid(document.querySelector('label[for="soa_file"]'));
+        if (isExisting && !soaFile) markInvalid(document.querySelector('label[for="soa_file"]'));
         if (!idFile) markInvalid(document.querySelector('label[for="id_file"]'));
 
         if (firstInvalid) {
@@ -422,8 +483,27 @@ document.addEventListener('DOMContentLoaded', function () {
             return payload;
         })
         .then(function (payload) {
-            showAlert('success', payload.message || 'Registration submitted for review.');
-            window.location.href = payload.redirect || '{{ route('account-overview.index') }}';
+
+            showAlert('success', payload.message || 'Registration submitted successfully.');
+
+            const registrationType = document.querySelector(
+                'input[name="registration_type"]:checked'
+            ).value;
+
+            setTimeout(function () {
+
+                if (registrationType === 'new_connection') {
+
+                    window.location.href = "{{ route('application.create') }}";
+
+                } else {
+
+                    window.location.href = payload.redirect || "{{ route('account-overview.index') }}";
+
+                }
+
+            }, 1000);
+
         })
         .catch(function (error) {
             showAlert('danger', error.message);

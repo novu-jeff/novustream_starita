@@ -44,8 +44,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     <main class="main">
         <div class="responsive-wrapper">
-            <div class="main-header">
+            <div class="main-header d-flex justify-content-between align-items-center">
+
                 <h1>Account Overview</h1>
+
+                @if($canApplyForNewServiceConnection ?? false)
+                    <button type="button"
+                            class="btn btn-primary fw-bold text-uppercase"
+                            data-bs-toggle="modal"
+                            data-bs-target="#serviceApplicationModal">
+
+                        <i class="bx bx-water"></i>
+                        New Water Service Connection
+
+                    </button>
+                @endif
+
             </div>
             @if(!empty($applicationNotification))
                 <div class="application-notification">
@@ -366,6 +380,71 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     </style>
+
+    <div class="modal fade" id="serviceApplicationModal" tabindex="-1">
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <div class="modal-header bg-primary text-white">
+
+                <h5 class="modal-title fw-bold text-uppercase">
+                    Water Service Application
+                </h5>
+
+                <button type="button"
+                        class="btn-close btn-close-white"
+                        data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+
+            <div class="modal-body text-center">
+
+                <i class="bx bx-water text-primary"
+                   style="font-size:60px">
+                </i>
+
+
+                <h5 class="fw-bold mt-3">
+                    Apply for New Service Connection?
+                </h5>
+
+
+                <p class="text-muted">
+                    You will be redirected to the Water Service Connection Application Form.
+                </p>
+
+
+            </div>
+
+
+            <div class="modal-footer justify-content-center">
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        data-bs-dismiss="modal">
+
+                    Cancel
+
+                </button>
+
+
+                <a href="/application/create"
+   class="btn btn-primary fw-bold">
+    Continue Application
+</a>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+</div>
 @endsection
 
 @section('script')
@@ -391,6 +470,33 @@ document.addEventListener('DOMContentLoaded', function () {
                     $('#applicationNotificationPanel').addClass('d-none');
                 }
             });
+
+            const applicationNotification = @json($applicationNotification ?? null);
+
+            if (
+                applicationNotification
+                && ['success', 'danger'].includes(applicationNotification.status)
+                && typeof Swal !== 'undefined'
+            ) {
+                const notificationKey = [
+                    'srwd-application-decision',
+                    '{{ $my->id ?? 'user' }}',
+                    applicationNotification.status,
+                    applicationNotification.date || ''
+                ].join(':');
+
+                if (localStorage.getItem(notificationKey) !== 'shown') {
+                    Swal.fire({
+                        icon: applicationNotification.status === 'success' ? 'success' : 'error',
+                        title: applicationNotification.title || 'Application update',
+                        text: applicationNotification.message || '',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: applicationNotification.status === 'success' ? '#198754' : '#dc3545',
+                    });
+
+                    localStorage.setItem(notificationKey, 'shown');
+                }
+            }
         });
     </script>
 @endsection

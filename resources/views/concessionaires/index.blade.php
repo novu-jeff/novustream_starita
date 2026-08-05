@@ -45,6 +45,7 @@
                             <option value="all" {{ $listFilter === 'all' ? 'selected' : '' }}>All</option>
                             <option value="seniors" {{ $listFilter === 'seniors' ? 'selected' : '' }}>Seniors</option>
                             <option value="inactive" {{ $listFilter === 'inactive' ? 'selected' : '' }}>Inactive</option>
+                            <option value="sequence" {{ $listFilter === 'sequence' ? 'selected' : '' }}>Sequence</option>
                         </select>
                     </div>
                     <div class="col-12 col-md-4 mb-3">

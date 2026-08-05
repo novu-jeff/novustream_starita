@@ -27,8 +27,13 @@ class Installment extends Model
         return $this->hasMany(InstallmentSchedule::class);
     }
 
-    public function user()
+    public function adjustments()
     {
-        return $this->belongsTo(User::class, 'name');
+        return $this->hasMany(InstallmentAdjustment::class);
+    }
+
+    public function concessionaire()
+    {
+        return $this->belongsTo(ConcessionerAccount::class, 'user_id');
     }
 }

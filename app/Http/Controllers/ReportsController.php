@@ -1672,18 +1672,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
 
                 $accountsWithSelectedMonthBill = Bill::query()
                     ->join('readings', 'readings.id', '=', 'bill.reading_id')
-                    ->joinSub(
-                        DB::table('concessioner_accounts')
-                            ->select('account_no')
-                            ->selectRaw('MIN(zone) as zone')
-                            ->groupBy('account_no'),
-                        'concessioner_accounts',
-                        'concessioner_accounts.account_no',
-                        '=',
-                        'readings.account_no'
-                    )
                     ->when($zone !== 'all', function ($q) use ($zone) {
-                        $q->where('concessioner_accounts.zone', $zone);
+                        $q->where('readings.zone', $zone);
                     })
                     ->whereBetween('bill.bill_period_to', [$selectedStart, $selectedEnd])
                     ->pluck('readings.account_no')
@@ -1705,7 +1695,7 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 )
                 ->with(['reading.concessionaire.user'])
                 ->when($zone !== 'all', function ($q) use ($zone) {
-                    $q->where('concessioner_accounts.zone', $zone);
+                    $q->where('readings.zone', $zone);
                 })
                 ->where('bill.bill_period_to', '<=', $selectedEnd)
                 ->where(function ($q) use ($selectedEnd) {
@@ -1714,9 +1704,9 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                         ->orWhere('bill.partial_payment', '>', 0)
                         ->orWhere('bill.previous_unpaid', '>', 0);
                 })
+                ->orderBy('readings.zone')
                 ->orderBy('concessioner_accounts.sequence_no')
-                ->orderBy('bill.bill_period_to')
-                ->select('bill.*', 'concessioner_accounts.sequence_no')
+                ->select('bill.*', 'concessioner_accounts.sequence_no', 'readings.zone as report_zone')
                 ->get();
 
                 $query = $query
@@ -1733,6 +1723,7 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                                 ->take(1);
                     })
                     ->sortBy([
+                        ['report_zone', 'asc'],
                         ['sequence_no', 'asc'],
                         ['bill_period_to', 'asc'],
                     ])

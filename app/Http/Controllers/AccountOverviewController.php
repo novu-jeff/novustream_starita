@@ -32,10 +32,12 @@ public function index()
     $my = Auth::user()->load('property_types', 'accounts.sc_discount');
     $id = $my->id;
 
-    $data = $this->clientService::getData($id);
-    $accounts = $data->accounts ?? [];
+    $data = $this->clientService::getData($id) ?? $my;
+    $accounts = collect($data->accounts ?? []);
+    $data->setRelation('accounts', $accounts);
     $approvalNotice = $this->approvalNotice($accounts);
     $applicationNotification = $this->applicationNotification($accounts);
+    $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
     $approvedAccounts = collect($accounts)->filter(function ($account) {
         return $this->canUseAccount($account);
     });
@@ -101,7 +103,7 @@ public function index()
 
     $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
-    $sc_discounts = collect($data['accounts'])->pluck('sc_discount');
+    $sc_discounts = $accounts->pluck('sc_discount');
 
     // -----------------------------
     // Generate online payment URL
@@ -131,7 +133,7 @@ public function index()
         $statement['current_bill_qr'] = $qrResolved['url'];
     }
 
-    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts', 'approvalNotice', 'applicationNotification'));
+    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'canApplyForNewServiceConnection'));
 }
 
 
@@ -147,8 +149,9 @@ public function index()
             public function bills(Request $request, ?string $reference_no = null)
 {
     $userId = Auth::id();
-    $clientData = $this->clientService::getData($userId);
-    $accounts = $clientData->accounts ?? [];
+    $user = Auth::user()->load('accounts.sc_discount');
+    $clientData = $this->clientService::getData($userId) ?? $user;
+    $accounts = collect($clientData->accounts ?? []);
 
     if (!$this->hasUsableAccount($accounts)) {
         return redirect()
@@ -171,8 +174,13 @@ public function index()
         ]);
     }
 
+    $billAccountNo = $data['current_bill']['reading']['account_no']
+        ?? $data['client']['account_no']
+        ?? $data['current_bill']['account_no']
+        ?? null;
+
     $validAccountNos = $accounts->pluck('account_no')->toArray();
-    if (!in_array($data['current_bill']['account_no'] ?? null, $validAccountNos)) {
+    if (!in_array($billAccountNo, $validAccountNos)) {
         return redirect()->route('account-overview.bills')->with('alert', [
             'status' => 'error',
             'message' => 'Invalid bill reference for your account.',
@@ -238,7 +246,7 @@ public function index()
             'amount' => $final_amount,
             'customer' => [
                 'name' => $data['client']['name'] ?? '',
-                'account_no' => $data['client']['account_no'] ?? '',
+                'account_no' => $billAccountNo ?? '',
                 'address' => $data['client']['address'] ?? '',
             ],
         ];
@@ -424,8 +432,9 @@ public function index()
 {
     // Get the current authenticated user's accounts
     $userId = Auth::id();
-    $clientData = $this->clientService::getData($userId);
-    $accounts = $clientData->accounts ?? [];
+    $user = Auth::user()->load('accounts.sc_discount');
+    $clientData = $this->clientService::getData($userId) ?? $user;
+    $accounts = collect($clientData->accounts ?? []);
 
     if (!$this->hasUsableAccount($accounts)) {
         return redirect()
@@ -509,6 +518,13 @@ public function index()
         return !empty($account->application_status)
             || !empty($account->application_soa_path)
             || !empty($account->application_id_path);
+    }
+
+    private function canApplyForNewServiceConnection($accounts): bool
+    {
+        return collect($accounts)->contains(function ($account) {
+            return ($account->application_type ?? null) === 'new_connection';
+        });
     }
 
     private function approvalNotice($accounts): ?array

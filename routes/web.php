@@ -28,6 +28,7 @@ use App\Http\Controllers\OfflineReadingsController;
 use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\ServiceApplicationController;
 use App\Http\Controllers\Admin\ReadingAdjustmentController;
 use App\Http\Controllers\Admin\BillingAdjustmentController;
 
@@ -139,6 +140,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::post('/installment/store', [InstallmentController::class,'store'])
     ->name('installment.store');
 
+    Route::put('/installment/{installment}', [InstallmentController::class,'update'])
+    ->name('installment.update');
+
+    Route::delete('/installment/{installment}', [InstallmentController::class,'destroy'])
+    ->name('installment.destroy');
+
     Route::get('/installment/bills-by-account', [InstallmentController::class,'getBillsByAccount'])
     ->name('installment.bills.by.account');
 
@@ -153,6 +160,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::get('registrants', [ConcessionaireController::class, 'registrants'])
             ->name('registrants.index');
+
+        Route::get('registrants/{account}/form', [ConcessionaireController::class, 'printRegistrantForm'])
+            ->name('registrants.form');
+
+        Route::get('registrants/{account}/complete', [ConcessionaireController::class, 'completeRegistrant'])
+            ->name('registrants.complete');
 
         Route::patch('registrants/{account}/approve', [ConcessionaireController::class, 'approveApplication'])
             ->name('registrants.approve');
@@ -227,6 +240,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         ->group(function () {
 
         Route::get('/', [ReadingAdjustmentController::class, 'index'])->name('index');
+        Route::post('/create-initial', [ReadingAdjustmentController::class, 'createInitial'])->name('create-initial');
         Route::get('/{id}/edit', [ReadingAdjustmentController::class, 'edit'])->name('edit');
         Route::put('/{id}', [ReadingAdjustmentController::class, 'update'])->name('update');
     });
@@ -367,6 +381,31 @@ Route::get('/payment/test-status', function () {
         ]
     ]);
 });
+
+
+    Route::middleware('auth')->group(function () {
+
+        Route::get('/application/create',
+            [ServiceApplicationController::class,'create'])
+            ->name('application.create');
+
+        Route::post('/application',
+            [ServiceApplicationController::class,'store'])
+            ->name('application.store');
+
+        Route::get('/application/print', function () {
+            return view('application.print');
+        })->name('application.print.preview');
+
+        Route::get('/application/{application}/print',
+            [ServiceApplicationController::class, 'print'])
+            ->name('application.print');
+
+        Route::get('/application/{application}',
+            [ServiceApplicationController::class, 'show'])
+            ->name('application.show');
+
+    });
 
 
 Route::get('/offline/download', [OfflineSyncController::class, 'download']);

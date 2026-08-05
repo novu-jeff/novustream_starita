@@ -20,6 +20,7 @@
                         :status_code="{{ json_encode($status_code) }}" 
                         :property_types="{{ json_encode($property_types) }}" 
                         :data="{{ json_encode($data) }}"
+                        registrant-id="{{ $registrantId ?? '' }}"
                         >
                     </add-concessioner>
                 @else
@@ -47,4 +48,3 @@
         });
     </script>
 @endsection
-
