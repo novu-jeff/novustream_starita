@@ -336,12 +336,12 @@ class InstallmentController extends Controller
     private function installmentBillData(float $monthly): array
     {
         return [
-            'previous_unpaid' => 0,
-            'total' => $monthly,
-            'amount' => $monthly,
-            'amount_after_due' => $monthly,
-            'penalty' => 0,
-            'hasPenalty' => 0,
+            // 'previous_unpaid' => 0,
+            // 'total' => $monthly,
+            // 'amount' => $monthly,
+            // 'amount_after_due' => $monthly,
+            // 'penalty' => 0,
+            // 'hasPenalty' => 0,
             'isInstallment' => 1,
         ];
     }
