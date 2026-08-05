@@ -6,6 +6,7 @@ use App\Models\ConcessionerAccount;
 use App\Models\Installment;
 use App\Models\InstallmentAdjustment;
 use App\Models\InstallmentSchedule;
+use App\Models\BillDiscount;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +113,8 @@ class InstallmentController extends Controller
             $this->rebuildSchedules($installment, $months, $monthly, $firstDueDate);
 
             $bill->update($this->installmentBillData($monthly));
+
+            BillDiscount::where('bill_id', $bill->id)->delete();
 
             $installment->load('schedules');
 
@@ -336,12 +339,12 @@ class InstallmentController extends Controller
     private function installmentBillData(float $monthly): array
     {
         return [
-            // 'previous_unpaid' => 0,
-            // 'total' => $monthly,
-            // 'amount' => $monthly,
-            // 'amount_after_due' => $monthly,
-            // 'penalty' => 0,
-            // 'hasPenalty' => 0,
+            'previous_unpaid' => 0,
+            'total' => $monthly,
+            'amount' => $monthly,
+            'amount_after_due' => $monthly,
+            'penalty' => 0,
+            'hasPenalty' => 0,
             'isInstallment' => 1,
         ];
     }
