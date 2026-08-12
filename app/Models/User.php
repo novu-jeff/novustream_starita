@@ -37,4 +37,8 @@ class User extends Authenticatable
         return $this->hasMany(UserAccounts::class);
     }
 
+    public function serviceApplications() {
+        return $this->hasMany(ServiceApplication::class);
+    }
+
 }

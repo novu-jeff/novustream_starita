@@ -86,6 +86,7 @@
                                 $applicationStatus = $account->application_status
                                     ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
                                 $registrant = $account->user;
+                                $serviceApplication = $registrant?->serviceApplications?->first();
                             @endphp
                             <tr>
                                 <td>{{ optional($account->created_at)->format('M d, Y') }}</td>
@@ -120,6 +121,9 @@
                                     <div class="d-flex align-items-center gap-2">
                                         @if($applicationType === 'new_connection')
                                             <a href="{{ route('registrants.form', $account->id) }}" target="_blank" class="btn btn-outline-primary btn-sm">Form</a>
+                                        @endif
+                                        @if($serviceApplication)
+                                            <a href="{{ route('admin.application.contract', $serviceApplication) }}" target="_blank" class="btn btn-outline-primary btn-sm">Contract</a>
                                         @endif
                                         @if($account->application_soa_path)
                                             <a href="{{ asset('storage/' . $account->application_soa_path) }}" target="_blank" class="btn btn-outline-primary btn-sm">SOA</a>

@@ -149,7 +149,9 @@ class ConcessionaireController extends Controller
         $status = $request->status ?? 'pending';
         $type = $request->type ?? 'all';
 
-        $query = UserAccounts::with('user')
+        $query = UserAccounts::with(['user.serviceApplications' => function ($query) {
+                $query->latest();
+            }])
             ->whereNotNull('application_status');
 
         if ($status === 'pending') {

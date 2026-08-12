@@ -48,7 +48,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <h1>Account Overview</h1>
 
-                @if($canApplyForNewServiceConnection ?? false)
+                @if(($applicationStatus ?? null) === 'pending')
+                    <button type="button"
+                            class="btn btn-primary fw-bold text-uppercase"
+                            data-bs-toggle="modal"
+                            data-bs-target="#serviceApplicationModal">
+
+                        <i class="bx bx-water"></i>
+                        New Water Service Connection
+
+                    </button>
+                @elseif(!empty($serviceApplication))
+                    <a href="{{ route('application.show', $serviceApplication) }}"
+                    class="btn btn-primary fw-bold text-uppercase">
+
+                        <i class="bx bx-file"></i>
+                        View Application
+
+                    </a>
+                @else
                     <button type="button"
                             class="btn btn-primary fw-bold text-uppercase"
                             data-bs-toggle="modal"
@@ -61,25 +79,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 @endif
 
             </div>
-            @if(!empty($applicationNotification))
+            @php
+                $primaryNotification = $accountNotifications[0] ?? $applicationNotification ?? null;
+            @endphp
+
+            @if(!empty($accountNotifications))
                 <div class="application-notification">
-                    <button type="button" class="application-notification-button" id="applicationNotificationToggle" aria-label="View application notification">
+                    <button type="button" class="application-notification-button" id="applicationNotificationToggle" aria-label="View account notifications">
                         <i class="bx bx-bell"></i>
-                        <span class="application-notification-dot bg-{{ $applicationNotification['status'] ?? 'primary' }}"></span>
+                        <span class="application-notification-dot bg-{{ $primaryNotification['status'] ?? 'primary' }}"></span>
                     </button>
                     <div class="application-notification-panel d-none" id="applicationNotificationPanel">
-                        <div class="d-flex align-items-start justify-content-between gap-3">
-                            <div>
-                                <div class="fw-bold text-uppercase mb-1">{{ $applicationNotification['title'] }}</div>
-                                <div class="small text-muted">{{ $applicationNotification['message'] }}</div>
-                                @if(!empty($applicationNotification['date']))
-                                    <div class="small text-muted mt-2">{{ $applicationNotification['date'] }}</div>
-                                @endif
+                        <div class="fw-bold text-uppercase mb-3">Notifications</div>
+
+                        @foreach($accountNotifications as $notification)
+                            <div class="application-notification-item {{ $loop->last ? 'mb-0 pb-0 border-0' : '' }}">
+                                <div class="d-flex align-items-start justify-content-between gap-3">
+                                    <div>
+                                        <div class="fw-bold text-uppercase mb-1">{{ $notification['title'] }}</div>
+                                        <div class="small text-muted">{{ $notification['message'] }}</div>
+                                        @if(!empty($notification['date']))
+                                            <div class="small text-muted mt-2">{{ $notification['date'] }}</div>
+                                        @endif
+                                    </div>
+                                    <span class="badge bg-{{ $notification['status'] ?? 'primary' }}">
+                                        {{ ucfirst($notification['status'] ?? 'info') }}
+                                    </span>
+                                </div>
                             </div>
-                            <span class="badge bg-{{ $applicationNotification['status'] ?? 'primary' }}">
-                                {{ ucfirst($applicationNotification['status'] ?? 'info') }}
-                            </span>
-                        </div>
+                        @endforeach
                     </div>
                 </div>
             @endif
@@ -88,13 +116,213 @@ document.addEventListener('DOMContentLoaded', function () {
                     $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
                 @endphp
 
-                @if(!empty($visibleApprovalNotice))
-                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
-                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
-                    </div>
-                @endif
+	                @if(!empty($visibleApprovalNotice))
+	                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
+	                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
+	                    </div>
+	                @endif
 
-                @php
+                    @if(!empty($serviceApplication))
+                        <div class="card shadow border-0 p-4 mb-4">
+                            <div class="card-body">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                                    <div>
+                                        <small class="text-uppercase fw-bold text-muted">Water Service Application</small>
+                                        <h5 class="fw-bold text-uppercase mb-0">{{ $serviceApplication->application_no }}</h5>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a href="{{ route('application.show', $serviceApplication) }}" class="btn btn-primary fw-bold text-uppercase">
+                                            View Application
+                                        </a>
+                                        <a href="{{ route('application.contract', $serviceApplication) }}" class="btn btn-outline-primary fw-bold text-uppercase">
+                                            View Contract
+                                        </a>
+                                        <a href="{{ route('application.contract.print', $serviceApplication) }}" target="_blank" class="btn btn-outline-primary fw-bold text-uppercase">
+                                            Print Contract
+                                        </a>
+                                        <a href="{{ route('application.create') }}" class="btn btn-outline-primary fw-bold text-uppercase">
+                                            Review Form
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-12 col-md-6">
+                                        <table class="table table-bordered table-hover mb-0">
+                                            <tbody>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Applicant</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->applicant_name }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Contact No</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->cellphone }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Email</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $my->email }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Service Address</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->service_address }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-12 col-md-6 mt-3 mt-md-0">
+                                        <table class="table table-bordered table-hover mb-0">
+                                            <tbody>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Application Type</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->application_type }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Installation Location</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->installation_location }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Property Owner</th>
+                                                    <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->property_owner }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Documents</th>
+
+                                                    <td class="text-uppercase fw-bold text-muted">
+
+                                                        {{-- Valid ID --}}
+                                                        <div class="document-row">
+                                                            <span>
+                                                                Valid ID:
+                                                                {{ $serviceApplication->documents?->valid_id ? 'Uploaded' : 'Missing' }}
+                                                            </span>
+
+                                                            @if($serviceApplication->documents?->valid_id)
+                                                                <a  type="button"
+                                                                    class="document-btn document-btn-view"
+                                                                    title="View Valid ID"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#viewDocumentModal"
+                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->valid_id) }}"
+                                                                    data-document-name="Valid ID">
+                                                                    <i class="bx bx-show"></i>
+                                                                </a>
+                                                            @endif
+
+                                                            <button type="button"
+                                                                    class="document-btn document-btn-edit"
+                                                                    title="Replace Valid ID"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#replaceDocumentModal"
+                                                                    data-document="valid_id"
+                                                                    data-label="Valid ID">
+                                                                <i class="bx bx-edit"></i>
+                                                            </button>
+                                                        </div>
+
+
+                                                        {{-- Cedula --}}
+                                                        <div class="document-row">
+                                                            <span>
+                                                                Cedula:
+                                                                {{ $serviceApplication->documents?->cedula ? 'Uploaded' : 'Missing' }}
+                                                            </span>
+
+                                                            @if($serviceApplication->documents?->cedula)
+                                                                <a  type="button"
+                                                                    class="document-btn document-btn-view"
+                                                                    title="View Cedula"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#viewDocumentModal"
+                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->cedula) }}"
+                                                                    data-document-name="Cedula">
+                                                                    <i class="bx bx-show"></i>
+                                                                </a>
+                                                            @endif
+
+                                                            <button type="button"
+                                                                    class="document-btn document-btn-edit"
+                                                                    title="Replace Cedula"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#replaceDocumentModal"
+                                                                    data-document="cedula"
+                                                                    data-label="Cedula">
+                                                                <i class="bx bx-edit"></i>
+                                                            </button>
+                                                        </div>
+
+
+                                                        {{-- Proof of Billing --}}
+                                                        <div class="document-row">
+                                                            <span>
+                                                                Proof of Billing:
+                                                                {{ $serviceApplication->documents?->proof_of_billing ? 'Uploaded' : 'Missing' }}
+                                                            </span>
+
+                                                            @if($serviceApplication->documents?->proof_of_billing)
+                                                                <a  type="button"
+                                                                    class="document-btn document-btn-view"
+                                                                    title="View Proof of Billing"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#viewDocumentModal"
+                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->proof_of_billing) }}"
+                                                                    data-document-name="Proof of Billing">
+                                                                    <i class="bx bx-show"></i>
+                                                                </a>
+                                                            @endif
+
+                                                            <button type="button"
+                                                                    class="document-btn document-btn-edit"
+                                                                    title="Replace Proof of Billing"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#replaceDocumentModal"
+                                                                    data-document="proof_of_billing"
+                                                                    data-label="Proof of Billing">
+                                                                <i class="bx bx-edit"></i>
+                                                            </button>
+                                                        </div>
+
+
+                                                        {{-- Authorization --}}
+                                                        <div class="document-row">
+                                                            <span>
+                                                                Authorization:
+                                                                {{ $serviceApplication->documents?->authorization_letter ? 'Uploaded' : 'N/A' }}
+                                                            </span>
+
+                                                            @if($serviceApplication->documents?->authorization_letter)
+                                                                <a  type="button"
+                                                                    class="document-btn document-btn-view"
+                                                                    title="View Authorization"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#viewDocumentModal"
+                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->authorization_letter) }}"
+                                                                    data-document-name="Authorization Letter">
+                                                                    <i class="bx bx-show"></i>
+                                                                </a>
+                                                            @endif
+
+                                                            <button type="button"
+                                                                    class="document-btn document-btn-edit"
+                                                                    title="Replace Authorization"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#replaceDocumentModal"
+                                                                    data-document="authorization_letter"
+                                                                    data-label="Authorization">
+                                                                <i class="bx bx-edit"></i>
+                                                            </button>
+                                                        </div>
+
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+	                @php
 
                     $currentDate = \Carbon\Carbon::now();
 
@@ -324,8 +552,180 @@ document.addEventListener('DOMContentLoaded', function () {
                 @endif
             </div>
         </div>
+
+        <div class="modal fade"
+            id="replaceDocumentModal"
+            tabindex="-1"
+            aria-hidden="true">
+
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <form method="POST"
+                        action="{{ route('service-application.documents.replace', $serviceApplication->id) }}"
+                        enctype="multipart/form-data">
+
+                        @csrf
+                        @method('PUT')
+
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                Replace Document
+                            </h5>
+
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal">
+                            </button>
+                        </div>
+
+                        <div class="modal-body">
+
+                            <p class="mb-3">
+                                Replace:
+                                <strong id="documentLabel"></strong>
+                            </p>
+
+                            <input type="hidden"
+                                name="document_type"
+                                id="documentType">
+
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Select New File
+                                </label>
+
+                                <input type="file"
+                                    name="document"
+                                    class="form-control"
+                                    required
+                                    accept=".jpg,.jpeg,.png,.pdf">
+
+                                <small class="text-muted">
+                                    Accepted: JPG, JPEG, PNG, PDF
+                                </small>
+                            </div>
+
+                        </div>
+
+                        <div class="modal-footer">
+
+                            <button type="button"
+                                    class="btn btn-secondary"
+                                    data-bs-dismiss="modal">
+                                Cancel
+                            </button>
+
+                            <button type="submit"
+                                    class="btn btn-warning">
+                                <i class="bx bx-upload"></i>
+                                Replace Document
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade"
+            id="viewDocumentModal"
+            tabindex="-1"
+            aria-labelledby="viewDocumentModalLabel"
+            aria-hidden="true">
+
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"
+                            id="viewDocumentModalLabel">
+                            View Document
+                        </h5>
+
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close">
+                        </button>
+                    </div>
+
+                    <div class="modal-body p-0">
+
+                        <div id="documentViewer"
+                            style="height: 75vh; background: #f5f5f5;">
+
+                            <div class="d-flex justify-content-center align-items-center h-100">
+                                <div class="spinner-border text-primary"
+                                    role="status">
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
     </main>
     <style>
+
+        .document-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+}
+
+.document-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 17px;
+    padding: 0;
+}
+
+/* View */
+.document-btn-view {
+    color: #0d6efd;
+    background-color: #eef5ff;
+    border-color: #cfe2ff;
+}
+
+.document-btn-view:hover {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(13, 110, 253, 0.25);
+}
+
+/* Edit / Replace */
+.document-btn-edit {
+    color: #f59e0b;
+    background-color: #fff8e6;
+    border-color: #ffe8a1;
+}
+
+.document-btn-edit:hover {
+    color: #fff;
+    background-color: #f59e0b;
+    border-color: #f59e0b;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(245, 158, 11, 0.25);
+}
+
         .application-notification {
             position: fixed;
             right: 24px;
@@ -366,11 +766,19 @@ document.addEventListener('DOMContentLoaded', function () {
             right: 0;
             bottom: 64px;
             width: min(340px, calc(100vw - 32px));
+            max-height: min(520px, calc(100vh - 120px));
+            overflow-y: auto;
             background: #fff;
             border: 1px solid rgba(0, 0, 0, 0.08);
             border-radius: 8px;
             padding: 16px;
             box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+        }
+
+        .application-notification-item {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            padding-bottom: 12px;
+            margin-bottom: 12px;
         }
 
         @media (max-width: 600px) {
@@ -433,9 +841,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
                 <a href="/application/create"
-   class="btn btn-primary fw-bold">
-    Continue Application
-</a>
+                class="btn btn-primary fw-bold">
+                    Continue Application
+                </a>
 
             </div>
 
@@ -447,8 +855,37 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 @endsection
 
+@if(session('success'))
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        Swal.fire({
+            icon: 'success',
+            title: 'Document Updated',
+            text: @json(session('success')),
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 10000,
+            timerProgressBar: true
+        });
+    });
+</script>
+@endif
+
 @section('script')
     <script>
+        document.getElementById('replaceDocumentModal')
+            .addEventListener('show.bs.modal', function (event) {
+
+                const button = event.relatedTarget;
+
+                const documentType = button.getAttribute('data-document');
+                const documentLabel = button.getAttribute('data-label');
+
+                document.getElementById('documentType').value = documentType;
+                document.getElementById('documentLabel').textContent = documentLabel;
+            });
+
         $(function() {
             $('#show-statement').on('click', function() {
             const statementContent = $('#statement-content');
@@ -471,7 +908,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             });
 
-            const applicationNotification = @json($applicationNotification ?? null);
+            const accountNotifications = @json($accountNotifications ?? []);
+            const applicationNotification = accountNotifications.find(function (notification) {
+                return notification.type === 'application';
+            }) || @json($applicationNotification ?? null);
 
             if (
                 applicationNotification
@@ -497,6 +937,97 @@ document.addEventListener('DOMContentLoaded', function () {
                     localStorage.setItem(notificationKey, 'shown');
                 }
             }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const viewModal = document.getElementById('viewDocumentModal');
+            const viewer = document.getElementById('documentViewer');
+            const modalTitle = document.getElementById('viewDocumentModalLabel');
+
+            viewModal.addEventListener('show.bs.modal', function (event) {
+
+                const button = event.relatedTarget;
+
+                const url = button.getAttribute('data-document-url');
+                const name = button.getAttribute('data-document-name');
+
+                modalTitle.textContent = 'View ' + name;
+
+                viewer.innerHTML = `
+                    <div class="d-flex justify-content-center align-items-center h-100">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                `;
+
+                const extension = url
+                    .split('?')[0]
+                    .split('.')
+                    .pop()
+                    .toLowerCase();
+
+                if (extension === 'pdf') {
+
+                    viewer.innerHTML = `
+                        <iframe
+                            src="${url}"
+                            width="100%"
+                            height="100%"
+                            style="border: none;"
+                            title="${name}">
+                        </iframe>
+                    `;
+
+                } else if (
+                    extension === 'jpg' ||
+                    extension === 'jpeg' ||
+                    extension === 'png' ||
+                    extension === 'gif' ||
+                    extension === 'webp'
+                ) {
+
+                    viewer.innerHTML = `
+                        <div class="d-flex justify-content-center align-items-center h-100 p-3">
+                            <img
+                                src="${url}"
+                                alt="${name}"
+                                style="
+                                    max-width: 100%;
+                                    max-height: 100%;
+                                    object-fit: contain;
+                                    border-radius: 6px;
+                                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                                ">
+                        </div>
+                    `;
+
+                } else {
+
+                    viewer.innerHTML = `
+                        <div class="d-flex flex-column justify-content-center align-items-center h-100">
+                            <i class="bx bx-file-blank text-muted"
+                            style="font-size: 60px;">
+                            </i>
+
+                            <p class="mt-2 text-muted">
+                                This file type cannot be previewed.
+                            </p>
+
+                            <a href="${url}"
+                            target="_blank"
+                            class="btn btn-primary">
+                                <i class="bx bx-download"></i>
+                                Open File
+                            </a>
+                        </div>
+                    `;
+                }
+            });
+
+            viewModal.addEventListener('hidden.bs.modal', function () {
+                viewer.innerHTML = '';
+            });
+
         });
     </script>
 @endsection

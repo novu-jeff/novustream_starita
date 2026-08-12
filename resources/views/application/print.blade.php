@@ -223,6 +223,31 @@
             font-size: 9px;
         }
 
+        .review-toolbar {
+            width: 215.9mm;
+            margin: 14px auto 0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .review-toolbar a,
+        .review-toolbar button {
+            border: 1px solid #0d6efd;
+            background: #0d6efd;
+            color: #fff;
+            padding: 8px 12px;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .review-toolbar .secondary {
+            background: #fff;
+            color: #0d6efd;
+        }
+
         th,
         td {
             border: 1px solid #000;
@@ -236,27 +261,30 @@
         }
 
         @media print {
-            @page {
-                size: A4;
-                margin: 8mm;
-            }
+    @page {
+        size: A4;
+        margin: 8mm;
+    }
 
-            html,
-            body {
-                background: #fff;
-            }
-
-            .application-paper {
-                width: auto;
-                min-height: auto;
-                margin: 0;
-                padding: 0;
-                border: none;
-            }
-        }
+    .application-paper {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 3mm 4mm;  /* small residual padding instead of 0 */
+        border: none;
+    }
+}
     </style>
 </head>
 <body>
+    @if(!($autoPrint ?? true))
+        <div class="review-toolbar">
+            <a href="{{ route('account-overview.index') }}" class="btn btn-primary fw-bold text-uppercase">Back to Overview</a>
+            <a href="{{ route('application.create') }}" class="btn btn-primary fw-bold text-uppercase">Review Form</a>
+            <button type="button" onclick="window.print()" class="btn btn-primary fw-bold text-uppercase">Print</button>
+        </div>
+    @endif
+
     <main class="application-paper">
         <header class="header">
             <h1>STA. RITA WATER DISTRICT</h1>
@@ -392,8 +420,34 @@
                     </table>
                 </div>
             </div>
-        </section>
-    </main>
+	        </section>
+
+            @if(!($autoPrint ?? true))
+                <section class="document-summary" style="margin-top: 16px;">
+                    <div class="section-title">Submitted Registration Documents</div>
+                    <table>
+                        <tbody>
+                            <tr>
+                                <th>Valid ID of Owner / Picture</th>
+                                <td>{{ $application->documents?->valid_id ? 'Uploaded' : 'Missing' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Latest Cedula / Residence Certificate</th>
+                                <td>{{ $application->documents?->cedula ? 'Uploaded' : 'Missing' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Proof of Billing</th>
+                                <td>{{ $application->documents?->proof_of_billing ? 'Uploaded' : 'Missing' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Authorization Letter / SPA with Valid ID</th>
+                                <td>{{ $application->documents?->authorization_letter ? 'Uploaded' : 'N/A' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            @endif
+	    </main>
 
     <script>
         (function () {
@@ -412,11 +466,13 @@
                 }
             });
 
-            window.addEventListener('load', function () {
-                setTimeout(function () {
-                    window.print();
-                }, 150);
-            });
+            if (@json($autoPrint ?? true)) {
+                window.addEventListener('load', function () {
+                    setTimeout(function () {
+                        window.print();
+                    }, 150);
+                });
+            }
         })();
     </script>
 </body>
