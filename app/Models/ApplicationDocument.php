@@ -13,6 +13,7 @@ class ApplicationDocument extends Model
         'cedula',
         'proof_of_billing',
         'authorization_letter',
+        'boring_permit',
         'proof_of_ownership',
         'tax_declaration',
         'barangay_clearance',

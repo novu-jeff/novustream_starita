@@ -11,9 +11,6 @@ use Illuminate\Support\Facades\Storage;
 
 class ServiceApplicationController extends Controller
 {
-    /**
-     * Display the application form.
-     */
     public function create()
     {
         $applicationDefaults = $this->applicationDefaults();
@@ -25,6 +22,7 @@ class ServiceApplicationController extends Controller
                 'applicant_name' => $application->applicant_name,
                 'service_address' => $application->service_address,
                 'application_type' => $application->application_type,
+                'connection_type' => $application->connection_type,
                 'connection_size' => $application->connection_size,
                 'installation_location' => $application->installation_location,
                 'property_owner' => $application->property_owner,
@@ -71,6 +69,7 @@ class ServiceApplicationController extends Controller
 
                 'application_type' => $validated['application_type'],
                 'application_type_other' => $validated['application_type_other'] ?? null,
+                'connection_type' => $application?->connection_type ?? 'on_line',
 
                 'connection_size' => $validated['connection_size'] ?? null,
                 'installation_location' => $validated['installation_location'],
@@ -79,6 +78,8 @@ class ServiceApplicationController extends Controller
 
                 'promissory_note' => $request->boolean('promissory_note'),
                 'promissory_amount' => $validated['promissory_amount'] ?? null,
+                'application_fee_amount' => $application?->application_fee_amount ?? 4000,
+                'application_fee_status' => $application?->application_fee_status ?? 'unpaid',
 
                 'status' => 'Pending',
             ];
@@ -112,6 +113,9 @@ class ServiceApplicationController extends Controller
 
                     'authorization_letter' => $this->documentPath($request, 'authorization_file', 'applications/authorization')
                         ?? $application->documents?->authorization_letter,
+
+                    'boring_permit' => $this->documentPath($request, 'boring_permit_file', 'applications/boring-permits')
+                        ?? $application->documents?->boring_permit,
                 ]
             );
 
@@ -176,6 +180,32 @@ class ServiceApplicationController extends Controller
         return view('application.contract', compact('application', 'printData', 'autoPrint'));
     }
 
+    public function uploadBoringPermit(Request $request, ServiceApplication $application)
+    {
+        abort_if($application->user_id != Auth::id(), 403);
+
+        $request->validate([
+            'boring_permit_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $application->loadMissing('documents');
+
+        ApplicationDocument::updateOrCreate(
+            ['service_application_id' => $application->id],
+            [
+                'valid_id' => $application->documents?->valid_id,
+                'cedula' => $application->documents?->cedula,
+                'proof_of_billing' => $application->documents?->proof_of_billing,
+                'authorization_letter' => $application->documents?->authorization_letter,
+                'boring_permit' => $request->file('boring_permit_file')->store('applications/boring-permits', 'public'),
+            ]
+        );
+
+        return redirect()
+            ->route('account-overview.index')
+            ->with('success', 'Boring/Cutting Permit uploaded successfully. Your application remains pending for admin review.');
+    }
+
     private function applicationDefaults(): array
     {
         $user = Auth::user()?->load('accounts');
@@ -208,6 +238,7 @@ class ServiceApplicationController extends Controller
             'applicant_name' => $application->applicant_name,
             'service_address' => $application->service_address,
             'application_type' => $application->application_type,
+            'connection_type' => $application->connection_type,
             'connection_size' => $application->connection_size,
             'installation_location' => $application->installation_location,
             'signature_name' => $application->applicant_name,
@@ -223,6 +254,7 @@ class ServiceApplicationController extends Controller
             'applicant_name' => $application->applicant_name,
             'signature_name' => $application->applicant_name,
             'service_address' => $application->service_address,
+            'connection_type' => $application->connection_type,
         ];
     }
 
@@ -253,10 +285,12 @@ class ServiceApplicationController extends Controller
 
     public function replaceDocument(Request $request, ServiceApplication $serviceApplication)
     {
+        $this->authorizeApplicationView($serviceApplication);
+
         $request->validate([
             'document_type' => [
                 'required',
-                'in:valid_id,cedula,proof_of_billing,authorization_letter'
+                'in:valid_id,cedula,proof_of_billing,authorization_letter,boring_permit'
             ],
             'document' => [
                 'required',
@@ -287,5 +321,37 @@ class ServiceApplicationController extends Controller
         $documents->save();
 
         return back()->with('success', 'Document replaced successfully.');
+    }
+
+    public function applicationFees(Request $request)
+    {
+        $status = $request->status ?? 'unpaid';
+
+        if (!in_array($status, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.application-fees.index', ['status' => 'unpaid']);
+        }
+
+        $entries = $request->entries ?? 10;
+        $search  = trim($request->search ?? '');
+
+        $query = ServiceApplication::query();
+
+        if ($status === 'paid') {
+            $query->where('application_fee_status', 'paid');
+        } else {
+            $query->where('application_fee_status', '!=', 'paid');
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('application_no', 'like', "%{$search}%")
+                ->orWhere('applicant_name', 'like', "%{$search}%");
+            });
+        }
+
+        $data = $query->orderByDesc('created_at')->paginate($entries)->withQueryString();
+
+        return view('payments.application-fees', compact('data', 'entries', 'status'))
+            ->with('toSearch', $search);
     }
 }

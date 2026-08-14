@@ -183,11 +183,14 @@ class RegisterController extends Controller
             'applicant_name' => strtoupper($request->name),
             'service_address' => $request->address,
             'application_type' => 'Water Service Connection',
+            'connection_type' => 'on_line',
             'connection_size' => null,
             'installation_location' => $request->address,
             'property_owner' => strtoupper($request->name),
             'promissory_note' => false,
             'promissory_amount' => null,
+            'application_fee_amount' => 4000,
+            'application_fee_status' => 'unpaid',
             'status' => 'Pending',
         ]);
 

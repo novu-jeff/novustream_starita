@@ -201,6 +201,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('account-overview.pay-online');
 
 
+    Route::get('/admin/payments/application-fees', [PaymentController::class, 'applicationFees'])
+    ->name('payments.application-fees.index');
+
+    Route::match(['get', 'post'], '/admin/payments/application-fees/{application}/pay', [PaymentController::class, 'payApplicationFee'])
+    ->name('payments.application-fees.pay');
+
     Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
         ->name('payments.applyDiscount');
 
@@ -422,6 +428,10 @@ Route::get('/payment/test-status', function () {
         Route::get('/application/{application}/contract',
             [ServiceApplicationController::class, 'contract'])
             ->name('application.contract');
+
+        Route::post('/application/{application}/boring-permit',
+            [ServiceApplicationController::class, 'uploadBoringPermit'])
+            ->name('application.boring-permit.upload');
 
         Route::get('/application/{application}',
             [ServiceApplicationController::class, 'show'])

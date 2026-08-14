@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
 	                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
 	                    </div>
+                        <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
+	                        {{ 'Please provide the original documents in hard copy and submit them to the Sta. Rita Branch.' }}
+	                    </div>
 	                @endif
 
                     @if(!empty($serviceApplication))
@@ -175,6 +178,19 @@ document.addEventListener('DOMContentLoaded', function () {
                                                 <tr>
                                                     <th class="text-uppercase fw-bold text-muted">Application Type</th>
                                                     <td class="text-uppercase fw-bold text-muted">{{ $serviceApplication->application_type }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Connection Type</th>
+                                                    <td class="text-uppercase fw-bold text-muted">
+                                                        {{ ($serviceApplication->connection_type ?? 'on_line') === 'traverse' ? 'Traverse' : 'On-line' }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="text-uppercase fw-bold text-muted">Application Fee</th>
+                                                    <td class="text-uppercase fw-bold text-muted">
+                                                        PHP {{ number_format((float) ($serviceApplication->application_fee_amount ?? 4000), 2) }}
+                                                        ({{ ucfirst($serviceApplication->application_fee_status ?? 'unpaid') }})
+                                                    </td>
                                                 </tr>
                                                 <tr>
                                                     <th class="text-uppercase fw-bold text-muted">Installation Location</th>
@@ -312,12 +328,51 @@ document.addEventListener('DOMContentLoaded', function () {
                                                             </button>
                                                         </div>
 
+                                                        {{-- Boring / Cutting Permit --}}
+                                                        @if(($serviceApplication->connection_type ?? 'on_line') === 'traverse')
+                                                            <div class="document-row">
+                                                                <span>
+                                                                    Boring/Cutting Permit:
+                                                                    {{ $serviceApplication->documents?->boring_permit ? 'Uploaded' : 'Required' }}
+                                                                </span>
+
+                                                                @if($serviceApplication->documents?->boring_permit)
+                                                                    <a  type="button"
+                                                                        class="document-btn document-btn-view"
+                                                                        title="View Boring/Cutting Permit"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#viewDocumentModal"
+                                                                        data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->boring_permit) }}"
+                                                                        data-document-name="Boring/Cutting Permit">
+                                                                        <i class="bx bx-show"></i>
+                                                                    </a>
+                                                                @endif
+
+                                                                <button type="button"
+                                                                        class="document-btn document-btn-edit"
+                                                                        title="{{ $serviceApplication->documents?->boring_permit ? 'Replace Boring/Cutting Permit' : 'Upload Boring/Cutting Permit' }}"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#replaceDocumentModal"
+                                                                        data-document="boring_permit"
+                                                                        data-label="Boring/Cutting Permit">
+                                                                    <i class="bx bx-edit"></i>
+                                                                </button>
+                                                            </div>
+                                                        @endif
+
                                                     </td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
+
+                                @if(($serviceApplication->connection_type ?? 'on_line') === 'traverse' && empty($serviceApplication->documents?->boring_permit))
+                                    <div class="alert alert-warning mt-4 mb-0">
+                                        <div class="fw-bold text-uppercase mb-1">Additional Document Required</div>
+                                        Please upload your Boring/Cutting Permit. Your Traverse application will remain pending until admin review.
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     @endif
@@ -553,6 +608,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
 
+        @if(!empty($serviceApplication))
         <div class="modal fade"
             id="replaceDocumentModal"
             tabindex="-1"
@@ -629,6 +685,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="modal fade"
             id="viewDocumentModal"
@@ -874,8 +931,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @section('script')
     <script>
-        document.getElementById('replaceDocumentModal')
-            .addEventListener('show.bs.modal', function (event) {
+        const replaceDocumentModal = document.getElementById('replaceDocumentModal');
+
+        if (replaceDocumentModal) {
+            replaceDocumentModal.addEventListener('show.bs.modal', function (event) {
 
                 const button = event.relatedTarget;
 
@@ -885,6 +944,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('documentType').value = documentType;
                 document.getElementById('documentLabel').textContent = documentLabel;
             });
+        }
 
         $(function() {
             $('#show-statement').on('click', function() {

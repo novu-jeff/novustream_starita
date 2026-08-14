@@ -281,6 +281,7 @@
         <div class="review-toolbar">
             <a href="{{ route('account-overview.index') }}" class="btn btn-primary fw-bold text-uppercase">Back to Overview</a>
             <a href="{{ route('application.create') }}" class="btn btn-primary fw-bold text-uppercase">Review Form</a>
+            <button type="button" onclick="printBlankForm()" class="btn btn-outline-primary fw-bold text-uppercase">Print Blank Form</button>
             <button type="button" onclick="window.print()" class="btn btn-primary fw-bold text-uppercase">Print</button>
         </div>
     @endif
@@ -465,6 +466,54 @@
                     node.textContent = 'X';
                 }
             });
+
+            if (@json($autoPrint ?? true)) {
+                window.addEventListener('load', function () {
+                    setTimeout(function () {
+                        window.print();
+                    }, 150);
+                });
+            }
+        })();
+
+        (function () {
+            const serverData = @json($printData ?? null);
+            const previewData = JSON.parse(localStorage.getItem('srwd_application_print_data') || '{}');
+            const data = serverData || previewData;
+
+            function fillValues() {
+                document.querySelectorAll('[data-print-value]').forEach(function (node) {
+                    const value = data[node.dataset.printValue] || '';
+                    node.textContent = value;
+                });
+
+                document.querySelectorAll('[data-radio-value]').forEach(function (node) {
+                    node.textContent = (data.application_type === node.dataset.radioValue) ? 'X' : '';
+                });
+            }
+
+            function clearValues() {
+                document.querySelectorAll('[data-print-value]').forEach(function (node) {
+                    node.textContent = '';
+                });
+                document.querySelectorAll('[data-radio-value]').forEach(function (node) {
+                    node.textContent = '';
+                });
+            }
+
+            // Fill in on load, as before
+            fillValues();
+
+            // Expose a global function for the "Print Blank Form" button
+            window.printBlankForm = function () {
+                clearValues();
+                window.print();
+            };
+
+            // Restore the filled-in values after any print dialog closes,
+            // so the on-screen preview goes back to normal (and the regular
+            // "Print" button still works with data afterward)
+            window.addEventListener('afterprint', fillValues);
 
             if (@json($autoPrint ?? true)) {
                 window.addEventListener('load', function () {
