@@ -86,6 +86,11 @@
                                 $applicationStatus = $account->application_status
                                     ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : 'pending'));
                                 $registrant = $account->user;
+                                $serviceApplication = $registrant?->serviceApplications?->first();
+                                $connectionType = $serviceApplication?->connection_type ?? 'on_line';
+                                $hasBoringPermit = !empty($serviceApplication?->documents?->boring_permit);
+                                $needsCompletion = $applicationType === 'new_connection'
+                                    && str_starts_with((string) $account->account_no, 'NEW-');
                             @endphp
                             <tr>
                                 <td>{{ optional($account->created_at)->format('M d, Y') }}</td>
@@ -95,6 +100,7 @@
                                 <td>
                                     @if($applicationType === 'new_connection')
                                         <span class="badge bg-info text-dark">New Connection</span>
+                                        <div class="small text-muted">{{ $connectionType === 'traverse' ? 'Traverse' : 'On-line' }}</div>
                                     @else
                                         <span class="badge bg-secondary">Existing Account</span>
                                     @endif
@@ -121,6 +127,14 @@
                                         @if($applicationType === 'new_connection')
                                             <a href="{{ route('registrants.form', $account->id) }}" target="_blank" class="btn btn-outline-primary btn-sm">Form</a>
                                         @endif
+                                        @if($serviceApplication)
+                                            <a href="{{ route('admin.application.contract', $serviceApplication) }}" target="_blank" class="btn btn-outline-primary btn-sm">Contract</a>
+                                        @endif
+                                        @if($serviceApplication?->documents?->boring_permit)
+                                            <a href="{{ asset('storage/' . $serviceApplication->documents->boring_permit) }}" target="_blank" class="btn btn-outline-primary btn-sm">Permit</a>
+                                        @elseif($connectionType === 'traverse')
+                                            <span class="badge bg-warning text-dark">Permit Required</span>
+                                        @endif
                                         @if($account->application_soa_path)
                                             <a href="{{ asset('storage/' . $account->application_soa_path) }}" target="_blank" class="btn btn-outline-primary btn-sm">SOA</a>
                                         @endif
@@ -132,9 +146,16 @@
                                 <td>
                                     @if($applicationStatus === 'pending')
                                         <div class="d-flex align-items-center gap-2">
-                                            @if($applicationType === 'new_connection')
+                                            @if($applicationType === 'new_connection' && $needsCompletion)
                                                 <a href="{{ route('registrants.complete', $account->id) }}" class="btn btn-primary text-uppercase fw-bold">
                                                     Complete
+                                                </a>
+                                            @elseif($applicationType === 'new_connection' && $connectionType === 'traverse' && !$hasBoringPermit)
+                                                <span class="badge bg-warning text-dark">Waiting Permit</span>
+                                            @elseif($serviceApplication && $serviceApplication->application_fee_status !== 'paid')
+                                                <a href="{{ route('payments.application-fees.pay', $serviceApplication->id) }}"
+                                                class="btn btn-warning text-uppercase fw-bold d-flex flex-row align-items-center text-nowrap">
+                                                    <i class="bx bx-error me-1"></i> Pay Fee
                                                 </a>
                                             @else
                                                 <form method="POST" action="{{ route('registrants.approve', $account->id) }}" class="registrant-action-form" data-action="approve">
@@ -145,13 +166,14 @@
                                                     </button>
                                                 </form>
                                             @endif
-	                                            <form method="POST" action="{{ route('registrants.deny', $account->id) }}" class="registrant-action-form" data-action="deny">
-	                                                @csrf
-	                                                @method('PATCH')
-	                                                <input type="hidden" name="approval_denial_reason" class="denial-reason-input">
-	                                                <button type="submit" class="btn btn-danger text-uppercase fw-bold">
-	                                                    Deny
-	                                                </button>
+
+                                            <form method="POST" action="{{ route('registrants.deny', $account->id) }}" class="registrant-action-form" data-action="deny">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="approval_denial_reason" class="denial-reason-input">
+                                                <button type="submit" class="btn btn-danger text-uppercase fw-bold">
+                                                    Deny
+                                                </button>
                                             </form>
                                         </div>
                                     @else
@@ -244,6 +266,18 @@
 	                    form.submit();
 	                }
 	            });
+
+                $('.fee-unpaid-btn').on('click', function () {
+                    const amount = $(this).data('fee-amount');
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Application Fee Unpaid',
+                        text: `This registrant's application fee of PHP ${amount} must be paid before the application can be approved. Please process the payment in the Application Fees tab first.`,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#c92a07',
+                    });
+                });
         });
 
         const registrantAction = @json(session('registrant_action'));

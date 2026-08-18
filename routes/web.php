@@ -164,6 +164,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::get('registrants/{account}/form', [ConcessionaireController::class, 'printRegistrantForm'])
             ->name('registrants.form');
 
+        Route::get('applications/{application}/contract', [ServiceApplicationController::class, 'contract'])
+            ->name('admin.application.contract');
+
+        Route::get('applications/{application}/contract/print', [ServiceApplicationController::class, 'printContract'])
+            ->name('admin.application.contract.print');
+
         Route::get('registrants/{account}/complete', [ConcessionaireController::class, 'completeRegistrant'])
             ->name('registrants.complete');
 
@@ -194,6 +200,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
             ->name('account-overview.pay-online');
 
+
+    Route::get('/admin/payments/application-fees', [PaymentController::class, 'applicationFees'])
+    ->name('payments.application-fees.index');
+
+    Route::match(['get', 'post'], '/admin/payments/application-fees/{application}/pay', [PaymentController::class, 'payApplicationFee'])
+    ->name('payments.application-fees.pay');
 
     Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
         ->name('payments.applyDiscount');
@@ -358,6 +370,10 @@ Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'sho
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
 
+Route::put(
+    '/service-applications/{serviceApplication}/documents/replace',
+    [ServiceApplicationController::class, 'replaceDocument']
+)->name('service-application.documents.replace');
 // Offline Sync Routes
 
 Route::post('/readings', [OfflineSyncController::class, 'store']);
@@ -397,9 +413,25 @@ Route::get('/payment/test-status', function () {
             return view('application.print');
         })->name('application.print.preview');
 
+        Route::get('/application/contract', function () {
+            return view('application.contract');
+        })->name('application.contract.preview');
+
         Route::get('/application/{application}/print',
             [ServiceApplicationController::class, 'print'])
             ->name('application.print');
+
+        Route::get('/application/{application}/contract/print',
+            [ServiceApplicationController::class, 'printContract'])
+            ->name('application.contract.print');
+
+        Route::get('/application/{application}/contract',
+            [ServiceApplicationController::class, 'contract'])
+            ->name('application.contract');
+
+        Route::post('/application/{application}/boring-permit',
+            [ServiceApplicationController::class, 'uploadBoringPermit'])
+            ->name('application.boring-permit.upload');
 
         Route::get('/application/{application}',
             [ServiceApplicationController::class, 'show'])

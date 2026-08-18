@@ -28,6 +28,10 @@
                         class="btn btn-primary px-5 py-3 text-uppercase">
                          View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
                      </a>
+                     <a href="{{ route('payments.application-fees.index') }}"
+                        class="btn btn-outline-primary px-5 py-3 text-uppercase">
+                        Application Fees
+                    </a>
                 </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">

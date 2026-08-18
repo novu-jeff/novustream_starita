@@ -420,7 +420,23 @@
                                 @endphp
                                 <tr>
                                     <td>{{ optional($history->created_at)->format('M d, Y h:i A') }}</td>
-                                    <td><span class="badge bg-secondary text-uppercase">{{ $history->action }}</span></td>
+                                    <td>
+                                        @php
+                                            $badgeClass = match(strtolower($history->action)) {
+                                                'created' => 'bg-success',
+                                                'updated' => 'bg-warning text-dark',
+                                                'deleted' => 'bg-danger',
+                                                'restored' => 'bg-info text-dark',
+                                                'approved' => 'bg-primary',
+                                                'rejected' => 'bg-dark',
+                                                default => 'bg-secondary',
+                                            };
+                                        @endphp
+
+                                        <span class="badge {{ $badgeClass }} text-uppercase">
+                                            {{ $history->action }}
+                                        </span>
+                                    </td>
                                     <td>{{ $history->bill->reading->account_no ?? '-' }}</td>
                                     <td>{{ $history->bill->reference_no ?? '-' }}</td>
                                     <td>

@@ -57,6 +57,7 @@ class UpdateClientRequest extends FormRequest
             'confirm_password' => 'nullable|same:password',
             'contact_no' => 'nullable|string',
             'registrant_id' => 'nullable|exists:concessioner_accounts,id',
+            'connection_type' => ['nullable', Rule::in(['on_line', 'traverse'])],
 
             'accounts' => 'nullable|array',
             'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',

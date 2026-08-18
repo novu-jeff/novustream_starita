@@ -14,21 +14,17 @@ return new class extends Migration
         Schema::create('application_documents', function (Blueprint $table) {
 
             $table->id();
-
             $table->foreignId('service_application_id')
                 ->constrained()
                 ->cascadeOnDelete();
-
             $table->string('valid_id')->nullable();
-
+            $table->string('cedula')->nullable()->after('valid_id');
+            $table->string('proof_of_billing')->nullable()->after('cedula');
+            $table->string('authorization_letter')->nullable()->after('proof_of_billing');
             $table->string('proof_of_ownership')->nullable();
-
             $table->string('tax_declaration')->nullable();
-
             $table->string('barangay_clearance')->nullable();
-
             $table->string('others')->nullable();
-
             $table->timestamps();
         });
     }
