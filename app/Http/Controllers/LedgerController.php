@@ -7,6 +7,7 @@ use App\Services\BillSettlementService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use App\Models\ServiceApplication;
 
 class LedgerController extends Controller
 {
@@ -99,7 +100,11 @@ class LedgerController extends Controller
             $bill->computed_status = ($dueDate && $today->gt($dueDate)) ? 'OVERDUE' : 'UNPAID';
         }
 
-        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years'));
+        $applications = ServiceApplication::where('user_id', $userId)
+        ->orderByDesc('created_at')
+        ->get();
+
+        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years', 'applications'));
     }
 
     private function buildLedgerMetrics(Bill $bill): array

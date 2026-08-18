@@ -1,4 +1,4 @@
-const CACHE_NAME = "starita-reader-v3";
+const CACHE_NAME = "starita-reader-v4";
 const OFFLINE_URL = "/offline.html";
 
 // list essential app shell assets to cache on install
@@ -56,22 +56,17 @@ self.addEventListener("fetch", (event) => {
     const { request } = event;
     if (request.method !== "GET") return;
 
-    // HTML Navigation requests (refresh, new tab)
+    // HTML navigation requests must stay network-first and should not be
+    // cached. These pages are authenticated and often contain inline Blade CSS.
     if (request.mode === "navigate" || (request.headers.get("accept")?.includes("text/html"))) {
         event.respondWith(
             (async () => {
                 try {
-                    // ✅ Try network first (when online)
-                    const networkResponse = await fetch(request);
-                    const cache = await caches.open(CACHE_NAME);
-                    cache.put(request, networkResponse.clone());
-                    return networkResponse;
+                    return await fetch(request);
                 } catch (err) {
                     console.warn("[SW] Offline fallback triggered:", err);
-                    // ✅ Fallback to cached /admin/reading or offline.html
                     const cache = await caches.open(CACHE_NAME);
-                    const cachedPage = await cache.match("/admin/reading") || await cache.match(OFFLINE_URL);
-                    return cachedPage;
+                    return await cache.match(OFFLINE_URL);
                 }
             })()
         );

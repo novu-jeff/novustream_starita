@@ -35,10 +35,24 @@ Route::post('api/logout', [LoginController::class, 'logout']);
 
 // Flutter app: GET /api/app-version (set baseUrl / appVersionUrl in lib/config/merchant_config.dart)
 Route::get('app-version', function () {
+    $path = public_path('app-version');
+    if (is_readable($path)) {
+        $data = json_decode(file_get_contents($path), true);
+        if (is_array($data)) {
+            return response()->json([
+                'version' => $data['latest_version_name'] ?? ($data['version'] ?? '1.0.0'),
+                'build_number' => (int) ($data['latest_version'] ?? $data['build_number'] ?? 1),
+                'apk_url' => $data['apk_url'] ?? '',
+                'force_update' => (bool) ($data['force_update'] ?? false),
+                'release_notes' => $data['release_notes'] ?? '',
+            ]);
+        }
+    }
+
     return response()->json([
-        'version'      => env('APP_VERSION', '1.0.0'),
-        'build_number' => (int) env('APP_BUILD_NUMBER', 1),
-        'apk_url'      => env('APK_URL', ''),
+        'version' => config('app.apk_version', '1.0.0'),
+        'build_number' => (int) config('app.apk_build_number', 1),
+        'apk_url' => config('app.apk_url', ''),
     ]);
 });
 

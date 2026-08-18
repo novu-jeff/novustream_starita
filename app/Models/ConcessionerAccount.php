@@ -33,6 +33,7 @@ class ConcessionerAccount extends Model
         'inspection_image',
         'isApproved',
         'application_status',
+        'application_type',
         'approved_at',
         'denied_at',
         'application_soa_path',

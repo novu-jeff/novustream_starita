@@ -43,12 +43,17 @@
                             <small v-if="errors.email" class="text-danger px-1">{{ errors.email[0] }}</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="password" class="form-label">Password <small class="text-danger"> ( required )</small></label>
+                            <label for="password" class="form-label">
+                                Password
+                                <small v-if="!concessioner.id" class="text-danger"> ( required )</small>
+                                <small v-else class="text-muted"> ( leave blank to keep current password )</small>
+                            </label>
                             <div class="input-group">
                                 <input :type="showPassword ? 'text' : 'password'"
                                         class="form-control" id="password"
                                         v-model="concessioner.password"
                                         :class="{ 'is-invalid': errors && errors.password }"
+                                        autocomplete="new-password"
                                         >
                                 <button type="button" class="btn btn-outline-secondary" @click="showPassword = !showPassword">
                                     <i :class="showPassword ? 'bx bx-hide' : 'bx bx-show'"></i>
@@ -57,12 +62,17 @@
                             <small v-if="errors.password" class="text-danger px-1">{{ errors.password[0] }}</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="password_confirmation" class="form-label">Confirm Password <small class="text-danger"> ( required )</small></label>
+                            <label for="password_confirmation" class="form-label">
+                                Confirm Password
+                                <small v-if="!concessioner.id" class="text-danger"> ( required )</small>
+                                <small v-else class="text-muted"> ( only needed when changing password )</small>
+                            </label>
                             <div class="input-group">
                                 <input :type="showPasswordConfirm ? 'text' : 'password'"
                                         class="form-control" id="password_confirmation"
                                         v-model="concessioner.password_confirmation"
                                         :class="{ 'is-invalid': errors && errors.password_confirmation }"
+                                        autocomplete="new-password"
                                         >
                                 <button type="button" class="btn btn-outline-secondary" @click="showPasswordConfirm = !showPasswordConfirm">
                                     <i :class="showPasswordConfirm ? 'bx bx-hide' : 'bx bx-show'"></i>
@@ -78,6 +88,32 @@
       <div class="card mt-3">
         <div class="card-header border-0 bg-primary bg-opacity-25 pb-3">
             <div class="text-uppercase fw-bold">Account Informations</div>
+        </div>
+        <div v-if="registrantId" class="p-3 border-bottom">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="connection_type" class="form-label">
+                Connection Type <small class="text-danger">( required )</small>
+              </label>
+              <select
+                id="connection_type"
+                class="form-select"
+                v-model="concessioner.connection_type"
+                :class="{ 'is-invalid': errors && errors.connection_type }"
+              >
+                <option value="on_line">On-line</option>
+                <option value="traverse">Traverse</option>
+              </select>
+              <small v-if="errors.connection_type" class="text-danger px-1">{{ errors.connection_type[0] }}</small>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Application Fee</label>
+              <input class="form-control" value="PHP 4,000.00" disabled>
+            </div>
+          </div>
+          <div v-if="concessioner.connection_type === 'traverse'" class="alert alert-warning mb-0">
+            Traverse applications require a Boring/Cutting Permit before final approval.
+          </div>
         </div>
         <div class="accordion accordion-flush border-5" v-for="(account, index) in concessioner.accounts" :key="index" id="accordionAccounts">
           <div class="accordion-item border-2 shadow">
@@ -422,6 +458,11 @@ export default {
       required: false,
       default: () => null,
     },
+    registrantId: {
+      type: [String, Number],
+      required: false,
+      default: '',
+    },
   },
   data() {
     return {
@@ -435,6 +476,7 @@ export default {
         email: '',
         password: '',
         password_confirmation: '',
+        connection_type: 'on_line',
         isActive: 1,
         accounts: [
           {
@@ -483,6 +525,9 @@ export default {
                 property_type: matchedType ? matchedType.id : null,
             };
             });
+
+            this.concessioner.connection_type =
+              this.data.service_applications?.[0]?.connection_type || 'on_line';
 
             console.log(this.concessioner);
         }
@@ -642,8 +687,20 @@ export default {
       // Append top-level fields
       for (const key in this.concessioner) {
         if (key !== 'accounts') {
+          if (
+            this.concessioner.id &&
+            ['password', 'password_confirmation'].includes(key) &&
+            !this.concessioner[key]
+          ) {
+            continue;
+          }
+
           formData.append(key, this.concessioner[key]);
         }
+      }
+
+      if (this.registrantId) {
+        formData.append('registrant_id', this.registrantId);
       }
 
       // Append nested accounts

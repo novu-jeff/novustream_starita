@@ -238,8 +238,8 @@
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;"> ₱ {{number_format ($amountDue, 2)}}</div>
                                         </div>
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                            <div style="text-transform: uppercase;">Payment After Due Date</div>
-                                            <div style="text-transform: uppercase;"></div>
+                                            <div style="text-transform: uppercase; font-weight: 800;">Payment After Due Date</div>
+                                            <div style="text-transform: uppercase; font-weight: 800;"></div>
                                         </div>
                                         @php
                                         $zone = $data['current_bill']['reading']['zone'];
@@ -256,12 +256,12 @@
                                         }
 
                                         @endphp
-                                        <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                        <!-- <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Penalty Date: </div>
                                             <div style="text-transform: uppercase;">
                                                 {{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()->format('m/d/Y') }}
                                             </div>
-                                        </div>
+                                        </div> -->
                                         <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase;">Penalty Amt: </div>
                                             <div style="text-transform: uppercase;">
