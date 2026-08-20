@@ -65,12 +65,15 @@
 
                     <div class="new-connection-fields d-none w-100">
                         <div class="file-upload w-100">
-                            <label for="id_file" class="file-label">
-                                <i class="bx bx-id-card"></i>
+                            <label for="picture_1x1" class="file-label">
+                                <i class="bx bx-file"></i>
                                 <span class="file-text">1x1 or 2x2 Picture *</span>
-                                <span class="file-name" id="id_file_name">Choose file</span>
+                                <span class="file-name" id="picture_1x1_name">Choose file</span>
                             </label>
-                            <input type="file" id="id_file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" required />
+                            <input type="file"
+                                id="picture_1x1"
+                                name="picture_1x1"
+                                accept=".pdf,.jpg,.jpeg,.png">
                         </div>
                         <div class="file-upload w-100">
                             <label for="cedula_file" class="file-label">
@@ -421,7 +424,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         form.account_no.required = isExisting;
         form.soa_file.required = isExisting;
-
+        form.id_file.required = isExisting;
+        
+        form.picture_1x1.required = !isExisting;
         form.cedula_file.required = !isExisting;
         form.billing_file.required = !isExisting;
 
@@ -457,6 +462,7 @@ document.addEventListener('DOMContentLoaded', function () {
     bindFileLabel('cedula_file', 'cedula_file_name');
     bindFileLabel('billing_file', 'billing_file_name');
     bindFileLabel('authorization_file', 'authorization_file_name');
+    bindFileLabel('picture_1x1', 'picture_1x1_name');
 
     contactInput.addEventListener('input', function () {
         this.value = this.value.replace(/\D/g, '').slice(0, 11);
@@ -477,46 +483,109 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function validateRegistrationForm() {
-        const name = form.name.value.trim();
-        const email = form.email.value.trim();
-        const contact = form.contact_no.value.trim();
-        const accountNo = form.account_no.value.trim();
-        const address = form.address.value.trim();
-        const password = form.password.value;
-        const passwordConfirm = form.password_confirmation.value;
-        const soaFile = form.soa_file.files[0];
-        const idFile = form.id_file.files[0];
-        const isExisting = selectedRegistrationType() === 'existing_account';
-        const cedulaFile = form.cedula_file.files[0];
-        const billingFile = form.billing_file.files[0];
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
+    const contact = form.contact_no.value.trim();
+    const accountNo = form.account_no.value.trim();
+    const address = form.address.value.trim();
+    const password = form.password.value;
+    const passwordConfirm = form.password_confirmation.value;
 
-        let firstInvalid = null;
+    const soaFile = form.soa_file.files[0];
+    const idFile = form.id_file.files[0];
+    const pictureFile = form.picture_1x1.files[0];
+    const cedulaFile = form.cedula_file.files[0];
+    const billingFile = form.billing_file.files[0];
 
-        function markInvalid(el) {
-            el.classList.add('is-invalid');
-            if (!firstInvalid) firstInvalid = el;
+    const isExisting = selectedRegistrationType() === 'existing_account';
+
+    let firstInvalid = null;
+
+    function markInvalid(el) {
+        if (!el) return;
+
+        el.classList.add('is-invalid');
+
+        if (!firstInvalid) {
+            firstInvalid = el;
         }
-
-        if (!name) markInvalid(form.name);
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) markInvalid(form.email);
-        if (!contact || contact.length < 10) markInvalid(form.contact_no);
-        if (isExisting && !accountNo) markInvalid(form.account_no);
-        if (!address) markInvalid(form.address);
-        if (!password || password.length < 8) markInvalid(form.password);
-        if (!passwordConfirm || password !== passwordConfirm) markInvalid(form.password_confirmation);
-        if (isExisting && !soaFile) markInvalid(document.querySelector('label[for="soa_file"]'));
-        if (!idFile) markInvalid(document.querySelector('label[for="id_file"]'));
-        if (!isExisting && !cedulaFile) {markInvalid(document.querySelector('label[for="cedula_file"]'));}
-        if (!isExisting && !billingFile) {markInvalid(document.querySelector('label[for="billing_file"]'));}
-
-        if (firstInvalid) {
-            showAlert('danger', 'Please fill in all required fields correctly.');
-            firstInvalid.focus();
-            return false;
-        }
-
-        return true;
     }
+
+    // Common fields
+    if (!name) {
+        markInvalid(form.name);
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        markInvalid(form.email);
+    }
+
+    if (!contact || contact.length < 10) {
+        markInvalid(form.contact_no);
+    }
+
+    if (!address) {
+        markInvalid(form.address);
+    }
+
+    if (!password || password.length < 8) {
+        markInvalid(form.password);
+    }
+
+    if (!passwordConfirm || password !== passwordConfirm) {
+        markInvalid(form.password_confirmation);
+    }
+
+    // Existing Sta. Rita Account
+    if (isExisting) {
+
+        if (!accountNo) {
+            markInvalid(form.account_no);
+        }
+
+        if (!soaFile) {
+            markInvalid(document.querySelector('label[for="soa_file"]'));
+        }
+
+        if (!idFile) {
+            markInvalid(document.querySelector('label[for="id_file"]'));
+        }
+
+    }
+
+    // New Concessionaire
+    if (!isExisting) {
+
+        if (!pictureFile) {
+            markInvalid(document.querySelector('label[for="picture_1x1"]'));
+        }
+
+        if (!cedulaFile) {
+            markInvalid(document.querySelector('label[for="cedula_file"]'));
+        }
+
+        if (!billingFile) {
+            markInvalid(document.querySelector('label[for="billing_file"]'));
+        }
+
+    }
+
+    if (firstInvalid) {
+        showAlert(
+            'danger',
+            'Please fill in all required fields correctly.'
+        );
+
+        firstInvalid.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        return false;
+    }
+
+    return true;
+}
 
     function submitRegistration() {
         const submitButton = form.querySelector('button[type="submit"]');

@@ -14,16 +14,23 @@ class LoginController extends Controller
     public function index()
     {
         if (Auth::guard('admins')->check()) {
-            return redirect()->away($this->absoluteUrl(EnforceStaritaHost::ADMIN_HOST, '/admin/dashboard'));
+            return redirect()->to(
+                $this->absoluteUrl(
+                    EnforceStaritaHost::ADMIN_HOST,
+                    '/admin/dashboard'
+                )
+            );
         }
 
         if (Auth::guard('web')->check()) {
             $user = Auth::guard('web')->user();
 
-            return redirect()->away($this->absoluteUrl(
-                EnforceStaritaHost::PORTAL_HOST,
-                $this->pathForUser($user)
-            ));
+            return redirect()->to(
+                $this->absoluteUrl(
+                    EnforceStaritaHost::PORTAL_HOST,
+                    $this->pathForUser($user)
+                )
+            );
         }
 
         return view('auth.login');
@@ -37,26 +44,46 @@ class LoginController extends Controller
         ]);
 
         $credentials = $request->only('email', 'password');
+
         $isAdminHost = EnforceStaritaHost::isAdminHost();
         $isPortalHost = EnforceStaritaHost::isPortalHost();
+        $isLocalHost = EnforceStaritaHost::isLocalHost();
 
         $user = null;
         $guard = 'web';
 
-        if ($isAdminHost) {
+        /*
+         * Admin host OR local development:
+         * authenticate against the Admin model.
+         */
+        if ($isAdminHost || $isLocalHost) {
             $user = Admin::where('email', $credentials['email'])->first();
             $guard = 'admins';
-        } elseif ($isPortalHost) {
+        }
+
+        /*
+         * Production portal host:
+         * authenticate against the concessionaire/user model.
+         */
+        elseif ($isPortalHost) {
             $user = User::where('email', $credentials['email'])
                 ->where('isActive', 1)
                 ->first();
+
             $guard = 'web';
-        } else {
-            // Legacy / unknown host: previous dual lookup
+        }
+
+        /*
+         * Legacy / unknown host:
+         * previous dual lookup behavior.
+         */
+        else {
             $user = User::where('email', $credentials['email'])
                 ->where('isActive', 1)
                 ->first();
+
             $guard = 'web';
+
             if (! $user) {
                 $user = Admin::where('email', $credentials['email'])->first();
                 $guard = 'admins';
@@ -65,7 +92,7 @@ class LoginController extends Controller
 
         if (! $user) {
             return back()->withErrors([
-                'email' => $isAdminHost
+                'email' => ($isAdminHost || $isLocalHost)
                     ? 'Invalid staff credentials.'
                     : ($isPortalHost
                         ? 'Invalid concessionaire credentials or account inactive.'
@@ -73,15 +100,21 @@ class LoginController extends Controller
             ]);
         }
 
+        /*
+         * Portal must not accept Admin accounts.
+         */
         if ($isPortalHost && $user instanceof Admin) {
             return back()->withErrors([
-                'email' => 'Staff accounts must sign in at '.EnforceStaritaHost::ADMIN_HOST,
+                'email' => 'Staff accounts must sign in at ' . EnforceStaritaHost::ADMIN_HOST,
             ]);
         }
 
-        if ($isAdminHost && $user instanceof User) {
+        /*
+         * Admin/local must not accept concessionaire accounts.
+         */
+        if (($isAdminHost || $isLocalHost) && $user instanceof User) {
             return back()->withErrors([
-                'email' => 'Concessionaire accounts must sign in at '.EnforceStaritaHost::PORTAL_HOST,
+                'email' => 'Concessionaire accounts must sign in at ' . EnforceStaritaHost::PORTAL_HOST,
             ]);
         }
 
@@ -92,6 +125,7 @@ class LoginController extends Controller
         }
 
         $hashInfo = Hash::info($user->password);
+
         if ($hashInfo['algoName'] !== 'bcrypt') {
             return back()->withErrors([
                 'email' => 'No password found for this account.',
@@ -104,33 +138,62 @@ class LoginController extends Controller
             ]);
         }
 
-        if ($user instanceof User && in_array($user->user_type, ['concessionaire', 'user'])) {
-            if ($user->current_session_id && $user->current_session_id !== session()->getId()) {
-                session()->getHandler()->destroy($user->current_session_id);
+        /*
+         * Prevent multiple active sessions for concessionaires/users.
+         */
+        if (
+            $user instanceof User &&
+            in_array($user->user_type, ['concessionaire', 'user'])
+        ) {
+            if (
+                $user->current_session_id &&
+                $user->current_session_id !== session()->getId()
+            ) {
+                session()->getHandler()->destroy(
+                    $user->current_session_id
+                );
             }
 
             $user->current_session_id = session()->getId();
             $user->save();
         }
 
-        Auth::guard($guard)->login($user, $request->has('remember'));
+        Auth::guard($guard)->login(
+            $user,
+            $request->has('remember')
+        );
 
+        /*
+         * Redirect based on account type.
+         */
         $targetHost = $user instanceof Admin
             ? EnforceStaritaHost::ADMIN_HOST
             : EnforceStaritaHost::PORTAL_HOST;
 
-        return redirect()->away($this->absoluteUrl($targetHost, $this->pathForUser($user)));
+        return redirect()->to(
+            $this->absoluteUrl(
+                $targetHost,
+                $this->pathForUser($user)
+            )
+        );
     }
 
     public function logout(Request $request)
     {
         $user = Auth::user();
-        $guard = ($user instanceof Admin) ? 'admins' : 'web';
+
+        $guard = ($user instanceof Admin)
+            ? 'admins'
+            : 'web';
+
         $loginHost = ($user instanceof Admin)
             ? EnforceStaritaHost::ADMIN_HOST
             : EnforceStaritaHost::PORTAL_HOST;
 
-        if ($user instanceof User && in_array($user->user_type, ['concessionaire', 'user'])) {
+        if (
+            $user instanceof User &&
+            in_array($user->user_type, ['concessionaire', 'user'])
+        ) {
             $user->current_session_id = null;
             $user->save();
         }
@@ -140,7 +203,12 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->away($this->absoluteUrl($loginHost, '/login'));
+        return redirect()->to(
+            $this->absoluteUrl(
+                $loginHost,
+                '/login'
+            )
+        );
     }
 
     public function redirectTo($user): string
@@ -151,17 +219,45 @@ class LoginController extends Controller
     protected function pathForUser($user): string
     {
         return match ($user->user_type) {
-            'admin', 'cashier', 'superadmin' => '/admin/dashboard',
+            'admin',
+            'cashier',
+            'superadmin' => '/admin/dashboard',
+
             'technician' => '/admin/reading',
-            'concessionaire', 'user', null => '/concessionaire/my/overview',
+
+            'concessionaire',
+            'user',
+            null => '/concessionaire/my/overview',
+
             default => '/login',
         };
     }
 
+    /**
+     * Generate the correct URL for the current environment.
+     *
+     * Local:
+     *     http://localhost/path
+     *
+     * Production:
+     *     https://admin.staritawaterdistrictpamp.gov.ph/path
+     */
     protected function absoluteUrl(string $host, string $path): string
     {
-        $path = '/'.ltrim($path, '/');
+        $path = '/' . ltrim($path, '/');
 
-        return 'https://'.$host.$path;
+        /*
+         * Local development:
+         * Never send localhost to a production domain.
+         */
+        if (EnforceStaritaHost::isLocalHost()) {
+            return url($path);
+        }
+
+        /*
+         * Production:
+         * Use the appropriate HTTPS domain.
+         */
+        return 'https://' . $host . $path;
     }
 }
