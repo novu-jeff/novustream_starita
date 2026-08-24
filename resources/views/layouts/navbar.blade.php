@@ -116,6 +116,7 @@
 
 							@can('app-novustream')
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
+								<li><a class="dropdown-item" href="{{route('guide.index')}}"> Guide </a></li>
 							@endcan
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 						</ul>
@@ -137,7 +138,6 @@
 				<a href="{{route('profile.index', ['user_type' => 'admin'])}}">
 					Profile
 				</a>
-				<a href="{{route('guide.index')}}"> Guide </a>
 				@endcan
 				<a href="javascript:void(0)" onclick="document.getElementById('logout-form').submit();">Logout</a>
                 <form id="logout-form" action="{{ route('auth.logout') }}" method="POST" style="display: none;">
