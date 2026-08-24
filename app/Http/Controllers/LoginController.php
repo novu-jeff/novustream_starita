@@ -162,6 +162,16 @@ class LoginController extends Controller
     {
         $path = '/'.ltrim($path, '/');
 
+        $currentHost = strtolower(request()->getHost());
+        $isProductionHost = in_array($currentHost, [
+            EnforceStaritaHost::ADMIN_HOST,
+            EnforceStaritaHost::PORTAL_HOST,
+        ], true);
+
+        if (! $isProductionHost) {
+            return url($path);
+        }
+
         return 'https://'.$host.$path;
     }
 }

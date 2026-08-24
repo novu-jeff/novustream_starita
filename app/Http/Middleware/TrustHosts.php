@@ -14,8 +14,11 @@ class TrustHosts extends Middleware
     public function hosts(): array
     {
         return [
+            $this->allSubdomainsOfApplicationUrl(),
             '^(.+\.)?staritawaterdistrictpamp\.gov\.ph$',
             'staritawaterdistrictpamp\.novulutions\.com',
+            '127\.0\.0\.1',
+            'localhost',
         ];
     }
 }

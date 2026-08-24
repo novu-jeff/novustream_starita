@@ -637,7 +637,7 @@ public function index()
                     'type' => 'bill',
                     'status' => 'danger',
                     'title' => 'Bill to pay',
-                    'message' => 'A new statement of account is available. Amount due: PHP ' . number_format((float) ($latestUnpaidBill->amount ?? 0), 2) . '.',
+                    'message' => 'A new statement of account is available. Amount due: PHP ' . number_format((float) ($latestUnpaidBill->total ?? 0), 2) . '.',
                     'date' => optional($latestUnpaidBill->created_at)->format('M d, Y h:i A'),
                     'timestamp' => optional($latestUnpaidBill->created_at)->timestamp,
                 ];
