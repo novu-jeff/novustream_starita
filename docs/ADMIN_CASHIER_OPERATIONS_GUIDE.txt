@@ -1,0 +1,357 @@
+STA. RITA SYSTEM - ADMIN AND CASHIER OPERATIONS GUIDE
+====================================================
+
+Purpose
+-------
+Use this guide when processing day-to-day work in the Sta. Rita system.
+Only use the modules permitted by your account. Buttons and menu items may
+be hidden when your role does not have access.
+
+Before you begin
+----------------
+1. Sign in using your assigned account. Do not share your password.
+2. Confirm the correct account number, customer name, amount, and billing
+   period before saving any transaction.
+3. Use Search, filters, and the date/month selector before opening a record.
+4. Review success or error messages after every save.
+5. Do not refresh or close the page while a save, upload, or download is
+   still in progress.
+6. Log out when leaving the workstation.
+
+ROLE QUICK REFERENCE
+--------------------
+Cashier
+- Dashboard, Payments, Installment, Billing Adjustment, Penalty Exemption,
+  Online Payments, Files/Reports, and Concessionaires.
+
+Administrator
+- All cashier modules plus Meter Reading, Reading Report, Change Readings,
+  Offline Readings, Reading Dates, Registrants, Imports, and Settings.
+- Personnel management is normally limited to Superadmin accounts.
+
+1. DASHBOARD
+------------
+Purpose: Review the current system summary before starting work.
+
+Steps:
+1. Open Dashboard from the top navigation.
+2. Review totals, alerts, and any cards relevant to your shift.
+3. If a figure appears unexpected, open the related module and filter by
+   account number, zone, or month before making changes.
+
+2. METER READING (ADMIN)
+------------------------
+Purpose: Enter a current meter reading and create the related bill.
+
+Steps:
+1. Open Meter Reading > Meter Reading.
+2. Search for and select the correct account/meter.
+3. Verify the previous reading and the reading date.
+4. Enter the present reading exactly as recorded.
+5. Review the calculated consumption and all displayed details.
+6. Submit the reading once.
+7. Open the generated bill/invoice if you need to verify the amount or print
+   the document.
+
+Important:
+- Never enter a reading for the wrong account or an earlier billing period.
+- If the meter reading must be corrected after saving, use Change Readings;
+  do not create a duplicate reading.
+
+Problem checks:
+- Account not found: verify the account number and concessionaire record.
+- Incorrect consumption: verify previous and present readings, then use
+  Change Readings if the reading was already saved.
+- No bill generated: confirm the reading was submitted successfully and ask
+  an administrator to review the account/rate configuration.
+
+3. READING REPORT (ADMIN)
+-------------------------
+Purpose: Review readings that were entered for a selected period.
+
+Steps:
+1. Open Meter Reading > Reading Report.
+2. Set the available period, zone, or search filters.
+3. Review account number, reading values, consumption, and status.
+4. Use the report for checking work before billing/payment processing.
+
+4. CHANGE READINGS (ADMIN)
+--------------------------
+Purpose: Correct an existing reading using the controlled adjustment screen.
+
+Steps:
+1. Open Meter Reading > Change Readings.
+2. Search/filter to locate the exact reading record.
+3. Open Edit for that record.
+4. Compare the stored values with the approved source reading.
+5. Enter the corrected value and save.
+6. Re-open the bill/reading report and confirm the corrected result.
+
+Important: Changes to readings affect bills. Obtain the required approval
+before making a correction and do not alter a record merely to resolve a
+payment inquiry.
+
+5. OFFLINE READINGS (ADMIN)
+--------------------------
+Purpose: Review readings submitted by offline technicians before they are
+merged into normal readings and bills.
+
+Steps:
+1. Open Meter Reading > Offline Readings.
+2. Review pending rows and their account numbers, readings, and dates.
+3. Resolve account/property-type errors before merging.
+4. Use the merge/sync process available to authorized administrators.
+5. Confirm the resulting reading and bill in Reading Report/Payments.
+
+Important: Merge only once. A successful merge marks the offline row as
+processed. Do not repeatedly run a merge to fix an incorrect reading; use
+Change Readings instead.
+
+6. READING DATES (ADMIN)
+------------------------
+Purpose: Maintain allowed reading/billing date schedules.
+
+Steps:
+1. Open Meter Reading > Reading Dates.
+2. Review existing schedules first to avoid duplicates.
+3. Add, edit, or delete the required date entry.
+4. Verify the date, zone, and period before saving.
+
+7. PAYMENTS (ADMIN/CASHIER)
+---------------------------
+Purpose: Find bills, accept walk-in payment, and print an official receipt.
+
+Steps:
+1. Open Payments > Payments.
+2. Use Search (account number or name), Zone, Reading Month, Payment Method,
+   and Paid/Unpaid filters to find the bill.
+3. Confirm the account name, billing period, reference number, total amount,
+   and unpaid status.
+4. For an unpaid bill, click the payment/card action.
+5. Enter the payment details exactly as received and review them.
+6. Submit the payment once and wait for the success message.
+7. Print or open the official receipt using the receipt action after payment.
+
+Important:
+- Do not accept a second payment for a bill already marked Paid.
+- Do not change payment method or amount simply to match a customer claim;
+  verify the supporting document first.
+
+Problem checks:
+- Bill cannot be found: search by account number and verify the reading month.
+- Amount differs from the customer copy: review the bill breakdown and due
+  date; escalate if an adjustment is required.
+- Payment saved but receipt is unavailable: re-open the paid bill and use the
+  receipt action. Do not process the payment again.
+
+8. APPLICATION FEES (ADMIN/CASHIER)
+-----------------------------------
+Purpose: Process fees for new service-connection applications.
+
+Steps:
+1. From Payments, select Application Fees.
+2. Locate the correct application and confirm applicant details/status.
+3. Open the payment action for that application.
+4. Verify the required fee and payment details.
+5. Save once and issue the available receipt/proof.
+6. Confirm the application payment status changed before proceeding with
+   approval-related work.
+
+9. INSTALLMENT (ADMIN/CASHIER)
+------------------------------
+Purpose: Create and maintain payment schedules for an eligible bill.
+
+Create an installment:
+1. Open Payments > Installment.
+2. Click Create Installment.
+3. Search using the account number or customer name.
+4. Select the correct bill/reference number.
+5. Confirm the bill amount, number of months, monthly amount, and first due
+   date.
+6. Save the schedule.
+7. Use View to check every generated due date and amount.
+
+Maintain an installment:
+1. Find the installment in the list.
+2. Use View to inspect the schedule.
+3. Use Edit only with approved changes, then re-check the schedule.
+4. Use Delete only when the installment was created in error and approval was
+   obtained. Deletion is not a substitute for recording payment.
+
+10. BILLING ADJUSTMENT (ADMIN/CASHIER)
+--------------------------------------
+Purpose: Apply an approved correction to billing data.
+
+Steps:
+1. Open Payments > Billing Adjustment.
+2. Search/filter for the correct account and billing record.
+3. Review the original bill and the approved adjustment basis.
+4. Enter only the authorized adjustment.
+5. Save and re-check the recalculated bill.
+6. Record the reason/approval outside the system according to office policy.
+
+11. PENALTY EXEMPTION (ADMIN/CASHIER)
+-------------------------------------
+Purpose: Record an approved penalty exemption.
+
+Steps:
+1. Open Payments > Penalty Exemption.
+2. Locate the customer/bill.
+3. Verify eligibility and approval documentation.
+4. Add or update the exemption details, including the valid period/reason if
+   prompted.
+5. Save and verify the bill now reflects the approved exemption.
+
+12. ONLINE PAYMENTS (ADMIN/CASHIER)
+-----------------------------------
+Purpose: Monitor payments received through the online payment channel.
+
+Steps:
+1. Open Payments > Online Payments.
+2. Filter/search for the reference number, account, or date.
+3. Confirm the payment provider status and amount.
+4. Use the available sync/refresh action only when authorized.
+5. Verify that the related bill shows the correct paid status before advising
+   the customer.
+
+Problem checks:
+- Do not manually mark a bill paid from an unverified online transaction.
+- If the payment provider says paid but the bill is unpaid, capture the
+  reference number and escalate for synchronization review.
+
+13. FILES / DOWNLOAD REPORTS (ADMIN/CASHIER)
+--------------------------------------------
+Purpose: Generate downloadable operational reports.
+
+Steps:
+1. Open Files from the top navigation.
+2. Choose the needed report type (for example, ageing, penalty, franchise
+   tax, or disconnected concessionaires).
+3. Set all required date/month, zone, and other filters.
+4. Re-check the filters because they determine the file contents.
+5. Click Generate/Download and wait for the browser download to finish.
+6. Open the file and check the title, period, and row count before sending it
+   to another office.
+
+If a download is empty:
+1. Check the selected date/month and filters.
+2. Try a broader filter once.
+3. Confirm there is data in Payments/Reading Report for that period.
+4. Report the chosen filters and expected data to the administrator if the
+   file remains empty.
+
+14. CONCESSIONAIRES (ADMIN/CASHIER)
+-----------------------------------
+Purpose: Search and maintain concessionaire account information.
+
+Steps:
+1. Open Concessionaires.
+2. Search using account number, name, zone, or the available filters.
+3. Open the correct record and verify the customer identity before editing.
+4. Update only authorized fields.
+5. Save, then re-open the record to confirm the change.
+6. Use the ledger option, where available, to review account activity rather
+   than guessing a balance from a single bill.
+
+15. REGISTRANTS AND SERVICE APPLICATIONS (ADMIN)
+------------------------------------------------
+Purpose: Review new registrations and connection applications.
+
+Steps:
+1. Open Users > Registrants.
+2. Filter by status and registrant type (Existing Account or New Connection).
+3. Verify the applicant details and documents.
+4. For a new connection, open Form and Contract as needed.
+5. If details are incomplete, use Complete and save the missing information.
+6. Confirm application fee/payment requirements.
+7. For Traverse connections, verify the Boring/Cutting Permit before approval.
+8. Click Approve only after all requirements are complete; use Deny only with
+   a clear reason.
+
+16. IMPORTS (ADMIN)
+-------------------
+Purpose: Import approved master/billing data.
+
+Global Information:
+1. Open Users > Import > Global Informations.
+2. Use the required template and check column names/order before upload.
+3. Make a backup of the source file.
+4. Upload the file and review validation errors before retrying.
+
+Previous Billing:
+1. Open Payments > Payments > Upload Billing, or Users > Import > Previous
+   Billing.
+2. Select the approved previous-billing file.
+3. Confirm the target billing period and file before submitting.
+4. Review import results/errors and check several imported accounts.
+
+Never upload the same source file repeatedly without first confirming whether
+the previous attempt completed.
+
+17. SETTINGS (ADMIN)
+--------------------
+Purpose: Maintain configuration that affects billing.
+
+Available settings include Property Types, Base Rate, Water Rates, and Payment
+Breakdown.
+
+Steps:
+1. Open Users > Settings and select the setting.
+2. Review current entries and identify the exact item to change.
+3. Confirm the new value and its effective use with an authorized supervisor.
+4. Save the change once.
+5. Verify the saved value and test/review a non-production example where your
+   process allows.
+
+Warning: Rate and payment-breakdown changes can affect many future bills.
+Never change these settings to correct one customer's bill; use Billing
+Adjustment instead.
+
+18. ROLES AND PERSONNEL (ADMIN/SUPERADMIN)
+------------------------------------------
+Purpose: Manage access, not customer billing.
+
+Steps:
+1. Open Users > Roles or Users > Personnels.
+2. Confirm the staff member and required role before making a change.
+3. Apply the least access necessary for the job.
+4. Save and have the staff member sign out/in before testing access.
+5. Remove access promptly when duties change.
+
+19. SUPPORT TICKETS AND PROFILE
+-------------------------------
+Support Ticket:
+1. Click Submit Ticket.
+2. Describe the issue, account/reference number (if applicable), time, and
+   steps already tried.
+3. Do not include passwords or full payment-card details.
+4. Submit and retain the ticket reference.
+
+Profile:
+1. Open Profile from the top navigation.
+2. Update only your own authorized profile details.
+3. Use a strong, unique password when changing it.
+
+COMMON TROUBLESHOOTING
+----------------------
+1. "No data found"
+   - Clear Search, verify filters, select the correct month, and retry.
+
+2. A table is wider than the screen
+   - Scroll horizontally within the table. Use a larger screen if you need to
+     review many columns at once.
+
+3. A save fails
+   - Read the validation message, correct the highlighted field, and submit
+     once. Do not double-click the save button.
+
+4. You cannot see a menu or action
+   - It may be restricted by your role. Ask an administrator; do not use
+     another staff member's account.
+
+5. A bill/payment appears incorrect
+   - Stop before making another transaction. Record the account number,
+     reference number, displayed amount, and screenshot/error message; then
+     escalate through a support ticket or supervisor.
+
+END OF GUIDE

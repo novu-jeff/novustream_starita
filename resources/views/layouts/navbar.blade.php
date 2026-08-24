@@ -77,7 +77,7 @@
                             <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
                             <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
 						</ul>
-					</div>
+                    </div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
 				@endcanany
                 @can('cashier')
@@ -137,6 +137,7 @@
 				<a href="{{route('profile.index', ['user_type' => 'admin'])}}">
 					Profile
 				</a>
+				<a href="{{route('guide.index')}}"> Guide </a>
 				@endcan
 				<a href="javascript:void(0)" onclick="document.getElementById('logout-form').submit();">Logout</a>
                 <form id="logout-form" action="{{ route('auth.logout') }}" method="POST" style="display: none;">

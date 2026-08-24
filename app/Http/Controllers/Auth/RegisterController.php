@@ -64,7 +64,8 @@ class RegisterController extends Controller
             'address' => ['required', 'string', 'max:500'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'soa_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-            'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'id_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'picture_1x1' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'cedula_file' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'billing_file' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
             'authorization_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
@@ -148,9 +149,11 @@ class RegisterController extends Controller
         $user = $this->create($request->all());
 
         $documents = [
-            'valid_id' => $request->file('id_file')->store('applications/id', 'public'),
-            'cedula' => $request->file('cedula_file')->store('applications/cedula', 'public'),
-            'proof_of_billing' => $request->file('billing_file')->store('applications/billing', 'public'),
+            'valid_id' => $request->file('picture_1x1')
+                ? $request->file('picture_1x1')->store('applications/id', 'public')
+                : null,
+            'cedula' => $request->file('cedula_file') ? $request->file('cedula_file')->store('applications/cedula', 'public') : null,
+            'proof_of_billing' => $request->file('billing_file') ? $request->file('billing_file')->store('applications/billing', 'public') : null,
             'authorization_letter' => $request->file('authorization_file')
                 ? $request->file('authorization_file')->store('applications/authorization', 'public')
                 : null,
