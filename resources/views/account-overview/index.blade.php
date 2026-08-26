@@ -48,36 +48,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <h1>Account Overview</h1>
 
-                @if(($applicationStatus ?? null) === 'pending')
-                    <button type="button"
-                            class="btn btn-primary fw-bold text-uppercase"
-                            data-bs-toggle="modal"
-                            data-bs-target="#serviceApplicationModal">
-
-                        <i class="bx bx-water"></i>
-                        New Water Service Connection
-
-                    </button>
-                @elseif(!empty($serviceApplication))
-                    <a href="{{ route('application.show', $serviceApplication) }}"
-                    class="btn btn-primary fw-bold text-uppercase">
-
-                        <i class="bx bx-file"></i>
-                        View Application
-
-                    </a>
-                @else
-                    <button type="button"
-                            class="btn btn-primary fw-bold text-uppercase"
-                            data-bs-toggle="modal"
-                            data-bs-target="#serviceApplicationModal">
-
-                        <i class="bx bx-water"></i>
-                        New Water Service Connection
-
-                    </button>
-                @endif
-
             </div>
             <div class="mt-3">
                 <button type="button"
@@ -205,9 +175,11 @@ document.addEventListener('DOMContentLoaded', function () {
 	                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
 	                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
 	                    </div>
-                        <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
-	                        {{ 'Please provide the original documents in hard copy and submit them to the Sta. Rita Branch.' }}
-	                    </div>
+                        @if($accounts->contains('application_type', 'new_connection'))
+                            <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
+                                Please provide the original documents in hard copy and submit them to the Sta. Rita Branch.
+                            </div>
+                        @endif
 	                @endif
 
                     @if(!empty($serviceApplication))
@@ -1006,7 +978,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .application-notification {
             position: fixed;
             right: 24px;
-            bottom: 24px;
+            top: 8rem;
             z-index: 1050;
         }
 
@@ -1041,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .application-notification-panel {
             position: absolute;
             right: 0;
-            bottom: 64px;
+            top: 64px;
             width: min(340px, calc(100vw - 32px));
             max-height: min(520px, calc(100vh - 120px));
             overflow-y: auto;
