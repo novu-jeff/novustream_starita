@@ -9,19 +9,36 @@
                         <div class="card shadow border-0 p-2 pb-0 px-3" style="border-radius: 20px;">
                             <div class="card-body">
                                 <div class="row">
-                                    <div class="col-md-12 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label for="zone_no" class="form-label">Zone</label>
                                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
+
                                             @if($showAllOption)
-                                                <option value="all"> All Zones </option>
+                                                <option value="all">All Zones</option>
                                             @endif
+
                                             @foreach($zones as $item)
                                                 <option value="{{ $item->zone }}">
                                                     {{ $item->zone . ' - ' . $item->area }}
                                                 </option>
                                             @endforeach
+
                                         </select>
+
                                         @error('zone_no')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label for="senior_filter" class="form-label">Account Type</label>
+
+                                        <select name="senior_filter" id="senior_filter" class="form-select text-uppercase dropdown-toggle">
+                                            <option value="all">All Accounts</option>
+                                            <option value="senior">Senior</option>
+                                        </select>
+
+                                        @error('senior_filter')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
@@ -214,12 +231,14 @@
             isLoading = true;
 
             const zone = $('#zone_no').val();
+            const seniorFilter = $('#senior_filter').val();
             const filter = $('#filter').val();
             const searchBy = $('#search_by').val();
             const search = $('#search').val();
 
             $.get('{{ route(Route::currentRouteName()) }}', {
                 zone,
+                senior_filter: seniorFilter,
                 filter,
                 search_by: searchBy,
                 search,
@@ -687,7 +706,7 @@
             });
         });
 
-        $('#zone_no, #filter, #search_by').on('change', function () {
+        $('#zone_no, #senior_filter, #filter, #search_by').on('change', function () {
             offset = 0;
             hasMoreData = true;
             fetchAccountData();

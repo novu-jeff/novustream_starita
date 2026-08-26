@@ -100,6 +100,20 @@ class ReadingController extends Controller
             }
         }
 
+        if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+            try {
+                $response = $this->meterService->getPreviousReading(
+                    $payload['account_no']
+                );
+                return response()->json($response);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unable to get previous reading.'
+                ], 500);
+            }
+        }
 
         if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
             $response = $this->meterService->getReRead($payload['reference_no']);
