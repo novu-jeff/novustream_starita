@@ -31,4 +31,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    | Past-due SOA QR (align with NovuPay DUE_DATE_QR_PENALTY):
+    | true  = allow online payment after due date using amount_after_due / penalty
+    | false = void QR and show payments.qr-voided
+    */
+    'due_date_qr_penalty' => env('DUE_DATE_QR_PENALTY', true),
+
 ];

@@ -44,7 +44,35 @@ class PaymentController extends Controller
     }
 
     /**
-     * SOA QR payment is void after the bill due date (same rule as SOA penalty display).
+     * When true (default), past-due SOA QR continues to HitPay with penalty.
+     * When false, QR is voided (legacy behavior). Aligns with NovuPay DUE_DATE_QR_PENALTY.
+     */
+    public static function dueDateQrAllowsPenalty(): bool
+    {
+        return filter_var(config('services.due_date_qr_penalty', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Bill is past due when today is AFTER the due date (due date itself is still valid).
+     */
+    public static function isPastDue(array $billData): bool
+    {
+        $dueDateString = $billData['due_date'] ?? null;
+        if (empty($dueDateString)) {
+            return false;
+        }
+
+        try {
+            $dueDate = Carbon::parse($dueDateString)->timezone('Asia/Manila')->startOfDay();
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return Carbon::today('Asia/Manila')->gt($dueDate);
+    }
+
+    /**
+     * SOA QR is void only when past due AND penalty mode is disabled.
      */
     public static function isSoaQrVoided(array $billData): bool
     {
@@ -52,15 +80,50 @@ class PaymentController extends Controller
             return false;
         }
 
-        $dueDateString = $billData['due_date'] ?? null;
-        if (empty($dueDateString)) {
+        if (!self::isPastDue($billData)) {
             return false;
         }
 
-        $dueDate = Carbon::parse($dueDateString)->timezone('Asia/Manila')->startOfDay();
-        $today = Carbon::today('Asia/Manila');
+        return !self::dueDateQrAllowsPenalty();
+    }
 
-        return $today->gt($dueDate);
+    /**
+     * Base amount for HitPay (before convenience fees). Past due → amount_after_due / +penalty.
+     */
+    public static function resolveOnlinePayableAmount(array $billData): float
+    {
+        $discount = 0.0;
+        if (isset($billData['discount'])) {
+            if (is_array($billData['discount'])) {
+                $discount = (float) collect($billData['discount'])->sum(function ($row) {
+                    return is_array($row) ? (float) ($row['amount'] ?? 0) : (float) $row;
+                });
+            } else {
+                $discount = (float) $billData['discount'];
+            }
+        }
+
+        $base = round(max((float) ($billData['total'] ?? $billData['amount'] ?? 0) - $discount, 0), 2);
+
+        if (!self::isPastDue($billData)) {
+            return $base;
+        }
+
+        $afterDue = isset($billData['amount_after_due']) && is_numeric($billData['amount_after_due'])
+            ? round((float) $billData['amount_after_due'], 2)
+            : 0.0;
+
+        if ($afterDue > $base + 0.001) {
+            return $afterDue;
+        }
+
+        $penalty = (float) ($billData['penalty'] ?? 0);
+        if ($penalty > 0) {
+            return round($base + $penalty, 2);
+        }
+
+        // Match NovuPay Starita fallback: 10% of amount due
+        return round($base * 1.10, 2);
     }
 
     /**
@@ -142,6 +205,26 @@ class PaymentController extends Controller
                     'status' => 'paid',
                 ],
             ]);
+        }
+
+        // Existing printed QRs may still point here after due date.
+        // In penalty mode, continue to HitPay with overdue amount instead of voiding.
+        if ($billData && self::dueDateQrAllowsPenalty() && self::isPastDue($billData)) {
+            $payload = [
+                'payor' => $client['name'] ?? ($bill->payor_name ?? 'Sta. Rita Customer'),
+                'email' => $client['email'] ?? 'srwdsystem2023@gmail.com',
+                'account_no' => $client['account_no'] ?? ($bill->account_no ?? null),
+            ];
+
+            $hitpayData = $this->createHitpayPaymentRequest($reference_no, $payload);
+            if ($hitpayData && !empty($hitpayData['url'])) {
+                \Log::info('Past-due QR (penalty mode): redirecting from qr-voided to HitPay', [
+                    'reference_no' => $reference_no,
+                    'payable_amount' => self::resolveOnlinePayableAmount($billData),
+                ]);
+
+                return redirect()->away((string) $hitpayData['url']);
+            }
         }
 
         if ($billData && !self::isSoaQrVoided($billData)) {
@@ -801,7 +884,7 @@ class PaymentController extends Controller
         $payPartialOnly = !empty($payload['partial_payment']);
         $total = round((float)$currentBill->total - $discount, 2);
         $amount = round((float)$currentBill->amount - $discount, 2);
-        $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+        $dueDate = \Carbon\Carbon::parse($currentBill->penalty_date);
         $isOverdue = now()->greaterThan($dueDate);
         $billAmount = round((float) $currentBill->amount_after_due - $discount, 2);
 
@@ -857,7 +940,7 @@ class PaymentController extends Controller
                 ->update([
                     'isPaid'        => 1,
                     'isPartial'     => 0,
-                    'amount_paid'   => DB::raw('amount_after_due'),
+                    'amount_paid'   => $paymentAmount,
                     'date_paid'     => now(),
                     'payment_method'=> 'cash',
                 ]);
@@ -930,7 +1013,7 @@ class PaymentController extends Controller
         ->update([
             'isPaid'        => 1,
             'isPartial'     => 0,
-            'amount_paid'   => DB::raw('amount_after_due'),
+            'amount_paid'   => $paymentAmount,
             'date_paid'     => now(),
             'payment_method'=> 'cash',
         ]);
@@ -1076,31 +1159,37 @@ class PaymentController extends Controller
             }
 
             if (self::isSoaQrVoided($billData)) {
-                \Log::info('HitPay request skipped: bill past due date', ['reference_no' => $reference_no]);
+                \Log::info('HitPay request skipped: bill past due date (void mode)', ['reference_no' => $reference_no]);
                 return null;
             }
 
             $days_before_due = 15;
             if (!empty($billData['due_date'])) {
                 try {
-                    $due_date = Carbon::parse($billData['due_date']);
+                    $billDueEnd = Carbon::parse($billData['due_date'])->timezone('Asia/Manila')->endOfDay();
                 } catch (\Exception $e) {
-                    $due_date = Carbon::now()->addDays($days_before_due);
+                    $billDueEnd = Carbon::now('Asia/Manila')->addDays($days_before_due)->endOfDay();
                 }
             } else {
-                $due_date = Carbon::now()->addDays($days_before_due);
+                $billDueEnd = Carbon::now('Asia/Manila')->addDays($days_before_due)->endOfDay();
             }
-            $due_date = $due_date->endOfDay()->format('Y-m-d H:i:s');
+            // HitPay requires expiry strictly after now; due-date-today / past-due need extension.
+            $minExpiry = Carbon::now('Asia/Manila')->addDay()->endOfDay();
+            $due_date = ($billDueEnd->greaterThan($minExpiry) ? $billDueEnd : $minExpiry)
+                ->format('Y-m-d H:i:s');
 
 
             // dd($billData);
             $rateCode = $result['data']['client']['rate_code'] ?? null;
-            $amount = (float) $billData['total'];
-            $discount = !empty($billData['discount'][0]['amount'])
-                ? (float) $billData['discount'][0]['amount']
-                : 0;
+            $amount = self::resolveOnlinePayableAmount($billData);
 
-            $amount = $amount - $discount;
+            if (self::isPastDue($billData)) {
+                \Log::info('HitPay: past-due payable amount (penalty mode)', [
+                    'reference_no' => $reference_no,
+                    'amount' => $amount,
+                    'due_date' => $billData['due_date'] ?? null,
+                ]);
+            }
 
             // dd($amount, $discount);
 

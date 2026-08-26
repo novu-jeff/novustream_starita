@@ -235,6 +235,7 @@
         $discount = (float) $discount;
     }
 
+
     $assumed_penalty = (float) ($cb['penalty'] ?? 0);
     $totalAmount = round($total + $applicablePenalty - $advances - $discount, 2);
 
