@@ -64,7 +64,8 @@
                     </div>
                 </div>
 
-                <table class="table table-bordered table-striped w-100 mt-4">
+                <div class="table-responsive mt-4">
+                <table class="table table-bordered table-striped w-100 mb-0">
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -99,27 +100,54 @@
                                 <td>{{ $registrant->contact_no ?? 'N/A' }}</td>
                                 <td>
                                     @if($applicationType === 'new_connection')
-                                        <span class="badge bg-info text-dark">New Connection</span>
-                                        <div class="small text-muted">{{ $connectionType === 'traverse' ? 'Traverse' : 'On-line' }}</div>
+                                        <span class="d-inline-flex align-items-center">
+                                            <span class="rounded-circle bg-success me-2"
+                                                style="width: 8px; height: 8px;"></span>
+                                            <span>New</span>
+                                        </span>
+
+                                        <div class="small text-muted">
+                                            {{ $connectionType === 'traverse' ? 'Traverse' : 'On-line' }}
+                                        </div>
                                     @else
-                                        <span class="badge bg-secondary">Existing Account</span>
+                                        <span class="d-inline-flex align-items-center">
+                                            <span class="rounded-circle bg-info me-2"
+                                                style="width: 8px; height: 8px;"></span>
+                                            <span>Existing</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td>{{ $applicationType === 'new_connection' ? 'N/A' : $account->account_no }}</td>
                                 <td>{{ $account->address }}</td>
                                 <td>
                                     @if($applicationStatus === 'approved')
-                                        <span class="badge bg-success">Approved</span>
+                                        <span class="d-inline-flex align-items-center">
+                                            <span class="rounded-circle bg-success me-2"
+                                                style="width: 8px; height: 8px;"></span>
+                                            <span>Approved</span>
+                                        </span>
+
                                         @if($account->approved_at)
                                             <div class="small text-muted">{{ $account->approved_at->format('M d, Y') }}</div>
                                         @endif
+
                                     @elseif($applicationStatus === 'denied')
-                                        <span class="badge bg-danger">Denied</span>
+                                        <span class="d-inline-flex align-items-center">
+                                            <span class="rounded-circle bg-danger me-2"
+                                                style="width: 8px; height: 8px;"></span>
+                                            <span>Denied</span>
+                                        </span>
+
                                         @if($account->approval_denial_reason)
                                             <div class="small text-muted">{{ $account->approval_denial_reason }}</div>
                                         @endif
+
                                     @else
-                                        <span class="badge bg-warning text-dark">Pending</span>
+                                        <span class="d-inline-flex align-items-center">
+                                            <span class="rounded-circle bg-warning me-2"
+                                                style="width: 8px; height: 8px;"></span>
+                                            <span>Pending</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td>
@@ -133,7 +161,11 @@
                                         @if($serviceApplication?->documents?->boring_permit)
                                             <a href="{{ asset('storage/' . $serviceApplication->documents->boring_permit) }}" target="_blank" class="btn btn-outline-primary btn-sm">Permit</a>
                                         @elseif($connectionType === 'traverse')
-                                            <span class="badge bg-warning text-dark">Permit Required</span>
+                                            <span class="d-inline-flex align-items-center">
+                                                <span class="rounded-circle bg-warning me-2"
+                                                    style="width: 8px; height: 8px;"></span>
+                                                <span>Permit</span>
+                                            </span>
                                         @endif
                                         @if($account->application_soa_path)
                                             <a href="{{ asset('storage/' . $account->application_soa_path) }}" target="_blank" class="btn btn-outline-primary btn-sm">SOA</a>
@@ -147,20 +179,32 @@
                                     @if($applicationStatus === 'pending')
                                         <div class="d-flex align-items-center gap-2">
                                             @if($applicationType === 'new_connection' && $needsCompletion)
-                                                <a href="{{ route('registrants.complete', $account->id) }}" class="btn btn-primary text-uppercase fw-bold">
+                                                <a href="{{ route('registrants.complete', $account->id) }}"
+                                                class="btn btn-primary text-uppercase fw-bold">
                                                     Complete
                                                 </a>
+
                                             @elseif($applicationType === 'new_connection' && $connectionType === 'traverse' && !$hasBoringPermit)
-                                                <span class="badge bg-warning text-dark">Waiting Permit</span>
+                                                <span class="d-inline-flex align-items-center">
+                                                    <span class="rounded-circle bg-warning me-2"
+                                                        style="width: 8px; height: 8px;"></span>
+                                                    <span>Permit</span>
+                                                </span>
+
                                             @elseif($serviceApplication && $serviceApplication->application_fee_status !== 'paid')
                                                 <a href="{{ route('payments.application-fees.pay', $serviceApplication->id) }}"
                                                 class="btn btn-warning text-uppercase fw-bold d-flex flex-row align-items-center text-nowrap">
                                                     <i class="bx bx-error me-1"></i> Pay Fee
                                                 </a>
+
                                             @else
-                                                <form method="POST" action="{{ route('registrants.approve', $account->id) }}" class="registrant-action-form" data-action="approve">
+                                                <form method="POST"
+                                                    action="{{ route('registrants.approve', $account->id) }}"
+                                                    class="registrant-action-form"
+                                                    data-action="approve">
                                                     @csrf
                                                     @method('PATCH')
+
                                                     <button type="submit" class="btn btn-success text-uppercase fw-bold">
                                                         Approve
                                                     </button>
@@ -188,6 +232,7 @@
                         @endforelse
                     </tbody>
                 </table>
+                </div>
 
                 <div class="w-100 mt-4">
                     {{ $data->links() }}

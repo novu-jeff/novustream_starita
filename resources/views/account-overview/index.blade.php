@@ -205,32 +205,37 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                                     <td class="text-uppercase fw-bold text-muted">
 
-                                                        {{-- Valid ID --}}
+                                                        @php
+                                                            $isNewConcessionaire = $accounts->contains('application_type', 'new_connection');
+                                                            $identityDocumentLabel = $isNewConcessionaire ? '1x1 Image' : 'Valid ID';
+                                                        @endphp
+
+                                                        {{-- Valid ID / 1x1 Image --}}
                                                         <div class="document-row">
                                                             <span>
-                                                                Valid ID:
+                                                                {{ $identityDocumentLabel }}:
                                                                 {{ $serviceApplication->documents?->valid_id ? 'Uploaded' : 'Missing' }}
                                                             </span>
 
                                                             @if($serviceApplication->documents?->valid_id)
                                                                 <a  type="button"
                                                                     class="document-btn document-btn-view"
-                                                                    title="View Valid ID"
+                                                                    title="View {{ $identityDocumentLabel }}"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#viewDocumentModal"
                                                                     data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->valid_id) }}"
-                                                                    data-document-name="Valid ID">
+                                                                    data-document-name="{{ $identityDocumentLabel }}">
                                                                     <i class="bx bx-show"></i>
                                                                 </a>
                                                             @endif
 
                                                             <button type="button"
                                                                     class="document-btn document-btn-edit"
-                                                                    title="Replace Valid ID"
+                                                                    title="Replace {{ $identityDocumentLabel }}"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#replaceDocumentModal"
                                                                     data-document="valid_id"
-                                                                    data-label="Valid ID">
+                                                                    data-label="{{ $identityDocumentLabel }}">
                                                                 <i class="bx bx-edit"></i>
                                                             </button>
                                                         </div>

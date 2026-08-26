@@ -9,14 +9,20 @@ window.alert = alert;
 window.remove = remove;
 window.convertDateToWords = convertDateToWords;
 
-const authApp = createApp({
-    components: {
-        addConcessioner,
-    },
-});
- //@input="uppercaseAddress($event, index)"
+const vueRoot = document.getElementById('app');
 
-authApp.mount('#app');
+// Only mount Vue on pages that use its concessionaire form component.
+// Mounting an empty app on every page re-renders the server HTML and removes
+// page-specific inline styles after the initial render.
+if (vueRoot?.querySelector('add-concessioner')) {
+    const authApp = createApp({
+        components: {
+            addConcessioner,
+        },
+    });
+
+    authApp.mount('#app');
+}
 
 $('.download-js').on('click', function() {
     const target = $(this).data('target');
@@ -31,5 +37,4 @@ $('.print-js').on('click', function() {
 $('.btn-navigate, .close-icon').on('click', function() {
     $('.header-navigation').toggleClass('active');
 });
-
 

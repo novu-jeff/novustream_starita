@@ -29,6 +29,7 @@ use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\ServiceApplicationController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\Admin\ReadingAdjustmentController;
 use App\Http\Controllers\Admin\BillingAdjustmentController;
 
@@ -69,6 +70,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('/guide', [GuideController::class, 'index'])
+        ->name('guide.index');
 
     Route::get('reading', [ReadingController::class, 'index'])
         ->name('reading.index');

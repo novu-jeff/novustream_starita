@@ -306,14 +306,6 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
     $zone = $request->input('zone');
     $classification = $request->input('classification');
 
-    $dataByReport = $this->fetchReportsFromDb(
-        $reports,
-        $startDate,
-        $endDate,
-        $zone,
-        $classification
-    );
-
     /*
     |--------------------------------------------------------------------------
     | SEPARATE MODE
@@ -323,7 +315,14 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
 
         $files = [];
 
-        foreach ($dataByReport as $reportName => $data) {
+        foreach ($reports as $reportName) {
+            $data = $this->fetchReportsFromDb(
+                [$reportName],
+                $startDate,
+                $endDate,
+                $zone,
+                $classification
+            )[$reportName] ?? [];
 
             // ✅ FORMATTED REPORT
             if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
@@ -342,6 +341,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 $writer->save($filePath);
 
                 $files[] = $filePath;
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet, $data);
                 continue;
             }
 
@@ -383,12 +384,15 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 $writer->save($filePath);
 
                 $files[] = $filePath;
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet, $data);
                 continue;
             }
 
             // ✅ NORMAL
             $filePath = $this->createFile($reportName, $data, $format);
             $files[] = $filePath;
+            unset($data);
         }
 
         // ZIP if multiple
@@ -402,6 +406,10 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                     $zip->addFile($f, basename($f));
                 }
                 $zip->close();
+
+                foreach ($files as $file) {
+                    @unlink($file);
+                }
             }
 
             return response()->download($zipPath)->deleteFileAfterSend(true);
@@ -418,7 +426,14 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
     $spreadsheet = new Spreadsheet();
     $firstSheet = true;
 
-    foreach ($dataByReport as $reportName => $data) {
+    foreach ($reports as $reportName) {
+        $data = $this->fetchReportsFromDb(
+            [$reportName],
+            $startDate,
+            $endDate,
+            $zone,
+            $classification
+        )[$reportName] ?? [];
 
         // ✅ FORMATTED (MATRIX)
         if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
@@ -450,6 +465,9 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 }
             }
 
+            $data['spreadsheet']->disconnectWorksheets();
+            unset($data);
+
             continue;
         }
 
@@ -476,6 +494,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 }
             }
 
+            unset($data);
+
             continue;
         }
 
@@ -498,6 +518,8 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
             $sheet->fromArray([$headers], null, 'A1');
             $sheet->fromArray($data, null, 'A2');
         }
+
+        unset($data);
     }
 
     /*
@@ -3239,6 +3261,40 @@ break;
 
     protected function createFile(string $reportName, array $rows, string $format): string
 {
+    $reportsPath = storage_path('app/reports');
+    if (!file_exists($reportsPath)) {
+        mkdir($reportsPath, 0777, true);
+    }
+
+    $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reportName);
+    $extension = ($format === 'csv') ? 'csv' : 'xlsx';
+    $fileName = "{$safeName}_" . now()->format('Ymd_His') . ".{$extension}";
+    $filePath = "{$reportsPath}/{$fileName}";
+
+    // CSV has no workbook formatting. Write rows directly to disk instead of
+    // creating a PhpSpreadsheet workbook for the entire report.
+    if ($format === 'csv') {
+        $handle = fopen($filePath, 'wb');
+
+        if ($handle === false) {
+            throw new \RuntimeException("Unable to create report file: {$filePath}");
+        }
+
+        if ($rows === []) {
+            fputcsv($handle, ['No Data Available']);
+        } else {
+            fputcsv($handle, array_keys($rows[0]));
+
+            foreach ($rows as $row) {
+                fputcsv($handle, array_values($row));
+            }
+        }
+
+        fclose($handle);
+
+        return $filePath;
+    }
+
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->setTitle(substr($reportName, 0, 31));
@@ -3292,30 +3348,14 @@ break;
         }
     }
 
-    $reportsPath = storage_path('app/reports');
-    if (!file_exists($reportsPath)) {
-        mkdir($reportsPath, 0777, true);
-    }
-
-    $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $reportName);
-    $extension = ($format === 'csv') ? 'csv' : 'xlsx';
-    $fileName = "{$safeName}_" . now()->format('Ymd_His') . ".{$extension}";
-    $filePath = "{$reportsPath}/{$fileName}";
-
-    if ($format === 'csv') {
-        if ($spreadsheet->getSheetCount() > 1) {
-            $spreadsheet->setActiveSheetIndex(0);
-        }
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Csv($spreadsheet);
-    } else {
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-    }
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
 
     if ($sheet->getHighestDataRow() === 0) {
         $sheet->setCellValue('A1', 'No data available');
     }
 
     $writer->save($filePath);
+    $spreadsheet->disconnectWorksheets();
 
     return $filePath;
 }
