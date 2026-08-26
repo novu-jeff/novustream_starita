@@ -47,10 +47,7 @@ class UpdateClientRequest extends FormRequest
             ->map(fn ($code) => strtoupper(trim($code)))
             ->toArray();
 
-        $id = $this->route('concessionaire');
-        $accountRule = $this->filled('registrant_id') ? 'required' : 'nullable';
-
-        return [
+        $rules = [
             'name' => 'nullable|string|max:255',
             'email' => 'nullable|string',
             'password' => 'nullable|min:8|confirmed',
@@ -60,30 +57,37 @@ class UpdateClientRequest extends FormRequest
             'connection_type' => ['nullable', Rule::in(['on_line', 'traverse'])],
 
             'accounts' => 'nullable|array',
-            'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',
-            'accounts.*.account_no' => $accountRule . '|string',
-            'accounts.*.address' => $accountRule . '|string|max:255',
-            'accounts.*.property_type' => $accountRule . '|exists:property_types,id',
-            'accounts.*.rate_code' => $accountRule . '|numeric|gt:0',
-            'accounts.*.status' => [$accountRule, Rule::in($validStatusCodes)],
-            'accounts.*.sc_no' => $accountRule . '|string',
-            'accounts.*.meter_brand' => 'nullable|string|max:256',
-            'accounts.*.meter_serial_no' => $accountRule . '|string',
-            'accounts.*.date_connected' => $accountRule . '|date',
-            'accounts.*.sequence_no' => $accountRule . '|string',
-
-            'accounts.*.meter_type' => 'nullable|string|max:120',
-            'accounts.*.meter_wire' => 'nullable|string|max:120',
-            'accounts.*.meter_form' => 'nullable|string|max:120',
-            'accounts.*.meter_class' => 'nullable|string|max:120',
-            'accounts.*.lat_long' => 'nullable|string|max:120',
-            'accounts.*.isErcSealed' => 'nullable|boolean',
-            'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048',
-            'accounts.*.has_sc_discount' => ['nullable', 'boolean'],
-            'accounts.*.sc_id_no' => [
-                'nullable'
-            ],
         ];
+
+        foreach ($this->input('accounts', []) as $index => $account) {
+            $isSelectedRegistrant = $this->filled('registrant_id')
+                && (string) ($account['id'] ?? '') === (string) $this->input('registrant_id');
+            $accountRule = $isSelectedRegistrant ? 'required' : 'nullable';
+            $prefix = "accounts.{$index}.";
+
+            $rules[$prefix . 'id'] = 'nullable|exists:concessioner_accounts,id';
+            $rules[$prefix . 'account_no'] = $accountRule . '|string';
+            $rules[$prefix . 'address'] = $accountRule . '|string|max:255';
+            $rules[$prefix . 'property_type'] = $accountRule . '|exists:property_types,id';
+            $rules[$prefix . 'rate_code'] = $accountRule . '|numeric|gt:0';
+            $rules[$prefix . 'status'] = [$accountRule, Rule::in($validStatusCodes)];
+            $rules[$prefix . 'sc_no'] = $accountRule . '|string';
+            $rules[$prefix . 'meter_brand'] = 'nullable|string|max:256';
+            $rules[$prefix . 'meter_serial_no'] = $accountRule . '|string';
+            $rules[$prefix . 'date_connected'] = $accountRule . '|date';
+            $rules[$prefix . 'sequence_no'] = $accountRule . '|string';
+            $rules[$prefix . 'meter_type'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_wire'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_form'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_class'] = 'nullable|string|max:120';
+            $rules[$prefix . 'lat_long'] = 'nullable|string|max:120';
+            $rules[$prefix . 'isErcSealed'] = 'nullable|boolean';
+            $rules[$prefix . 'inspectionImage'] = 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048';
+            $rules[$prefix . 'has_sc_discount'] = ['nullable', 'boolean'];
+            $rules[$prefix . 'sc_id_no'] = ['nullable'];
+        }
+
+        return $rules;
 
     }
 

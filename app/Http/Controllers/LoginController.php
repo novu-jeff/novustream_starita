@@ -53,12 +53,25 @@ class LoginController extends Controller
         $guard = 'web';
 
         /*
-         * Admin host OR local development:
-         * authenticate against the Admin model.
+         * Production admin host authenticates against the Admin model.
+         * Local development supports both account types and tries users first.
          */
-        if ($isAdminHost || $isLocalHost) {
+        if ($isAdminHost && !$isLocalHost) {
             $user = Admin::where('email', $credentials['email'])->first();
             $guard = 'admins';
+        }
+
+        elseif ($isLocalHost) {
+            $user = User::where('email', $credentials['email'])
+                ->where('isActive', 1)
+                ->first();
+
+            $guard = 'web';
+
+            if (! $user) {
+                $user = Admin::where('email', $credentials['email'])->first();
+                $guard = 'admins';
+            }
         }
 
         /*
@@ -92,7 +105,7 @@ class LoginController extends Controller
 
         if (! $user) {
             return back()->withErrors([
-                'email' => ($isAdminHost || $isLocalHost)
+                'email' => ($isAdminHost && !$isLocalHost)
                     ? 'Invalid staff credentials.'
                     : ($isPortalHost
                         ? 'Invalid concessionaire credentials or account inactive.'
@@ -110,9 +123,10 @@ class LoginController extends Controller
         }
 
         /*
-         * Admin/local must not accept concessionaire accounts.
+         * Production admin host must not accept concessionaire accounts.
+         * Local development allows both account types.
          */
-        if (($isAdminHost || $isLocalHost) && $user instanceof User) {
+        if (($isAdminHost && !$isLocalHost) && $user instanceof User) {
             return back()->withErrors([
                 'email' => 'Concessionaire accounts must sign in at ' . EnforceStaritaHost::PORTAL_HOST,
             ]);
