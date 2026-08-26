@@ -31,290 +31,286 @@ class AccountOverviewController extends Controller
         $this->generateService = $generateService;
     }
 
-public function index()
-{
-    $my = Auth::user()->load(
-        'property_types',
-        'accounts.sc_discount',
-        'accounts.user',
-        'accountLinks.account.sc_discount',
-        'accountLinks.account.property_types',
-        'accountLinks.account.user'
-    );
-    $id = $my->id;
+    public function index()
+    {
+        $my = Auth::user()->load(
+            'property_types',
+            'accounts.sc_discount',
+            'accounts.user',
+            'accountLinks.account.sc_discount',
+            'accountLinks.account.property_types',
+            'accountLinks.account.user'
+        );
+        $id = $my->id;
 
-    $data = $this->clientService::getData($id) ?? $my;
-    $accounts = collect($data->accounts ?? []);
-    foreach ($my->accountLinks->whereIn('status', ['pending', 'approved']) as $link) {
-        if ($link->account) {
-            $link->account->access_link_status = $link->status;
-            $accounts->push($link->account);
+        $data = $this->clientService::getData($id) ?? $my;
+        $accounts = collect($data->accounts ?? []);
+        foreach ($my->accountLinks->whereIn('status', ['pending', 'approved']) as $link) {
+            if ($link->account) {
+                $link->account->access_link_status = $link->status;
+                $accounts->push($link->account);
+            }
         }
-    }
-    $accounts = $accounts->unique('id')->values();
-    $data->setRelation('accounts', $accounts);
-    $approvalNotice = $this->approvalNotice($accounts);
-    $applicationNotification = $this->applicationNotification($accounts);
-    $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification);
-    $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
-    $serviceApplication = ServiceApplication::with('documents')
-        ->where('user_id', $id)
-        ->latest()
-        ->first();
+        $accounts = $accounts->unique('id')->values();
+        $data->setRelation('accounts', $accounts);
+        $approvalNotice = $this->approvalNotice($accounts);
+        $applicationNotification = $this->applicationNotification($accounts);
+        $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification);
+        $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
+        $serviceApplication = ServiceApplication::with('documents')
+            ->where('user_id', $id)
+            ->latest()
+            ->first();
 
-    $applicationStatus = $accounts
-        ->pluck('application_status')
-        ->filter()
-        ->first();
-    $approvedAccounts = collect($accounts)->filter(function ($account) {
-        return $this->canUseAccount($account);
-    });
-
-    $statement = [];
-    $statement['transactions'] = [];
-
-    foreach ($approvedAccounts as $account) {
-        $bill = $this->meterService::getBills($account->account_no);
-
-        // Only include unpaid bills
-        if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
-            $bill['account_no'] = $account->account_no;
-            $statement['transactions'][] = $bill;
-        }
-    }
-
-    // Determine the current bill
-    $statement['current_bill'] = collect($statement['transactions'])
-        ->filter(function ($bill) {
-            return ($bill['isPaid'] ?? 0) == 0
-                && (
-                    empty($bill['amount_paid']) ||
-                    floatval($bill['amount_paid']) < floatval($bill['amount'])
-                );
-        })
-        ->sortByDesc('due_date')
-        ->first();
-
-        if (!empty($statement['current_bill'])) {
-            $statement['current_bill'] =
-                $this->computeBillPenalty($statement['current_bill']);
-        }
-
-
-    // Compute total for all transactions
-    $statement['total'] = !empty($statement['transactions'])
-        ? array_sum(array_map(function($bill) {
-            $amount = $bill['total'] ?? 0;
-            $discount = $bill['discount'] ?? 0;
-            $advance = $bill['advances'] ?? 0;
-
-        $penalty = $statement['current_bill']['penalty'] ?? 0;
-        $dueDate = isset($data['current_bill']['due_date'])
-                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
-                        : null;
-
-        $today = \Carbon\Carbon::today();
-
-        $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
-
-            return ($amount + $applicablePenalty) - ($discount + $advance);
-        }, $statement['transactions']))
-        : 0;
-
-    $statement['due_date'] = !empty($statement['transactions'])
-        ? collect($statement['transactions'])
-            ->pluck('due_date')
+        $applicationStatus = $accounts
+            ->pluck('application_status')
             ->filter()
-            ->sortDesc()
-            ->first()
-        : '';
+            ->first();
+        $approvedAccounts = collect($accounts)->filter(function ($account) {
+            return $this->canUseAccount($account);
+        });
 
-    $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
+        $statement = [];
+        $statement['transactions'] = [];
 
-    $accountStatements = [];
-    foreach ($accounts as $account) {
-        $accountStatement = [
-            'account' => $account,
-            'transactions' => [],
-            'total' => 0,
-        ];
-
-        if ($this->canUseAccount($account)) {
+        foreach ($approvedAccounts as $account) {
             $bill = $this->meterService::getBills($account->account_no);
 
+            // Only include unpaid bills
             if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
-                $bill = $this->computeBillPenalty($bill);
                 $bill['account_no'] = $account->account_no;
-                $accountStatement['transactions'][] = $bill;
-                $discount = is_array($bill['discount'] ?? null)
-                    ? collect($bill['discount'])->sum('amount')
-                    : (float) ($bill['discount'] ?? 0);
-                $accountStatement['total'] = (float) ($bill['total'] ?? $bill['amount'] ?? 0)
-                    + (float) ($bill['computed_penalty'] ?? 0)
-                    - $discount
-                    - (float) ($bill['advances'] ?? 0);
+                $statement['transactions'][] = $bill;
             }
         }
 
-        $accountStatements[] = $accountStatement;
-    }
-
-    $sc_discounts = $accounts->pluck('sc_discount');
-
-    // -----------------------------
-    // Generate online payment URL
-    // -----------------------------
-    $statement['current_bill_qr'] = null;
-
-    if (!empty($statement['current_bill'])) {
-
-        $currentBill = $statement['current_bill'];
-
-        $payload = [
-            'reference_no' => $currentBill['reference_no'] ?? '',
-            'amount' => $currentBill['amount'] ?? 0,
-            'customer' => [
-                'name' => $data->name ?? '',
-                'account_no' => $currentBill['account_no'] ?? '',
-                'address' => $currentBill['address'] ?? '',
-            ],
-        ];
-
-        $paymentController = app(\App\Http\Controllers\PaymentController::class);
-        $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
-            $currentBill['reference_no'] ?? '',
-            $currentBill,
-            $payload
-        );
-        $statement['current_bill_qr'] = $qrResolved['url'];
-    }
-
-    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication'));
-}
-
-public function addAccount(Request $request)
-{
-    $validated = $request->validate([
-        'account_no' => ['required', 'string', 'max:255'],
-        'name' => ['required', 'string', 'max:255'],
-        'soa_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-        'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-        'data_privacy_consent' => ['accepted'],
-    ]);
-
-    $user = Auth::user();
-
-    DB::transaction(function () use ($request, $validated, $user) {
-        $account = UserAccounts::with('user')
-            ->where('account_no', trim($validated['account_no']))
-            ->lockForUpdate()
+        // Determine the current bill
+        $statement['current_bill'] = collect($statement['transactions'])
+            ->filter(function ($bill) {
+                return ($bill['isPaid'] ?? 0) == 0
+                    && (
+                        empty($bill['amount_paid']) ||
+                        floatval($bill['amount_paid']) < floatval($bill['amount'])
+                    );
+            })
+            ->sortByDesc('due_date')
             ->first();
 
-        if (!$account) {
-            throw ValidationException::withMessages([
-                'account_no' => 'Account no. was not found in our records.',
-            ]);
+            if (!empty($statement['current_bill'])) {
+                $statement['current_bill'] =
+                    $this->computeBillPenalty($statement['current_bill']);
+            }
+
+
+        // Compute total for all transactions
+        $statement['total'] = !empty($statement['transactions'])
+            ? array_sum(array_map(function($bill) {
+                $amount = $bill['total'] ?? 0;
+                $discount = $bill['discount'] ?? 0;
+                $advance = $bill['advances'] ?? 0;
+
+            $penalty = $statement['current_bill']['penalty'] ?? 0;
+            $dueDate = isset($data['current_bill']['due_date'])
+                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                            : null;
+
+            $today = \Carbon\Carbon::today();
+
+            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+
+                return ($amount + $applicablePenalty) - ($discount + $advance);
+            }, $statement['transactions']))
+            : 0;
+
+        $statement['due_date'] = !empty($statement['transactions'])
+            ? collect($statement['transactions'])
+                ->pluck('due_date')
+                ->filter()
+                ->sortDesc()
+                ->first()
+            : '';
+
+        $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
+
+        $accountStatements = [];
+        foreach ($accounts as $account) {
+            $accountStatement = [
+                'account' => $account,
+                'transactions' => [],
+                'total' => 0,
+            ];
+
+            if ($this->canUseAccount($account)) {
+                $bill = $this->meterService::getBills($account->account_no);
+
+                if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
+                    $bill = $this->computeBillPenalty($bill);
+                    $bill['account_no'] = $account->account_no;
+                    $accountStatement['transactions'][] = $bill;
+                    $discount = is_array($bill['discount'] ?? null)
+                        ? collect($bill['discount'])->sum('amount')
+                        : (float) ($bill['discount'] ?? 0);
+                    $accountStatement['total'] = (float) ($bill['total'] ?? $bill['amount'] ?? 0)
+                        + (float) ($bill['computed_penalty'] ?? 0)
+                        - $discount
+                        - (float) ($bill['advances'] ?? 0);
+                }
+            }
+
+            $accountStatements[] = $accountStatement;
         }
 
-        if ($account->user_id === $user->id) {
-            throw ValidationException::withMessages([
-                'account_no' => 'This account is already linked to your login.',
-            ]);
+        $sc_discounts = $accounts->pluck('sc_discount');
+
+        // -----------------------------
+        // Generate online payment URL
+        // -----------------------------
+        $statement['current_bill_qr'] = null;
+
+        if (!empty($statement['current_bill'])) {
+
+            $currentBill = $statement['current_bill'];
+
+            $payload = [
+                'reference_no' => $currentBill['reference_no'] ?? '',
+                'amount' => $currentBill['amount'] ?? 0,
+                'customer' => [
+                    'name' => $data->name ?? '',
+                    'account_no' => $currentBill['account_no'] ?? '',
+                    'address' => $currentBill['address'] ?? '',
+                ],
+            ];
+
+            $paymentController = app(\App\Http\Controllers\PaymentController::class);
+            $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
+                $currentBill['reference_no'] ?? '',
+                $currentBill,
+                $payload
+            );
+            $statement['current_bill_qr'] = $qrResolved['url'];
         }
 
-        if ($account->application_status === 'denied' || $account->denied_at) {
-            throw ValidationException::withMessages([
-                'account_no' => 'This account was denied and cannot be added. Please contact the district office.',
-            ]);
-        }
+        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication'));
+    }
 
-        $existingLink = ConcessionerAccountLink::where('account_id', $account->id)
-            ->where('user_id', $user->id)
-            ->whereIn('status', ['pending', 'approved'])
-            ->exists();
+public function addAccount(Request $request)
+    {
+        $validated = $request->validate([
+            'account_no' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'soa_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'data_privacy_consent' => ['accepted'],
+        ]);
 
-        if ($existingLink) {
-            throw ValidationException::withMessages([
-                'account_no' => 'This account is already linked or waiting for approval on your login.',
-            ]);
-        }
+        $user = Auth::user();
 
-        ConcessionerAccountLink::updateOrCreate(
-            [
-                'account_id' => $account->id,
-                'user_id' => $user->id,
-            ],
-            [
-                'requested_name' => $validated['name'],
-                'soa_path' => $request->file('soa_file')->store('applications/soa', 'public'),
-                'id_path' => $request->file('id_file')->store('applications/id', 'public'),
-                'status' => 'pending',
-                'approved_at' => null,
-                'denied_at' => null,
-                'denial_reason' => null,
-            ]
-        );
-    });
+        DB::transaction(function () use ($request, $validated, $user) {
+            $account = UserAccounts::with('user')
+                ->where('account_no', trim($validated['account_no']))
+                ->lockForUpdate()
+                ->first();
 
-    return redirect()
-        ->route('account-overview.index')
-        ->with('status', 'Additional account submitted for verification.');
-}
+            if (!$account) {
+                throw ValidationException::withMessages([
+                    'account_no' => 'Account no. was not found in our records.',
+                ]);
+            }
+
+            if ($account->user_id === $user->id) {
+                throw ValidationException::withMessages([
+                    'account_no' => 'This account is already linked to your login.',
+                ]);
+            }
+
+            if ($account->application_status === 'denied' || $account->denied_at) {
+                throw ValidationException::withMessages([
+                    'account_no' => 'This account was denied and cannot be added. Please contact the district office.',
+                ]);
+            }
+
+            $existingLink = ConcessionerAccountLink::where('account_id', $account->id)
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists();
+
+            if ($existingLink) {
+                throw ValidationException::withMessages([
+                    'account_no' => 'This account is already linked or waiting for approval on your login.',
+                ]);
+            }
+
+            ConcessionerAccountLink::updateOrCreate(
+                [
+                    'account_id' => $account->id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'requested_name' => $validated['name'],
+                    'soa_path' => $request->file('soa_file')->store('applications/soa', 'public'),
+                    'id_path' => $request->file('id_file')->store('applications/id', 'public'),
+                    'status' => 'pending',
+                    'approved_at' => null,
+                    'denied_at' => null,
+                    'denial_reason' => null,
+                ]
+            );
+        });
+
+        return redirect()
+            ->route('account-overview.index')
+            ->with('status', 'Additional account submitted for verification.');
+    }
 
     public function getBillColumns()
     {
-        // Fetch the first 50 rows from the bill table
         $bills = DB::table('bill')->limit(50)->get();
-
         return $bills;
     }
 
-            public function bills(Request $request, ?string $reference_no = null)
-{
-    $userId = Auth::id();
-    $user = Auth::user();
-    $clientData = $user;
-    $accounts = $this->accessibleAccounts($userId);
+    public function bills(Request $request, ?string $reference_no = null)
+    {
+        $userId = Auth::id();
+        $user = Auth::user();
+        $clientData = $user;
+        $accounts = $this->accessibleAccounts($userId);
 
-    if (!$this->hasUsableAccount($accounts)) {
-        return redirect()
-            ->route('account-overview.index')
-            ->with('approval_notice', $this->approvalNotice($accounts));
-    }
+        if (!$this->hasUsableAccount($accounts)) {
+            return redirect()
+                ->route('account-overview.index')
+                ->with('approval_notice', $this->approvalNotice($accounts));
+        }
 
-    $accounts = collect($accounts)->filter(function ($account) {
-        return $this->canUseAccount($account);
-    })->values();
+        $accounts = collect($accounts)->filter(function ($account) {
+            return $this->canUseAccount($account);
+        })->values();
 
-    // View specific bill by reference number
-    if ($reference_no) {
-    $data = $this->meterService::getBill($reference_no);
+        // View specific bill by reference number
+        if ($reference_no) {
+        $data = $this->meterService::getBill($reference_no);
 
-    if (!$data) {
-        return redirect()->route('reading.index')->with('alert', [
-            'status' => 'error',
-            'message' => 'Bill Not Found',
-        ]);
-    }
+        if (!$data) {
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found',
+            ]);
+        }
 
-    $billAccountNo = $data['current_bill']['reading']['account_no']
-        ?? $data['client']['account_no']
-        ?? $data['current_bill']['account_no']
-        ?? null;
+        $billAccountNo = $data['current_bill']['reading']['account_no']
+            ?? $data['client']['account_no']
+            ?? $data['current_bill']['account_no']
+            ?? null;
 
-    $validAccountNos = $accounts->pluck('account_no')->toArray();
-    if (!in_array($billAccountNo, $validAccountNos)) {
-        return redirect()->route('account-overview.bills')->with('alert', [
-            'status' => 'error',
-            'message' => 'Invalid bill reference for your account.',
-        ]);
-    }
+        $validAccountNos = $accounts->pluck('account_no')->toArray();
+        if (!in_array($billAccountNo, $validAccountNos)) {
+            return redirect()->route('account-overview.bills')->with('alert', [
+                'status' => 'error',
+                'message' => 'Invalid bill reference for your account.',
+            ]);
+        }
 
-    // Compute penalties
-    $data['current_bill'] = $this->computeBillPenalty($data['current_bill']);
-    $currentBill = $data['current_bill'];
+        $data['current_bill'] = $this->computeBillPenalty($data['current_bill']);
+        $currentBill = $data['current_bill'];
 
-    // 🧮 Use dynamic penalty computation (from PaymentBreakdownPenalty)
         $amount = (float)($currentBill['total'] ?? 0);
         $amount_afterDue = (float)($currentBill['total'] ?? 0);
         $discount = (float)($currentBill['discount'] ?? 0);
@@ -374,73 +370,73 @@ public function addAccount(Request $request)
             ],
         ];
 
-    $paymentController = app(\App\Http\Controllers\PaymentController::class);
-    $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
-        $reference_no,
-        $data['current_bill'] ?? [],
-        $paymentPayload
-    );
-    $url = $qrResolved['url'];
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
+            $reference_no,
+            $data['current_bill'] ?? [],
+            $paymentPayload
+        );
+        $url = $qrResolved['url'];
 
-    $qr_code = $this->generateService::qr_code($url, 80);
-    $payment_url = $url;
-    $isViewBill = true;
-    $account_no = null;
-    $viewer = 'receipt';
+        $qr_code = $this->generateService::qr_code($url, 80);
+        $payment_url = $url;
+        $isViewBill = true;
+        $account_no = null;
+        $viewer = 'receipt';
 
-    return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code', 'payment_url'));
-}
-
-
-    $account_no = $request->query('account_no');
-    $view = $request->query('view');
-
-    $validAccountNos = $accounts->pluck('account_no')->toArray();
-
-    $isAccountNoValid = !empty($account_no) && in_array($account_no, $validAccountNos);
-    $isViewValid = in_array($view, ['unpaid', 'paid']);
-
-    if ((!$isAccountNoValid) && !$isViewValid) {
-        if ($account_no !== null || $view !== null) {
-            return redirect()->route('account-overview.bills');
-        }
-    }
-
-    $statements = [];
-    $isPaid = $view === 'paid';
-
-    foreach ($accounts as $account) {
-        $bills = $this->meterService::getBills($account->account_no, true, $isPaid);
-
-        if (!empty($bills)) {
-            // Compute penalty for each bill
-            $bills = array_map(function ($bill) {
-                return $this->computeBillPenalty($bill);
-            }, $bills);
-
-            $statements[$account->account_no] = $bills;
-        }
+        return view('account-overview.bill', compact('isViewBill', 'data', 'account_no', 'viewer', 'reference_no', 'qr_code', 'payment_url'));
     }
 
 
-    if ($isAccountNoValid && $isViewValid) {
-        $data = $statements[$account_no] ?? [];
+        $account_no = $request->query('account_no');
+        $view = $request->query('view');
 
-        if ($request->ajax() && $request->has('account_no') && $request->has('view')) {
-            return $this->datatable('bills', $data);
+        $validAccountNos = $accounts->pluck('account_no')->toArray();
+
+        $isAccountNoValid = !empty($account_no) && in_array($account_no, $validAccountNos);
+        $isViewValid = in_array($view, ['unpaid', 'paid']);
+
+        if ((!$isAccountNoValid) && !$isViewValid) {
+            if ($account_no !== null || $view !== null) {
+                return redirect()->route('account-overview.bills');
+            }
         }
 
-        $viewer = 'bills';
-        return view('account-overview.bill', compact('viewer', 'account_no', 'view'));
-    }
+        $statements = [];
+        $isPaid = $view === 'paid';
 
-    if ($request->ajax()) {
-        return $this->datatable('account_nos', $accounts);
-    }
+        foreach ($accounts as $account) {
+            $bills = $this->meterService::getBills($account->account_no, true, $isPaid);
 
-    $viewer = 'accounts';
-    return view('account-overview.bill', compact('viewer'));
-}
+            if (!empty($bills)) {
+                // Compute penalty for each bill
+                $bills = array_map(function ($bill) {
+                    return $this->computeBillPenalty($bill);
+                }, $bills);
+
+                $statements[$account->account_no] = $bills;
+            }
+        }
+
+
+        if ($isAccountNoValid && $isViewValid) {
+            $data = $statements[$account_no] ?? [];
+
+            if ($request->ajax() && $request->has('account_no') && $request->has('view')) {
+                return $this->datatable('bills', $data);
+            }
+
+            $viewer = 'bills';
+            return view('account-overview.bill', compact('viewer', 'account_no', 'view'));
+        }
+
+        if ($request->ajax()) {
+            return $this->datatable('account_nos', $accounts);
+        }
+
+        $viewer = 'accounts';
+        return view('account-overview.bill', compact('viewer'));
+    }
 
 
 
@@ -482,135 +478,132 @@ public function addAccount(Request $request)
         }
 
         if($type == 'bills') {
-    return DataTables::of($query)
-        ->addIndexColumn()
-        ->editColumn('billing_period', function ($row) {
-            return ($row['bill_period_from'] && $row['bill_period_to'])
-                ? Carbon::parse($row['bill_period_from'])->format('M d, Y') . ' TO ' . Carbon::parse($row['bill_period_to'])->format('M d, Y')
-                : 'N/A';
-        })
-        ->editColumn('bill_date', function ($row) {
-            return $row['bill_period_to'] ? Carbon::parse($row['bill_period_to'])->format('M d, Y') : 'N/A';
-        })
-        ->editColumn('due_date', function ($row) {
-            return $row['due_date'] ? Carbon::parse($row['due_date'])->format('M d, Y') : 'N/A';
-        })
-        ->editColumn('penalty_date', function ($row) {
-            return $row['due_date']
-                ? Carbon::parse($row['due_date'])->addDay()->format('M d, Y')
-                : '—';
-        })
-        ->editColumn('penalty_amount', function ($row) {
-            return isset($row['penalty'])
-                ? '₱' . number_format($row['penalty'], 2)
-                : '₱0.00';
-        })
-        ->editColumn('amount_after_due', function ($row) {
-            return isset($row['amount_after_due'])
-                ? '₱' . number_format($row['amount_after_due'], 2)
-                : '₱' . number_format($row['amount'], 2);
-        })
-        ->editColumn('status', function ($row) {
-            return $row['isPaid']
-                ? '<div class="alert alert-primary mb-0 py-1 px-2 text-center">Paid</div>'
-                : '<div class="alert alert-danger mb-0 py-1 px-2 text-center">Unpaid</div>';
-        })
-        ->addColumn('actions', function ($row) {
-            $reference_no = $row['reference_no'] ?? null;
-            if ($reference_no) {
-                return '<div class="d-flex align-items-center gap-2">
-                    <a href="' . e(route('account-overview.bills.reference_no', $reference_no)) . '"
-                        class="btn btn-primary text-white text-uppercase fw-bold"
-                        id="show-btn" data-id="' . e($row['id']) . '">
-                        <i class="bx bx-receipt"></i>
-                    </a>
-                </div>';
+            return DataTables::of($query)
+                ->addIndexColumn()
+                ->editColumn('billing_period', function ($row) {
+                    return ($row['bill_period_from'] && $row['bill_period_to'])
+                        ? Carbon::parse($row['bill_period_from'])->format('M d, Y') . ' TO ' . Carbon::parse($row['bill_period_to'])->format('M d, Y')
+                        : 'N/A';
+                })
+                ->editColumn('bill_date', function ($row) {
+                    return $row['bill_period_to'] ? Carbon::parse($row['bill_period_to'])->format('M d, Y') : 'N/A';
+                })
+                ->editColumn('due_date', function ($row) {
+                    return $row['due_date'] ? Carbon::parse($row['due_date'])->format('M d, Y') : 'N/A';
+                })
+                ->editColumn('penalty_date', function ($row) {
+                    return $row['due_date']
+                        ? Carbon::parse($row['due_date'])->addDay()->format('M d, Y')
+                        : '—';
+                })
+                ->editColumn('penalty_amount', function ($row) {
+                    return isset($row['penalty'])
+                        ? '₱' . number_format($row['penalty'], 2)
+                        : '₱0.00';
+                })
+                ->editColumn('amount_after_due', function ($row) {
+                    return isset($row['amount_after_due'])
+                        ? '₱' . number_format($row['amount_after_due'], 2)
+                        : '₱' . number_format($row['amount'], 2);
+                })
+                ->editColumn('status', function ($row) {
+                    return $row['isPaid']
+                        ? '<div class="alert alert-primary mb-0 py-1 px-2 text-center">Paid</div>'
+                        : '<div class="alert alert-danger mb-0 py-1 px-2 text-center">Unpaid</div>';
+                })
+                ->addColumn('actions', function ($row) {
+                    $reference_no = $row['reference_no'] ?? null;
+                    if ($reference_no) {
+                        return '<div class="d-flex align-items-center gap-2">
+                            <a href="' . e(route('account-overview.bills.reference_no', $reference_no)) . '"
+                                class="btn btn-primary text-white text-uppercase fw-bold"
+                                id="show-btn" data-id="' . e($row['id']) . '">
+                                <i class="bx bx-receipt"></i>
+                            </a>
+                        </div>';
+                    }
+                    return '<span class="text-muted">No Reference</span>';
+                })
+            ->addColumn('pay', function ($row) {
+            $reference_no = is_array($row) ? ($row['reference_no'] ?? null) : ($row->reference_no ?? null);
+
+            if (empty($reference_no)) {
+                return '<span class="text-muted">No Reference</span>';
             }
-            return '<span class="text-muted">No Reference</span>';
+
+            return '<div class="d-flex align-items-center gap-2">
+                <button type="button"
+                    class="btn btn-success text-white text-uppercase fw-bold pay-now-btn"
+                    data-reference="' . e($reference_no) . '"
+                    data-id="' . e($row['id'] ?? '') . '">
+                    <i class="bx bx-credit-card"></i> Pay Now
+                </button>
+            </div>';
         })
-       ->addColumn('pay', function ($row) {
-    $reference_no = is_array($row) ? ($row['reference_no'] ?? null) : ($row->reference_no ?? null);
 
-    if (empty($reference_no)) {
-        return '<span class="text-muted">No Reference</span>';
-    }
-
-    return '<div class="d-flex align-items-center gap-2">
-        <button type="button"
-            class="btn btn-success text-white text-uppercase fw-bold pay-now-btn"
-            data-reference="' . e($reference_no) . '"
-            data-id="' . e($row['id'] ?? '') . '">
-            <i class="bx bx-credit-card"></i> Pay Now
-        </button>
-    </div>';
-})
-
-        ->rawColumns(['status', 'actions', 'pay'])
-        ->make(true);
-}
+                ->rawColumns(['status', 'actions', 'pay'])
+                ->make(true);
+        }
 
     }
 
     public function payOnline(Request $request, string $reference_no)
-{
-    // Get the current authenticated user's accounts
-    $userId = Auth::id();
-    $user = Auth::user();
-    $clientData = $user;
-    $accounts = $this->accessibleAccounts($userId);
+    {
+        $userId = Auth::id();
+        $user = Auth::user();
+        $clientData = $user;
+        $accounts = $this->accessibleAccounts($userId);
 
-    if (!$this->hasUsableAccount($accounts)) {
-        return redirect()
-            ->route('account-overview.index')
-            ->with('approval_notice', $this->approvalNotice($accounts));
-    }
-
-    $accounts = collect($accounts)->filter(function ($account) {
-        return $this->canUseAccount($account);
-    });
-
-    // Check if reference_no belongs to this user's accounts
-    $validReference = false;
-    foreach ($accounts as $account) {
-        $bill = $this->meterService::getBill($reference_no);
-        if ($bill && $bill['current_bill']['account_no'] == $account->account_no) {
-            $validReference = true;
-            break;
+        if (!$this->hasUsableAccount($accounts)) {
+            return redirect()
+                ->route('account-overview.index')
+                ->with('approval_notice', $this->approvalNotice($accounts));
         }
+
+        $accounts = collect($accounts)->filter(function ($account) {
+            return $this->canUseAccount($account);
+        });
+
+        $validReference = false;
+        foreach ($accounts as $account) {
+            $bill = $this->meterService::getBill($reference_no);
+            if ($bill && $bill['current_bill']['account_no'] == $account->account_no) {
+                $validReference = true;
+                break;
+            }
+        }
+
+        if (!$validReference) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Invalid bill reference for your account.'
+            ]);
+        }
+
+        $payload = [
+            'payor' => $clientData->name ?? 'Customer',
+            'email' => $clientData->email ?? 'customer@example.com',
+            'account_no' => $bill['current_bill']['account_no'],
+            'amount' => $bill['current_bill']['amount'] ?? 0,
+        ];
+
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+
+        if (\App\Http\Controllers\PaymentController::isSoaQrVoided($bill['current_bill'] ?? [])) {
+            return redirect()->route('payments.qr-voided', ['reference_no' => $reference_no]);
+        }
+
+        $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
+
+        if (!$hitpayData || empty($hitpayData['url'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Failed to initiate online payment.'
+            ]);
+        }
+
+        return redirect($hitpayData['url']);
     }
-
-    if (!$validReference) {
-        return redirect()->back()->with('alert', [
-            'status' => 'error',
-            'message' => 'Invalid bill reference for your account.'
-        ]);
-    }
-
-    // Prepare payload for online payment
-    $payload = [
-        'payor' => $clientData->name ?? 'Customer',
-        'email' => $clientData->email ?? 'customer@example.com',
-        'account_no' => $bill['current_bill']['account_no'],
-        'amount' => $bill['current_bill']['amount'] ?? 0,
-    ];
-
-    $paymentController = app(\App\Http\Controllers\PaymentController::class);
-
-    if (\App\Http\Controllers\PaymentController::isSoaQrVoided($bill['current_bill'] ?? [])) {
-        return redirect()->route('payments.qr-voided', ['reference_no' => $reference_no]);
-    }
-
-    $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
-
-    if (!$hitpayData || empty($hitpayData['url'])) {
-        return redirect()->back()->with('alert', [
-            'status' => 'error',
-            'message' => 'Failed to initiate online payment.'
-        ]);
-    }
-
-    return redirect($hitpayData['url']);
-}
 
     private function hasUsableAccount($accounts): bool
     {
@@ -744,7 +737,7 @@ public function addAccount(Request $request)
 
         return [
             'status' => 'warning',
-            'title' => 'Application pending',
+            'title' => 'Application Created',
             'message' => 'Your application is currently in the approval stage.',
             'date' => optional($application->created_at)->format('M d, Y h:i A'),
         ];
@@ -831,11 +824,13 @@ public function addAccount(Request $request)
 
         return collect($notifications)
             ->map(function ($notification) {
-                $notification['timestamp'] = $notification['timestamp'] ?? $this->timestampFromNotificationDate($notification['date'] ?? null);
+                $notification['timestamp'] = $notification['timestamp']
+                    ?? $this->timestampFromNotificationDate($notification['date'] ?? null);
 
                 return $notification;
             })
-            ->sortBy('timestamp')
+            ->sortByDesc('timestamp')
+            ->take(3)
             ->values()
             ->all();
     }
@@ -877,28 +872,28 @@ public function addAccount(Request $request)
 
 
     private function computeBillPenalty(array $bill): array
-{
-    $amount = (float) ($bill['amount'] ?? 0);
-    $penaltyAmount = (float) ($bill['penalty'] ?? 0);
+    {
+        $amount = (float) ($bill['amount'] ?? 0);
+        $penaltyAmount = (float) ($bill['penalty'] ?? 0);
 
-    $dueDate = isset($bill['due_date']) ? Carbon::parse($bill['due_date']) : null;
-    $today = Carbon::today();
+        $dueDate = isset($bill['due_date']) ? Carbon::parse($bill['due_date']) : null;
+        $today = Carbon::today();
 
-    $daysOverdue = 0;
-    $penaltyDate = null;
+        $daysOverdue = 0;
+        $penaltyDate = null;
 
-    if ($dueDate && $today->gt($dueDate)) {
-        $daysOverdue = $dueDate->diffInDays($today);
-        $penaltyDate = $dueDate->copy()->addDay();
+        if ($dueDate && $today->gt($dueDate)) {
+            $daysOverdue = $dueDate->diffInDays($today);
+            $penaltyDate = $dueDate->copy()->addDay();
+        }
+
+        $bill['computed_penalty'] = $penaltyAmount;
+        $bill['computed_penalty_date'] = $penaltyDate?->format('Y-m-d');
+        $bill['computed_amount_after_due'] = $amount + $penaltyAmount;
+        $bill['days_overdue'] = $daysOverdue;
+        $bill['is_overdue'] = $daysOverdue > 0;
+
+        return $bill;
     }
-
-    $bill['computed_penalty'] = $penaltyAmount;
-    $bill['computed_penalty_date'] = $penaltyDate?->format('Y-m-d');
-    $bill['computed_amount_after_due'] = $amount + $penaltyAmount;
-    $bill['days_overdue'] = $daysOverdue;
-    $bill['is_overdue'] = $daysOverdue > 0;
-
-    return $bill;
-}
 
 }

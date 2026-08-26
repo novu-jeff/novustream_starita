@@ -77,98 +77,125 @@ class MeterService {
     }
 
 
-    public function filterAccount(array $filter) {
-    $query = UserAccounts::with('user');
+    public function filterAccount(array $filter)
+    {
+        $query = UserAccounts::with('user');
 
-    // -----------------------------
-    // Zone Filtering
-    // -----------------------------
-    if (!empty($filter['zones']) && is_array($filter['zones'])) {
-        $query->where(function ($q) use ($filter) {
-            foreach ($filter['zones'] as $zone) {
-                $q->orWhere('account_no', 'like', $zone . '%');
-            }
-        });
-    } elseif (!empty($filter['zone']) && strtolower($filter['zone']) !== 'all') {
-        $query->where('account_no', 'like', $filter['zone'] . '%');
-    }
+        if (!empty($filter['zones']) && is_array($filter['zones'])) {
 
-    // -----------------------------
-    // Search Filtering
-    // -----------------------------
-    if (!empty($filter['search_by'])) {
-        switch ($filter['search_by']) {
-            case 'all':
-                if (!empty($filter['search'])) {
-                    $query->where(function ($q) use ($filter) {
-                        $q->where('account_no', 'like', '%' . $filter['search'] . '%')
-                          ->orWhere('meter_serial_no', 'like', '%' . $filter['search'] . '%')
-                          ->orWhereHas('user', function ($uq) use ($filter) {
-                              $uq->where('name', 'like', '%' . $filter['search'] . '%');
-                          });
-                    });
+            $query->where(function ($q) use ($filter) {
+                foreach ($filter['zones'] as $zone) {
+                    $q->orWhere('account_no', 'like', $zone . '%');
                 }
-                break;
-
-            case 'account_no':
-                if (!empty($filter['search'])) {
-                    $query->where('account_no', 'like', '%' . $filter['search'] . '%');
-                }
-                break;
-
-            case 'meter_serial_no':
-                if (!empty($filter['search'])) {
-                    $query->where('meter_serial_no', 'like', '%' . $filter['search'] . '%');
-                }
-                break;
-
-            case 'name':
-                if (!empty($filter['search'])) {
-                    $searchParts = preg_split('/\s+/', trim($filter['search']));
-                    $query->whereHas('user', function ($q) use ($searchParts) {
-                        foreach ($searchParts as $part) {
-                            $q->whereRaw("LOWER(name) LIKE ?", ['%' . strtolower($part) . '%']);
-                        }
-                    });
-                }
-                break;
-
-            case 'read':
-                $query->whereHas('readings');
-                break;
-
-            case 'unread':
-                $query->whereDoesntHave('readings');
-                break;
+            });
+        } elseif (
+            !empty($filter['zone']) &&
+            strtolower($filter['zone']) !== 'all'
+        ) {
+            $query->where('account_no', 'like', $filter['zone'] . '%');
         }
+
+        if (
+            isset($filter['senior_filter']) &&
+            $filter['senior_filter'] === 'senior'
+        ) {
+            $query->whereIn('account_no', function ($q) {
+                $q->select('account_no')
+                    ->from('discount')
+                    ->where('discount_type_id', 1);
+            });
+        }
+
+        if (!empty($filter['search_by'])) {
+            switch ($filter['search_by']) {
+                case 'all':
+                    if (!empty($filter['search'])) {
+                        $query->where(function ($q) use ($filter) {
+                            $q->where(
+                                'account_no',
+                                'like',
+                                '%' . $filter['search'] . '%'
+                            )
+                            ->orWhere(
+                                'meter_serial_no',
+                                'like',
+                                '%' . $filter['search'] . '%'
+                            )
+                            ->orWhereHas('user', function ($uq) use ($filter) {
+                                $uq->where(
+                                    'name',
+                                    'like',
+                                    '%' . $filter['search'] . '%'
+                                );
+                            });
+                        });
+                    }
+                    break;
+
+                case 'account_no':
+                    if (!empty($filter['search'])) {
+                        $query->where(
+                            'account_no',
+                            'like',
+                            '%' . $filter['search'] . '%'
+                        );
+                    }
+                    break;
+
+                case 'meter_serial_no':
+                    if (!empty($filter['search'])) {
+                        $query->where(
+                            'meter_serial_no',
+                            'like',
+                            '%' . $filter['search'] . '%'
+                        );
+
+                    }
+                    break;
+
+                case 'name':
+                    if (!empty($filter['search'])) {
+                        $searchParts = preg_split(
+                            '/\s+/',
+                            trim($filter['search'])
+                        );
+                        $query->whereHas('user', function ($q) use ($searchParts) {
+                            foreach ($searchParts as $part) {
+                                $q->whereRaw(
+                                    "LOWER(name) LIKE ?",
+                                    ['%' . strtolower($part) . '%']
+                                );
+                            }
+                        });
+                    }
+                    break;
+
+                case 'read':
+                    $query->whereHas('readings');
+                    break;
+
+                case 'unread':
+                    $query->whereDoesntHave('readings');
+                    break;
+            }
+        }
+
+        $total = $query->count();
+        $limit = isset($filter['filter']) && is_numeric($filter['filter'])
+            ? (int) $filter['filter']
+            : 50;
+
+        $data = $query
+            ->orderByRaw("ISNULL(sequence_no) OR sequence_no = '' ASC")
+            ->orderBy('sequence_no', 'ASC')
+            ->limit($limit)
+            ->get();
+
+        return [
+            'total' => $total,
+            'data'  => $data
+        ];
     }
-
-    // -----------------------------
-    // Total count
-    // -----------------------------
-    $total = $query->count();
-
-    // -----------------------------
-    // Limit / Pagination
-    // -----------------------------
-    $limit = isset($filter['filter']) && is_numeric($filter['filter'])
-        ? (int) $filter['filter']
-        : 50;
-
-    // -----------------------------
-    // Order by sequence_no ASC
-    // Push NULLs to the end
-    // -----------------------------
-    $data = $query->orderByRaw("ISNULL(sequence_no) OR sequence_no = '' ASC")
-              ->orderBy('sequence_no', 'ASC')
-              ->limit($limit)
-              ->get();
-
-    return [
-        'total' => $total,
-        'data'  => $data
-    ];
-}
 
     public function getPreviousReading($account_no) {
 
