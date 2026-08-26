@@ -24,6 +24,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
 use App\Models\BillDiscount;
 use Illuminate\Support\Facades\DB;
+use App\Models\ServiceApplication;
 
 class PaymentController extends Controller
 {
@@ -1726,6 +1727,75 @@ class PaymentController extends Controller
         $pendingStatuses = ['pending', 'processing', 'open', 'initiated'];
 
         return in_array($status, $pendingStatuses, true) ? 'pending' : $status;
+    }
+
+    public function applicationFees(Request $request)
+    {
+        $status = $request->status ?? 'unpaid';
+
+        if (!in_array($status, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.application-fees.index', ['status' => 'unpaid']);
+        }
+
+        $entries = $request->entries ?? 10;
+        $search  = trim($request->search ?? '');
+
+        $query = ServiceApplication::query()->with('user');
+
+        if ($status === 'paid') {
+            $query->where('application_fee_status', 'paid');
+        } else {
+            $query->where('application_fee_status', '!=', 'paid');
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('application_no', 'like', "%{$search}%")
+                ->orWhere('applicant_name', 'like', "%{$search}%")
+                ->orWhereHas('user', function ($uq) use ($search) {
+                    $uq->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $data = $query->orderByDesc('created_at')->paginate($entries)->withQueryString();
+
+        return view('payments.application-fees', compact('data', 'entries', 'status'))
+            ->with('toSearch', $search);
+    }
+
+    public function payApplicationFee(Request $request, ServiceApplication $application)
+    {
+        if ($request->getMethod() === 'POST') {
+            $request->validate([
+                'payment_amount' => 'required|numeric|gte:' . (float) $application->application_fee_amount,
+            ], [
+                'payment_amount.gte' => 'Payment must cover the full application fee of PHP '
+                    . number_format((float) $application->application_fee_amount, 2),
+            ]);
+
+            $application->update([
+                'application_fee_status' => 'paid',
+            ]);
+
+            return redirect()
+                ->route('payments.application-fees.index')
+                ->with('alert', [
+                    'status' => 'success',
+                    'message' => 'Application fee for ' . $application->applicant_name . ' marked as paid.',
+                ]);
+        }
+
+        if ($application->application_fee_status === 'paid') {
+            return redirect()
+                ->route('payments.application-fees.index', ['status' => 'paid'])
+                ->with('alert', [
+                    'status' => 'error',
+                    'message' => 'This application fee has already been paid.',
+                ]);
+        }
+
+        return view('payments.pay-application-fee', compact('application'));
     }
 
 }

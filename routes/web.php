@@ -29,6 +29,7 @@ use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\ServiceApplicationController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\Admin\ReadingAdjustmentController;
 use App\Http\Controllers\Admin\BillingAdjustmentController;
 
@@ -69,6 +70,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('/guide', [GuideController::class, 'index'])
+        ->name('guide.index');
 
     Route::get('reading', [ReadingController::class, 'index'])
         ->name('reading.index');
@@ -164,6 +168,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::get('registrants/{account}/form', [ConcessionaireController::class, 'printRegistrantForm'])
             ->name('registrants.form');
 
+        Route::get('applications/{application}/contract', [ServiceApplicationController::class, 'contract'])
+            ->name('admin.application.contract');
+
+        Route::get('applications/{application}/contract/print', [ServiceApplicationController::class, 'printContract'])
+            ->name('admin.application.contract.print');
+
         Route::get('registrants/{account}/complete', [ConcessionaireController::class, 'completeRegistrant'])
             ->name('registrants.complete');
 
@@ -172,6 +182,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::patch('registrants/{account}/deny', [ConcessionaireController::class, 'denyApplication'])
             ->name('registrants.deny');
+
+        Route::patch('account-links/{link}/approve', [ConcessionaireController::class, 'approveAccountLink'])
+            ->name('account-links.approve');
+
+        Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
+            ->name('account-links.deny');
 
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
@@ -194,6 +210,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
             ->name('account-overview.pay-online');
 
+
+    Route::get('/admin/payments/application-fees', [PaymentController::class, 'applicationFees'])
+    ->name('payments.application-fees.index');
+
+    Route::match(['get', 'post'], '/admin/payments/application-fees/{application}/pay', [PaymentController::class, 'payApplicationFee'])
+    ->name('payments.application-fees.pay');
 
     Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
         ->name('payments.applyDiscount');
@@ -311,9 +333,14 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 });
 
 Route::middleware('auth')->prefix('concessionaire')->group(function() {
+    Route::get('guide', [GuideController::class, 'concessionaire'])
+        ->name('guide.concessionaire');
+
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
             ->name('account-overview.index');
+        Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
+            ->name('account-overview.accounts.store');
         Route::get('bills', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
@@ -358,6 +385,10 @@ Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'sho
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
 
+Route::put(
+    '/service-applications/{serviceApplication}/documents/replace',
+    [ServiceApplicationController::class, 'replaceDocument']
+)->name('service-application.documents.replace');
 // Offline Sync Routes
 
 Route::post('/readings', [OfflineSyncController::class, 'store']);
@@ -397,9 +428,25 @@ Route::get('/payment/test-status', function () {
             return view('application.print');
         })->name('application.print.preview');
 
+        Route::get('/application/contract', function () {
+            return view('application.contract');
+        })->name('application.contract.preview');
+
         Route::get('/application/{application}/print',
             [ServiceApplicationController::class, 'print'])
             ->name('application.print');
+
+        Route::get('/application/{application}/contract/print',
+            [ServiceApplicationController::class, 'printContract'])
+            ->name('application.contract.print');
+
+        Route::get('/application/{application}/contract',
+            [ServiceApplicationController::class, 'contract'])
+            ->name('application.contract');
+
+        Route::post('/application/{application}/boring-permit',
+            [ServiceApplicationController::class, 'uploadBoringPermit'])
+            ->name('application.boring-permit.upload');
 
         Route::get('/application/{application}',
             [ServiceApplicationController::class, 'show'])

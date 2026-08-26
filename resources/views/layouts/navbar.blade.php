@@ -16,6 +16,7 @@
 				@can('concessionaire')
 					<a href="{{route('account-overview.index')}}"> Account Overview </a>
 					<a href="{{route('account-overview.bills')}}"> Bills & Payment </a>
+					<a href="{{route('guide.concessionaire')}}"> Guide </a>
 				@endcan
 				@canany(['admin', 'technician'])
 					<div class="dropdown px-0 mx-0">
@@ -77,7 +78,7 @@
                             <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
                             <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
 						</ul>
-					</div>
+                    </div>
                     <a href="{{route('reports.download-index')}}"> Files </a>
 				@endcanany
                 @can('cashier')
@@ -91,7 +92,16 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
-							<li><a class="dropdown-item" href="{{route('registrants.index')}}">Registrants</a></li>
+							<li>
+								<a class="dropdown-item d-flex align-items-center justify-content-between gap-3" href="{{route('registrants.index')}}">
+									<span>Registrants</span>
+									@if($pendingRegistrantsCount > 0)
+										<span class="badge rounded-pill bg-danger" style="min-width: 1.25rem;" aria-label="{{ $pendingRegistrantsCount }} pending registrants">
+											{{ $pendingRegistrantsCount }}
+										</span>
+									@endif
+								</a>
+							</li>
 							@can('superadmin')
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 							@endcan
@@ -116,6 +126,7 @@
 
 							@can('app-novustream')
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
+								<li><a class="dropdown-item" href="{{route('guide.index')}}"> Guide </a></li>
 							@endcan
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 						</ul>

@@ -45,7 +45,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <h6 class="text-muted">Active</h6>
-                    <h3 class="text-warning mb-0">{{ $activeInstallments }}</h3>
+                    <h3 class="text-success mb-0">{{ $activeInstallments }}</h3>
                 </div>
             </div>
         </div>
@@ -113,7 +113,13 @@
 
                             <td>
                                 @if($installment->status === 'active')
-                                    <span class="badge bg-warning text-dark">Active</span>
+                                <span class="d-inline-flex align-items-center">
+                                    <span
+                                        class="rounded-circle bg-success me-2"
+                                        style="width: 8px; height: 8px;">
+                                    </span>
+                                    <span class="badge text-dark">Active</span>
+                                </span>
                                 @else
                                     <span class="badge bg-success">Completed</span>
                                 @endif
@@ -420,7 +426,23 @@
                                 @endphp
                                 <tr>
                                     <td>{{ optional($history->created_at)->format('M d, Y h:i A') }}</td>
-                                    <td><span class="badge bg-secondary text-uppercase">{{ $history->action }}</span></td>
+                                    <td>
+                                        @php
+                                            $badgeClass = match(strtolower($history->action)) {
+                                                'created' => 'bg-success',
+                                                'updated' => 'bg-warning text-dark',
+                                                'deleted' => 'bg-danger',
+                                                'restored' => 'bg-info text-dark',
+                                                'approved' => 'bg-primary',
+                                                'rejected' => 'bg-dark',
+                                                default => 'bg-secondary',
+                                            };
+                                        @endphp
+
+                                        <span class="badge {{ $badgeClass }} text-uppercase">
+                                            {{ $history->action }}
+                                        </span>
+                                    </td>
                                     <td>{{ $history->bill->reading->account_no ?? '-' }}</td>
                                     <td>{{ $history->bill->reference_no ?? '-' }}</td>
                                     <td>

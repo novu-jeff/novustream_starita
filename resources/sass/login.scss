@@ -92,6 +92,10 @@
         width: 100%;
         margin: 6px 0;
         .password-toggle-btn {
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            outline: 0;
             color: #666;
         }
         .password-toggle-btn:hover {
@@ -285,4 +289,3 @@
 .invalid-feedback {
     font-size: 12px !important;
 }
-

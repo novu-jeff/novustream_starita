@@ -89,6 +89,32 @@
         <div class="card-header border-0 bg-primary bg-opacity-25 pb-3">
             <div class="text-uppercase fw-bold">Account Informations</div>
         </div>
+        <div v-if="registrantId" class="p-3 border-bottom">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="connection_type" class="form-label">
+                Connection Type <small class="text-danger">( required )</small>
+              </label>
+              <select
+                id="connection_type"
+                class="form-select"
+                v-model="concessioner.connection_type"
+                :class="{ 'is-invalid': errors && errors.connection_type }"
+              >
+                <option value="on_line">On-line</option>
+                <option value="traverse">Traverse</option>
+              </select>
+              <small v-if="errors.connection_type" class="text-danger px-1">{{ errors.connection_type[0] }}</small>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Application Fee</label>
+              <input class="form-control" value="PHP 4,000.00" disabled>
+            </div>
+          </div>
+          <div v-if="concessioner.connection_type === 'traverse'" class="alert alert-warning mb-0">
+            Traverse applications require a Boring/Cutting Permit before final approval.
+          </div>
+        </div>
         <div class="accordion accordion-flush border-5" v-for="(account, index) in concessioner.accounts" :key="index" id="accordionAccounts">
           <div class="accordion-item border-2 shadow">
             <h2 class="accordion-header d-flex align-items-center gap-3" :id="'flush-account-' + (index + 1)">
@@ -450,6 +476,7 @@ export default {
         email: '',
         password: '',
         password_confirmation: '',
+        connection_type: 'on_line',
         isActive: 1,
         accounts: [
           {
@@ -498,6 +525,9 @@ export default {
                 property_type: matchedType ? matchedType.id : null,
             };
             });
+
+            this.concessioner.connection_type =
+              this.data.service_applications?.[0]?.connection_type || 'on_line';
 
             console.log(this.concessioner);
         }

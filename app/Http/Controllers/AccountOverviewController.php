@@ -11,8 +11,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\Bill;
+use App\Models\ServiceApplication;
+use App\Models\UserAccounts;
+use App\Models\ConcessionerAccountLink;
 
 class AccountOverviewController extends Controller
 {
@@ -29,15 +33,39 @@ class AccountOverviewController extends Controller
 
 public function index()
 {
-    $my = Auth::user()->load('property_types', 'accounts.sc_discount');
+    $my = Auth::user()->load(
+        'property_types',
+        'accounts.sc_discount',
+        'accounts.user',
+        'accountLinks.account.sc_discount',
+        'accountLinks.account.property_types',
+        'accountLinks.account.user'
+    );
     $id = $my->id;
 
     $data = $this->clientService::getData($id) ?? $my;
     $accounts = collect($data->accounts ?? []);
+    foreach ($my->accountLinks->whereIn('status', ['pending', 'approved']) as $link) {
+        if ($link->account) {
+            $link->account->access_link_status = $link->status;
+            $accounts->push($link->account);
+        }
+    }
+    $accounts = $accounts->unique('id')->values();
     $data->setRelation('accounts', $accounts);
     $approvalNotice = $this->approvalNotice($accounts);
     $applicationNotification = $this->applicationNotification($accounts);
+    $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification);
     $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
+    $serviceApplication = ServiceApplication::with('documents')
+        ->where('user_id', $id)
+        ->latest()
+        ->first();
+
+    $applicationStatus = $accounts
+        ->pluck('application_status')
+        ->filter()
+        ->first();
     $approvedAccounts = collect($accounts)->filter(function ($account) {
         return $this->canUseAccount($account);
     });
@@ -103,6 +131,34 @@ public function index()
 
     $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
+    $accountStatements = [];
+    foreach ($accounts as $account) {
+        $accountStatement = [
+            'account' => $account,
+            'transactions' => [],
+            'total' => 0,
+        ];
+
+        if ($this->canUseAccount($account)) {
+            $bill = $this->meterService::getBills($account->account_no);
+
+            if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
+                $bill = $this->computeBillPenalty($bill);
+                $bill['account_no'] = $account->account_no;
+                $accountStatement['transactions'][] = $bill;
+                $discount = is_array($bill['discount'] ?? null)
+                    ? collect($bill['discount'])->sum('amount')
+                    : (float) ($bill['discount'] ?? 0);
+                $accountStatement['total'] = (float) ($bill['total'] ?? $bill['amount'] ?? 0)
+                    + (float) ($bill['computed_penalty'] ?? 0)
+                    - $discount
+                    - (float) ($bill['advances'] ?? 0);
+            }
+        }
+
+        $accountStatements[] = $accountStatement;
+    }
+
     $sc_discounts = $accounts->pluck('sc_discount');
 
     // -----------------------------
@@ -133,10 +189,77 @@ public function index()
         $statement['current_bill_qr'] = $qrResolved['url'];
     }
 
-    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'canApplyForNewServiceConnection'));
+    return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication'));
 }
 
+public function addAccount(Request $request)
+{
+    $validated = $request->validate([
+        'account_no' => ['required', 'string', 'max:255'],
+        'name' => ['required', 'string', 'max:255'],
+        'soa_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        'data_privacy_consent' => ['accepted'],
+    ]);
 
+    $user = Auth::user();
+
+    DB::transaction(function () use ($request, $validated, $user) {
+        $account = UserAccounts::with('user')
+            ->where('account_no', trim($validated['account_no']))
+            ->lockForUpdate()
+            ->first();
+
+        if (!$account) {
+            throw ValidationException::withMessages([
+                'account_no' => 'Account no. was not found in our records.',
+            ]);
+        }
+
+        if ($account->user_id === $user->id) {
+            throw ValidationException::withMessages([
+                'account_no' => 'This account is already linked to your login.',
+            ]);
+        }
+
+        if ($account->application_status === 'denied' || $account->denied_at) {
+            throw ValidationException::withMessages([
+                'account_no' => 'This account was denied and cannot be added. Please contact the district office.',
+            ]);
+        }
+
+        $existingLink = ConcessionerAccountLink::where('account_id', $account->id)
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->exists();
+
+        if ($existingLink) {
+            throw ValidationException::withMessages([
+                'account_no' => 'This account is already linked or waiting for approval on your login.',
+            ]);
+        }
+
+        ConcessionerAccountLink::updateOrCreate(
+            [
+                'account_id' => $account->id,
+                'user_id' => $user->id,
+            ],
+            [
+                'requested_name' => $validated['name'],
+                'soa_path' => $request->file('soa_file')->store('applications/soa', 'public'),
+                'id_path' => $request->file('id_file')->store('applications/id', 'public'),
+                'status' => 'pending',
+                'approved_at' => null,
+                'denied_at' => null,
+                'denial_reason' => null,
+            ]
+        );
+    });
+
+    return redirect()
+        ->route('account-overview.index')
+        ->with('status', 'Additional account submitted for verification.');
+}
 
     public function getBillColumns()
     {
@@ -149,9 +272,9 @@ public function index()
             public function bills(Request $request, ?string $reference_no = null)
 {
     $userId = Auth::id();
-    $user = Auth::user()->load('accounts.sc_discount');
-    $clientData = $this->clientService::getData($userId) ?? $user;
-    $accounts = collect($clientData->accounts ?? []);
+    $user = Auth::user();
+    $clientData = $user;
+    $accounts = $this->accessibleAccounts($userId);
 
     if (!$this->hasUsableAccount($accounts)) {
         return redirect()
@@ -432,9 +555,9 @@ public function index()
 {
     // Get the current authenticated user's accounts
     $userId = Auth::id();
-    $user = Auth::user()->load('accounts.sc_discount');
-    $clientData = $this->clientService::getData($userId) ?? $user;
-    $accounts = collect($clientData->accounts ?? []);
+    $user = Auth::user();
+    $clientData = $user;
+    $accounts = $this->accessibleAccounts($userId);
 
     if (!$this->hasUsableAccount($accounts)) {
         return redirect()
@@ -506,11 +629,39 @@ public function index()
             return false;
         }
 
+        if ($this->applicationStatus($account) === null) {
+            return true;
+        }
+
+        if (($account->access_link_status ?? null) === 'approved') {
+            return true;
+        }
+
         if ($this->applicationStatus($account) === 'approved') {
             return true;
         }
 
         return !$this->isRegistrationApplication($account);
+    }
+
+    private function accessibleAccounts(int $userId): \Illuminate\Support\Collection
+    {
+        $user = Auth::user()->loadMissing('accounts.sc_discount', 'accounts.user');
+        $accounts = $user->accounts;
+
+        $links = ConcessionerAccountLink::with('account.sc_discount', 'account.property_types', 'account.user')
+            ->where('user_id', $userId)
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($links as $link) {
+            if ($link->account) {
+                $link->account->access_link_status = 'approved';
+                $accounts->push($link->account);
+            }
+        }
+
+        return $accounts->unique('id')->values();
     }
 
     private function isRegistrationApplication($account): bool
@@ -560,7 +711,7 @@ public function index()
     {
         $application = collect($accounts)
             ->filter(fn ($account) => $this->isRegistrationApplication($account))
-            ->sortByDesc('updated_at')
+            ->sortBy('updated_at')
             ->first();
 
         if (!$application) {
@@ -597,6 +748,114 @@ public function index()
             'message' => 'Your application is currently in the approval stage.',
             'date' => optional($application->created_at)->format('M d, Y h:i A'),
         ];
+    }
+
+    private function accountNotifications($user, $accounts, ?array $applicationNotification): array
+    {
+        $notifications = [];
+
+        if ($applicationNotification) {
+            $notifications[] = $applicationNotification + [
+                'type' => 'application',
+            ];
+        }
+
+        $accountNos = collect($accounts)
+            ->pluck('account_no')
+            ->filter()
+            ->values();
+
+        if ($accountNos->isNotEmpty()) {
+            $latestUnpaidBill = Bill::with('reading')
+                ->where('isPaid', false)
+                ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
+                ->latest('created_at')
+                ->first();
+
+            if ($latestUnpaidBill) {
+                $notifications[] = [
+                    'type' => 'bill',
+                    'status' => 'danger',
+                    'title' => 'Bill to pay',
+                    'message' => 'A new statement of account is available. Amount due: PHP ' . number_format((float) ($latestUnpaidBill->amount ?? 0), 2) . '.',
+                    'date' => optional($latestUnpaidBill->created_at)->format('M d, Y h:i A'),
+                    'timestamp' => optional($latestUnpaidBill->created_at)->timestamp,
+                ];
+            }
+
+            $latestPaidBill = Bill::with('reading')
+                ->where('isPaid', true)
+                ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
+                ->latest('date_paid')
+                ->latest('updated_at')
+                ->first();
+
+            if ($latestPaidBill) {
+                $paidAt = $this->notificationDate($latestPaidBill->date_paid) ?? $latestPaidBill->updated_at;
+
+                $notifications[] = [
+                    'type' => 'payment',
+                    'status' => 'success',
+                    'title' => 'Payment posted',
+                    'message' => 'Your payment for reference ' . $latestPaidBill->reference_no . ' was successfully posted.',
+                    'date' => optional($paidAt)->format('M d, Y h:i A'),
+                    'timestamp' => optional($paidAt)->timestamp,
+                ];
+            }
+        }
+
+        $latestAccountUpdate = collect($accounts)
+            ->filter(fn ($account) => $account->updated_at && $account->created_at && $account->updated_at->gt($account->created_at))
+            ->sortBy('updated_at')
+            ->first();
+
+        if ($latestAccountUpdate) {
+            $notifications[] = [
+                'type' => 'account',
+                'status' => 'info',
+                'title' => 'Account updated',
+                'message' => 'Your concessionaire account information was updated.',
+                'date' => optional($latestAccountUpdate->updated_at)->format('M d, Y h:i A'),
+                'timestamp' => optional($latestAccountUpdate->updated_at)->timestamp,
+            ];
+        } elseif ($user->updated_at && $user->created_at && $user->updated_at->gt($user->created_at)) {
+            $notifications[] = [
+                'type' => 'account',
+                'status' => 'info',
+                'title' => 'Profile updated',
+                'message' => 'Your profile information was updated.',
+                'date' => optional($user->updated_at)->format('M d, Y h:i A'),
+                'timestamp' => optional($user->updated_at)->timestamp,
+            ];
+        }
+
+        return collect($notifications)
+            ->map(function ($notification) {
+                $notification['timestamp'] = $notification['timestamp'] ?? $this->timestampFromNotificationDate($notification['date'] ?? null);
+
+                return $notification;
+            })
+            ->sortBy('timestamp')
+            ->values()
+            ->all();
+    }
+
+    private function notificationDate($value): ?Carbon
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function timestampFromNotificationDate(?string $date): int
+    {
+        return optional($this->notificationDate($date))->timestamp ?? 0;
     }
 
     private function applicationStatus($account): ?string

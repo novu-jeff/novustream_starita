@@ -6,28 +6,31 @@ use App\Models\ServiceApplication;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\ApplicationDocument;
+use Illuminate\Support\Facades\Storage;
 
 class ServiceApplicationController extends Controller
 {
-    /**
-     * Display the application form.
-     */
     public function create()
     {
         $applicationDefaults = $this->applicationDefaults();
+        $application = $this->currentApplication();
 
-        // Prevent duplicate pending applications (optional)
-        $existing = ServiceApplication::where('user_id', Auth::id())
-            ->whereIn('status', ['Pending', 'For Inspection'])
-            ->first();
-
-        if ($existing) {
-            return redirect()
-                ->route('application.print', $existing)
-                ->with('info', 'You already have a pending application.');
+        if ($application) {
+            $applicationDefaults = array_merge($applicationDefaults, [
+                'cellphone' => $application->cellphone,
+                'applicant_name' => $application->applicant_name,
+                'service_address' => $application->service_address,
+                'application_type' => $application->application_type,
+                'connection_type' => $application->connection_type,
+                'connection_size' => $application->connection_size,
+                'installation_location' => $application->installation_location,
+                'property_owner' => $application->property_owner,
+                'promissory_amount' => $application->promissory_amount,
+            ]);
         }
 
-        return view('application.create', compact('applicationDefaults'));
+        return view('application.create', compact('applicationDefaults', 'application'));
     }
 
     /**
@@ -56,17 +59,17 @@ class ServiceApplicationController extends Controller
 
         try {
 
-            $application = ServiceApplication::create([
+            $application = $this->currentApplication();
+
+            $applicationPayload = [
                 'user_id' => Auth::id(),
-
-                'application_no' => null,
-
                 'cellphone' => $validated['cellphone'],
                 'applicant_name' => strtoupper($validated['applicant_name']),
                 'service_address' => $validated['service_address'],
 
                 'application_type' => $validated['application_type'],
                 'application_type_other' => $validated['application_type_other'] ?? null,
+                'connection_type' => $application?->connection_type ?? 'on_line',
 
                 'connection_size' => $validated['connection_size'] ?? null,
                 'installation_location' => $validated['installation_location'],
@@ -75,22 +78,51 @@ class ServiceApplicationController extends Controller
 
                 'promissory_note' => $request->boolean('promissory_note'),
                 'promissory_amount' => $validated['promissory_amount'] ?? null,
+                'application_fee_amount' => $application?->application_fee_amount ?? 4000,
+                'application_fee_status' => $application?->application_fee_status ?? 'unpaid',
 
                 'status' => 'Pending',
-            ]);
+            ];
 
-            // Generate application number
-            $application->update([
-                'application_no' => 'SRWD-' .
-                    now()->format('Y') .
-                    '-' .
-                    str_pad($application->id, 6, '0', STR_PAD_LEFT)
-            ]);
+            if ($application) {
+                $application->update($applicationPayload);
+            } else {
+                $application = ServiceApplication::create($applicationPayload + [
+                    'application_no' => null,
+                ]);
+
+                $application->update([
+                    'application_no' => 'SRWD-' .
+                        now()->format('Y') .
+                        '-' .
+                        str_pad($application->id, 6, '0', STR_PAD_LEFT)
+                ]);
+            }
+
+            ApplicationDocument::updateOrCreate(
+                ['service_application_id' => $application->id],
+                [
+                    'valid_id' => $this->documentPath($request, 'id_file', 'applications/id')
+                        ?? $application->documents?->valid_id,
+
+                    'cedula' => $this->documentPath($request, 'cedula_file', 'applications/cedula')
+                        ?? $application->documents?->cedula,
+
+                    'proof_of_billing' => $this->documentPath($request, 'billing_file', 'applications/billing')
+                        ?? $application->documents?->proof_of_billing,
+
+                    'authorization_letter' => $this->documentPath($request, 'authorization_file', 'applications/authorization')
+                        ?? $application->documents?->authorization_letter,
+
+                    'boring_permit' => $this->documentPath($request, 'boring_permit_file', 'applications/boring-permits')
+                        ?? $application->documents?->boring_permit,
+                ]
+            );
 
             DB::commit();
 
             return redirect()
-                ->route('application.print', $application)
+                ->route('account-overview.index')
                 ->with('success', 'Application submitted successfully.');
 
         } catch (\Exception $e) {
@@ -110,22 +142,68 @@ class ServiceApplicationController extends Controller
      */
     public function show(ServiceApplication $application)
     {
-        // Prevent users from viewing other users' applications
-        abort_if($application->user_id != Auth::id(), 403);
+        $this->authorizeApplicationView($application);
 
         $printData = $this->printData($application);
+        $autoPrint = false;
 
-        return view('application.print', compact('application', 'printData'));
+        return view('application.print', compact('application', 'printData', 'autoPrint'));
     }
 
     public function print(ServiceApplication $application)
     {
-        // Prevent users from printing other users' applications
-        abort_if($application->user_id != Auth::id(), 403);
+        $this->authorizeApplicationView($application);
 
         $printData = $this->printData($application);
+        $autoPrint = true;
 
-        return view('application.print', compact('application', 'printData'));
+        return view('application.print', compact('application', 'printData', 'autoPrint'));
+    }
+
+    public function contract(ServiceApplication $application)
+    {
+        $this->authorizeApplicationView($application);
+
+        $printData = $this->contractData($application);
+        $autoPrint = false;
+
+        return view('application.contract', compact('application', 'printData', 'autoPrint'));
+    }
+
+    public function printContract(ServiceApplication $application)
+    {
+        $this->authorizeApplicationView($application);
+
+        $printData = $this->contractData($application);
+        $autoPrint = true;
+
+        return view('application.contract', compact('application', 'printData', 'autoPrint'));
+    }
+
+    public function uploadBoringPermit(Request $request, ServiceApplication $application)
+    {
+        abort_if($application->user_id != Auth::id(), 403);
+
+        $request->validate([
+            'boring_permit_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $application->loadMissing('documents');
+
+        ApplicationDocument::updateOrCreate(
+            ['service_application_id' => $application->id],
+            [
+                'valid_id' => $application->documents?->valid_id,
+                'cedula' => $application->documents?->cedula,
+                'proof_of_billing' => $application->documents?->proof_of_billing,
+                'authorization_letter' => $application->documents?->authorization_letter,
+                'boring_permit' => $request->file('boring_permit_file')->store('applications/boring-permits', 'public'),
+            ]
+        );
+
+        return redirect()
+            ->route('account-overview.index')
+            ->with('success', 'Boring/Cutting Permit uploaded successfully. Your application remains pending for admin review.');
     }
 
     private function applicationDefaults(): array
@@ -140,6 +218,7 @@ class ServiceApplicationController extends Controller
             'cellphone' => $user->contact_no ?? '',
             'applicant_name' => $user->registrants ?? $user->name ?? '',
             'service_address' => $account->address ?? '',
+            'installation_location' => $account->address ?? '',
             'property_owner' => $user->name ?? '',
             'signature_name' => $user->registrants ?? $user->name ?? '',
             'application_date' => now()->format('Y-m-d'),
@@ -159,6 +238,7 @@ class ServiceApplicationController extends Controller
             'applicant_name' => $application->applicant_name,
             'service_address' => $application->service_address,
             'application_type' => $application->application_type,
+            'connection_type' => $application->connection_type,
             'connection_size' => $application->connection_size,
             'installation_location' => $application->installation_location,
             'signature_name' => $application->applicant_name,
@@ -166,5 +246,112 @@ class ServiceApplicationController extends Controller
             'property_owner' => $application->property_owner,
             'promissory_amount' => $application->promissory_amount,
         ];
+    }
+
+    private function contractData(ServiceApplication $application): array
+    {
+        return [
+            'applicant_name' => $application->applicant_name,
+            'signature_name' => $application->applicant_name,
+            'service_address' => $application->service_address,
+            'connection_type' => $application->connection_type,
+        ];
+    }
+
+    private function authorizeApplicationView(ServiceApplication $application): void
+    {
+        if (Auth::guard('admins')->check()) {
+            return;
+        }
+
+        abort_if($application->user_id != Auth::id(), 403);
+    }
+
+    private function currentApplication(): ?ServiceApplication
+    {
+        return ServiceApplication::with('documents')
+            ->where('user_id', Auth::id())
+            ->whereIn('status', ['Pending', 'For Inspection'])
+            ->latest()
+            ->first();
+    }
+
+    private function documentPath(Request $request, string $input, string $directory): ?string
+    {
+        return $request->file($input)
+            ? $request->file($input)->store($directory, 'public')
+            : null;
+    }
+
+    public function replaceDocument(Request $request, ServiceApplication $serviceApplication)
+    {
+        $this->authorizeApplicationView($serviceApplication);
+
+        $request->validate([
+            'document_type' => [
+                'required',
+                'in:valid_id,cedula,proof_of_billing,authorization_letter,boring_permit'
+            ],
+            'document' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg,png,pdf',
+                'max:5120',
+            ],
+        ]);
+
+        $documentType = $request->document_type;
+
+        $documents = $serviceApplication->documents;
+
+        if (!$documents) {
+            return back()->with('error', 'Document record not found.');
+        }
+
+        if (!empty($documents->$documentType)) {
+            Storage::disk('public')->delete($documents->$documentType);
+        }
+
+        $path = $request->file('document')->store(
+            'service-applications/documents',
+            'public'
+        );
+
+        $documents->$documentType = $path;
+        $documents->save();
+
+        return back()->with('success', 'Document replaced successfully.');
+    }
+
+    public function applicationFees(Request $request)
+    {
+        $status = $request->status ?? 'unpaid';
+
+        if (!in_array($status, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.application-fees.index', ['status' => 'unpaid']);
+        }
+
+        $entries = $request->entries ?? 10;
+        $search  = trim($request->search ?? '');
+
+        $query = ServiceApplication::query();
+
+        if ($status === 'paid') {
+            $query->where('application_fee_status', 'paid');
+        } else {
+            $query->where('application_fee_status', '!=', 'paid');
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('application_no', 'like', "%{$search}%")
+                ->orWhere('applicant_name', 'like', "%{$search}%");
+            });
+        }
+
+        $data = $query->orderByDesc('created_at')->paginate($entries)->withQueryString();
+
+        return view('payments.application-fees', compact('data', 'entries', 'status'))
+            ->with('toSearch', $search);
     }
 }

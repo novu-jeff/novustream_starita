@@ -58,6 +58,15 @@ class ProfileController extends Controller
         $response = $this->profileService::update($id, $payload);
 
         if ($response['status'] === 'success') {
+            if ($user_type === 'concessionaire') {
+                return redirect()
+                    ->route('account-overview.index')
+                    ->with('alert', [
+                        'status' => 'success',
+                        'message' => $response['message'],
+                    ]);
+            }
+
             return redirect()->back()->with('alert', [
                 'status' => 'success',
                 'message' => $response['message']

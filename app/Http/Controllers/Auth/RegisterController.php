@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplicationDocument;
+use App\Models\ServiceApplication;
 use App\Models\UserAccounts;
 use App\Models\User;
 use Illuminate\Foundation\Auth\RegistersUsers;
@@ -10,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
@@ -55,21 +58,52 @@ class RegisterController extends Controller
     {
         return Validator::make($data, [
             'registration_type' => ['required', 'in:existing_account,new_connection'],
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'name' => ['required', 'string', 'max:50'],
+            'email' => ['required', 'string', 'email', 'max:50', 'unique:users'],
             'contact_no' => ['required', 'string', 'max:20'],
             'account_no' => ['required_if:registration_type,existing_account', 'nullable', 'string', 'max:255'],
-            'address' => ['required', 'string', 'max:500'],
+            'address' => ['required', 'string', 'max:100'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'soa_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-            'id_file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'soa_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'id_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'picture_1x1' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'cedula_file' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'billing_file' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
+            'authorization_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             'data_privacy_consent' => ['accepted'],
         ]);
     }
 
     public function register(Request $request)
     {
+        $recaptchaResponse = $request->input('g-recaptcha-response');
+
+        if (!$recaptchaResponse) {
+            return response()->json([
+                'message' => 'Please complete the reCAPTCHA verification.',
+            ], 422);
+        }
+
+        $verification = Http::asForm()->post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            [
+                'secret' => config('services.recaptcha.secret_key'),
+                'response' => $recaptchaResponse,
+                'remoteip' => $request->ip(),
+            ]
+        );
+
+        if (!$verification->successful() || !$verification->json('success')) {
+            return response()->json([
+                'message' => 'reCAPTCHA verification failed. Please try again.',
+            ], 422);
+        }
+
         $this->validator($request->all())->validate();
+
+        $request->merge([
+            'name' => mb_strtoupper(trim((string) $request->name)),
+        ]);
 
         $user = DB::transaction(function () use ($request) {
             if ($request->registration_type === 'new_connection') {
@@ -88,6 +122,16 @@ class RegisterController extends Controller
                 ]);
             }
 
+            $account = $matchingAccounts->first(function (UserAccounts $account) use ($request) {
+                return $this->namesMatch((string) ($account->user?->name ?? ''), $request->name);
+            });
+
+            if (!$account) {
+                throw ValidationException::withMessages([
+                    'name' => 'The name does not match the account no.',
+                ]);
+            }
+
             if ($matchingAccounts->contains(fn ($account) => $this->applicationStatus($account) === 'approved')) {
                 throw ValidationException::withMessages([
                     'account_no' => 'Account no. is already registered and active.',
@@ -99,9 +143,6 @@ class RegisterController extends Controller
                     'account_no' => 'Account no. is already registered or has a pending application.',
                 ]);
             }
-
-            $account = $matchingAccounts
-                ->first(fn ($account) => !$this->hasRegistrationApplication($account));
 
             $user = $this->updateExistingAccountRegistrant($request->all(), $account);
 
@@ -142,6 +183,17 @@ class RegisterController extends Controller
     {
         $user = $this->create($request->all());
 
+        $documents = [
+            'valid_id' => $request->file('picture_1x1')
+                ? $request->file('picture_1x1')->store('applications/id', 'public')
+                : null,
+            'cedula' => $request->file('cedula_file') ? $request->file('cedula_file')->store('applications/cedula', 'public') : null,
+            'proof_of_billing' => $request->file('billing_file') ? $request->file('billing_file')->store('applications/billing', 'public') : null,
+            'authorization_letter' => $request->file('authorization_file')
+                ? $request->file('authorization_file')->store('applications/authorization', 'public')
+                : null,
+        ];
+
         UserAccounts::create([
             'user_id' => $user->id,
             'zone' => null,
@@ -153,13 +205,46 @@ class RegisterController extends Controller
             'sc_no' => '',
             'date_connected' => now()->toDateString(),
             'sequence_no' => $user->id,
-            'application_id_path' => $request->file('id_file')->store('applications/id', 'public'),
+            'application_id_path' => $documents['valid_id'],
             'application_status' => 'pending',
             'application_type' => 'new_connection',
             'isApproved' => false,
             'approved_at' => null,
             'denied_at' => null,
             'approval_denial_reason' => null,
+        ]);
+
+        $application = ServiceApplication::create([
+            'user_id' => $user->id,
+            'application_no' => null,
+            'cellphone' => $request->contact_no,
+                'applicant_name' => strtoupper($request->name),
+            'service_address' => $request->address,
+            'application_type' => 'Water Service Connection',
+            'connection_type' => 'on_line',
+            'connection_size' => null,
+            'installation_location' => $request->address,
+            'property_owner' => strtoupper($request->name),
+            'promissory_note' => false,
+            'promissory_amount' => null,
+            'application_fee_amount' => 4000,
+            'application_fee_status' => 'unpaid',
+            'status' => 'Pending',
+        ]);
+
+        $application->update([
+            'application_no' => 'SRWD-' .
+                now()->format('Y') .
+                '-' .
+                str_pad($application->id, 6, '0', STR_PAD_LEFT),
+        ]);
+
+        ApplicationDocument::create([
+            'service_application_id' => $application->id,
+            'valid_id' => $documents['valid_id'],
+            'cedula' => $documents['cedula'],
+            'proof_of_billing' => $documents['proof_of_billing'],
+            'authorization_letter' => $documents['authorization_letter'],
         ]);
 
         return $user;
@@ -214,6 +299,20 @@ class RegisterController extends Controller
         $sequence = end($parts) ?: preg_replace('/\D+/', '', $accountNo);
 
         return (int) $sequence;
+    }
+
+    private function namesMatch(string $firstName, string $secondName): bool
+    {
+        $normalize = static function (string $name): string {
+            $normalized = preg_replace('/[^a-z0-9]/u', '', mb_strtolower(trim($name)));
+
+            return $normalized ?? '';
+        };
+
+        $first = $normalize($firstName);
+        $second = $normalize($secondName);
+
+        return $first !== '' && $first === $second;
     }
 
     private function hasRegistrationApplication(UserAccounts $account): bool
