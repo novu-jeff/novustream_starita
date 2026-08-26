@@ -238,7 +238,7 @@
                         <div class="text-uppercase small fw-bold opacity-75 mb-2">Help Center</div>
                         <h1 class="mb-2 text-white">{{ $title }}</h1>
                         <p class="mb-0 opacity-75">Find the module you need, then follow the steps one at a time.</p>
-                        <span class="guide-role-badge"><i class="bx bx-user-check me-1"></i> Admin & Cashier Reference</span>
+                        <span class="guide-role-badge"><i class="bx bx-user-check me-1"></i> Admin Reference</span>
                     </div>
                 </div>
             </div>

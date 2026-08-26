@@ -37,6 +37,11 @@ class User extends Authenticatable
         return $this->hasMany(UserAccounts::class);
     }
 
+    public function accountLinks()
+    {
+        return $this->hasMany(ConcessionerAccountLink::class, 'user_id');
+    }
+
     public function serviceApplications() {
         return $this->hasMany(ServiceApplication::class);
     }

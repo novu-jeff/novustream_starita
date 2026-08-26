@@ -183,6 +183,12 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::patch('registrants/{account}/deny', [ConcessionaireController::class, 'denyApplication'])
             ->name('registrants.deny');
 
+        Route::patch('account-links/{link}/approve', [ConcessionaireController::class, 'approveAccountLink'])
+            ->name('account-links.approve');
+
+        Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
+            ->name('account-links.deny');
+
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
             ->except('show');
@@ -327,9 +333,14 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 });
 
 Route::middleware('auth')->prefix('concessionaire')->group(function() {
+    Route::get('guide', [GuideController::class, 'concessionaire'])
+        ->name('guide.concessionaire');
+
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
             ->name('account-overview.index');
+        Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
+            ->name('account-overview.accounts.store');
         Route::get('bills', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])

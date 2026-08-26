@@ -16,6 +16,7 @@
 				@can('concessionaire')
 					<a href="{{route('account-overview.index')}}"> Account Overview </a>
 					<a href="{{route('account-overview.bills')}}"> Bills & Payment </a>
+					<a href="{{route('guide.concessionaire')}}"> Guide </a>
 				@endcan
 				@canany(['admin', 'technician'])
 					<div class="dropdown px-0 mx-0">
@@ -91,7 +92,16 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
-							<li><a class="dropdown-item" href="{{route('registrants.index')}}">Registrants</a></li>
+							<li>
+								<a class="dropdown-item d-flex align-items-center justify-content-between gap-3" href="{{route('registrants.index')}}">
+									<span>Registrants</span>
+									@if($pendingRegistrantsCount > 0)
+										<span class="badge rounded-pill bg-danger" style="min-width: 1.25rem;" aria-label="{{ $pendingRegistrantsCount }} pending registrants">
+											{{ $pendingRegistrantsCount }}
+										</span>
+									@endif
+								</a>
+							</li>
 							@can('superadmin')
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
 							@endcan

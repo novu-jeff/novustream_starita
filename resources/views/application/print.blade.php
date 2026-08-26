@@ -423,31 +423,6 @@
             </div>
 	        </section>
 
-            @if(!($autoPrint ?? true))
-                <section class="document-summary" style="margin-top: 16px;">
-                    <div class="section-title">Submitted Registration Documents</div>
-                    <table>
-                        <tbody>
-                            <tr>
-                                <th>Valid ID of Owner / Picture</th>
-                                <td>{{ $application->documents?->valid_id ? 'Uploaded' : 'Missing' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Latest Cedula / Residence Certificate</th>
-                                <td>{{ $application->documents?->cedula ? 'Uploaded' : 'Missing' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Proof of Billing</th>
-                                <td>{{ $application->documents?->proof_of_billing ? 'Uploaded' : 'Missing' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Authorization Letter / SPA with Valid ID</th>
-                                <td>{{ $application->documents?->authorization_letter ? 'Uploaded' : 'N/A' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </section>
-            @endif
 	    </main>
 
     <script>
