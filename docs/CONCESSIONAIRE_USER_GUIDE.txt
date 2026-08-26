@@ -1,0 +1,144 @@
+STA. RITA SYSTEM - CONCESSIONAIRE USER GUIDE
+=============================================
+
+Purpose
+-------
+Use this guide to view your water accounts, statements, bills, payments, account-link requests, and support options.
+
+BEFORE YOU BEGIN
+----------------
+1. Use your own email and password. Never share your login credentials.
+2. Check the account number and account name before opening a statement or making a payment.
+3. Keep your SOA and valid ID files ready when requesting access to another account.
+4. Log out when you finish using the portal, especially on a shared device.
+
+1. SIGN IN
+----------
+Steps:
+1. Open the concessionaire portal and select Sign In.
+2. Enter the email address and password used during registration.
+3. Select Login.
+4. If you cannot sign in, confirm the email, password, and portal address. Contact the district office if the account is inactive or the password needs to be reset.
+
+2. ACCOUNT OVERVIEW
+-------------------
+Purpose: See your account status, available statements, notifications, and linked accounts.
+
+Steps:
+1. Open Account Overview after signing in.
+2. Review the notification bell for application, account, payment, or bill updates.
+3. Review the My Accounts table to see each account number, account name, address, and status.
+4. Select View Bills for an account that is approved or otherwise available.
+5. Pending accounts remain visible but cannot be used for bills until approval.
+6. Denied accounts cannot be used for online services. Read the denial notice and contact the district office if clarification is needed.
+
+Important:
+- Each account keeps its own account number, name, address, meter, bills, and payment history.
+- One login may provide access to several accounts after each account-link request is approved.
+
+3. STATEMENT OF ACCOUNT
+-----------------------
+Purpose: Review the amount due for one account without confusing it with another account.
+
+Steps:
+1. In Account Overview, open the account tab for the account you want to check.
+2. Confirm the account number and address shown above the statement.
+3. Check the Statement of Account date and Total Amount Due.
+4. Select the statement reference to open the complete SOA.
+5. Review the billing period, consumption, previous balance, discounts, penalty, and amount due.
+
+Important:
+- Statement totals are separated by account.
+- A successful payment may appear on the next statement. Use Payment History to confirm previous payments.
+
+4. BILLS AND PAYMENT HISTORY
+----------------------------
+Purpose: Review unpaid and paid bills for a selected account.
+
+Steps:
+1. Select View Bills for the account in Account Overview.
+2. Choose Unpaid or Paid.
+3. Confirm the account number in the page heading.
+4. Select the receipt/view action for a bill.
+5. Review the bill details before continuing to payment.
+6. Use the available payment option only for the correct account and statement.
+
+Important:
+- Do not pay a bill for the wrong account.
+- Do not submit payment again if the bill is already marked Paid.
+- Keep the payment confirmation or receipt for your records.
+
+5. ADD OR LINK ANOTHER ACCOUNT
+------------------------------
+Purpose: Request access to another existing water account using the same login.
+
+Steps:
+1. Open Account Overview.
+2. Select Add Account.
+3. Enter the other account number.
+4. Enter the account holder name exactly as it appears in the district record.
+5. Upload the latest SOA and a valid ID.
+6. Select Submit Account.
+7. Read the Account Verification Consent popup and select the confirmation checkbox.
+8. Select I Agree to submit the request.
+9. Check My Accounts for the Pending Approval status.
+
+Important:
+- Adding an account does not replace or edit the original account information.
+- The original account owner, account name, meter, bills, and payment history remain unchanged.
+- The linked account becomes available for bills only after district staff approve the request.
+- If the name does not match, check the spelling and contact the district office if the record needs correction.
+
+6. NEW WATER SERVICE CONNECTION
+------------------------------
+Purpose: Submit a request for a new water service connection.
+
+Steps:
+1. Select New Water Service Connection from Account Overview.
+2. Complete the application form with accurate applicant and service information.
+3. Upload the required picture, cedula, proof of billing, and any authorization document when applicable.
+4. Review the application, contract, and displayed fee.
+5. Submit the application and wait for the approval status.
+6. For a Traverse connection, provide the required Boring/Cutting Permit when requested.
+
+Important:
+- A new connection is different from linking an existing account.
+- Do not create a new connection request when you only need access to an existing account.
+
+7. PROFILE AND PASSWORD
+-----------------------
+Steps:
+1. Open Profile from the navigation menu.
+2. Review your name, contact number, and email.
+3. To change your password, enter a new password and confirmation.
+4. Save the change and sign in again if requested.
+
+Important:
+- Use a strong password and do not share it.
+- Contact the district office if your email or personal information needs correction.
+
+8. SUPPORT
+----------
+Steps:
+1. Open Submit Ticket from the navigation menu.
+2. Describe the account number, bill reference, or issue clearly.
+3. Include relevant dates and screenshots when helpful, but do not include your password.
+4. Submit the ticket and keep the ticket details for follow-up.
+
+9. SIGN OUT
+-----------
+Select Logout from the navigation menu when you finish. Always sign out on shared or public devices.
+
+COMMON PROBLEMS
+---------------
+Account is pending:
+The account or account-link request is still waiting for district approval. Bills and online payment remain unavailable until approval.
+
+Account is denied:
+Review the displayed reason and contact the district office. Do not submit repeated requests with incorrect information.
+
+Statement is not showing:
+Confirm that you opened the correct account tab and that the account has an available meter and bill. Pending accounts do not show usable statements.
+
+Payment amount is different:
+Confirm the account number, billing period, due date, discounts, and penalties. Contact the district office before submitting payment if the details are incorrect.

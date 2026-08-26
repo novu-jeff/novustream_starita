@@ -18,9 +18,9 @@ return new class extends Migration
                 ->constrained()
                 ->cascadeOnDelete();
             $table->string('valid_id')->nullable();
-            $table->string('cedula')->nullable()->after('valid_id');
-            $table->string('proof_of_billing')->nullable()->after('cedula');
-            $table->string('authorization_letter')->nullable()->after('proof_of_billing');
+            $table->string('cedula')->nullable();
+            $table->string('proof_of_billing')->nullable();
+            $table->string('authorization_letter')->nullable();
             $table->string('proof_of_ownership')->nullable();
             $table->string('tax_declaration')->nullable();
             $table->string('barangay_clearance')->nullable();

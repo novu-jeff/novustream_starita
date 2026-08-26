@@ -79,7 +79,7 @@
                                 @if($bill->isPaid)
                                     <span class="badge bg-success">Paid</span>
                                 @else
-                                    <span class="badge bg-warning">Unpaid</span>
+                                    <span class="badge bg-secondary">Unpaid</span>
                                 @endif
                             </td>
                             <td>

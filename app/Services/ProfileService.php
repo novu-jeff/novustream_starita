@@ -49,7 +49,7 @@ class ProfileService {
 
             return [
                 'status' => 'success',
-                'message' => 'Profile ' . ' updated.'
+                'message' => 'Your account was updated successfully.'
             ];
 
         } catch (\Exception $e) {

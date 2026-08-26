@@ -9,6 +9,7 @@ use App\Services\PropertyTypesService;
 use App\Services\MeterService;
 use App\Models\UserAccounts;
 use App\Models\ServiceApplication;
+use App\Models\ConcessionerAccountLink;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -189,7 +190,81 @@ class ConcessionaireController extends Controller
             ->paginate($entries)
             ->withQueryString();
 
-        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type'));
+        $accountLinkRequests = ConcessionerAccountLink::with(['account.user', 'user'])
+            ->where('status', 'pending')
+            ->when($request->filled('link_search'), function ($query) use ($request) {
+                $linkSearch = trim($request->link_search);
+
+                $query->where(function ($searchQuery) use ($linkSearch) {
+                    $searchQuery->whereHas('account', function ($accountQuery) use ($linkSearch) {
+                        $accountQuery->where('account_no', 'like', "%{$linkSearch}%")
+                            ->orWhereHas('user', function ($userQuery) use ($linkSearch) {
+                                $userQuery->where('name', 'like', "%{$linkSearch}%")
+                                    ->orWhere('registrants', 'like', "%{$linkSearch}%");
+                            });
+                    })
+                    ->orWhere('requested_name', 'like', "%{$linkSearch}%")
+                    ->orWhereHas('user', function ($userQuery) use ($linkSearch) {
+                        $userQuery->where('name', 'like', "%{$linkSearch}%")
+                            ->orWhere('email', 'like', "%{$linkSearch}%");
+                    });
+                });
+            })
+            ->latest()
+            ->paginate(10, ['*'], 'links_page')
+            ->withQueryString();
+        $pendingAccountLinkCount = ConcessionerAccountLink::where('status', 'pending')->count();
+
+        $linkSearch = trim($request->link_search ?? '');
+
+        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type', 'accountLinkRequests', 'linkSearch', 'pendingAccountLinkCount'));
+    }
+
+    public function approveAccountLink(int $link)
+    {
+        $accountLink = ConcessionerAccountLink::with('account')->findOrFail($link);
+
+        if ($accountLink->status !== 'pending') {
+            return back()->with('error', 'This account link request has already been processed.');
+        }
+
+        $accountLink->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+            'denied_at' => null,
+            'denial_reason' => null,
+        ]);
+
+        return back()
+            ->with('status', 'Account access approved.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Account access approved',
+                'message' => 'The linked account was approved successfully.',
+            ]);
+    }
+
+    public function denyAccountLink(Request $request, int $link)
+    {
+        $payload = $request->validate([
+            'denial_reason' => ['required', 'string', 'max:1000'],
+        ]);
+        $accountLink = ConcessionerAccountLink::findOrFail($link);
+
+        $accountLink->update([
+            'status' => 'denied',
+            'approved_at' => null,
+            'denied_at' => now(),
+            'denial_reason' => $payload['denial_reason'],
+        ]);
+
+        return back()
+            ->with('status', 'Account access denied.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Account access denied',
+                'message' => 'The linked account was denied successfully.',
+            ]);
     }
 
     public function completeRegistrant(int $account)
@@ -250,7 +325,8 @@ class ConcessionaireController extends Controller
             ->latest()
             ->first();
 
-        if (($application?->connection_type ?? 'on_line') === 'traverse'
+        if ($account->application_type === 'new_connection'
+            && ($application?->connection_type ?? 'on_line') === 'traverse'
             && empty($application?->documents?->boring_permit)) {
             return redirect()
                 ->back()
@@ -262,7 +338,9 @@ class ConcessionaireController extends Controller
                 ]);
         }
 
-        if ($application && $application->application_fee_status !== 'paid') {
+        if ($account->application_type === 'new_connection'
+            && $application
+            && $application->application_fee_status !== 'paid') {
             return redirect()
                 ->back()
                 ->with('error', 'The application fee must be paid before this application can be approved.')

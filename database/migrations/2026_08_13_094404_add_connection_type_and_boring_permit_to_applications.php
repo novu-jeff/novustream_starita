@@ -9,37 +9,26 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('service_applications', function (Blueprint $table) {
-            if (!Schema::hasColumn('service_applications', 'connection_type')) {
-                $table->string('connection_type')
-                    ->default('on_line');
-            }
-
-            if (!Schema::hasColumn('service_applications', 'application_fee_amount')) {
-                $table->decimal('application_fee_amount', 10, 2)
-                    ->default(4000);
-            }
-
-            if (!Schema::hasColumn('service_applications', 'application_fee_status')) {
-                $table->string('application_fee_status')
-                    ->default('unpaid');
-            }
+            $table->string('connection_type')->default('on_line');
+            $table->decimal('application_fee_amount', 10, 2)->default(4000);
+            $table->string('application_fee_status')->default('unpaid');
         });
 
         Schema::table('application_documents', function (Blueprint $table) {
-            if (!Schema::hasColumn('application_documents', 'boring_permit')) {
-                $table->string('boring_permit')
-                    ->nullable();
-            }
+            $table->string('boring_permit')->nullable();
+            $table->string('cedula')->nullable();
+            $table->string('proof_of_billing')->nullable();
         });
     }
 
     public function down(): void
     {
         Schema::table('application_documents', function (Blueprint $table) {
-    if (!Schema::hasColumn('application_documents', 'boring_permit')) {
-        $table->string('boring_permit')->nullable();
-    }
-});
+            $table->dropColumn([
+                'boring_permit', 
+                'cedula',
+            ]);
+        });
 
         Schema::table('service_applications', function (Blueprint $table) {
             $columns = [];

@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Admin;
+use App\Models\UserAccounts;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(Request $request): void
     {
         Paginator::useBootstrapFive();
+
+        View::composer('layouts.navbar', function ($view) {
+            $view->with('pendingRegistrantsCount', UserAccounts::where('application_status', 'pending')->count());
+        });
 
         if(Request::is('admin/*')) {
 

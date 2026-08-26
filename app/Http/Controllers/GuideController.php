@@ -11,12 +11,24 @@ class GuideController extends Controller
     {
         abort_unless(Gate::any(['admin', 'cashier']), 403);
 
-        $guidePath = base_path('docs/ADMIN_CASHIER_OPERATIONS_GUIDE.txt');
+        return $this->renderGuide('docs/ADMIN_CASHIER_OPERATIONS_GUIDE.txt', 'Operations Guide');
+    }
+
+    public function concessionaire()
+    {
+        abort_unless(Gate::allows('concessionaire'), 403);
+
+        return $this->renderGuide('docs/CONCESSIONAIRE_USER_GUIDE.txt', 'Concessionaire Guide');
+    }
+
+    private function renderGuide(string $relativePath, string $defaultTitle)
+    {
+        $guidePath = base_path($relativePath);
 
         abort_unless(is_readable($guidePath), 404);
 
         $lines = preg_split('/\R/', file_get_contents($guidePath));
-        $title = 'Operations Guide';
+        $title = $defaultTitle;
         $sections = [];
         $currentHeading = null;
         $currentContent = [];

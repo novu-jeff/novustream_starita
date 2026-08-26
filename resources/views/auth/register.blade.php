@@ -48,7 +48,7 @@
                     <div class="file-upload w-100 existing-account-field">
                         <label for="soa_file" class="file-label">
                             <i class="bx bx-file"></i>
-                            <span class="file-text">Last SOA *</span>
+                            <span class="file-text">Last SOA <span class="text-danger">*</span></span>
                             <span class="file-name" id="soa_file_name">Choose file</span>
                         </label>
                         <input type="file" id="soa_file" name="soa_file" accept=".pdf,.jpg,.jpeg,.png" required />
@@ -57,7 +57,7 @@
                     <div class="file-upload w-100 existing-account-field">
                         <label for="id_file" class="file-label">
                             <i class="bx bx-id-card"></i>
-                            <span class="file-text">Valid ID *</span>
+                            <span class="file-text">1x1 or 2x2 Picture <span class="text-danger">*</span></span>
                             <span class="file-name" id="id_file_name">Choose file</span>
                         </label>
                         <input type="file" id="id_file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" required />
@@ -67,7 +67,7 @@
                         <div class="file-upload w-100">
                             <label for="picture_1x1" class="file-label">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">1x1 or 2x2 Picture *</span>
+                                <span class="file-text">1x1 or 2x2 Picture <span class="text-danger">*</span></span>
                                 <span class="file-name" id="picture_1x1_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -78,7 +78,7 @@
                         <div class="file-upload w-100">
                             <label for="cedula_file" class="file-label">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Latest Cedula / Residence Certificate *</span>
+                                <span class="file-text">Latest Cedula / Residence Certificate <span class="text-danger">*</span></span>
                                 <span class="file-name" id="cedula_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -89,7 +89,7 @@
                         <div class="file-upload w-100">
                             <label for="billing_file" class="file-label">
                                 <i class="bx bx-receipt"></i>
-                                <span class="file-text">Proof of Billing (Electric Bill) *</span>
+                                <span class="file-text">Proof of Billing (Electric Bill) <span class="text-danger">*</span></span>
                                 <span class="file-name" id="billing_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -111,6 +111,13 @@
                     </div>
 
                     <p class="file-hint mb-0">Accepted: PDF, JPG, PNG</p>
+                </div>
+
+                <div class="w-100 mt-2">
+                    <div
+                        class="g-recaptcha"
+                        data-sitekey="{{ config('services.recaptcha.site_key') }}">
+                    </div>
                 </div>
 
                 <button type="submit" class="mt-3">Submit Registration</button>
@@ -385,286 +392,410 @@
             height: auto;
         }
     }
+
+    .register-page .file-size-error {
+        display: none;
+        width: 100%;
+        color: #dc3545;
+        font-size: 11px;
+        margin-top: 4px;
+        text-align: left;
+    }
+
+    .register-page .file-size-error.show {
+        display: block;
+    }
 </style>
 
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('registerForm');
-    const alertBox = document.getElementById('registerAlert');
-    const contactInput = document.getElementById('contact_no');
-    const consentModal = document.getElementById('dataConsentModal');
-    const consentInput = document.getElementById('data_privacy_consent');
-    const acceptConsent = document.getElementById('acceptConsent');
-    const declineConsent = document.getElementById('declineConsent');
-    const confirmConsent = document.getElementById('confirmConsent');
-    const nameInput = document.getElementById('name');
-    const registrationTypeInputs = form.querySelectorAll('input[name="registration_type"]');
-    const existingAccountFields = form.querySelectorAll('.existing-account-field');
+    const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
-    nameInput.addEventListener('input', function () {
-        this.value = this.value.toUpperCase();
-    });
+    const allowedFileTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png'
+    ];
 
-    function selectedRegistrationType() {
-        return form.querySelector('input[name="registration_type"]:checked').value;
-    }
+    function validateFile(input, required = false) {
+        const file = input.files?.[0];
 
-    const newConnectionFields = form.querySelectorAll('.new-connection-fields');
+        if (!file) {
+            return !required;
+        }
 
-    function syncRegistrationTypeFields() {
-        const isExisting = selectedRegistrationType() === 'existing_account';
+        if (file.size > MAX_FILE_SIZE) {
+            input.value = '';
 
-        existingAccountFields.forEach(function (field) {
-            field.classList.toggle('d-none', !isExisting);
-        });
+            const nameEl = document.getElementById(`${input.id}_name`);
 
-        newConnectionFields.forEach(function (field) {
-            field.classList.toggle('d-none', isExisting);
-        });
-
-        form.account_no.required = isExisting;
-        form.soa_file.required = isExisting;
-        form.id_file.required = isExisting;
-        
-        form.picture_1x1.required = !isExisting;
-        form.cedula_file.required = !isExisting;
-        form.billing_file.required = !isExisting;
-
-        // Authorization/SPA is optional
-        form.authorization_file.required = false;
-    }
-
-    registrationTypeInputs.forEach(function (input) {
-        input.addEventListener('change', syncRegistrationTypeFields);
-    });
-
-    syncRegistrationTypeFields();
-
-    function bindFileLabel(inputId, nameId) {
-        const input = document.getElementById(inputId);
-        const nameEl = document.getElementById(nameId);
-        const label = input.closest('.file-upload').querySelector('.file-label');
-
-        input.addEventListener('change', function () {
-            if (input.files && input.files[0]) {
-                nameEl.textContent = input.files[0].name;
-                nameEl.classList.add('has-file');
-                label.classList.remove('is-invalid');
-            } else {
+            if (nameEl) {
                 nameEl.textContent = 'Choose file';
                 nameEl.classList.remove('has-file');
             }
-        });
-    }
 
-    bindFileLabel('soa_file', 'soa_file_name');
-    bindFileLabel('id_file', 'id_file_name');
-    bindFileLabel('cedula_file', 'cedula_file_name');
-    bindFileLabel('billing_file', 'billing_file_name');
-    bindFileLabel('authorization_file', 'authorization_file_name');
-    bindFileLabel('picture_1x1', 'picture_1x1_name');
+            const fileUpload = input.closest('.file-upload');
+            const label = fileUpload?.querySelector('.file-label');
+            const errorEl = fileUpload?.querySelector('.file-size-error');
 
-    contactInput.addEventListener('input', function () {
-        this.value = this.value.replace(/\D/g, '').slice(0, 11);
-    });
+            label?.classList.add('is-invalid');
+            errorEl?.classList.add('show');
 
-    function showAlert(type, message) {
-        alertBox.className = 'alert alert-' + type + ' w-100 py-2 px-3 mb-2';
-        alertBox.textContent = message;
-        alertBox.classList.remove('d-none');
-        alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    function clearErrors() {
-        form.querySelectorAll('.is-invalid').forEach(function (el) {
-            el.classList.remove('is-invalid');
-        });
-        alertBox.classList.add('d-none');
-    }
-
-    function validateRegistrationForm() {
-    const name = form.name.value.trim();
-    const email = form.email.value.trim();
-    const contact = form.contact_no.value.trim();
-    const accountNo = form.account_no.value.trim();
-    const address = form.address.value.trim();
-    const password = form.password.value;
-    const passwordConfirm = form.password_confirmation.value;
-
-    const soaFile = form.soa_file.files[0];
-    const idFile = form.id_file.files[0];
-    const pictureFile = form.picture_1x1.files[0];
-    const cedulaFile = form.cedula_file.files[0];
-    const billingFile = form.billing_file.files[0];
-
-    const isExisting = selectedRegistrationType() === 'existing_account';
-
-    let firstInvalid = null;
-
-    function markInvalid(el) {
-        if (!el) return;
-
-        el.classList.add('is-invalid');
-
-        if (!firstInvalid) {
-            firstInvalid = el;
-        }
-    }
-
-    // Common fields
-    if (!name) {
-        markInvalid(form.name);
-    }
-
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        markInvalid(form.email);
-    }
-
-    if (!contact || contact.length < 10) {
-        markInvalid(form.contact_no);
-    }
-
-    if (!address) {
-        markInvalid(form.address);
-    }
-
-    if (!password || password.length < 8) {
-        markInvalid(form.password);
-    }
-
-    if (!passwordConfirm || password !== passwordConfirm) {
-        markInvalid(form.password_confirmation);
-    }
-
-    // Existing Sta. Rita Account
-    if (isExisting) {
-
-        if (!accountNo) {
-            markInvalid(form.account_no);
+            return false;
         }
 
-        if (!soaFile) {
-            markInvalid(document.querySelector('label[for="soa_file"]'));
-        }
+        if (!allowedFileTypes.includes(file.type)) {
+            input.value = '';
 
-        if (!idFile) {
-            markInvalid(document.querySelector('label[for="id_file"]'));
-        }
+            const nameEl = document.getElementById(`${input.id}_name`);
 
-    }
-
-    // New Concessionaire
-    if (!isExisting) {
-
-        if (!pictureFile) {
-            markInvalid(document.querySelector('label[for="picture_1x1"]'));
-        }
-
-        if (!cedulaFile) {
-            markInvalid(document.querySelector('label[for="cedula_file"]'));
-        }
-
-        if (!billingFile) {
-            markInvalid(document.querySelector('label[for="billing_file"]'));
-        }
-
-    }
-
-    if (firstInvalid) {
-        showAlert(
-            'danger',
-            'Please fill in all required fields correctly.'
-        );
-
-        firstInvalid.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-        });
-
-        return false;
-    }
-
-    return true;
-}
-
-    function submitRegistration() {
-        const submitButton = form.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-        submitButton.textContent = 'Submitting...';
-
-        fetch('{{ route('auth.register.store') }}', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json',
-            },
-            body: new FormData(form),
-        })
-        .then(async function (response) {
-            const payload = await response.json().catch(function () {
-                return {};
-            });
-
-            if (!response.ok) {
-                const firstError = payload.errors
-                    ? Object.values(payload.errors).flat()[0]
-                    : null;
-                throw new Error(firstError || payload.message || 'Registration failed.');
+            if (nameEl) {
+                nameEl.textContent = 'Choose file';
+                nameEl.classList.remove('has-file');
             }
 
-            return payload;
-        })
-        .then(function (payload) {
+            const fileUpload = input.closest('.file-upload');
+            const label = fileUpload?.querySelector('.file-label');
+            const errorEl = fileUpload?.querySelector('.file-size-error');
 
-            showAlert('success', payload.message || 'Registration submitted successfully.');
+            label?.classList.add('is-invalid');
+            errorEl?.classList.add('show');
 
-            setTimeout(function () {
-                window.location.href = payload.redirect || "{{ route('account-overview.index') }}";
+            return false;
+        }
 
-            }, 1000);
-
-        })
-        .catch(function (error) {
-            showAlert('danger', error.message);
-            submitButton.disabled = false;
-            submitButton.textContent = 'Submit Registration';
-        });
+        return true;
     }
 
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        clearErrors();
-        consentInput.value = '';
 
-        if (!validateRegistrationForm()) {
-            return;
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('registerForm');
+        const alertBox = document.getElementById('registerAlert');
+        const contactInput = document.getElementById('contact_no');
+        const consentModal = document.getElementById('dataConsentModal');
+        const consentInput = document.getElementById('data_privacy_consent');
+        const acceptConsent = document.getElementById('acceptConsent');
+        const declineConsent = document.getElementById('declineConsent');
+        const confirmConsent = document.getElementById('confirmConsent');
+        const nameInput = document.getElementById('name');
+        const registrationTypeInputs = form.querySelectorAll('input[name="registration_type"]');
+        const existingAccountFields = form.querySelectorAll('.existing-account-field');
+
+        nameInput.addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+        });
+
+        function selectedRegistrationType() {
+            return form.querySelector('input[name="registration_type"]:checked').value;
         }
 
-        consentModal.classList.remove('d-none');
-    });
+        const newConnectionFields = form.querySelectorAll('.new-connection-fields');
 
-    declineConsent.addEventListener('click', function () {
-        consentInput.value = '';
-        confirmConsent.checked = false;
-        acceptConsent.disabled = true;
-        consentModal.classList.add('d-none');
-    });
+        function syncRegistrationTypeFields() {
+            const isExisting = selectedRegistrationType() === 'existing_account';
 
+            existingAccountFields.forEach(function (field) {
+                field.classList.toggle('d-none', !isExisting);
+            });
 
-    acceptConsent.addEventListener('click', function () {
-        if (!confirmConsent.checked) {
-            return;
+            newConnectionFields.forEach(function (field) {
+                field.classList.toggle('d-none', isExisting);
+            });
+
+            form.account_no.required = isExisting;
+            form.soa_file.required = isExisting;
+            form.id_file.required = isExisting;
+            form.picture_1x1.required = !isExisting;
+            form.cedula_file.required = !isExisting;
+            form.billing_file.required = !isExisting;
+            form.authorization_file.required = false;
         }
 
-        consentInput.value = '1';
-        consentModal.classList.add('d-none');
-        submitRegistration();
-    });
+        registrationTypeInputs.forEach(function (input) {
+            input.addEventListener('change', syncRegistrationTypeFields);
+        });
 
-    confirmConsent.addEventListener('change', function () {
-        acceptConsent.disabled = !this.checked;
-    });
+        syncRegistrationTypeFields();
 
-});
+        function bindFileLabel(inputId, nameId) {
+            const input = document.getElementById(inputId);
+            const nameEl = document.getElementById(nameId);
+            const label = input.closest('.file-upload').querySelector('.file-label');
+            const errorEl = document.createElement('div');
+            errorEl.className = 'file-size-error';
+            errorEl.textContent = 'File size must not exceed 2 MB.';
+            input.closest('.file-upload').appendChild(errorEl);
+
+            input.addEventListener('change', function () {
+
+                const file = input.files?.[0];
+
+                if (!file) {
+                    nameEl.textContent = 'Choose file';
+                    nameEl.classList.remove('has-file');
+                    label.classList.remove('is-invalid');
+                    errorEl.classList.remove('show');
+                    return;
+                }
+
+                if (file.size > MAX_FILE_SIZE) {
+                    input.value = '';
+                    nameEl.textContent = 'Choose file';
+                    nameEl.classList.remove('has-file');
+                    label.classList.add('is-invalid');
+                    errorEl.classList.add('show');
+
+                    return;
+                }
+
+                errorEl.classList.remove('show');
+                label.classList.remove('is-invalid');
+                nameEl.textContent = file.name;
+                nameEl.classList.add('has-file');
+            });
+        }
+
+        bindFileLabel('soa_file', 'soa_file_name');
+        bindFileLabel('id_file', 'id_file_name');
+        bindFileLabel('cedula_file', 'cedula_file_name');
+        bindFileLabel('billing_file', 'billing_file_name');
+        bindFileLabel('authorization_file', 'authorization_file_name');
+        bindFileLabel('picture_1x1', 'picture_1x1_name');
+
+        contactInput.addEventListener('input', function () {
+            this.value = this.value.replace(/\D/g, '').slice(0, 11);
+        });
+
+        function showAlert(type, message) {
+            alertBox.className = 'alert alert-' + type + ' w-100 py-2 px-3 mb-2';
+            alertBox.textContent = message;
+            alertBox.classList.remove('d-none');
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function clearErrors() {
+            form.querySelectorAll('.is-invalid').forEach(function (el) {
+                el.classList.remove('is-invalid');
+            });
+            alertBox.classList.add('d-none');
+        }
+
+        function validateRegistrationForm() {
+            const name = form.name.value.trim();
+            const email = form.email.value.trim();
+            const contact = form.contact_no.value.trim();
+            const accountNo = form.account_no.value.trim();
+            const address = form.address.value.trim();
+            const password = form.password.value;
+            const passwordConfirm = form.password_confirmation.value;
+            const soaFile = form.soa_file.files[0];
+            const idFile = form.id_file.files[0];
+            const pictureFile = form.picture_1x1.files[0];
+            const cedulaFile = form.cedula_file.files[0];
+            const billingFile = form.billing_file.files[0];
+            const isExisting = selectedRegistrationType() === 'existing_account';
+
+            let firstInvalid = null;
+
+            function markInvalid(el) {
+                if (!el) return;
+                el.classList.add('is-invalid');
+                if (!firstInvalid) {
+                    firstInvalid = el;
+                }
+            }
+
+            if (!name) {
+                markInvalid(form.name);
+            }
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                markInvalid(form.email);
+            }
+            if (!contact || contact.length < 10) {
+                markInvalid(form.contact_no);
+            }
+            if (!address) {
+                markInvalid(form.address);
+            }
+            if (!password || password.length < 8) {
+                markInvalid(form.password);
+            }
+            if (!passwordConfirm || password !== passwordConfirm) {
+                markInvalid(form.password_confirmation);
+            }
+
+            if (isExisting) {
+                if (!accountNo) {
+                    markInvalid(form.account_no);
+                }
+                if (!soaFile) {
+                    markInvalid(document.querySelector('label[for="soa_file"]'));
+                }
+                if (!idFile) {
+                    markInvalid(document.querySelector('label[for="id_file"]'));
+                }
+            }
+
+            if (!isExisting) {
+                if (!pictureFile) {
+                    markInvalid(document.querySelector('label[for="picture_1x1"]'));
+                }
+                if (!cedulaFile) {
+                    markInvalid(document.querySelector('label[for="cedula_file"]'));
+                }
+                if (!billingFile) {
+                    markInvalid(document.querySelector('label[for="billing_file"]'));
+                }
+            }
+
+            if (firstInvalid) {
+                showAlert(
+                    'danger',
+                    'Please fill in all required fields correctly.'
+                );
+                firstInvalid.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                return false;
+            }
+            return true;
+        }
+
+        function submitRegistration() {
+            const submitButton = form.querySelector('button[type="submit"]');
+            const recaptchaResponse = grecaptcha.getResponse();
+
+            if (!recaptchaResponse) {
+                showAlert(
+                    'danger',
+                    'Please complete the reCAPTCHA verification.'
+                );
+
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+
+            const fileInputs = [
+                form.soa_file,
+                form.id_file,
+                form.picture_1x1,
+                form.cedula_file,
+                form.billing_file,
+                form.authorization_file
+            ];
+
+            for (const input of fileInputs) {
+                if (!input) continue;
+
+                if (!validateFile(input, input.required)) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Submit Registration';
+                    return;
+                }
+            }
+
+            const formData = new FormData(form);
+
+            formData.append(
+                'g-recaptcha-response',
+                recaptchaResponse
+            );
+
+            fetch('{{ route('auth.register.store') }}', {
+                method: 'POST',
+
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+
+                body: formData,
+            })
+
+            fetch('{{ route('auth.register.store') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                },
+                body: new FormData(form),
+            })
+            .then(async function (response) {
+                const payload = await response.json().catch(function () {
+                    return {};
+                });
+
+                if (!response.ok) {
+                    const errors = payload.errors || {};
+                    if (errors.name) {
+                        form.name.classList.add('is-invalid');
+                    }
+                    if (errors.account_no) {
+                        form.account_no.classList.add('is-invalid');
+                    }
+                    const firstError = Object.values(errors).flat()[0] || null;
+                    throw new Error(firstError || payload.message || 'Registration failed.');
+                }
+
+                return payload;
+            })
+            .then(function (payload) {
+
+                showAlert('success', payload.message || 'Registration submitted successfully.');
+
+                setTimeout(function () {
+                    window.location.href = payload.redirect || "{{ route('account-overview.index') }}";
+
+                }, 1000);
+
+            })
+            .catch(function (error) {
+                showAlert('danger', error.message);
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Registration';
+            });
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            clearErrors();
+            consentInput.value = '';
+
+            form.name.value = form.name.value.toUpperCase();
+
+            if (!validateRegistrationForm()) {
+                return;
+            }
+
+            consentModal.classList.remove('d-none');
+        });
+
+        declineConsent.addEventListener('click', function () {
+            consentInput.value = '';
+            confirmConsent.checked = false;
+            acceptConsent.disabled = true;
+            consentModal.classList.add('d-none');
+        });
+
+
+        acceptConsent.addEventListener('click', function () {
+            if (!confirmConsent.checked) {
+                return;
+            }
+
+            consentInput.value = '1';
+            consentModal.classList.add('d-none');
+            submitRegistration();
+        });
+
+        confirmConsent.addEventListener('change', function () {
+            acceptConsent.disabled = !this.checked;
+        });
+
+    });
 </script>
 @endsection

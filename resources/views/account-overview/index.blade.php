@@ -79,6 +79,91 @@ document.addEventListener('DOMContentLoaded', function () {
                 @endif
 
             </div>
+            <div class="mt-3">
+                <button type="button"
+                        class="btn btn-outline-primary fw-bold text-uppercase"
+                        data-bs-toggle="modal"
+                        data-bs-target="#addAccountModal">
+                    <i class="bx bx-link-alt"></i>
+                    Add Account
+                </button>
+            </div>
+            @if(session('status'))
+                <div class="alert alert-success text-uppercase fw-medium text-center mt-4 mb-0">
+                    {{ session('status') }}
+                </div>
+            @endif
+            @if($errors->any())
+                <div class="alert alert-danger text-uppercase fw-medium mt-4 mb-0">
+                    {{ $errors->first() }}
+                </div>
+            @endif
+
+            <div class="modal fade" id="addAccountModal" tabindex="-1" aria-labelledby="addAccountModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold text-uppercase" id="addAccountModalLabel">Add Account</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form id="addAccountForm" method="POST" action="{{ route('account-overview.accounts.store') }}" enctype="multipart/form-data">
+                            @csrf
+                            <input type="hidden" name="data_privacy_consent" id="add_account_consent" value="">
+                            <div class="modal-body">
+                                @if($errors->has('account_no') || $errors->has('name') || $errors->has('soa_file') || $errors->has('id_file') || $errors->has('data_privacy_consent'))
+                                    <div class="alert alert-danger" role="alert">
+                                        {{ $errors->first() }}
+                                    </div>
+                                @endif
+                                <p class="text-muted">Submit another account under your existing login. It will remain pending until the district verifies and approves it.</p>
+                                <div class="mb-3">
+                                    <label for="add_account_no" class="form-label">Account No.</label>
+                                    <input type="text" class="form-control" id="add_account_no" name="account_no" value="{{ old('account_no') }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="add_account_name" class="form-label">Account Holder Name</label>
+                                    <input type="text" class="form-control" id="add_account_name" name="name" value="{{ old('name', $my->name) }}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="add_soa_file" class="form-label">Latest SOA</label>
+                                    <input type="file" class="form-control" id="add_soa_file" name="soa_file" accept=".pdf,.jpg,.jpeg,.png" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="add_id_file" class="form-label">Valid ID</label>
+                                    <input type="file" class="form-control" id="add_id_file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" required>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary text-uppercase fw-bold">Submit Account</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="addAccountConsentModal" tabindex="-1" aria-labelledby="addAccountConsentTitle" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered add-account-consent-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold text-uppercase" id="addAccountConsentTitle">Account Verification Consent</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Sta. Rita Water District will use the information and documents you submit to verify account ownership and your request to link this account to your login.</p>
+                            <p>By continuing, you confirm that the details and documents are accurate and allow the district to review them.</p>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="confirmAddAccountConsent">
+                                <label class="form-check-label" for="confirmAddAccountConsent">I have read and agree to the account verification consent above.</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary text-uppercase fw-bold" id="acceptAddAccountConsent" disabled>I Agree</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             @php
                 $primaryNotification = $accountNotifications[0] ?? $applicationNotification ?? null;
             @endphp
@@ -134,6 +219,35 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <h5 class="fw-bold text-uppercase mb-0">{{ $serviceApplication->application_no }}</h5>
                                     </div>
                                     <div class="d-flex flex-wrap gap-2">
+                                        @if(($applicationStatus ?? null) === 'pending')
+                                            <button type="button"
+                                                    class="btn btn-primary fw-bold text-uppercase"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#serviceApplicationModal">
+
+                                                <i class="bx bx-water"></i>
+                                                New Water Service Connection
+
+                                            </button>
+                                        @elseif(!empty($serviceApplication))
+                                            <a href="{{ route('application.show', $serviceApplication) }}"
+                                            class="btn btn-primary fw-bold text-uppercase">
+
+                                                <i class="bx bx-file"></i>
+                                                View Application
+
+                                            </a>
+                                        @else
+                                            <button type="button"
+                                                    class="btn btn-primary fw-bold text-uppercase"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#serviceApplicationModal">
+
+                                                <i class="bx bx-water"></i>
+                                                New Water Service Connection
+
+                                            </button>
+                                        @endif
                                         <a href="{{ route('application.show', $serviceApplication) }}" class="btn btn-primary fw-bold text-uppercase">
                                             View Application
                                         </a>
@@ -382,6 +496,78 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                     @endif
 
+                    @if($accounts->isNotEmpty())
+                    <div class="card shadow border-0 p-4 mb-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div>
+                                <small class="text-uppercase fw-bold text-muted">My Accounts</small>
+                                <h5 class="fw-bold mb-0">Account Status and Bills</h5>
+                            </div>
+                            <span class="small text-muted">{{ $accounts->count() }} linked account(s)</span>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Account No.</th>
+                                        <th>Account Name</th>
+                                        <th>Address</th>
+                                        <th>Status</th>
+                                        <th class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($accounts as $account)
+                                        @php
+                                            $accountStatus = $account->access_link_status
+                                                ?: ($account->application_status
+                                                ?: ($account->isApproved ? 'approved' : ($account->denied_at ? 'denied' : null)));
+                                            $isDenied = $accountStatus === 'denied' || $account->denied_at;
+                                            $isPending = $accountStatus === 'pending';
+                                            $hasRegistrationDocuments = !empty($account->application_soa_path)
+                                                || !empty($account->application_id_path);
+                                            $canViewAccountBills = !$isDenied
+                                                && ($accountStatus === null || $accountStatus === 'approved'
+                                                    || (!$isPending && !$hasRegistrationDocuments));
+                                        @endphp
+                                        <tr>
+                                            <td class="fw-bold">{{ $account->account_no }}</td>
+                                            <td>{{ $account->user?->name ?? 'N/A' }}</td>
+                                            <td>{{ $account->address ?: 'N/A' }}</td>
+                                            <td>
+                                                @if($isDenied)
+                                                    <span class="badge bg-danger">Denied</span>
+                                                @elseif($isPending)
+                                                    <span class="badge bg-warning text-dark">Pending Approval</span>
+                                                @else
+                                                    <span class="badge bg-success">Approved</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center">
+                                                @if($canViewAccountBills)
+                                                    <a href="{{ route('account-overview.bills', ['account_no' => $account->account_no, 'view' => 'unpaid']) }}"
+                                                       class="btn btn-sm btn-primary text-uppercase fw-bold">
+                                                        <i class="bx bx-receipt"></i> View Bills
+                                                    </a>
+                                                @elseif($isPending)
+                                                    <span class="small text-muted">Waiting for approval</span>
+                                                @else
+                                                    <span class="small text-danger">Unavailable</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">No accounts linked.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
+
 	                @php
 
                     $currentDate = \Carbon\Carbon::now();
@@ -544,64 +730,82 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="col-12 col-md-6 mb-3">
                             <div class="card shadow border-0 p-3">
                                 <div class="card-body">
-                                    <div class="bg-primary mt-1 p-3 text-uppercase fw-bold text-white fs-5">Statement of Account as of <span class="text-decoration-underline text-offset-2">{{Carbon\Carbon::now()->format('F d, Y')}}</span></div>
-                                    <div class="note mt-3 ms-0 fst-italic text-uppercase fw-medium" style="font-size: 12px;"><strong>Disclaimer:</strong> Successful payments will be reflected on the next statement and can be viewed via the <strong>Payment History</strong></div>
-                                    <hr class="my-4">
-                                    <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">Total Amount Due:
-                                        <h3 class="ms-2">
-                                            @if($statement['total'] != 0)
-                                                PHP {{ number_format($statement['total'] ?? 0, 2) }}
-                                            @else
-                                                PHP 0.00
-                                            @endif
-                                        </h3>
+                                    <div class="bg-primary mt-1 p-3 text-uppercase fw-bold text-white">
+                                        Statement of Account as of
+                                        <span class="text-decoration-underline">{{ \Carbon\Carbon::now()->format('F d, Y') }}</span>
                                     </div>
-                                    <h3 class="ms-2">
+                                    <div class="note mt-3 ms-0 fst-italic text-uppercase fw-medium" style="font-size: 12px;">
+                                        <strong>Disclaimer:</strong> Successful payments will be reflected on the next statement and can be viewed via the <strong>Payment History</strong>.
+                                    </div>
+                                    <ul class="nav nav-tabs mt-4" id="accountStatementTabs" role="tablist">
+                                        @foreach($accountStatements as $index => $accountStatement)
+                                            @php $statementAccount = $accountStatement['account']; @endphp
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link {{ $index === 0 ? 'active' : '' }} text-uppercase fw-bold"
+                                                        id="statement-tab-{{ $index }}"
+                                                        data-bs-toggle="tab"
+                                                        data-bs-target="#statement-pane-{{ $index }}"
+                                                        type="button"
+                                                        role="tab"
+                                                        aria-controls="statement-pane-{{ $index }}"
+                                                        aria-selected="{{ $index === 0 ? 'true' : 'false' }}">
+                                                    {{ $statementAccount->account_no }}
+                                                </button>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                    <div class="tab-content" id="accountStatementTabContent">
+                                        @foreach($accountStatements as $index => $accountStatement)
                                             @php
-                                            $penalty = $statement['current_bill']['computed_penalty'] ?? 0;
-                                            $dueDate = isset($data['current_bill']['due_date'])
-                                                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
-                                                            : null;
-
-                                            $today = \Carbon\Carbon::today();
-
-                                            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                                $statementAccount = $accountStatement['account'];
+                                                $statementStatus = $statementAccount->access_link_status
+                                                    ?: ($statementAccount->application_status
+                                                        ?: ($statementAccount->isApproved ? 'approved' : ($statementAccount->denied_at ? 'denied' : null)));
                                             @endphp
-                                        </h3>
-                                    </div>
-
-                                    @if(!empty($statement['current_bill_qr']))
-                                        <div class="d-flex justify-content-center">
-                                            <a href="{{ $statement['current_bill_qr'] }}" class="btn btn-success w-50 mt-3" target="_blank">Pay Online</a>
-                                        </div>
-                                    @endif
-                                    <div class="mt-4 pt-2" style="font-size: 14px;">
-                                        <div style="display:none;" id="statement-content">
-                                            @forelse($statement['transactions'] as $key => $transactions)
-                                                <a target="_blank" href="{{route('account-overview.bills.reference_no', ['reference_no' => $transactions['reference_no']])}}">
-                                                    <div class="d-flex justify-content-between pb-3 {{$key == 0 ? 'pt-3' : ''}} mb-3" style="{{$key == 0 ? 'border-top: 3px dotted rgba(0, 0, 0, 0.521);' : ''}} border-bottom: 3px dotted rgba(0, 0, 0, 0.521); cursor: pointer;">
-                                                        <div>
-                                                            <div>
-                                                                {{$transactions['reference_no']}} | {{$transactions['account_no']}}
-                                                            </div>
-                                                            <div class="text-uppercase">
-                                                                {{\Carbon\Carbon::parse($transactions['bill_period_from'])->format('M d, Y')}} - {{\Carbon\Carbon::parse($transactions['bill_period_to'])->format('M d, Y')}}
-                                                            </div>
-                                                        </div>
-                                                        <div class="text-end">
-                                                            <div class="fw-bold">
-                                                                PHP {{number_format($transactions['amount'], 2)}}
-                                                            </div>
-                                                        </div>
+                                            <div class="tab-pane fade {{ $index === 0 ? 'show active' : '' }} pt-4"
+                                                 id="statement-pane-{{ $index }}"
+                                                 role="tabpanel"
+                                                 aria-labelledby="statement-tab-{{ $index }}">
+                                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                                                    <div>
+                                                        <div class="fw-bold text-uppercase">{{ $statementAccount->account_no }}</div>
+                                                        <div class="small text-muted text-uppercase">{{ $statementAccount->address ?: 'N/A' }}</div>
                                                     </div>
-                                                    </a>
-                                            @empty
-                                                <div class="alert alert-danger text-uppercase text-center text-muted fw-bold" style="font-size: 12px">No Statement Found</div>
-                                            @endforelse
-                                        </div>
-                                    </div>
-                                    <div class="text-center">
-                                        <a href="javascript:void(0)" id="show-statement" class="text-uppercase fw-medium" style="font-size: 13px">View Statement</a>
+                                                    @if($statementStatus === 'pending')
+                                                        <span class="badge bg-warning text-dark">Pending Approval</span>
+                                                    @elseif($statementStatus === 'denied')
+                                                        <span class="badge bg-danger">Denied</span>
+                                                    @else
+                                                        <span class="badge bg-success">Available</span>
+                                                    @endif
+                                                </div>
+                                                <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">
+                                                    <span>Total Amount Due</span>
+                                                    <span>PHP {{ number_format($accountStatement['total'], 2) }}</span>
+                                                </div>
+                                                <div class="mt-4" style="font-size: 14px;">
+                                                    @forelse($accountStatement['transactions'] as $transaction)
+                                                        <a target="_blank" href="{{ route('account-overview.bills.reference_no', ['reference_no' => $transaction['reference_no']]) }}" class="text-decoration-none text-reset">
+                                                            <div class="d-flex justify-content-between pb-3 pt-3 mb-3" style="border-top: 3px dotted rgba(0, 0, 0, 0.521); border-bottom: 3px dotted rgba(0, 0, 0, 0.521);">
+                                                                <div>
+                                                                    <div>{{ $transaction['reference_no'] }}</div>
+                                                                    <div class="text-uppercase">
+                                                                        {{ \Carbon\Carbon::parse($transaction['bill_period_from'])->format('M d, Y') }} - {{ \Carbon\Carbon::parse($transaction['bill_period_to'])->format('M d, Y') }}
+                                                                    </div>
+                                                                </div>
+                                                                <div class="text-end fw-bold">
+                                                                    PHP {{ number_format($transaction['amount'] ?? 0, 2) }}
+                                                                </div>
+                                                            </div>
+                                                        </a>
+                                                    @empty
+                                                        <div class="alert alert-secondary text-uppercase text-center fw-bold">
+                                                            {{ $statementStatus === 'pending' ? 'Statement unavailable until approval.' : 'No statement found.' }}
+                                                        </div>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+                                        @endforeach
                                     </div>
                                 </div>
                             </div>
@@ -736,6 +940,17 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
     </main>
     <style>
+
+        .add-account-consent-dialog {
+            width: min(560px, calc(100% - 2rem));
+            max-width: none;
+        }
+
+        .add-account-consent-dialog .modal-content {
+            border: 2px solid #0d6efd;
+            box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3);
+        }
+
 
         .document-actions {
     display: inline-flex;
@@ -936,6 +1151,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @section('script')
     <script>
+        const addAccountForm = document.getElementById('addAccountForm');
+        const addAccountConsentModal = document.getElementById('addAccountConsentModal');
+        const confirmAddAccountConsent = document.getElementById('confirmAddAccountConsent');
+        const acceptAddAccountConsent = document.getElementById('acceptAddAccountConsent');
+        const addAccountConsentInput = document.getElementById('add_account_consent');
+
+        if (addAccountForm && addAccountConsentModal) {
+            addAccountForm.addEventListener('submit', function (event) {
+                if (!addAccountForm.checkValidity()) {
+                    return;
+                }
+
+                event.preventDefault();
+                bootstrap.Modal.getInstance(document.getElementById('addAccountModal')).hide();
+                bootstrap.Modal.getOrCreateInstance(addAccountConsentModal).show();
+            });
+
+            confirmAddAccountConsent.addEventListener('change', function () {
+                acceptAddAccountConsent.disabled = !this.checked;
+            });
+
+            acceptAddAccountConsent.addEventListener('click', function () {
+                if (!confirmAddAccountConsent.checked) {
+                    return;
+                }
+
+                addAccountConsentInput.value = '1';
+                bootstrap.Modal.getInstance(addAccountConsentModal).hide();
+                addAccountForm.submit();
+            });
+        }
+
+        @if($errors->has('account_no') || $errors->has('name') || $errors->has('soa_file') || $errors->has('id_file') || $errors->has('data_privacy_consent'))
+            const addAccountModal = document.getElementById('addAccountModal');
+            if (addAccountModal) {
+                bootstrap.Modal.getOrCreateInstance(addAccountModal).show();
+            }
+        @endif
+
         const replaceDocumentModal = document.getElementById('replaceDocumentModal');
 
         if (replaceDocumentModal) {
