@@ -89,6 +89,21 @@ class ConcessionaireImport implements
                     'date_connected'  => $date_connected,
                     'sequence_no'     => $row['sequence_no'] ?? null,
                 ]);
+
+                $scNo = $row['sc_no'] ?? null;
+
+                if ($scNo !== null && trim((string) $scNo) !== '') {
+
+                    DB::table('discount')->insert([
+                        'account_no'       => $accountNo,
+                        'id_no'            => trim((string) $scNo),
+                        'discount_type_id' => 1,
+                        'effective_date'   => null,
+                        'expired_date'     => null,
+                        'created_at'       => now(),
+                        'updated_at'       => now(),
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             Log::error('Import error in Concessionaire Informations Sheet', [
