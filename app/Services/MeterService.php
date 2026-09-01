@@ -666,6 +666,19 @@ class MeterService {
         $previous_reading = isset($payload['previous_reading']) && $payload['previous_reading'] !== null && $payload['previous_reading'] !== ''
             ? (float) $payload['previous_reading']
             : (optional($latest_reading)->present_reading ?? 0);
+
+        if (empty($payload['isReRead']) && $latest_reading) {
+            $samePrev = (int) $latest_reading->previous_reading === (int) $previous_reading;
+            $samePres = (int) $latest_reading->present_reading === (int) ($payload['present_reading'] ?? 0);
+            $lastHadConsumption = (int) $latest_reading->present_reading !== (int) $latest_reading->previous_reading;
+            if ($samePrev && $samePres && $lastHadConsumption) {
+                return [
+                    'status' => 'error',
+                    'message' => 'A reading with the same previous and present values already exists for this account.',
+                ];
+            }
+        }
+
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
 
         $advances = $isChangeSaved ? (float) $latest_reading->bill->change ?? 0 : 0;

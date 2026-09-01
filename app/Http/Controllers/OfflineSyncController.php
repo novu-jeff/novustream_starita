@@ -20,6 +20,7 @@ use App\Models\InstallmentSchedule;
 use App\Services\BillSettlementService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
+use App\Services\OfflineMergeGuard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,8 @@ class OfflineSyncController extends Controller
     public function __construct(
         protected MeterService $meterService,
         protected BillSettlementService $billSettlementService,
-        protected MergeBillReadingDatesService $mergeBillReadingDatesService
+        protected MergeBillReadingDatesService $mergeBillReadingDatesService,
+        protected OfflineMergeGuard $offlineMergeGuard
     ) {
     }
 
@@ -443,67 +445,36 @@ class OfflineSyncController extends Controller
         $errors = [];
         $accountsPaid = [];
 
-        // Pre-pass: mark duplicate offline readings where account+month already exists in readings (remove from queue)
-        foreach ($pending as $off) {
-            $year = $off->created_at?->year ?? now()->year;
-            $month = $off->created_at?->month ?? now()->month;
-            $existingReading = Reading::where('account_no', $off->account_no)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->first();
-            if ($existingReading) {
-                $off->update([
-                    'synced_at' => now(),
-                    'merged_into_reading_id' => $existingReading->id,
-                    'status' => 'skipped_duplicate',
-                ]);
-                $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
-                $count++;
-            }
+        $winnerIds = [];
+        foreach ($pending->groupBy('account_no') as $rows) {
+            $winnerIds[] = (int) $this->offlineMergeGuard->pickWinner($rows)->id;
         }
-        // Re-fetch pending after pre-pass (excludes now-marked rows from duplicate grouping)
-        $pending = $query->get();
-
-        // Duplicate account_no in batch: do not merge multiple pending readings for same account
-        $byAccount = $pending->groupBy('account_no');
-        $duplicateAccountNos = $byAccount->filter(fn ($rows) => $rows->count() > 1)->keys()->all();
 
         foreach ($pending as $off) {
             try {
-                if (in_array($off->account_no, $duplicateAccountNos, true)) {
-                    $off->update(['status' => 'skipped_duplicate']);
-                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Duplicate account_no in batch (multiple pending readings for same account)'];
+                if (!in_array((int) $off->id, $winnerIds, true)) {
+                    $this->markOfflineSkippedDuplicate($off, null);
                     continue;
                 }
 
-                // Already merged: account + same month/year exists in readings (e.g. cashier did web reading from SOA and customer already paid)
-                $year = $off->created_at?->year ?? now()->year;
-                $month = $off->created_at?->month ?? now()->month;
-                $existingReading = Reading::where('account_no', $off->account_no)
-                    ->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month)
-                    ->first();
+                $account = $this->meterService->getAccount($off->account_no);
+                $mergeBillingDate = $this->offlineMergeGuard->resolveMergeBillingDate($off, $account);
+                $existingReading = $this->offlineMergeGuard->findConflictingReading($off, $mergeBillingDate);
                 if ($existingReading) {
-                    $off->update([
-                        'synced_at' => now(),
-                        'merged_into_reading_id' => $existingReading->id,
-                        'status' => 'skipped_duplicate',
-                    ]);
+                    $this->markOfflineSkippedDuplicate($off, $existingReading);
                     $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
                     $count++;
                     continue;
                 }
 
-                DB::beginTransaction();
-
-                $account = $this->meterService->getAccount($off->account_no);
                 if (!$account) {
-                    DB::rollBack();
                     Log::warning('Merge: account not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
                     $off->update(['status' => 'rejected']);
                     $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Account not found'];
                     continue;
                 }
+
+                DB::beginTransaction();
 
                 $propertyTypeId = DB::table('property_types')
                     ->whereRaw("LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?", [
@@ -521,17 +492,6 @@ class OfflineSyncController extends Controller
 
                 $arrearsCorrectedAccounts = config('merge.arrears_corrected_accounts', []);
                 $forceZeroArrears = in_array(trim($off->account_no), $arrearsCorrectedAccounts, true);
-
-                $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-                $zone = Zone::where('zone', $account->zone)->first();
-                if ($zone) {
-                    $readingDateRow = ReadingDate::where('zone_id', $zone->id)
-                        ->where('is_active', 1)
-                        ->first();
-                    if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
-                        $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
-                    }
-                }
 
                 $payload = [
                     'account_no'         => $off->account_no,
@@ -729,6 +689,15 @@ class OfflineSyncController extends Controller
             return null;
         }
         return (int) round((float) $value);
+    }
+
+    private function markOfflineSkippedDuplicate(ReadingOffline $off, ?Reading $existingReading): void
+    {
+        $off->update([
+            'synced_at' => now(),
+            'merged_into_reading_id' => $existingReading?->id,
+            'status' => 'skipped_duplicate',
+        ]);
     }
 
     private function updateAccountPreviousReading(string $accountNo, mixed $presentReading): void

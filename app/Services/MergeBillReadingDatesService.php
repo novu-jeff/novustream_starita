@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\Schema;
 
 class MergeBillReadingDatesService
 {
+    public function __construct(protected OfflineMergeGuard $offlineMergeGuard)
+    {
+    }
+
     /**
      * After offline merge, align bill + reading timestamps with ReadingController::store
      * when an active zone ReadingDate exists.
@@ -110,17 +114,6 @@ class MergeBillReadingDatesService
      */
     public function previewCreateBreakdownDate(ReadingOffline $off, object $account): string
     {
-        $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-        $zone = Zone::where('zone', $account->zone)->first();
-        if ($zone) {
-            $readingDateRow = ReadingDate::where('zone_id', $zone->id)
-                ->where('is_active', 1)
-                ->first();
-            if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
-                $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
-            }
-        }
-
-        return $mergeBillingDate->format('Y-m-d H:i:s');
+        return $this->offlineMergeGuard->resolveMergeBillingDate($off, $account)->format('Y-m-d H:i:s');
     }
 }
