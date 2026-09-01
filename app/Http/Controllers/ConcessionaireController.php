@@ -44,105 +44,399 @@ class ConcessionaireController extends Controller
         $this->meterService = $meterService;
     }
 
-    public function index(Request $request)
-    {
-        $zone     = $request->zone ?? 'all';
-        $entries  = $request->entries ?? 10;
-        $search   = trim($request->search ?? '');
-        $listFilter = $request->list_filter ?? 'all';
+public function index(Request $request)
+{
+    $zone       = $request->zone ?? 'all';
+    $entries    = (int) ($request->entries ?? 10);
+    $search     = trim($request->search ?? '');
+    $listFilter = $request->list_filter ?? 'all';
 
-        $zones = $this->meterService->getZones()->pluck('area', 'zone');
+    $zones = $this->meterService->getZones()->pluck('area', 'zone');
 
-        $query = \App\Models\User::with('accounts')
-        ->leftJoin('concessioner_accounts', 'users.id', '=', 'concessioner_accounts.user_id')
+    /*
+     * ============================================================
+     * BASE QUERY
+     * ============================================================
+     */
+    $query = \App\Models\User::with('accounts')
+        ->leftJoin(
+            'concessioner_accounts',
+            'users.id',
+            '=',
+            'concessioner_accounts.user_id'
+        )
         ->select('users.*')
         ->whereHas('accounts', function ($q) {
             $q->whereNull('application_status')
-                ->orWhere('application_status', 'approved');
+              ->orWhere('application_status', 'approved');
         });
 
+    /*
+     * ============================================================
+     * ZONE FILTER
+     * ============================================================
+     */
+    if ($zone !== 'all') {
+        $query->whereHas('accounts', function ($q) use ($zone) {
+            $q->where('zone', $zone);
+        });
+    }
+
+    /*
+     * ============================================================
+     * LIST FILTER
+     * ============================================================
+     */
+    if ($listFilter === 'seniors') {
+
+        $query->whereHas('accounts', function ($q) {
+            $q->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('discount')
+                    ->whereColumn(
+                        'discount.account_no',
+                        'concessioner_accounts.account_no'
+                    )
+                    ->where('discount.discount_type_id', 1);
+            });
+        });
+
+    } elseif ($listFilter === 'inactive') {
+
+        $query->whereHas('accounts', function ($q) {
+            $q->whereIn('status', ['BL', 'ID', 'IV']);
+        });
+    }
+
+    /*
+     * ============================================================
+     * SEARCH
+     * ============================================================
+     *
+     * Search by:
+     * - Account Number
+     * - Account Name
+     *
+     * If search exists:
+     *
+     * 1. Find the exact starting account/name.
+     * 2. Get that account's sequence_no and id.
+     * 3. Get that account + the next 9 accounts.
+     *
+     * IMPORTANT:
+     *
+     * We cannot simply use:
+     *
+     *     sequence_no >= $startSequence
+     *
+     * because multiple accounts can have the same sequence number.
+     *
+     * Example:
+     *
+     * 5  DIMACALI
+     * 5  NACU        <-- searched account
+     *
+     * Searching NACU must NOT return DIMACALI first.
+     *
+     * Therefore:
+     *
+     *     sequence_no > starting sequence
+     *
+     * OR
+     *
+     *     sequence_no = starting sequence
+     *     AND id >= starting account id
+     *
+     * ============================================================
+     */
+    if ($search !== '') {
+
+        /*
+         * --------------------------------------------------------
+         * Find the starting account
+         * --------------------------------------------------------
+         */
+        $matchedAccountQuery = UserAccounts::query()
+            ->whereNotNull('sequence_no')
+
+            /*
+             * Account number OR account name
+             */
+            ->where(function ($q) use ($search) {
+
+                $q->where(
+                    'account_no',
+                    'like',
+                    "%{$search}%"
+                )
+                ->orWhereHas('user', function ($userQuery) use ($search) {
+                    $userQuery->where(
+                        'name',
+                        'like',
+                        "%{$search}%"
+                    );
+                });
+            })
+
+            /*
+             * Only valid accounts
+             */
+            ->where(function ($q) {
+                $q->whereNull('application_status')
+                  ->orWhere('application_status', 'approved');
+            });
+
+        /*
+         * Zone
+         */
         if ($zone !== 'all') {
-            $query->whereHas('accounts', function ($q) use ($zone) {
-                $q->where('zone', $zone);
+            $matchedAccountQuery->where('zone', $zone);
+        }
+
+        /*
+         * Seniors
+         */
+        if ($listFilter === 'seniors') {
+
+            $matchedAccountQuery->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('discount')
+                    ->whereColumn(
+                        'discount.account_no',
+                        'concessioner_accounts.account_no'
+                    )
+                    ->where('discount.discount_type_id', 1);
             });
         }
 
-        if ($listFilter === 'seniors') {
-            $query->whereHas('accounts', function ($q) {
-                $q->whereExists(function ($sub) {
+        /*
+         * Inactive
+         */
+        elseif ($listFilter === 'inactive') {
+
+            $matchedAccountQuery->whereIn(
+                'status',
+                ['BL', 'ID', 'IV']
+            );
+        }
+
+        /*
+         * Find the first matching account by sequence and ID.
+         */
+        $matchedAccount = $matchedAccountQuery
+            ->orderBy('sequence_no', 'asc')
+            ->orderBy('id', 'asc')
+            ->first();
+
+        /*
+         * --------------------------------------------------------
+         * MATCH FOUND
+         * --------------------------------------------------------
+         */
+        if ($matchedAccount) {
+
+            $startSequence = $matchedAccount->sequence_no;
+            $startId       = $matchedAccount->id;
+
+            /*
+             * ----------------------------------------------------
+             * Get starting account + next 9 accounts
+             * ----------------------------------------------------
+             *
+             * Example:
+             *
+             * Starting account:
+             *
+             * ID 3536
+             * Sequence 5
+             *
+             * Other records:
+             *
+             * ID 3529  Sequence 5
+             * ID 3536  Sequence 5  <-- START
+             * ID 3531  Sequence 6
+             * ID 3539  Sequence 6
+             * ID 3532  Sequence 7
+             *
+             * We use:
+             *
+             * sequence > 5
+             *
+             * OR
+             *
+             * sequence = 5 AND id >= 3536
+             *
+             * This removes records BEFORE the searched account.
+             */
+            $sequenceAccountQuery = UserAccounts::query()
+                ->where(function ($q) use ($startSequence, $startId) {
+
+                    $q->where(
+                        'sequence_no',
+                        '>',
+                        $startSequence
+                    )
+                    ->orWhere(function ($sameSequence) use (
+                        $startSequence,
+                        $startId
+                    ) {
+
+                        $sameSequence
+                            ->where(
+                                'sequence_no',
+                                '=',
+                                $startSequence
+                            )
+                            ->where(
+                                'id',
+                                '>=',
+                                $startId
+                            );
+                    });
+                })
+
+                /*
+                 * Only valid accounts
+                 */
+                ->where(function ($q) {
+                    $q->whereNull('application_status')
+                      ->orWhere('application_status', 'approved');
+                });
+
+            /*
+             * Zone
+             */
+            if ($zone !== 'all') {
+                $sequenceAccountQuery->where('zone', $zone);
+            }
+
+            /*
+             * Seniors
+             */
+            if ($listFilter === 'seniors') {
+
+                $sequenceAccountQuery->whereExists(function ($sub) {
                     $sub->select(DB::raw(1))
                         ->from('discount')
-                        ->whereColumn('discount.account_no', 'concessioner_accounts.account_no')
+                        ->whereColumn(
+                            'discount.account_no',
+                            'concessioner_accounts.account_no'
+                        )
                         ->where('discount.discount_type_id', 1);
                 });
-            });
-        } elseif ($listFilter === 'inactive') {
-            $query->whereHas('accounts', function ($q) {
-                $q->whereIn('status', ['BL', 'ID', 'IV']);
-            });
-        }
-
-        if (!empty($search)) {
-
-            if ($listFilter === 'sequence') {
-
-                $baseUser = \App\Models\User::where('name', 'like', "%{$search}%")
-                    ->whereHas('accounts')
-                    ->with('accounts')
-                    ->first();
-
-                if ($baseUser && $baseUser->accounts->first()) {
-
-                    $startSequence = $baseUser->accounts->first()->sequence_no;
-
-                    $ids = UserAccounts::where('sequence_no', '>=', $startSequence)
-                        ->orderBy('sequence_no')
-                        ->limit(10)
-                        ->pluck('user_id');
-
-                    $query->whereIn('users.id', $ids);
-
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
-
-            } elseif (is_numeric($search)) {
-
-                $query->where('concessioner_accounts.sequence_no', '>=', $search);
-
-            } else {
-
-                $tokens = preg_split('/\s+/', $search);
-
-                $query->where(function ($q) use ($tokens, $search) {
-
-                    foreach ($tokens as $token) {
-                        $q->where('name', 'like', "%{$token}%");
-                    }
-
-                    $q->orWhereHas('accounts', function ($aq) use ($search) {
-                        $aq->where('account_no', 'like', "%{$search}%")
-                        ->orWhere('address', 'like', "%{$search}%");
-                    });
-
-                });
-
             }
+
+            /*
+             * Inactive
+             */
+            elseif ($listFilter === 'inactive') {
+
+                $sequenceAccountQuery->whereIn(
+                    'status',
+                    ['BL', 'ID', 'IV']
+                );
+            }
+
+            /*
+             * ----------------------------------------------------
+             * IMPORTANT:
+             *
+             * The ordering must be:
+             *
+             * sequence_no ASC
+             * id ASC
+             *
+             * This makes the result deterministic when multiple
+             * accounts have the same sequence number.
+             * ----------------------------------------------------
+             */
+            $sequenceAccounts = $sequenceAccountQuery
+                ->orderBy('sequence_no', 'asc')
+                ->orderBy('id', 'asc')
+                ->limit(10)
+                ->get();
+
+            /*
+             * Get the user IDs.
+             */
+            $userIds = $sequenceAccounts
+                ->pluck('user_id')
+                ->unique()
+                ->values();
+
+            /*
+             * Restrict main query to the 10 accounts.
+             */
+            $query->whereIn(
+                'concessioner_accounts.user_id',
+                $userIds
+            );
+
+            /*
+             * Search results always show maximum 10.
+             */
+            $entries = 10;
+
+        } else {
+
+            /*
+             * No matching account.
+             */
+            $query->whereRaw('1 = 0');
+
+            $entries = 10;
         }
+    }
 
-        $data = $query
-            ->orderBy('sequence_no', 'asc')
-            ->paginate($entries)
-            ->withQueryString();
+    /*
+     * ============================================================
+     * FINAL ORDER
+     * ============================================================
+     *
+     * Always display according to:
+     *
+     * sequence_no ASC
+     * id ASC
+     *
+     * The ID is important because several accounts can have the
+     * same sequence number.
+     */
+    $query
+        ->orderBy(
+            'concessioner_accounts.sequence_no',
+            'asc'
+        )
+        ->orderBy(
+            'concessioner_accounts.id',
+            'asc'
+        );
 
-        return view('concessionaires.index', compact(
+    /*
+     * ============================================================
+     * PAGINATION
+     * ============================================================
+     */
+    $data = $query
+        ->paginate($entries)
+        ->withQueryString();
+
+    /*
+     * ============================================================
+     * VIEW
+     * ============================================================
+     */
+    return view(
+        'concessionaires.index',
+        compact(
             'data',
             'entries',
             'zone',
             'zones',
             'listFilter'
-        ))->with('toSearch', $search);
-    }
+        )
+    )->with('toSearch', $search);
+}
+
 
     public function registrants(Request $request)
     {
