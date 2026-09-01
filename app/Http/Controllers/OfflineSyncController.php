@@ -18,6 +18,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\Installment;
 use App\Models\InstallmentSchedule;
 use App\Services\BillSettlementService;
+use App\Services\BillingPeriodService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
 use Carbon\Carbon;
@@ -30,7 +31,8 @@ class OfflineSyncController extends Controller
     public function __construct(
         protected MeterService $meterService,
         protected BillSettlementService $billSettlementService,
-        protected MergeBillReadingDatesService $mergeBillReadingDatesService
+        protected MergeBillReadingDatesService $mergeBillReadingDatesService,
+        protected BillingPeriodService $billingPeriodService
     ) {
     }
 
@@ -212,8 +214,8 @@ class OfflineSyncController extends Controller
             $limit = 0;
         }
 
-        $year = (int) now()->year;
-        $month = (int) now()->month;
+        $year = $this->billingPeriodService->year();
+        $month = $this->billingPeriodService->month();
 
         $zoneIds = $user->zone_assigned ? array_map('trim', explode(',', $user->zone_assigned)) : [];
         $zoneNames = $zoneIds ? Zones::whereIn('id', $zoneIds)->pluck('zone') : collect();
@@ -305,7 +307,7 @@ class OfflineSyncController extends Controller
             'zone_names_count' => $zoneNames->count(),
             'include' => $includeParam ?: 'all',
             'readings_count' => count($readingsList),
-            'billing_period' => sprintf('%04d-%02d', $year, $month),
+            'billing_period' => $this->billingPeriodService->yearMonth(),
         ]);
 
         return response()->json($data);
@@ -378,7 +380,7 @@ class OfflineSyncController extends Controller
             return [];
         }
 
-        $periodStart = sprintf('%04d-%02d-01', $year, $month);
+        $periodStart = $this->billingPeriodService->periodStart()->format('Y-m-d');
         $rows = Reading::query()
             ->join('bill', 'bill.reading_id', '=', 'readings.id')
             ->whereIn('readings.account_no', $accountNos)
@@ -443,14 +445,15 @@ class OfflineSyncController extends Controller
         $errors = [];
         $accountsPaid = [];
 
-        // Pre-pass: mark duplicate offline readings where account+month already exists in readings (remove from queue)
+        // Pre-pass: skip only when account already has a reading in the merge billing period
+        // (zone ReadingDate bill_period_to), not the calendar month the field reading was captured.
         foreach ($pending as $off) {
-            $year = $off->created_at?->year ?? now()->year;
-            $month = $off->created_at?->month ?? now()->month;
-            $existingReading = Reading::where('account_no', $off->account_no)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->first();
+            $accountForPeriod = $this->meterService->getAccount($off->account_no);
+            $mergeBillingDate = $this->mergeBillReadingDatesService->mergeBillingDate($off, $accountForPeriod);
+            $existingReading = $this->mergeBillReadingDatesService->existingReadingForMergePeriod(
+                $off->account_no,
+                $mergeBillingDate
+            );
             if ($existingReading) {
                 $off->update([
                     'synced_at' => now(),
@@ -458,6 +461,12 @@ class OfflineSyncController extends Controller
                     'status' => 'skipped_duplicate',
                 ]);
                 $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
+                Log::channel('single')->info('Merge: skipped duplicate (same billing period)', [
+                    'reference_no' => $off->reference_no,
+                    'account_no' => $off->account_no,
+                    'period' => $mergeBillingDate->format('Y-m'),
+                    'existing_reading_id' => $existingReading->id,
+                ]);
                 $count++;
             }
         }
@@ -476,24 +485,6 @@ class OfflineSyncController extends Controller
                     continue;
                 }
 
-                // Already merged: account + same month/year exists in readings (e.g. cashier did web reading from SOA and customer already paid)
-                $year = $off->created_at?->year ?? now()->year;
-                $month = $off->created_at?->month ?? now()->month;
-                $existingReading = Reading::where('account_no', $off->account_no)
-                    ->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month)
-                    ->first();
-                if ($existingReading) {
-                    $off->update([
-                        'synced_at' => now(),
-                        'merged_into_reading_id' => $existingReading->id,
-                        'status' => 'skipped_duplicate',
-                    ]);
-                    $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
-                    $count++;
-                    continue;
-                }
-
                 DB::beginTransaction();
 
                 $account = $this->meterService->getAccount($off->account_no);
@@ -502,6 +493,30 @@ class OfflineSyncController extends Controller
                     Log::warning('Merge: account not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
                     $off->update(['status' => 'rejected']);
                     $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Account not found'];
+                    continue;
+                }
+
+                // Already merged: same account + same billing period (e.g. cashier already billed this cycle)
+                $mergeBillingDate = $this->mergeBillReadingDatesService->mergeBillingDate($off, $account);
+                $existingReading = $this->mergeBillReadingDatesService->existingReadingForMergePeriod(
+                    $off->account_no,
+                    $mergeBillingDate
+                );
+                if ($existingReading) {
+                    DB::rollBack();
+                    $off->update([
+                        'synced_at' => now(),
+                        'merged_into_reading_id' => $existingReading->id,
+                        'status' => 'skipped_duplicate',
+                    ]);
+                    $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
+                    Log::channel('single')->info('Merge: skipped duplicate (same billing period)', [
+                        'reference_no' => $off->reference_no,
+                        'account_no' => $off->account_no,
+                        'period' => $mergeBillingDate->format('Y-m'),
+                        'existing_reading_id' => $existingReading->id,
+                    ]);
+                    $count++;
                     continue;
                 }
 
@@ -521,17 +536,6 @@ class OfflineSyncController extends Controller
 
                 $arrearsCorrectedAccounts = config('merge.arrears_corrected_accounts', []);
                 $forceZeroArrears = in_array(trim($off->account_no), $arrearsCorrectedAccounts, true);
-
-                $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-                $zone = Zone::where('zone', $account->zone)->first();
-                if ($zone) {
-                    $readingDateRow = ReadingDate::where('zone_id', $zone->id)
-                        ->where('is_active', 1)
-                        ->first();
-                    if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
-                        $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
-                    }
-                }
 
                 $payload = [
                     'account_no'         => $off->account_no,

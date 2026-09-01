@@ -106,12 +106,17 @@ class MergeBillReadingDatesService
     }
 
     /**
-     * Preview the `date` passed to MeterService::create_breakdown (matches OfflineSyncController merge).
+     * Billing date used for create_breakdown and duplicate detection.
+     * Uses the zone's active ReadingDate bill_period_to when present, otherwise the offline row timestamp.
      */
-    public function previewCreateBreakdownDate(ReadingOffline $off, object $account): string
+    public function mergeBillingDate(ReadingOffline $off, ?object $account): Carbon
     {
         $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-        $zone = Zone::where('zone', $account->zone)->first();
+        if (!$account) {
+            return $mergeBillingDate;
+        }
+
+        $zone = Zone::where('zone', $account->zone ?? '')->first();
         if ($zone) {
             $readingDateRow = ReadingDate::where('zone_id', $zone->id)
                 ->where('is_active', 1)
@@ -121,6 +126,27 @@ class MergeBillReadingDatesService
             }
         }
 
-        return $mergeBillingDate->format('Y-m-d H:i:s');
+        return $mergeBillingDate;
+    }
+
+    /**
+     * Existing reading for the same account and merge billing month (after zone ReadingDate is applied).
+     */
+    public function existingReadingForMergePeriod(string $accountNo, Carbon $mergeBillingDate): ?Reading
+    {
+        return Reading::where('account_no', $accountNo)
+            ->whereHas('bill', function ($q) use ($mergeBillingDate) {
+                $q->whereYear('bill_period_to', $mergeBillingDate->year)
+                    ->whereMonth('bill_period_to', $mergeBillingDate->month);
+            })
+            ->first();
+    }
+
+    /**
+     * Preview the `date` passed to MeterService::create_breakdown (matches OfflineSyncController merge).
+     */
+    public function previewCreateBreakdownDate(ReadingOffline $off, object $account): string
+    {
+        return $this->mergeBillingDate($off, $account)->format('Y-m-d H:i:s');
     }
 }

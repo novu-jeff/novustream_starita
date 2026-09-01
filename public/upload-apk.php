@@ -7,7 +7,7 @@
 header('Content-Type: application/json');
 
 $uploadDir = __DIR__ . '/apk';
-$versionFile = __DIR__ . '/app-version';
+$versionFile = __DIR__ . '/app-version.json';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

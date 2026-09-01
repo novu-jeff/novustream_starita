@@ -44,6 +44,20 @@ use App\Http\Controllers\Admin\BillingAdjustmentController;
 |
 */
 
+Route::get('/app-version', function () {
+    $path = public_path('app-version.json');
+    if (!is_readable($path)) {
+        $path = public_path('app-version');
+    }
+    if (is_readable($path)) {
+        $data = json_decode(file_get_contents($path), true);
+        if (is_array($data)) {
+            return response()->json($data)->header('Cache-Control', 'no-store');
+        }
+    }
+    return response()->json(['error' => 'No version info'], 404);
+});
+
 Route::get('/', function () {
     return redirect()->to('/login');
 });
@@ -136,6 +150,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::resource('reading-dates', ReadingDateController::class)
     ->except(['create', 'show']);
+
+    Route::post('reading-dates/simulate-month', [ReadingDateController::class, 'simulateMonth'])
+        ->name('reading-dates.simulate-month');
+    Route::post('reading-dates/restore-calendar-month', [ReadingDateController::class, 'restoreCalendarMonth'])
+        ->name('reading-dates.restore-calendar-month');
 
     Route::get('/admin/installment/details/{id}',
     [InstallmentController::class,'details'])

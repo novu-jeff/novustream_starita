@@ -399,9 +399,10 @@ class ReadingController extends Controller
             ->get();
 
         $readingsPerZone = DB::table('readings')
+            ->join('bill', 'bill.reading_id', '=', 'readings.id')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-            ->whereMonth('readings.created_at', $month)
-            ->whereYear('readings.created_at', $year)
+            ->whereMonth('bill.bill_period_to', $month)
+            ->whereYear('bill.bill_period_to', $year)
             ->when(!empty($assignedZones), fn($q) =>
                 $q->whereIn('concessioner_accounts.zone', $assignedZones)
             )
@@ -444,8 +445,10 @@ class ReadingController extends Controller
         $accountNos = $accountsQuery->pluck('account_no');
 
         $query = Reading::with(['bill', 'concessionaire.user'])
-            ->whereMonth('created_at', $month)
-            ->whereYear('created_at', $year);
+            ->whereHas('bill', function ($q) use ($month, $year) {
+                $q->whereMonth('bill_period_to', $month)
+                    ->whereYear('bill_period_to', $year);
+            });
 
         if ($accountNos->isNotEmpty()) {
             $query->whereIn('account_no', $accountNos);
@@ -535,8 +538,6 @@ class ReadingController extends Controller
     }
 
     try {
-        // Use reading month from request when provided (allows new readings for current/future months).
-        // Otherwise fall back to current date. Required when IS_TEST_READING is true.
         if (!empty($payload['reading_month'])) {
             $parsed = null;
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $payload['reading_month'])) {
@@ -544,13 +545,9 @@ class ReadingController extends Controller
             } elseif (preg_match('/^\d{4}-\d{2}$/', $payload['reading_month'])) {
                 $parsed = Carbon::createFromFormat('Y-m', $payload['reading_month'])->startOfMonth();
             }
-            if ($parsed) {
-                $date = $parsed;
-            } else {
-                $date = Carbon::now();
-            }
+            $date = $parsed ?: app(\App\Services\BillingPeriodService::class)->activePeriod();
         } else {
-            $date = Carbon::now();
+            $date = app(\App\Services\BillingPeriodService::class)->activePeriod();
         }
     } catch (\Exception $e) {
         return response()->json([
@@ -559,18 +556,36 @@ class ReadingController extends Controller
         ], 400);
     }
 
-    $month = $date->month;
-    $year = $date->year;
     $account_no = $payload['account_no'];
     $isReRead = $payload['isReRead'] === 'true' ? true : false;
 
-    if (!$isReRead) {
-        $exists = Reading::whereMonth('created_at', $month)
-            ->whereYear('created_at', $year)
-            ->where('account_no', $account_no)
-            ->exists();
+    $account = $this->meterService->getAccount($account_no);
+    if (!$account) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Account not found.',
+        ], 404);
+    }
 
-        if ($exists) {
+    $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+    $readingDate = null;
+    if ($zone) {
+        $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+            ->where('is_active', 1)
+            ->first();
+    }
+
+    if ($readingDate && empty($payload['reading_month'])) {
+        $date = Carbon::parse($readingDate->bill_period_to);
+    }
+
+    $month = $date->month;
+    $year = $date->year;
+
+    if (!$isReRead) {
+        $mergeDates = app(\App\Services\MergeBillReadingDatesService::class);
+        $existing = $mergeDates->existingReadingForMergePeriod($account_no, $date);
+        if ($existing) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Reading already exists for {$date->format('F Y')}."
@@ -582,17 +597,6 @@ class ReadingController extends Controller
     DB::beginTransaction();
 
     try {
-        $account = $this->meterService->getAccount($account_no);
-
-        $zone = \App\Models\Zone::where('zone', $account->zone)->first();
-
-        $readingDate = null;
-
-        if ($zone) {
-            $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
-                ->where('is_active', 1)
-                ->first();
-        }
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];

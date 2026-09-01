@@ -348,7 +348,10 @@ class OfflineDataController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $rows = ReadingDate::with('zone')->orderBy('zone_id')->get();
+        $rows = ReadingDate::with('zone')
+            ->where('is_active', 1)
+            ->orderBy('zone_id')
+            ->get();
         $readingDates = $rows->map(function ($rd) {
             $due = $rd->due_date;
             $penaltyDate = null;

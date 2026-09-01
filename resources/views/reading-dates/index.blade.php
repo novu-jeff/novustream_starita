@@ -12,6 +12,42 @@
         </div>
     @endif
 
+    @if(app()->environment('staging'))
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-header bg-warning bg-opacity-10">
+            Simulate billing month <span class="badge bg-warning text-dark ms-1">Staging only</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Active billing period on server: <strong>{{ $activeBillingMonth }}</strong>.
+                Shift all active zone reading dates so <code>bill_period_to</code> lands in the target month (same offsets as the demo app).
+                Use <strong>Restore calendar month</strong> when the demo is done.
+            </p>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <form method="POST" action="{{ route('reading-dates.simulate-month') }}" class="d-flex gap-2 align-items-end">
+                        @csrf
+                        <div class="flex-grow-1">
+                            <label for="target_month" class="form-label">Target month (yyyy-MM)</label>
+                            <input type="month" name="target_month" id="target_month" class="form-control" required
+                                   value="{{ old('target_month', $activeBillingMonth) }}">
+                        </div>
+                        <button type="submit" class="btn btn-warning">Simulate</button>
+                    </form>
+                </div>
+                @if($hasSnapshot)
+                <div class="col-md-4">
+                    <form method="POST" action="{{ route('reading-dates.restore-calendar-month') }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-secondary">Restore calendar month</button>
+                    </form>
+                </div>
+                @endif
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="card shadow-sm mb-4">
         <div class="card-header">Set Reading Date</div>
         <div class="card-body">
@@ -102,6 +138,7 @@
                         <th>Period From</th>
                         <th>Period To</th>
                         <th>Due Date</th>
+                        <th>Active</th>
                         <th width="180" class="text-center">Action</th>
                     </tr>
                 </thead>
@@ -112,6 +149,13 @@
                             <td>{{ \Carbon\Carbon::parse($rd->bill_period_from)->format('F j, Y') }}</td>
                             <td>{{ \Carbon\Carbon::parse($rd->bill_period_to)->format('F j, Y') }}</td>
                             <td>{{ \Carbon\Carbon::parse($rd->due_date)->format('F j, Y') }}</td>
+                            <td>
+                                @if($rd->is_active)
+                                    <span class="badge bg-success">Active</span>
+                                @else
+                                    <span class="badge bg-secondary">Inactive</span>
+                                @endif
+                            </td>
                             <td class="text-center">
                                 <button class="btn btn-sm btn-outline-primary me-1"
                                         data-bs-toggle="modal"

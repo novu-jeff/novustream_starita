@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Http\Controllers\OfflineSyncController;
-use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
@@ -105,20 +104,17 @@ class MergeReadingsCommand extends Command
             }
         }
 
-        // 2) Already merged: account_no + same month/year already exists in readings
+        // 2) Already merged: account_no + same merge billing period already exists in readings
         $alreadyInReadings = [];
         foreach ($pending as $off) {
-            $year = $off->created_at?->year ?? now()->year;
-            $month = $off->created_at?->month ?? now()->month;
-            $exists = Reading::where('account_no', $off->account_no)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->exists();
+            $account = $meterService->getAccount($off->account_no);
+            $mergeBillingDate = $datesService->mergeBillingDate($off, $account);
+            $exists = $datesService->existingReadingForMergePeriod($off->account_no, $mergeBillingDate);
             if ($exists) {
                 $alreadyInReadings[] = [
                     'reference_no' => $off->reference_no,
                     'account_no'   => $off->account_no,
-                    'period'       => "{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT),
+                    'period'       => $mergeBillingDate->format('Y-m'),
                 ];
             }
         }

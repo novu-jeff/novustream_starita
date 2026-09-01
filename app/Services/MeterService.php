@@ -39,9 +39,11 @@ class MeterService {
 
         $accounts = UserAccounts::with('user')->get();
 
-        $readings = Reading::with('concessionaire.user')
-            ->whereYear('created_at', $date->year)
-            ->whereMonth('created_at', $date->month)
+        $readings = Reading::with(['concessionaire.user', 'bill'])
+            ->whereHas('bill', function ($q) use ($date) {
+                $q->whereYear('bill_period_to', $date->year)
+                    ->whereMonth('bill_period_to', $date->month);
+            })
             ->get();
 
         $readData = $readings->map(function ($reading) {
@@ -171,11 +173,23 @@ class MeterService {
                     break;
 
                 case 'read':
-                    $query->whereHas('readings');
+                    $period = app(BillingPeriodService::class);
+                    $query->whereHas('readings', function ($q) use ($period) {
+                        $q->whereHas('bill', function ($bq) use ($period) {
+                            $bq->whereYear('bill_period_to', $period->year())
+                                ->whereMonth('bill_period_to', $period->month());
+                        });
+                    });
                     break;
 
                 case 'unread':
-                    $query->whereDoesntHave('readings');
+                    $period = app(BillingPeriodService::class);
+                    $query->whereDoesntHave('readings', function ($q) use ($period) {
+                        $q->whereHas('bill', function ($bq) use ($period) {
+                            $bq->whereYear('bill_period_to', $period->year())
+                                ->whereMonth('bill_period_to', $period->month());
+                        });
+                    });
                     break;
             }
         }
@@ -1089,7 +1103,7 @@ class MeterService {
 
     public function getLatestReadingMonth()
     {
-        return now()->format('Y-m');
+        return app(BillingPeriodService::class)->yearMonth();
     }
 
     /**
