@@ -137,12 +137,12 @@
                     <div class="row gx-2">
                         <div class="col-md-6 mb-2">
                             <label>Bill From</label>
-                            <input type="text" name="bill_period_from" id="f_bill_from" class="form-control" readonly>
+                            <input type="text" name="bill_period_from" id="f_bill_from" class="form-control">
                         </div>
 
                         <div class="col-md-6 mb-2">
                             <label>Bill To</label>
-                            <input type="text" name="bill_period_to" id="f_bill_to" class="form-control" readonly>
+                            <input type="text" name="bill_period_to" id="f_bill_to" class="form-control">
                         </div>
                     </div>
                 </div>
