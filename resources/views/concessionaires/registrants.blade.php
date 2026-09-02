@@ -401,7 +401,7 @@
                                 </div>
                             </div>
                             <div class="w-100 mt-4">
-                                {{ $data->links() }}
+                                {{ $data->appends(request()->except(['page', 'links_page']))->links() }}
                             </div>
                         </div>
                         <div
@@ -535,14 +535,10 @@
                                 </div>
                             </div>
                             <div class="w-100 mt-4">
-                                {{ $accountLinkRequests->links() }}
+                                {{ $accountLinkRequests->appends(request()->except(['page', 'links_page']))->links() }}
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="w-100 mt-4">
-                    {{ $data->links() }}
                 </div>
             </div>
         </div>

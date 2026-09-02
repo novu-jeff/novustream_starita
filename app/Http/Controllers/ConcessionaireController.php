@@ -271,6 +271,7 @@ class ConcessionaireController extends Controller
             ->orderByDesc('created_at')
             ->paginate($entries)
             ->withQueryString();
+        $data->appends($request->except(['page', 'links_page']));
 
         $accountLinkRequests = ConcessionerAccountLink::with(['account.user', 'user'])
             ->where('status', 'pending')
@@ -295,6 +296,7 @@ class ConcessionaireController extends Controller
             ->latest()
             ->paginate(10, ['*'], 'links_page')
             ->withQueryString();
+        $accountLinkRequests->appends($request->except(['page', 'links_page']));
         $pendingAccountLinkCount = ConcessionerAccountLink::where('status', 'pending')->count();
 
         $linkSearch = trim($request->link_search ?? '');
