@@ -168,19 +168,19 @@
 
                         <div class="col-6">
                             <label class="form-label">Penalty</label>
-                            <input type="number" step="0.01" name="penalty" id="f_penalty" class="form-control" readonly>
+                            <input type="number" step="0.01" name="penalty" id="f_penalty" class="form-control">
                         </div>
                     </div>
 
                     <div class="row gx-2">
                         <div class="col-6 mb-2">
                             <label class="form-label">Amount</label>
-                            <input type="number" step="0.01" name="amount" id="f_amount" class="form-control" readonly>
+                            <input type="number" step="0.01" name="amount" id="f_amount" class="form-control">
                         </div>
 
                         <div class="col-6 mb-2">
                             <label class="form-label">Amount After Due</label>
-                            <input type="number" step="0.01" name="amount_after_due" id="f_after_due" class="form-control" readonly>
+                            <input type="number" step="0.01" name="amount_after_due" id="f_after_due" class="form-control">
                         </div>
                     </div>
                 </div>
@@ -347,68 +347,130 @@
 </div>
 
 <script>
+const round2 = (value) =>
+    Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 
-const round2 = (value) => Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
-const formatMoney = (value) => round2(value).toFixed(2);
+const formatMoney = (value) =>
+    round2(value).toFixed(2);
+
+let manualPenalty = false;
+let manualAmount = false;
+let manualAfterDue = false;
 
 const refreshBillingCalculations = () => {
     const prev = parseFloat(document.getElementById('f_prev').value) || 0;
     const basicCharge = parseFloat(document.getElementById('f_basic_charge').value) || 0;
-    const total = round2(prev + basicCharge);
-    const penalty = round2(Math.max(0, basicCharge) * 0.10);
-    const computedAmount = round2(total + penalty);
 
+    const total = round2(prev + basicCharge);
+
+    // Always calculate Total
     document.getElementById('f_total').value = formatMoney(total);
-    document.getElementById('f_penalty').value = formatMoney(penalty);
-    document.getElementById('f_amount').value = formatMoney(computedAmount);
-    document.getElementById('f_after_due').value = formatMoney(computedAmount);
+
+    // Calculate Penalty only if admin has not manually changed it
+    if (!manualPenalty) {
+        const penalty = round2(Math.max(0, basicCharge) * 0.10);
+        document.getElementById('f_penalty').value = formatMoney(penalty);
+    }
+
+    const penalty =
+        parseFloat(document.getElementById('f_penalty').value) || 0;
+
+    // Calculate Amount only if not manually changed
+    if (!manualAmount) {
+        const amount = round2(total + penalty);
+        document.getElementById('f_amount').value = formatMoney(amount);
+    }
+
+    // Calculate Amount After Due only if not manually changed
+    if (!manualAfterDue) {
+        const amount =
+            parseFloat(document.getElementById('f_amount').value) || 0;
+
+        document.getElementById('f_after_due').value = formatMoney(amount);
+    }
 };
 
+
+// Recalculate when Previous Unpaid or Basic Charge changes
 document.addEventListener('input', function(e) {
+
     if (['f_prev', 'f_basic_charge'].includes(e.target.id)) {
         refreshBillingCalculations();
     }
-});
 
-// Bill adjustment history collapse/expand
-document.addEventListener('click', function(e) {
-    const header = e.target.closest('.adjustment-header');
-    if (header) {
-        const adjustmentId = header.dataset.adjustmentId;
-        const details = document.querySelectorAll(`.adjustment-detail[data-adjustment-id="${adjustmentId}"]`);
-        const toggleIcon = header.querySelector('.toggle-icon');
-        const isCollapsed = details[0]?.style.display === 'none';
+    // Admin manually changed penalty
+    if (e.target.id === 'f_penalty') {
+        manualPenalty = true;
 
-        details.forEach(row => {
-            row.style.display = isCollapsed ? 'table-row' : 'none';
-        });
+        // Recalculate amount if amount is still automatic
+        if (!manualAmount) {
+            const prev = parseFloat(document.getElementById('f_prev').value) || 0;
+            const basicCharge = parseFloat(document.getElementById('f_basic_charge').value) || 0;
+            const penalty = parseFloat(e.target.value) || 0;
 
-        toggleIcon.textContent = isCollapsed ? '▼' : '▶';
+            const total = round2(prev + basicCharge);
+            const amount = round2(total + penalty);
+
+            document.getElementById('f_total').value = formatMoney(total);
+            document.getElementById('f_amount').value = formatMoney(amount);
+
+            if (!manualAfterDue) {
+                document.getElementById('f_after_due').value = formatMoney(amount);
+            }
+        }
+    }
+
+    // Admin manually changed amount
+    if (e.target.id === 'f_amount') {
+        manualAmount = true;
+
+        // Amount After Due follows Amount unless manually changed
+        if (!manualAfterDue) {
+            document.getElementById('f_after_due').value =
+                formatMoney(parseFloat(e.target.value) || 0);
+        }
+    }
+
+    // Admin manually changed Amount After Due
+    if (e.target.id === 'f_after_due') {
+        manualAfterDue = true;
     }
 });
 
+
+// Open edit modal
 document.addEventListener('click', function(e) {
 
     if (e.target.classList.contains('open-bill-modal')) {
 
         let b = e.target.dataset;
 
+        // Reset manual override flags for every bill
+        manualPenalty = false;
+        manualAmount = false;
+        manualAfterDue = false;
+
         document.getElementById('f_bill_from').value = b.billFrom || '';
         document.getElementById('f_bill_to').value = b.billTo || '';
         document.getElementById('f_prev').value = b.prev || 0;
         document.getElementById('f_basic_charge').value = b.basicCharge || 0;
+
         document.getElementById('f_total').value = b.total || 0;
         document.getElementById('f_discount').value = b.discount || 0;
+
+        // Load existing database values
         document.getElementById('f_penalty').value = b.penalty || 0;
         document.getElementById('f_amount').value = b.amount || 0;
         document.getElementById('f_after_due').value = b.afterDue || 0;
-        document.getElementById('f_paid').value = b.amountPaid || null;
-        document.getElementById('f_change').value = b.change || null;
-        document.getElementById('f_partial').value = b.partial || null;
+
+        document.getElementById('f_paid').value = b.amountPaid || '';
+        document.getElementById('f_change').value = b.change || '';
+        document.getElementById('f_partial').value = b.partial || '';
         document.getElementById('f_advances').value = b.advances || 0;
         document.getElementById('f_date_paid').value = b.datePaid || '';
+
         document.getElementById('f_due').value =
-        b.due ? new Date(b.due).toISOString().split('T')[0] : '';
+            b.due ? new Date(b.due).toISOString().split('T')[0] : '';
 
         document.getElementById('f_paid_status').value = b.isPaid;
         document.getElementById('f_is_partial').value = b.isPartial;
@@ -416,12 +478,11 @@ document.addEventListener('click', function(e) {
 
         document.getElementById('billForm').action = b.action;
 
-        refreshBillingCalculations();
-        new bootstrap.Modal(document.getElementById('billModal')).show();
+        new bootstrap.Modal(
+            document.getElementById('billModal')
+        ).show();
     }
-
 });
-
 </script>
 
 @endsection
