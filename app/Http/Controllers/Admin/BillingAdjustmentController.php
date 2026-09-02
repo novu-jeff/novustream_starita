@@ -23,7 +23,6 @@ class BillingAdjustmentController extends Controller
                 'users.name as concessioner_name'
             );
 
-        // 🔍 SEARCH
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('readings.account_no', 'like', '%' . $request->search . '%')
@@ -32,11 +31,9 @@ class BillingAdjustmentController extends Controller
             });
         }
 
-        // 📅 MONTH FILTER (based on bill_period_to)
         if ($request->month) {
             $month = $request->month;
         } else {
-            // get latest billing period
             $latest = DB::table('bill')->max('bill_period_to');
             $month = $latest ? date('Y-m', strtotime($latest)) : now()->format('Y-m');
         }
@@ -88,12 +85,14 @@ class BillingAdjustmentController extends Controller
 
         try {
             $bill = Bill::findOrFail($id);
-
             $oldData = $bill->toArray();
             $oldData['basic_charge'] = round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2);
             $previousUnpaid = round((float) $request->previous_unpaid, 2);
             $basicCharge = round((float) $request->basic_charge, 2);
             $total = round($previousUnpaid + $basicCharge, 2);
+            $discount = $request->filled('discount')
+                ? round((float) $request->discount, 2)
+                : 0;
             $penalty = round((float) $request->penalty, 2);
             $amount = round((float) $request->amount, 2);
             $amountAfterDue = round((float) $request->amount_after_due, 2);
@@ -122,7 +121,7 @@ class BillingAdjustmentController extends Controller
 
             $newData['isPaid'] = $request->has('isPaid') ? (int) $request->boolean('isPaid') : 0;
             $newData['isChangeForAdvancePayment'] = $request->has('isChangeForAdvancePayment') ? (int) $request->boolean('isChangeForAdvancePayment') : 0;
-
+            $newData['discount'] = $discount;
             $newData['total'] = $total;
             $newData['penalty'] = $penalty;
             $newData['amount'] = $amount;
