@@ -97,6 +97,7 @@ class ReadingAdjustmentController extends Controller
         $request->validate([
             'present_reading' => 'required|numeric|min:0',
             'new_previous_reading' => 'nullable|numeric|min:0',
+            'reading_datetime' => 'required|date',
             'reason' => 'required|string'
         ]);
 
@@ -135,6 +136,8 @@ class ReadingAdjustmentController extends Controller
                 }
             }
 
+            $readingDateTime = Carbon::parse($request->reading_datetime);
+
             ReadingAdjustment::create([
                 'reading_id' => $reading->id,
                 'old_present_reading' => $oldPresent,
@@ -149,6 +152,8 @@ class ReadingAdjustmentController extends Controller
                 'previous_reading' => $newPrevious,
                 'present_reading' => $newPresent,
                 'consumption' => $newConsumption,
+                'created_at' => $readingDateTime,
+                'updated_at' => $readingDateTime,
             ]);
 
             DB::commit();

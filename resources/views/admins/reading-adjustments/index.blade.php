@@ -77,6 +77,7 @@
                                     data-account="{{ $reading->account_no }}"
                                     data-previous="{{ $reading->previous_reading }}"
                                     data-present="{{ $reading->present_reading }}"
+                                    data-created-at="{{ $reading->created_at ? $reading->created_at->format('Y-m-d') : '' }}"
                                 >
                                     Adjust
                                 </button>
@@ -202,6 +203,17 @@
                         <i class="bi bi-exclamation-triangle me-2"></i>
                         Reset Both Readings to 0
                     </button>
+                </div>
+
+                <div class="mb-2">
+                    <label>Date & Time</label>
+                    <input
+                        type="date"
+                        name="reading_datetime"
+                        id="modal_reading_datetime"
+                        class="form-control"
+                        required
+                    >
                 </div>
 
                 <div class="mb-2">
@@ -362,6 +374,7 @@ document.addEventListener('click', function(e) {
         document.getElementById('modal_consumption').value = '';
         document.getElementById('check_edit_previous').checked = false;
         document.getElementById('edit_previous_section').style.display = 'none';
+        document.getElementById('modal_reading_datetime').value = btn.dataset.createdAt || '';
 
         document.getElementById('adjustForm').action = btn.dataset.action;
 

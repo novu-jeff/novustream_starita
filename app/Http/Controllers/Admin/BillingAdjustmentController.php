@@ -91,13 +91,12 @@ class BillingAdjustmentController extends Controller
 
             $oldData = $bill->toArray();
             $oldData['basic_charge'] = round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2);
-
             $previousUnpaid = round((float) $request->previous_unpaid, 2);
             $basicCharge = round((float) $request->basic_charge, 2);
             $total = round($previousUnpaid + $basicCharge, 2);
-            $penalty = round(max(0, $basicCharge) * 0.10, 2);
-            $amount = round($total + $penalty, 2);
-            $amountAfterDue = $amount;
+            $penalty = round((float) $request->penalty, 2);
+            $amount = round((float) $request->amount, 2);
+            $amountAfterDue = round((float) $request->amount_after_due, 2);
 
             $newData = $request->only([
                 'bill_period_from',
