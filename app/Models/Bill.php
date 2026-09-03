@@ -54,6 +54,7 @@ class Bill extends Model
         'hasDisconnected' => 'boolean',
         'isChangeForAdvancePayment' => 'boolean',
         'isHighConsumption' => 'boolean',
+        'isPartial' => 'boolean',
     ];
 
     public function reading() {
@@ -88,6 +89,49 @@ class Bill extends Model
     public function adjustments()
     {
         return $this->hasMany(BillAdjustment::class)->latest();
+    }
+
+    public function creditedPartialAmount(): float
+    {
+        return self::creditedPartialFromValues(
+            $this->partial_payment,
+            $this->isPartial,
+            $this->amount_paid
+        );
+    }
+
+    /**
+     * Remaining amount due after a partial payment.
+     * `amount` is the original billed total; cashiers do not reduce it when recording a partial.
+     */
+    public function netUnpaidAmount(): float
+    {
+        return self::netUnpaidFromValues(
+            $this->isPaid,
+            $this->amount,
+            $this->partial_payment,
+            $this->isPartial,
+            $this->amount_paid
+        );
+    }
+
+    public static function creditedPartialFromValues(mixed $partialPayment, mixed $isPartial, mixed $amountPaid): float
+    {
+        $partial = (float) ($partialPayment ?? 0);
+        if ($partial <= 0 && filter_var($isPartial, FILTER_VALIDATE_BOOLEAN)) {
+            $partial = (float) ($amountPaid ?? 0);
+        }
+
+        return max($partial, 0);
+    }
+
+    public static function netUnpaidFromValues(mixed $isPaid, mixed $amount, mixed $partialPayment, mixed $isPartial, mixed $amountPaid): float
+    {
+        if (filter_var($isPaid, FILTER_VALIDATE_BOOLEAN)) {
+            return 0.0;
+        }
+
+        return max((float) ($amount ?? 0) - self::creditedPartialFromValues($partialPayment, $isPartial, $amountPaid), 0);
     }
 
 }

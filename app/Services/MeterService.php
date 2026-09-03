@@ -734,7 +734,12 @@ class MeterService {
 
             if ($latestUnpaidBill) {
                 $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
-                $partialPaymentTotal = (float) ($latestUnpaidBill->partial_payment ?? 0);
+                $partialPaymentTotal = $latestUnpaidBill->creditedPartialAmount();
+                if ($latestUnpaidBill->reading_id) {
+                    $fromTable = (float) PartialPayment::where('reading_id', $latestUnpaidBill->reading_id)
+                        ->sum('partial_payment');
+                    $partialPaymentTotal = max($partialPaymentTotal, $fromTable);
+                }
             }
         }
 

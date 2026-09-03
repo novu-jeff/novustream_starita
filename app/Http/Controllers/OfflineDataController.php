@@ -111,7 +111,7 @@ class OfflineDataController extends Controller
 
             $bill = $latest?->bill;
             $unpaidAmount = ($bill && !$bill->isPaid)
-                ? (float) ($bill->amount ?? 0)
+                ? $bill->netUnpaidAmount()
                 : 0.0;
 
             $previousReadings[$acc->account_no] = [
@@ -250,6 +250,10 @@ class OfflineDataController extends Controller
             'amount'               => $cb['amount'] ?? 0,
             'amount_after_due'     => $cb['amount_after_due'] ?? 0,
             'isPaid'               => $cb['isPaid'] ?? false,
+            'isPartial'            => (bool) ($cb['isPartial'] ?? ($bill->isPartial ?? false)),
+            'partial_payment'      => (float) ($cb['partial_payment'] ?? ($bill->partial_payment ?? 0)),
+            'amount_paid'          => (float) ($cb['amount_paid'] ?? ($bill->amount_paid ?? 0)),
+            'previous_partial_payment' => 0,
             'isInstallment'        => (bool) ($cb['isInstallment'] ?? ($bill->isInstallment ?? false)),
             'date_paid'            => $cb['date_paid'] ?? null,
             'payor_name'           => $cb['payor_name'] ?? $client['name'] ?? '',
@@ -272,7 +276,7 @@ class OfflineDataController extends Controller
         ];
     }
 
-    public static function minimalSoaFromModels(string $refNo, $reading, $bill): array
+    public static function minimalSoaFromModels(string $refNo, $reading, $bill, array $extras = []): array
     {
         $breakdown = [];
         if ($bill->relationLoaded('breakdown') && $bill->breakdown) {
@@ -297,6 +301,10 @@ class OfflineDataController extends Controller
             'amount'               => $bill->amount ?? 0,
             'amount_after_due'     => $bill->amount_after_due ?? $bill->amount ?? 0,
             'isPaid'               => (bool) ($bill->isPaid ?? false),
+            'isPartial'            => (bool) ($bill->isPartial ?? false),
+            'partial_payment'      => (float) ($bill->partial_payment ?? 0),
+            'amount_paid'          => (float) ($bill->amount_paid ?? 0),
+            'previous_partial_payment' => (float) ($extras['previous_partial_payment'] ?? 0),
             'isInstallment'        => (bool) ($bill->isInstallment ?? false),
             'date_paid'            => $bill->date_paid ?? null,
             'payor_name'           => $bill->payor_name ?? '',

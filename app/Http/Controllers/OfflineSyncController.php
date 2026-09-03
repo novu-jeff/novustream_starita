@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Bill;
+use App\Models\PartialPayment;
 use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Models\NovupayStaritaBill;
@@ -226,11 +227,9 @@ class OfflineSyncController extends Controller
         }
 
         $currentPeriodReadings = $this->fetchCurrentPeriodReadings($year, $month, $zoneAccountNos);
-        $readingsList = $wantReadings
-            ? $this->buildDownloadReadingsList($currentPeriodReadings)
-            : [];
 
         $data = [];
+        $priorPresentByAccount = [];
         if ($wantAccounts) {
             $accountsQuery = UserAccounts::with(['user', 'property_types_by_name', 'discount'])
                 ->when($zoneNames->isNotEmpty(), function ($query) use ($zoneNames) {
@@ -261,7 +260,7 @@ class OfflineSyncController extends Controller
 
                 $unpaidAmount = 0.0;
                 if ($bill && !$bill->isPaid) {
-                    $unpaidAmount = (float) ($bill->amount ?? 0);
+                    $unpaidAmount = $bill->netUnpaidAmount();
                 } elseif ($prior && !empty($prior['unpaid_amount'])) {
                     $unpaidAmount = (float) $prior['unpaid_amount'];
                 }
@@ -298,7 +297,14 @@ class OfflineSyncController extends Controller
         }
 
         if ($wantReadings) {
-            $data['readings'] = $readingsList;
+            if (!$wantAccounts) {
+                $priorPresentByAccount = $this->fetchPriorPresentReadingByAccount(
+                    $currentPeriodReadings->keys()->all(),
+                    $year,
+                    $month
+                );
+            }
+            $data['readings'] = $this->buildDownloadReadingsList($currentPeriodReadings, $priorPresentByAccount);
         }
 
         Log::channel('single')->info('Novustream offline API: offline/download success', [
@@ -306,7 +312,7 @@ class OfflineSyncController extends Controller
             'zone_assigned' => $user->zone_assigned,
             'zone_names_count' => $zoneNames->count(),
             'include' => $includeParam ?: 'all',
-            'readings_count' => count($readingsList),
+            'readings_count' => count($data['readings'] ?? []),
             'billing_period' => sprintf('%04d-%02d', $year, $month),
         ]);
 
@@ -338,8 +344,9 @@ class OfflineSyncController extends Controller
 
     /**
      * @param  \Illuminate\Support\Collection<string, Reading>  $currentPeriodReadings
+     * @param  array<string, array{present_reading?: float, created_at?: mixed, unpaid_amount?: float, partial_payment?: float}>  $priorByAccount
      */
-    private function buildDownloadReadingsList($currentPeriodReadings): array
+    private function buildDownloadReadingsList($currentPeriodReadings, array $priorByAccount = []): array
     {
         $readingsList = [];
         foreach ($currentPeriodReadings as $reading) {
@@ -351,7 +358,10 @@ class OfflineSyncController extends Controller
             if (!$refNo) {
                 continue;
             }
-            $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill);
+            $prior = $priorByAccount[$reading->account_no] ?? [];
+            $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill, [
+                'previous_partial_payment' => (float) ($prior['partial_payment'] ?? 0),
+            ]);
             $readingsList[] = [
                 'reference_no'          => $refNo,
                 'account_no'            => $reading->account_no,
@@ -372,7 +382,7 @@ class OfflineSyncController extends Controller
 
     /**
      * @param  array<int, string>  $accountNos
-     * @return array<string, array{present_reading: float, created_at: mixed, unpaid_amount: float}>
+     * @return array<string, array{present_reading: float, created_at: mixed, unpaid_amount: float, partial_payment: float}>
      */
     private function fetchPriorPresentReadingByAccount(array $accountNos, int $year, int $month): array
     {
@@ -386,24 +396,48 @@ class OfflineSyncController extends Controller
             ->whereIn('readings.account_no', $accountNos)
             ->where('bill.bill_period_to', '<', $periodStart)
             ->select(
+                'readings.id as reading_id',
                 'readings.account_no',
                 'readings.present_reading',
                 'readings.created_at',
                 'bill.amount',
-                'bill.isPaid'
+                'bill.isPaid',
+                'bill.isPartial',
+                'bill.partial_payment',
+                'bill.amount_paid'
             )
             ->orderByDesc('bill.bill_period_to')
             ->orderByDesc('readings.created_at')
             ->get()
             ->unique('account_no');
 
+        $tablePartials = [];
+        $readingIds = $rows->pluck('reading_id')->filter()->all();
+        if ($readingIds && Schema::hasTable('partial_payments')) {
+            $tablePartials = PartialPayment::whereIn('reading_id', $readingIds)
+                ->selectRaw('reading_id, SUM(partial_payment) as total_partial')
+                ->groupBy('reading_id')
+                ->pluck('total_partial', 'reading_id')
+                ->all();
+        }
+
         $result = [];
         foreach ($rows as $row) {
-            $unpaid = (!$row->isPaid && $row->amount !== null) ? (float) $row->amount : 0.0;
+            $credited = max(
+                Bill::creditedPartialFromValues(
+                    $row->partial_payment,
+                    $row->isPartial,
+                    $row->amount_paid
+                ),
+                (float) ($tablePartials[$row->reading_id] ?? 0)
+            );
             $result[$row->account_no] = [
                 'present_reading' => (float) ($row->present_reading ?? 0),
                 'created_at'      => $row->created_at,
-                'unpaid_amount'   => $unpaid,
+                'unpaid_amount'   => filter_var($row->isPaid, FILTER_VALIDATE_BOOLEAN)
+                    ? 0.0
+                    : max((float) ($row->amount ?? 0) - $credited, 0),
+                'partial_payment' => $credited,
             ];
         }
 
