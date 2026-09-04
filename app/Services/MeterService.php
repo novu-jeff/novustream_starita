@@ -245,6 +245,30 @@ class MeterService {
         ];
     }
 
+    public function getPreviousReadingBefore(string $account_no, string $readingMonth): array
+    {
+        $date = Carbon::parse($readingMonth)->startOfMonth();
+        $previousReading = Reading::where('account_no', $account_no)
+            ->where('created_at', '<', $date)
+            ->where('isReRead', false)
+            ->latest('created_at')
+            ->first();
+        $previousUnpaid = 0;
+        if ($previousReading) {
+            $previousBill = Bill::where('reading_id', $previousReading->id)->first();
+            if ($previousBill && !$previousBill->isPaid) {
+                $previousUnpaid = (float) $previousBill->amount;
+            }
+        }
+
+        return [
+            'previous_reading' => $previousReading?->present_reading ?? 0,
+            'previous_unpaid' => $previousUnpaid,
+            'suggestedNextMonth' => Carbon::parse($readingMonth)->format('Y-m-d'),
+            'sc_expired_date' => null,
+        ];
+    }
+
     public function getReRead(string $reference_no) {
 
         $data = $this->getBill($reference_no);
@@ -495,6 +519,16 @@ class MeterService {
         $unpaid_bills = (clone $unpaidQuery)
             ->where('reference_no', '!=', $reference_no)
             ->get();
+
+        $later_bills = Bill::with(['reading', 'breakdown', 'discount'])
+            ->whereHas('reading', function ($query) use ($account_no, $current_bill) {
+                $query->where('account_no', $account_no)
+                    ->where('isReRead', false)
+                    ->where('created_at', '>', optional($current_bill->reading)->created_at);
+            })
+            ->where('id', '!=', $current_bill->id)
+            ->orderBy('bill_period_to')
+            ->get();
         // Ensure active_payment is null if it matches the current reference_no
         if ($active_payment && $active_payment->reference_no == $reference_no) {
             $active_payment = null;
@@ -522,6 +556,7 @@ class MeterService {
             'previous_payment' => $previous_payment,
             'active_payment' => $active_payment ? $active_payment->toArray() : null,
             'unpaid_bills' => $unpaid_bills->toArray() ?? [],
+            'later_bills' => $later_bills->toArray(),
             'previousConsumption' => $previousConsumption
         ];
     }
@@ -660,6 +695,9 @@ class MeterService {
         $latest_reading = Reading::with('concessionaire.user', 'bill')
             ->where('isReRead', false)
             ->where('account_no', $payload['account_no'])
+            ->when(!empty($payload['is_missing_reading']), function ($query) use ($payload) {
+                $query->where('created_at', '<', Carbon::parse($payload['date'])->startOfMonth());
+            })
             ->latest()
             ->first();
 

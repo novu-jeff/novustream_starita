@@ -28,6 +28,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\PartialPayment;
 use App\Models\PenaltyExemption;
 use App\Models\InstallmentSchedule;
+use App\Models\ReadingAdjustment;
 
 
 class ReadingController extends Controller
@@ -90,7 +91,9 @@ class ReadingController extends Controller
 
         if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
             try {
-                $response = $this->meterService->getPreviousReading($payload['account_no']);
+                $response = !empty($payload['is_missing_reading']) && !empty($payload['reading_month'])
+                    ? $this->meterService->getPreviousReadingBefore($payload['account_no'], $payload['reading_month'])
+                    : $this->meterService->getPreviousReading($payload['account_no']);
                 return response()->json($response);
             } catch (\Exception $e) {
                 return response()->json([
@@ -496,8 +499,10 @@ class ReadingController extends Controller
 
         $validator = Validator::make($payload, [
         'reading_month' => [
+            'nullable',
+            'date',
             function ($attribute, $value, $fail) {
-                if ($this->isTesting && empty($value)) {
+                if (!empty(request('is_missing_reading')) && empty($value)) {
                     return $fail('Reading month is required.');
                 }
             }
@@ -523,13 +528,54 @@ class ReadingController extends Controller
             },
         ],
         'high_consumption_note' => 'nullable|string|max:255',
+        'is_missing_reading' => 'nullable|boolean',
+        'missing_reading_reason' => filter_var($payload['is_missing_reading'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            ? 'required|string|max:1000'
+            : 'nullable',
+        'missing_bill_period_from' => 'required_if:is_missing_reading,true|date',
+        'missing_bill_period_to' => 'required_if:is_missing_reading,true|date',
+        'missing_previous_unpaid' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_basic_charge' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_total' => 'nullable|numeric|min:0',
+        'missing_discount' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_penalty' => 'nullable|numeric|min:0',
+        'missing_amount' => 'nullable|numeric|min:0',
+        'missing_amount_after_due' => 'nullable|numeric|min:0',
+        'missing_amount_paid' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_change' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_partial_payment' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_advances' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_date_paid' => 'nullable|date',
+        'missing_due_date' => 'required_if:is_missing_reading,true|date',
+        'missing_is_paid' => 'required_if:is_missing_reading,true|boolean',
+        'missing_is_partial' => 'required_if:is_missing_reading,true|boolean',
+        'missing_is_change_for_advance' => 'required_if:is_missing_reading,true|boolean',
+    ], [
+        'missing_reading_reason.required_if' => 'Reason for adding the missing reading is required.',
+        'missing_bill_period_from.required_if' => 'Bill From is required.',
+        'missing_bill_period_to.required_if' => 'Bill To is required.',
+        'missing_previous_unpaid.required_if' => 'Previous Unpaid is required.',
+        'missing_basic_charge.required_if' => 'Basic Charge is required.',
+        'missing_total.required_if' => 'Total is required.',
+        'missing_discount.required_if' => 'Discount is required.',
+        'missing_penalty.required_if' => 'Penalty is required.',
+        'missing_amount.required_if' => 'Amount is required.',
+        'missing_amount_after_due.required_if' => 'Amount After Due is required.',
+        'missing_amount_paid.required_if' => 'Amount Paid is required.',
+        'missing_change.required_if' => 'Change is required.',
+        'missing_partial_payment.required_if' => 'Partial Payment is required.',
+        'missing_advances.required_if' => 'Advances is required.',
+        'missing_is_paid.required_if' => 'Is Paid is required.',
+        'missing_is_partial.required_if' => 'Is Partial is required.',
+        'missing_is_change_for_advance.required_if' => 'Change for Advance is required.',
+        'missing_due_date.required_if' => 'Due Date is required.',
     ]);
 
 
     if ($validator->fails()) {
         return response()->json([
             'status' => 'error',
-            'message' => 'Validation failed.',
+            'message' => $validator->errors()->first(),
             'errors' => $validator->errors()
         ], 422);
     }
@@ -563,6 +609,7 @@ class ReadingController extends Controller
     $year = $date->year;
     $account_no = $payload['account_no'];
     $isReRead = $payload['isReRead'] === 'true' ? true : false;
+    $isMissingReading = filter_var($payload['is_missing_reading'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
     if (!$isReRead) {
         $exists = Reading::whereMonth('created_at', $month)
@@ -588,7 +635,7 @@ class ReadingController extends Controller
 
         $readingDate = null;
 
-        if ($zone) {
+        if ($zone && !$isMissingReading) {
             $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
                 ->where('is_active', 1)
                 ->first();
@@ -627,7 +674,9 @@ class ReadingController extends Controller
             'date' => $date,
             'is_high_consumption' => $payload['is_high_consumption'],
             'isReRead' => $isReRead,
-            'reference_no' => $payload['reference_no'] ?? null
+            'reference_no' => $payload['reference_no'] ?? null,
+            'is_missing_reading' => $isMissingReading,
+            'force_zero_arrears' => $isMissingReading,
         ]);
 
         if ($computed['status'] !== 'success') {
@@ -638,6 +687,18 @@ class ReadingController extends Controller
         $billData = $computed['bill'];
         $reference_no = $billData['reference_no'];
         $amount = $billData['amount'];
+
+        if ($isMissingReading && !empty($billData['reading_id'])) {
+            \App\Models\ReadingAdjustment::create([
+                'reading_id' => $billData['reading_id'],
+                'old_present_reading' => 0,
+                'new_present_reading' => $present_reading,
+                'old_consumption' => 0,
+                'new_consumption' => $consumption,
+                'reason' => $payload['missing_reading_reason'],
+                'adjusted_by' => auth()->id(),
+            ]);
+        }
 
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
@@ -685,7 +746,7 @@ class ReadingController extends Controller
 
         $billPeriodFrom = null;
         $billPeriodTo = null;
-        $billDate = now();
+        $billDate = $isMissingReading ? $date->copy() : now();
         $dueDate = null;
         $penaltyDate = null;
         $disconnectionDate = null;
@@ -895,6 +956,17 @@ class ReadingController extends Controller
             'hasPenalty' => $penaltyAmount > 0,
         ]);
 
+        if ($isMissingReading) {
+            $this->applyMissingBillOverrides($bill, $payload);
+            $bill->update([
+                'missing_reading_reason' => $payload['missing_reading_reason'],
+            ]);
+            $bill->refresh();
+            if (!$bill->isPaid) {
+                $this->appendMissingBillToNextUnpaidBill($account_no, $date, $bill);
+            }
+        }
+
         // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
         $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
 
@@ -972,6 +1044,109 @@ class ReadingController extends Controller
             }
         }
 
+
+    private function appendMissingBillToNextUnpaidBill(string $accountNo, Carbon $missingDate, Bill $missingBill): void
+    {
+        $nextBill = Bill::where('isPaid', false)
+            ->where('id', '!=', $missingBill->id)
+            ->whereHas('reading', function ($query) use ($accountNo, $missingDate) {
+                $query->where('account_no', $accountNo)
+                    ->where('isReRead', false)
+                    ->where('created_at', '>', $missingDate->copy()->endOfMonth());
+            })
+            ->orderBy('bill_period_to')
+            ->first();
+
+        if (!$nextBill) {
+            return;
+        }
+
+        $createdAmount = (float) $missingBill->amount;
+        $previousBalance = BillBreakdown::firstOrNew([
+            'bill_id' => $nextBill->id,
+            'name' => 'Previous Balance',
+        ]);
+        $previousBalance->amount = round((float) ($previousBalance->amount ?? $nextBill->previous_unpaid ?? 0) + $createdAmount, 2);
+        $previousBalance->description = $previousBalance->description ?: 'Updated from missing historical bill';
+        $previousBalance->save();
+
+        $nextBill->update([
+            'previous_unpaid' => $previousBalance->amount,
+            'total' => round((float) $nextBill->total + $createdAmount, 2),
+            'amount' => round((float) $nextBill->amount + $createdAmount, 2),
+            'amount_after_due' => round((float) $nextBill->amount_after_due + $createdAmount, 2),
+        ]);
+    }
+
+    private function applyMissingBillOverrides(Bill $bill, array $payload): void
+    {
+        $fields = [
+            'bill_period_from' => 'missing_bill_period_from',
+            'bill_period_to' => 'missing_bill_period_to',
+            'previous_unpaid' => 'missing_previous_unpaid',
+            'total' => 'missing_total',
+            'discount' => 'missing_discount',
+            'penalty' => 'missing_penalty',
+            'amount' => 'missing_amount',
+            'amount_after_due' => 'missing_amount_after_due',
+            'amount_paid' => 'missing_amount_paid',
+            'change' => 'missing_change',
+            'partial_payment' => 'missing_partial_payment',
+            'advances' => 'missing_advances',
+            'date_paid' => 'missing_date_paid',
+            'due_date' => 'missing_due_date',
+            'isPaid' => 'missing_is_paid',
+            'isPartial' => 'missing_is_partial',
+            'isChangeForAdvancePayment' => 'missing_is_change_for_advance',
+        ];
+
+        $updates = [];
+        foreach ($fields as $billField => $payloadField) {
+            if (!array_key_exists($payloadField, $payload) || $payload[$payloadField] === '') {
+                continue;
+            }
+
+            $updates[$billField] = in_array($billField, ['isPaid', 'isPartial', 'isChangeForAdvancePayment'], true)
+                ? (int) filter_var($payload[$payloadField], FILTER_VALIDATE_BOOLEAN)
+                : $payload[$payloadField];
+        }
+
+        if (array_key_exists('missing_basic_charge', $payload)
+            && $payload['missing_basic_charge'] !== ''
+            && (!array_key_exists('missing_total', $payload) || $payload['missing_total'] === '')
+        ) {
+            $previousUnpaid = array_key_exists('missing_previous_unpaid', $payload)
+                ? (float) $payload['missing_previous_unpaid']
+                : (float) $bill->previous_unpaid;
+            $updates['total'] = round($previousUnpaid + (float) $payload['missing_basic_charge'], 2);
+        }
+
+        $previousUnpaid = array_key_exists('missing_previous_unpaid', $payload) && $payload['missing_previous_unpaid'] !== ''
+            ? (float) $payload['missing_previous_unpaid']
+            : (float) ($bill->previous_unpaid ?? 0);
+        $basicCharge = array_key_exists('missing_basic_charge', $payload) && $payload['missing_basic_charge'] !== ''
+            ? (float) $payload['missing_basic_charge']
+            : max((float) ($bill->total ?? 0) - $previousUnpaid, 0);
+        $discount = array_key_exists('missing_discount', $payload) && $payload['missing_discount'] !== ''
+            ? (float) $payload['missing_discount']
+            : (float) ($bill->discount ?? 0);
+        $advances = array_key_exists('missing_advances', $payload) && $payload['missing_advances'] !== ''
+            ? (float) $payload['missing_advances']
+            : (float) ($bill->advances ?? 0);
+        $penalty = round($basicCharge * 0.10, 2);
+        $total = round(max($basicCharge + $previousUnpaid - $discount - $advances, 0), 2);
+        $amount = round(max($basicCharge + $previousUnpaid - $discount + $penalty - $advances, 0), 2);
+
+        $updates['previous_unpaid'] = $previousUnpaid;
+        $updates['penalty'] = $penalty;
+        $updates['total'] = $total;
+        $updates['amount'] = $amount;
+        $updates['amount_after_due'] = $amount;
+
+        if ($updates) {
+            $bill->update($updates);
+        }
+    }
 
     private function convertAmount(float $amount): string
     {
