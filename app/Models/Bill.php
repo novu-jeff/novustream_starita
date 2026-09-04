@@ -39,6 +39,7 @@ class Bill extends Model
         'cashier_id',
         'isChangeForAdvancePayment',
         'high_consumption_note',
+        'missing_reading_reason',
         'partial_payment',
         'isPartial',
         'hitpay_reference',

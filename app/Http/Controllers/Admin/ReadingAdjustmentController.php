@@ -82,7 +82,12 @@ class ReadingAdjustmentController extends Controller
     ->limit(200)
     ->get();
 
-    return view('admins.reading-adjustments.index', compact('readings', 'month', 'allAdjustments', 'missingAccounts'));
+    $deletionHistories = DB::table('reading_deletion_histories')
+        ->orderByDesc('created_at')
+        ->limit(200)
+        ->get();
+
+    return view('admins.reading-adjustments.index', compact('readings', 'month', 'allAdjustments', 'missingAccounts', 'deletionHistories'));
 }
 
     public function edit($id)
@@ -165,6 +170,44 @@ class ReadingAdjustmentController extends Controller
             DB::rollBack();
             return back()->withErrors($e->getMessage());
         }
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+            $reading = Reading::findOrFail($id);
+            $bill = $reading->bill()->first();
+
+            DB::table('reading_deletion_histories')->insert([
+                'reading_id' => $reading->id,
+                'account_no' => $reading->account_no,
+                'name' => optional($reading->concessionaire?->user)->name,
+                'reading_date' => $reading->created_at,
+                'previous_reading' => $reading->previous_reading,
+                'present_reading' => $reading->present_reading,
+                'reason' => $request->reason,
+                'deleted_by' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            ReadingAdjustment::where('reading_id', $reading->id)->delete();
+
+            if ($bill) {
+                DB::table('bill_breakdown')->where('bill_id', $bill->id)->delete();
+                DB::table('bill_discount')->where('bill_id', $bill->id)->delete();
+                DB::table('bill_adjustments')->where('bill_id', $bill->id)->delete();
+                $bill->delete();
+            }
+
+            $reading->delete();
+        });
+
+        return back()->with('success', 'Reading and its bill were deleted successfully.');
     }
 
     public function createInitial(Request $request)
