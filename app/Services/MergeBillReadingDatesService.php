@@ -116,4 +116,12 @@ class MergeBillReadingDatesService
     {
         return $this->offlineMergeGuard->resolveMergeBillingDate($off, $account)->format('Y-m-d H:i:s');
     }
+
+    public function existingReadingForMergePeriod(string $accountNo, Carbon $date): ?Reading 
+    {
+        return Reading::where('account_no', $accountNo)
+            ->whereYear('created_at', $date->year)
+            ->whereMonth('created_at', $date->month)
+            ->first();
+    }
 }
