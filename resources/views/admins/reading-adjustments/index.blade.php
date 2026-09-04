@@ -10,6 +10,9 @@
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#globalHistoryModal">
                 View Adjustment History
             </button>
+            <button class="btn btn-outline-danger ms-2" data-bs-toggle="modal" data-bs-target="#deletedReadingHistoryModal">
+                Deleted Reading History
+            </button>
         </div>
     </div>
 
@@ -70,17 +73,25 @@
                             <td>{{ $reading->present_reading }}</td>
                             <td>{{ $reading->consumption }}</td>
                             <td>
-                                <button
-                                    class="btn btn-sm btn-primary open-adjust-modal"
-                                    data-id="{{ $reading->id }}"
-                                    data-action="{{ route('admins.reading-adjustments.update', $reading->id) }}"
-                                    data-account="{{ $reading->account_no }}"
-                                    data-previous="{{ $reading->previous_reading }}"
-                                    data-present="{{ $reading->present_reading }}"
-                                    data-created-at="{{ $reading->created_at ? $reading->created_at->format('Y-m-d') : '' }}"
-                                >
-                                    Adjust
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <button
+                                        class="btn btn-sm btn-primary open-adjust-modal"
+                                        data-id="{{ $reading->id }}"
+                                        data-action="{{ route('admins.reading-adjustments.update', $reading->id) }}"
+                                        data-account="{{ $reading->account_no }}"
+                                        data-previous="{{ $reading->previous_reading }}"
+                                        data-present="{{ $reading->present_reading }}"
+                                        data-created-at="{{ $reading->created_at ? $reading->created_at->format('Y-m-d') : '' }}"
+                                    >
+                                        Adjust
+                                    </button>
+                                    <form method="POST" class="delete-reading-form" action="{{ route('admins.reading-adjustments.destroy', $reading->id) }}">
+                                        @csrf
+                                        @method('DELETE')
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @empty
@@ -341,6 +352,45 @@
     </div>
 </div>
 
+<div class="modal fade" id="deletedReadingHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deleted Reading History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Account No.</th>
+                                <th>Name</th>
+                                <th>Deletion Date</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($deletionHistories as $deleted)
+                                <tr>
+                                    <td>{{ $deleted->reading_date ?? '-' }}</td>
+                                    <td>{{ $deleted->account_no }}</td>
+                                    <td>{{ $deleted->name ?? '-' }}</td>
+                                    <td>{{ $deleted->created_at }}</td>
+                                    <td>{{ $deleted->reason }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="text-center text-muted">No deleted readings found.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- SCRIPT --}}
 <script>
 
@@ -415,6 +465,29 @@ document.addEventListener('click', function(e) {
             updateConsumption();
         };
     }
+});
+
+document.querySelectorAll('.delete-reading-form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        Swal.fire({
+            title: 'Delete reading?',
+            text: 'This will also delete the related bill and breakdown records.',
+            icon: 'warning',
+            input: 'textarea',
+            inputPlaceholder: 'Enter deletion reason',
+            inputValidator: value => !value || !value.trim() ? 'A reason is required.' : undefined,
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+            confirmButtonColor: '#dc3545',
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                form.querySelector('input[name="reason"]').value = result.value.trim();
+                form.submit();
+            }
+        });
+    });
 });
 
 document.addEventListener('click', function(e) {
