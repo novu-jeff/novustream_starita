@@ -284,6 +284,14 @@ class OfflineDataController extends Controller
                 return ['name' => $row->name ?? '', 'description' => $row->description ?? '', 'amount' => $row->amount ?? 0];
             })->values()->toArray();
         }
+        if (array_key_exists('previous_unpaid', $extras)) {
+            $prev = (float) $extras['previous_unpaid'];
+            foreach ($breakdown as $i => $row) {
+                if (strcasecmp((string) ($row['name'] ?? ''), 'Previous Balance') === 0) {
+                    $breakdown[$i]['amount'] = $prev;
+                }
+            }
+        }
         $dateExtras = self::enrichReadingScheduleDates($bill->due_date ?? null, $bill->bill_period_to ?? null, $bill, $reading);
         return [
             'reference_no'         => $refNo,
@@ -294,7 +302,9 @@ class OfflineDataController extends Controller
             'reading_date'         => $dateExtras['reading_date'],
             'penalty_date'         => $dateExtras['penalty_date'],
             'disconnection_date'   => $dateExtras['disconnection_date'],
-            'previous_unpaid'      => $bill->previous_unpaid ?? 0,
+            'previous_unpaid'      => array_key_exists('previous_unpaid', $extras)
+                ? $extras['previous_unpaid']
+                : ($bill->previous_unpaid ?? 0),
             'total'                => $bill->total ?? 0,
             'discount'             => $bill->discount ?? 0,
             'penalty'              => $bill->penalty ?? 0,

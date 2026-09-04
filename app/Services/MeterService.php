@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PDO;
 use App\Models\PaymentDiscount;
-use App\Models\PartialPayment;
 use App\Models\Discount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\InstallmentSchedule;
@@ -702,53 +701,12 @@ class MeterService {
             ];
         }
 
-        $readingIds = Reading::where('account_no', trim($payload['account_no']))
-            ->where('isReRead', 0)
-            ->pluck('id');
+        $arrears = app(BillArrearsService::class)->carriedArrearsForAccount(
+            trim($payload['account_no']),
+            ['force_zero_arrears' => !empty($payload['force_zero_arrears'])]
+        );
 
-        $forceZeroArrears = !empty($payload['force_zero_arrears']);
-
-        // If the chronologically latest bill period is fully paid, do not carry older unpaid balances forward.
-        $mostRecentBill = Bill::whereIn('reading_id', $readingIds)
-            ->orderByDesc('bill_period_to')
-            ->first();
-
-        $skipLegacyArrears = !$forceZeroArrears
-            && $mostRecentBill
-            && (bool) $mostRecentBill->isPaid
-            && !(bool) $mostRecentBill->isPartial;
-
-        $latestUnpaidBill = null;
-        $unpaidAmount = 0;
-        $partialPaymentTotal = 0;
-
-        if (!$forceZeroArrears && !$skipLegacyArrears) {
-            $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
-                ->where('isInstallment', 0)
-                ->where(function ($q) {
-                    $q->where('isPaid', 0)
-                        ->orWhere('isPartial', 1);
-                })
-                ->orderByDesc('bill_period_to')
-                ->first();
-
-            if ($latestUnpaidBill) {
-                $unpaidAmount = (float) ($latestUnpaidBill->amount ?? 0);
-                $partialPaymentTotal = $latestUnpaidBill->creditedPartialAmount();
-                if ($latestUnpaidBill->reading_id) {
-                    $fromTable = (float) PartialPayment::where('reading_id', $latestUnpaidBill->reading_id)
-                        ->sum('partial_payment');
-                    $partialPaymentTotal = max($partialPaymentTotal, $fromTable);
-                }
-            }
-        }
-
-        if ($forceZeroArrears) {
-            $unpaidAmount = 0;
-            $partialPaymentTotal = 0;
-        }
-
-        $remainingUnpaid = max($unpaidAmount - $partialPaymentTotal, 0);
+        $remainingUnpaid = $arrears['remaining_unpaid'];
 
         $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
             ->whereHas('installment.bill.reading', function ($q) use ($payload) {

@@ -25,7 +25,6 @@ use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
-use App\Models\PartialPayment;
 use App\Models\PenaltyExemption;
 use App\Models\InstallmentSchedule;
 
@@ -642,33 +641,12 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $partialPaymentTotal = PartialPayment::whereHas('reading.bill', function ($query) use ($payload) {
-            $query->where('account_no', $payload['account_no'])
-                ->where('isPaid', false);
-        })->sum('partial_payment');
-
-        $unpaidAmount = Bill::with('reading')
-            ->where('isPaid', false)
-            ->where('isInstallment', false)
-            ->whereNotNull('amount')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
-            })
-            ->sum('amount') ?? 0;
-
-        $installmentArrears = InstallmentSchedule::where('is_paid', false)
+        $installmentArrears = (float) (InstallmentSchedule::where('is_paid', false)
             ->whereHas('installment.bill.reading', function ($query) use ($payload) {
                 $query->where('account_no', $payload['account_no']);
             })
             ->orderBy('month_no')
-            ->value('amount') ?? 0;
-
-        $installmentArrears = (float) $installmentArrears;
-
-        $totalArrears = ($unpaidAmount - $installmentArrears) - $partialPaymentTotal;
-
-        $remainingUnpaid = max($totalArrears, 0);
+            ->value('amount') ?? 0);
 
 
         // $penaltyRate = 0.15;
@@ -723,7 +701,7 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-                'previous_unpaid' => $installmentArrears,
+                'previous_unpaid' => $billData['previous_unpaid'] ?? $installmentArrears,
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,

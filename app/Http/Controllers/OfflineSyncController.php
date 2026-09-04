@@ -259,10 +259,20 @@ class OfflineSyncController extends Controller
                 }
 
                 $unpaidAmount = 0.0;
+                $partialPayment = 0.0;
+                $isPartial = false;
+                $previousUnpaid = 0.0;
+                $previousPartial = (float) ($prior['partial_payment'] ?? 0);
                 if ($bill && !$bill->isPaid) {
                     $unpaidAmount = $bill->netUnpaidAmount();
-                } elseif ($prior && !empty($prior['unpaid_amount'])) {
-                    $unpaidAmount = (float) $prior['unpaid_amount'];
+                    $partialPayment = $bill->creditedPartialAmount();
+                    $isPartial = (bool) $bill->isPartial;
+                    $previousUnpaid = (float) ($prior['unpaid_amount'] ?? $bill->previous_unpaid ?? 0);
+                } elseif ($prior) {
+                    $unpaidAmount = (float) ($prior['unpaid_amount'] ?? 0);
+                    $partialPayment = $previousPartial;
+                    $isPartial = $partialPayment > 0;
+                    $previousUnpaid = $unpaidAmount;
                 }
 
                 return [
@@ -276,6 +286,28 @@ class OfflineSyncController extends Controller
                     'discount_type'    => $acc->discount->discount_type_id ?? 0,
                     'previous_reading' => (float) $presentForPrevious,
                     'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'previous_partial_payment' => $previousPartial,
+                    'is_partial'       => $isPartial,
+                    'created_at'       => $readingCreatedAt,
+                    'sequence_no'      => $acc->sequence_no ?? null,
+                ];
+
+                return [
+                    'account_no'       => $acc->account_no,
+                    'name'             => $acc->user->name ?? 'N/A',
+                    'address'          => $acc->address,
+                    'meter_serial_no'  => $acc->meter_serial_no,
+                    'zone'             => $acc->zone,
+                    'status'           => $acc->status ?? null,
+                    'property_type_id' => $acc->property_types_by_name->id ?? null,
+                    'discount_type'    => $acc->discount->discount_type_id ?? 0,
+                    'previous_reading' => (float) $presentForPrevious,
+                    'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'is_partial'       => $isPartial,
                     'created_at'       => $readingCreatedAt,
                     'sequence_no'      => $acc->sequence_no ?? null,
                 ];
@@ -359,8 +391,13 @@ class OfflineSyncController extends Controller
                 continue;
             }
             $prior = $priorByAccount[$reading->account_no] ?? [];
+            $priorNetUnpaid = array_key_exists('unpaid_amount', $prior)
+                ? (float) $prior['unpaid_amount']
+                : (float) ($bill->previous_unpaid ?? 0);
+            $priorPartial = (float) ($prior['partial_payment'] ?? 0);
             $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill, [
-                'previous_partial_payment' => (float) ($prior['partial_payment'] ?? 0),
+                'previous_unpaid' => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
             ]);
             $readingsList[] = [
                 'reference_no'          => $refNo,
@@ -372,6 +409,8 @@ class OfflineSyncController extends Controller
                 'high_consumption_note' => (string) ($bill->high_consumption_note ?? ''),
                 'amount'                => (float) ($bill->amount ?? 0),
                 'amount_after_due'      => (float) ($bill->amount_after_due ?? $bill->amount ?? 0),
+                'previous_unpaid'       => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
                 'timestamp'             => $this->readingTimestampIso($reading->created_at),
                 'soa_json'              => json_encode($soaData),
             ];

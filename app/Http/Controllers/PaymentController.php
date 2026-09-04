@@ -764,17 +764,6 @@ class PaymentController extends Controller
             return ['error' => 'Reading not found.'];
         }
 
-        $accountNo = $reading->account_no;
-
-        $unpaidBills = Bill::whereHas('reading', function($query) use ($accountNo) {
-            $query->where('account_no', $accountNo);
-        })
-        ->where('isPaid', 0)
-        ->orderBy('bill_period_from')
-        ->get();
-
-        $fullArrears = $unpaidBills->sum(fn($b) => $b->previous_unpaid);
-
         $totalDueResult = $this->calculateTotalDue($data['current_bill'], $payload);
         $totalDue = $totalDueResult['total_due'];
         $breakdown = $totalDueResult['breakdown'];
@@ -793,7 +782,6 @@ class PaymentController extends Controller
 
         $data['current_bill']['assumed_amount_after_due'] = $totalDue;
         $data['current_bill']['breakdown'] = $breakdown;
-        $data['current_bill']['previous_unpaid'] = $fullArrears;
 
         return [
             'data' => $data,
