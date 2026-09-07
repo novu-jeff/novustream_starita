@@ -176,14 +176,6 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center gap-2">
-                                        <form method="POST" class="delete-ledger-bill-form" action="{{ route('admins.billing-adjustments.destroy', $bill->id) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <input type="hidden" name="reason">
-                                            <button type="submit" class="btn btn-danger btn-sm text-white fw-bold">
-                                                <i class="bx bx-trash"></i>
-                                            </button>
-                                        </form>
                                         @if($bill->computed_status !== 'PAID')
                                             <a href="{{ route('payments.pay', ['reference_no' => $bill->reference_no]) }}"
                                             class="btn btn-primary btn-sm text-white fw-bold">
@@ -201,6 +193,14 @@
                                                 <i class="bx bx-receipt"></i>
                                             </a>
                                         @endif
+                                        <form method="POST" class="delete-ledger-bill-form" action="{{ route('admins.billing-adjustments.destroy', $bill->id) }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <input type="hidden" name="reason">
+                                            <button type="submit" class="btn btn-danger btn-sm text-white fw-bold">
+                                                <i class="bx bx-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
