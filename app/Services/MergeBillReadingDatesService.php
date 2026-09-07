@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\Schema;
 
 class MergeBillReadingDatesService
 {
+    public function __construct(protected OfflineMergeGuard $offlineMergeGuard)
+    {
+    }
+
     /**
      * After offline merge, align bill + reading timestamps with ReadingController::store
      * when an active zone ReadingDate exists.
@@ -111,42 +115,17 @@ class MergeBillReadingDatesService
      */
     public function mergeBillingDate(ReadingOffline $off, ?object $account): Carbon
     {
-        $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-        if (!$account) {
-            return $mergeBillingDate;
-        }
-
-        $zone = Zone::where('zone', $account->zone ?? '')->first();
-        if ($zone) {
-            $readingDateRow = ReadingDate::where('zone_id', $zone->id)
-                ->where('is_active', 1)
-                ->first();
-            if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
-                $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
-            }
-        }
-
-        return $mergeBillingDate;
+        return $this->offlineMergeGuard->resolveMergeBillingDate($off, $account)->format('Y-m-d H:i:s');
     }
 
-    /**
-     * Existing reading for the same account and merge billing month (after zone ReadingDate is applied).
-     */
-    public function existingReadingForMergePeriod(string $accountNo, Carbon $mergeBillingDate): ?Reading
-    {
+    public function existingReadingForMergePeriod(
+        string $accountNo,
+        Carbon $date
+    ): ?Reading {
         return Reading::where('account_no', $accountNo)
-            ->whereHas('bill', function ($q) use ($mergeBillingDate) {
-                $q->whereYear('bill_period_to', $mergeBillingDate->year)
-                    ->whereMonth('bill_period_to', $mergeBillingDate->month);
-            })
+            ->whereYear('created_at', $date->year)
+            ->whereMonth('created_at', $date->month)
             ->first();
     }
 
-    /**
-     * Preview the `date` passed to MeterService::create_breakdown (matches OfflineSyncController merge).
-     */
-    public function previewCreateBreakdownDate(ReadingOffline $off, object $account): string
-    {
-        return $this->mergeBillingDate($off, $account)->format('Y-m-d H:i:s');
-    }
 }

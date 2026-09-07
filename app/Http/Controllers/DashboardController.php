@@ -4,20 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Bill;
 use App\Models\Reading;
-use App\Models\User;
 use App\Services\DashboardService;
-use App\Services\MeterService;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
     protected $dashboardService;
-    protected $meterService;
 
-    public function __construct(DashboardService $dashboardService, MeterService $meterService)
+    public function __construct(DashboardService $dashboardService)
     {
         $this->middleware(function ($request, $next) {
             if (Gate::allows('technician') || Gate::allows('inspector')) {
@@ -32,50 +28,54 @@ class DashboardController extends Controller
         });
 
         $this->dashboardService = $dashboardService;
-        $this->meterService = $meterService;
     }
 
     public function index()
     {
-        ini_set('memory_limit', '256M');
-
-        $flatReadings = collect();
         $users = $this->dashboardService->getAllUsers() ?? [];
-        $readings = $this->meterService->getReport() ?? collect([]);
 
-        $flatReadings = collect($readings)->flatten(1);
-        $total_unpaid = $flatReadings
-            ->where('bill.isPaid', false)
-            ->sum(fn ($r) =>
-                (float) ($r['bill']['previous_unpaid'] ?? 0) +
-                (float) ($r['bill']['amount'] ?? 0) +
-                (float) ($r['bill']['penalty'] ?? 0)
-            );
+        $billedBills = Bill::query()->whereHas('reading', fn ($q) => $q->where('isReRead', false));
 
-        $total_paid = $flatReadings
-            ->where('bill.isPaid', true)
-            ->sum(fn ($r) => (float) ($r['bill']['amount_paid'] ?? 0));
+        $totalUnpaid = (float) (clone $billedBills)
+            ->where('isPaid', false)
+            ->sum(DB::raw(
+                'CAST(COALESCE(previous_unpaid, 0) AS DECIMAL(15,2))'
+                . ' + CAST(COALESCE(amount, 0) AS DECIMAL(15,2))'
+                . ' + CAST(COALESCE(penalty, 0) AS DECIMAL(15,2))'
+            ));
 
-        $total_transactions = $total_paid + $total_unpaid;
-        $total_payments = $flatReadings->sum(fn ($r) => (float) ($r['bill']['amount'] ?? 0));
-        $total_transactions_count = $flatReadings->where('bill.isPaid', true)->count();
+        $totalPaid = (float) (clone $billedBills)
+            ->where('isPaid', true)
+            ->sum(DB::raw('CAST(COALESCE(amount_paid, 0) AS DECIMAL(15,2))'));
 
-        $payment_method_count = $flatReadings
-            ->where('bill.isPaid', true)
-            ->groupBy('bill.payment_method')
-            ->map(fn ($group) => $group->count());
+        $totalPayments = (float) (clone $billedBills)
+            ->sum(DB::raw('CAST(COALESCE(amount, 0) AS DECIMAL(15,2))'));
+
+        $totalTransactionsCount = (int) (clone $billedBills)
+            ->where('isPaid', true)
+            ->count();
+
+        $paymentMethodCount = (clone $billedBills)
+            ->where('isPaid', true)
+            ->select('payment_method', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('payment_method')
+            ->pluck('cnt', 'payment_method')
+            ->toArray();
 
         $data = [
             'admins' => $users['admins'] ?? 0,
             'concessionaires' => $users['concessionaires'] ?? 0,
             'technicians' => $users['technicians'] ?? 0,
-            'total_readings' => $flatReadings->count(),
-            'total_transactions' => $total_transactions,
-            'total_unpaid' => $total_unpaid,
-            'total_paid' => $total_paid,
-            'total_payments' => $total_payments,
-            'total_transactions_count' => $total_transactions_count,
-            'payment_method_count' => $payment_method_count,
+            'total_readings' => Reading::query()
+                ->where('isReRead', false)
+                ->whereHas('bill')
+                ->count(),
+            'total_transactions' => $totalPaid + $totalUnpaid,
+            'total_unpaid' => $totalUnpaid,
+            'total_paid' => $totalPaid,
+            'total_payments' => $totalPayments,
+            'total_transactions_count' => $totalTransactionsCount,
+            'payment_method_count' => $paymentMethodCount,
         ];
 
         if (Gate::any(['superadmin', 'admin', 'cashier'])) {

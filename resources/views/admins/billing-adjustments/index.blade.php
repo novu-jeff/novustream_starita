@@ -9,6 +9,9 @@
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#billHistoryModal">
                 View Adjustment History
             </button>
+            <button class="btn btn-outline-danger ms-2" data-bs-toggle="modal" data-bs-target="#deletedBillHistoryModal">
+                Deleted Bill History
+            </button>
         </div>
     </div>
 
@@ -83,9 +86,10 @@
                                 @endif
                             </td>
                             <td>
-                                <button
-                                    class="btn btn-sm btn-primary open-bill-modal"
-                                    data-action="{{ route('admins.billing-adjustments.update', $bill->id) }}"
+                                <div class="d-flex gap-2">
+                                    <button
+                                        class="btn btn-sm btn-primary open-bill-modal"
+                                        data-action="{{ route('admins.billing-adjustments.update', $bill->id) }}"
                                     data-bill-from="{{ $bill->bill_period_from }}"
                                     data-bill-to="{{ $bill->bill_period_to }}"
                                     data-prev="{{ $bill->previous_unpaid }}"
@@ -100,13 +104,21 @@
                                     data-partial="{{ $bill->partial_payment }}"
                                     data-advances="{{ $bill->advances }}"
                                     data-date-paid="{{ $bill->date_paid }}"
+                                    data-created-at="{{ $bill->created_at ? \Carbon\Carbon::parse($bill->created_at)->format('Y-m-d') : '' }}"
                                     data-due="{{ $bill->due_date }}"
                                     data-is-paid="{{ $bill->isPaid ? 1 : 0 }}"
                                     data-is-partial="{{ $bill->isPartial ? 1 : 0 }}"
                                     data-change-adv="{{ $bill->isChangeForAdvancePayment ? 1 : 0 }}"
-                                >
-                                    Edit
-                                </button>
+                                    >
+                                        Edit
+                                    </button>
+                                    <form method="POST" class="delete-bill-form" action="{{ route('admins.billing-adjustments.destroy', $bill->id) }}">
+                                        @csrf
+                                        @method('DELETE')
+                                        <input type="hidden" name="reason">
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @endforeach
@@ -186,6 +198,11 @@
                 </div>
 
                 <div class="row gx-2">
+                    <div class="col-md-4 mb-2">
+                        <label>Bill Date</label>
+                        <input type="date" name="created_at" id="f_created_at" class="form-control" required>
+                    </div>
+
                     <div class="col-md-4 mb-2">
                         <label>Discount</label>
                         <input type="number" step="0.01" name="discount" id="f_discount" class="form-control">
@@ -346,6 +363,47 @@
     </div>
 </div>
 
+<div class="modal fade" id="deletedBillHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deleted Bill History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Reference No.</th>
+                                <th>Account No.</th>
+                                <th>Name</th>
+                                <th>Deletion Date</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($deletionHistories as $deleted)
+                                <tr>
+                                    <td>{{ $deleted->bill_date ?? '-' }}</td>
+                                    <td>{{ $deleted->reference_no }}</td>
+                                    <td>{{ $deleted->account_no ?? '-' }}</td>
+                                    <td>{{ $deleted->name ?? '-' }}</td>
+                                    <td>{{ $deleted->created_at }}</td>
+                                    <td>{{ $deleted->reason }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="text-center text-muted">No deleted bills found.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const round2 = (value) => Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 const formatMoney = (value) => round2(value).toFixed(2);
@@ -428,6 +486,23 @@ document.addEventListener('input', function(e) {
 
 
 document.addEventListener('click', function(e) {
+    const header = e.target.closest('.adjustment-header');
+    if (header) {
+        const adjustmentId = header.dataset.adjustmentId;
+        const details = document.querySelectorAll('.adjustment-detail[data-adjustment-id="' + adjustmentId + '"]');
+        const isHidden = details.length === 0 || details[0].style.display === 'none';
+
+        details.forEach(function (detail) {
+            detail.style.display = isHidden ? 'table-row' : 'none';
+        });
+
+        const icon = header.querySelector('.toggle-icon');
+        if (icon) {
+            icon.textContent = isHidden ? '▲' : '▼';
+        }
+        return;
+    }
+
     if (e.target.classList.contains('open-bill-modal')) {
         let b = e.target.dataset;
 
@@ -452,6 +527,7 @@ document.addEventListener('click', function(e) {
         document.getElementById('f_partial').value = b.partial || '';
         document.getElementById('f_advances').value = b.advances || 0;
         document.getElementById('f_date_paid').value = b.datePaid || '';
+        document.getElementById('f_created_at').value = b.createdAt || '';
 
         document.getElementById('f_due').value = b.due ? new Date(b.due).toISOString().split('T')[0] : '';
 
@@ -465,6 +541,29 @@ document.addEventListener('click', function(e) {
             document.getElementById('billModal')
         ).show();
     }
+});
+
+document.querySelectorAll('.delete-bill-form').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        Swal.fire({
+            title: 'Delete bill?',
+            text: 'This will delete the bill and its related breakdown records.',
+            icon: 'warning',
+            input: 'textarea',
+            inputPlaceholder: 'Enter deletion reason',
+            inputValidator: value => !value || !value.trim() ? 'A reason is required.' : undefined,
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+            confirmButtonColor: '#dc3545',
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                form.querySelector('input[name="reason"]').value = result.value.trim();
+                form.submit();
+            }
+        });
+    });
 });
 </script>
 

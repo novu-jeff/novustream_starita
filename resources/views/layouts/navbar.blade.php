@@ -46,25 +46,6 @@
 					</ul>
 				</div>
 				@endcanany
-				<script>
-				let deferredPrompt;
-				const installAppBtn = document.getElementById('installAppBtn');
-				if (installAppBtn) {
-					window.addEventListener('beforeinstallprompt', (e) => {
-						e.preventDefault();
-						deferredPrompt = e;
-						installAppBtn.style.display = 'block';
-					});
-					installAppBtn.addEventListener('click', async () => {
-						if (deferredPrompt) {
-							deferredPrompt.prompt();
-							const choice = await deferredPrompt.userChoice;
-							console.log('User choice:', choice);
-							deferredPrompt = null;
-						}
-					});
-				}
-				</script>
 
 				@canany(['admin', 'cashier'])
                     <div class="dropdown px-0 mx-0">
@@ -161,3 +142,23 @@
 		</a>
 	</div>
 </header>
+
+<script>
+	let deferredPrompt;
+	const installAppBtn = document.getElementById('installAppBtn');
+	if (installAppBtn) {
+		window.addEventListener('beforeinstallprompt', (e) => {
+			e.preventDefault();
+			deferredPrompt = e;
+			installAppBtn.style.display = 'block';
+		});
+		installAppBtn.addEventListener('click', async () => {
+			if (deferredPrompt) {
+				deferredPrompt.prompt();
+				const choice = await deferredPrompt.userChoice;
+				console.log('User choice:', choice);
+				deferredPrompt = null;
+			}
+		});
+	}
+</script>

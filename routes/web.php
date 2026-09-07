@@ -284,6 +284,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::post('/create-initial', [ReadingAdjustmentController::class, 'createInitial'])->name('create-initial');
         Route::get('/{id}/edit', [ReadingAdjustmentController::class, 'edit'])->name('edit');
         Route::put('/{id}', [ReadingAdjustmentController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ReadingAdjustmentController::class, 'destroy'])->name('destroy');
     });
 
     Route::prefix('admins/billing-adjustments')
@@ -292,6 +293,7 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::get('/', [BillingAdjustmentController::class, 'index'])->name('index');
         Route::put('/{id}', [BillingAdjustmentController::class, 'update'])->name('update');
+        Route::delete('/{id}', [BillingAdjustmentController::class, 'destroy'])->name('destroy');
     });
 
     Route::get('/transactions', [ConcessionaireController::class, 'index'])

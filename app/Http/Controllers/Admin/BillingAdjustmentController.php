@@ -60,7 +60,12 @@ class BillingAdjustmentController extends Controller
             ->limit(200)
             ->get();
 
-        return view('admins.billing-adjustments.index', compact('bills', 'month', 'billAdjustments'));
+        $deletionHistories = DB::table('bill_deletion_histories')
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+
+        return view('admins.billing-adjustments.index', compact('bills', 'month', 'billAdjustments', 'deletionHistories'));
     }
 
     public function update(Request $request, $id)
@@ -75,6 +80,7 @@ class BillingAdjustmentController extends Controller
             'partial_payment' => 'nullable|numeric|min:0',
             'advances' => 'nullable|numeric|min:0',
             'date_paid' => 'nullable|date',
+            'created_at' => 'required|date',
             'due_date' => 'nullable|date',
             'isPaid' => 'required|boolean',
             'isPartial' => 'nullable|boolean',
@@ -109,6 +115,7 @@ class BillingAdjustmentController extends Controller
                 'partial_payment',
                 'advances',
                 'date_paid',
+                'created_at',
                 'due_date',
                 'isChangeForAdvancePayment'
             ]);
@@ -163,6 +170,9 @@ class BillingAdjustmentController extends Controller
 
             $bill->update($newData);
 
+            $bill->created_at = $request->date('created_at');
+            $bill->saveQuietly();
+
             DB::commit();
 
             return back()->with('success', 'Bill updated successfully.');
@@ -171,5 +181,57 @@ class BillingAdjustmentController extends Controller
             DB::rollBack();
             return back()->withErrors($e->getMessage());
         }
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+            $bill = Bill::findOrFail($id);
+            $accountNo = optional($bill->reading)->account_no;
+            $name = optional(optional($bill->reading)->concessionaire?->user)->name;
+
+            DB::table('bill_deletion_histories')->insert([
+                'bill_id' => $bill->id,
+                'reference_no' => $bill->reference_no,
+                'account_no' => $accountNo,
+                'name' => $name,
+                'bill_date' => $bill->created_at,
+                'amount' => $bill->amount,
+                'reason' => $request->reason,
+                'deleted_by' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('bill_breakdown')->where('bill_id', $bill->id)->delete();
+            if ((float) ($bill->discount ?? 0) > 0) {
+                DB::table('bill_discount')->where('bill_id', $bill->id)->delete();
+            }
+            DB::table('bill_adjustments')->where('bill_id', $bill->id)->delete();
+            $reading = $bill->reading()->first();
+            $bill->delete();
+            if ($reading) {
+                DB::table('reading_deletion_histories')->insert([
+                    'reading_id' => $reading->id,
+                    'account_no' => $reading->account_no,
+                    'name' => optional($reading->concessionaire?->user)->name,
+                    'reading_date' => $reading->created_at,
+                    'previous_reading' => $reading->previous_reading,
+                    'present_reading' => $reading->present_reading,
+                    'reason' => $request->reason,
+                    'deleted_by' => auth()->id(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                DB::table('reading_adjustments')->where('reading_id', $reading->id)->delete();
+                $reading->delete();
+            }
+        });
+
+        return back()->with('success', 'Bill was deleted successfully.');
     }
 }
