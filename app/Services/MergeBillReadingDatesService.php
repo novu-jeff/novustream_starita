@@ -127,5 +127,4 @@ class MergeBillReadingDatesService
             ->whereMonth('created_at', $date->month)
             ->first();
     }
-
 }

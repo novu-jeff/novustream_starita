@@ -47,7 +47,7 @@
         </div>
     </div>
 
-    <div class="d-flex justify-content-start mb-3">
+    <div class="d-flex justify-content-between mb-3">
         <form method="GET">
             <div class="input-group">
                 <label class="input-group-text">Year</label>
