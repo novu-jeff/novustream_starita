@@ -13,12 +13,15 @@ return new class extends Migration
             $table->unsignedBigInteger('bill_id');
             $table->string('reference_no');
             $table->string('account_no')->nullable();
+            $table->string('name')->nullable();
+            $table->timestamp('bill_date')->nullable();
             $table->decimal('amount', 12, 2)->nullable();
             $table->text('reason');
             $table->unsignedBigInteger('deleted_by')->nullable();
             $table->timestamps();
         });
     }
+
 
     public function down(): void
     {
