@@ -246,6 +246,11 @@ class SyncNovupayReadingsCommand extends Command
         }
 
         if ($isPaid) {
+            if ($localBill->isPaid && $this->staritaNovupayBillService->billAlreadyHasThisPayment($localBill, $nb)) {
+                $this->markSourceRowAsSynced($nb, true);
+                return;
+            }
+
             // Set payor_name when empty (from starita_bills: payload, payor column, or account)
             $payor = null;
             if (empty($localBill->payor_name)) {

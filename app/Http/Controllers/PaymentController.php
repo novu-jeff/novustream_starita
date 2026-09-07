@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Imports\PreviousBillingImport;
 use App\Models\Bill;
+use App\Models\NovupayStaritaBill;
 use App\Services\GenerateService;
 use App\Services\BillSettlementService;
 use App\Services\MeterService;
@@ -267,121 +268,84 @@ class PaymentController extends Controller
     }
 
     public function index(Request $request)
-{
-    $filter = $request->filter ?? 'unpaid';
+    {
+        $filter = $request->filter ?? 'unpaid';
 
-    if (!in_array($filter, ['unpaid', 'paid'], true)) {
-        return redirect()->route('payments.index', ['filter' => 'unpaid']);
+        if (!in_array($filter, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.index', ['filter' => 'unpaid']);
+        }
+
+        $zones = $this->meterService->getZones();
+        $zone  = $request->zone ?? 'all';
+
+        $paymentMethod = $request->payment_method ?? 'all';
+        if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
+            $paymentMethod = 'all';
+        }
+
+        $entries  = $request->entries ?? 10;
+        $search   = trim($request->search ?? '');
+        $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
+
+        $startDate = Carbon::parse($date)->startOfMonth()->format('Y-m-d 00:00:00');
+        $endDate   = Carbon::parse($date)->endOfMonth()->format('Y-m-d 23:59:59');
+
+        try {
+            DB::statement('SET SESSION MAX_EXECUTION_TIME=8000');
+        } catch (\Throwable $e) {
+            // Ignore if the session variable is unavailable.
+        }
+
+        $query = Bill::query()
+            ->select('bill.*')
+            ->join('readings', 'bill.reading_id', '=', 'readings.id')
+            ->leftJoin('concessioner_accounts as ca', 'readings.account_no', '=', 'ca.account_no')
+            ->leftJoin('users', 'ca.user_id', '=', 'users.id')
+            ->with(['reading.concessionaire.user'])
+            ->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+
+        if ($filter === 'paid') {
+            $query->where('bill.isPaid', 1);
+        } else {
+            $query->where('bill.isPaid', 0);
+        }
+
+        if ($zone !== 'all') {
+            $query->where('readings.zone', $zone);
+        }
+
+        if ($paymentMethod !== 'all') {
+            $query->where('bill.payment_method', $paymentMethod);
+        }
+
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('bill.reference_no', 'like', $like)
+                    ->orWhere('readings.account_no', 'like', $like)
+                    ->orWhere('bill.payor_name', 'like', $like)
+                    ->orWhere('users.name', 'like', $like);
+            });
+        }
+
+        $data = $query
+            ->orderByDesc('bill.created_at')
+            ->paginate($entries)
+            ->withQueryString();
+
+        return view(
+            'payments.index',
+            compact(
+                'data',
+                'entries',
+                'filter',
+                'zones',
+                'zone',
+                'date',
+                'paymentMethod'
+            )
+        )->with('toSearch', $search);
     }
-
-    $zones = $this->meterService->getZones();
-    $zone  = $request->zone ?? 'all';
-
-    $paymentMethod = $request->payment_method ?? 'all';
-    if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
-        $paymentMethod = 'all';
-    }
-
-    $entries  = $request->entries ?? 10;
-    $search   = trim($request->search ?? '');
-    $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
-
-    $startDate = \Carbon\Carbon::parse($date)->startOfMonth();
-    $endDate   = \Carbon\Carbon::parse($date)->endOfMonth();
-
-    /*
-    |--------------------------------------------------------------------------
-    | BASE QUERY
-    |--------------------------------------------------------------------------
-    */
-
-    $query = \App\Models\Bill::query()
-        ->with(['reading.concessionaire.user'])
-        ->whereBetween('bill_period_to', [$startDate, $endDate]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Paid / Unpaid
-    |--------------------------------------------------------------------------
-    */
-
-    if ($filter === 'paid') {
-    $query->where('isPaid', 1);
-} else {
-    $query->where('isPaid', 0);
-}
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Zone
-    |--------------------------------------------------------------------------
-    */
-
-    if ($zone !== 'all') {
-        $query->whereHas('reading.concessionaire', function ($q) use ($zone) {
-            $q->where('zone', $zone);
-        });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Payment Method
-    |--------------------------------------------------------------------------
-    */
-
-    if ($paymentMethod !== 'all') {
-        $query->where('payment_method', $paymentMethod);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | SMART SEARCH (FAST TOKEN SEARCH)
-    |--------------------------------------------------------------------------
-    */
-
-    if (!empty($search)) {
-        $tokens = preg_split('/\s+/', strtolower($search));
-
-        $query->where(function ($q) use ($tokens, $search) {
-
-            // Reference number
-            $q->where('reference_no', 'like', "%{$search}%")
-
-              ->orWhereHas('reading', function ($rq) use ($tokens, $search) {
-                  $rq->where('account_no', 'like', "%{$search}%")
-                     ->orWhereHas('concessionaire.user', function ($uq) use ($tokens) {
-                         foreach ($tokens as $token) {
-                             $uq->where('name', 'like', "%{$token}%");
-                         }
-                     });
-              });
-        });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DATABASE PAGINATION
-    |--------------------------------------------------------------------------
-    */
-
-    $data = $query
-        ->orderByDesc('created_at')
-        ->paginate($entries)
-        ->withQueryString();
-
-    return view(
-    'payments.index',
-        compact(
-            'data',
-            'entries',
-            'filter',
-            'zones',
-            'zone',
-            'date',
-            'paymentMethod'
-        )
-    )->with('toSearch', $search);
-}
 
 
     public function upload(Request $request)
@@ -1577,14 +1541,38 @@ class PaymentController extends Controller
             ->first();
 
         if (!$existingBill) {
+            $nb = NovupayStaritaBill::query()
+                ->where(function ($q) use ($reference_number, $payment_request_id) {
+                    if (!empty($reference_number)) {
+                        $q->where('reference_no', $reference_number)
+                            ->orWhere('hitpay_reference', $reference_number);
+                    }
+                    if (!empty($payment_request_id)) {
+                        $q->orWhere('hitpay_reference', $payment_request_id);
+                    }
+                })
+                ->first();
+            if ($nb) {
+                $existingBill = $this->staritaNovupayBillService->resolveLocalBillForPayment($nb);
+            }
+        }
+
+        if (!$existingBill) {
             Log::warning('HitPay webhook: bill not found', ['reference_number' => $reference_number, 'id' => $payment_request_id]);
             return response()->json(['status' => 'error', 'message' => 'Bill not found'], 404);
         }
 
         if ($existingBill->isPaid) {
-            $redirectBill = $this->staritaNovupayBillService->findOldestUnpaidBillForAccount(
-                (string) optional($existingBill->reading)->account_no
-            );
+            $accountNo = (string) optional($existingBill->reading)->account_no;
+            $redirectBill = $this->staritaNovupayBillService->findUnpaidBillMatchingPayment(
+                $accountNo,
+                NovupayStaritaBill::make([
+                    'account_no' => $accountNo,
+                    'amount' => $payment_amount,
+                    'present_reading' => data_get($payload, 'present_reading'),
+                    'payload' => $payload,
+                ])
+            ) ?? $this->staritaNovupayBillService->findOldestUnpaidBillForAccount($accountNo);
             if (!$redirectBill) {
                 Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
                 return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
