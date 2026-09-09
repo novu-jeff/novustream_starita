@@ -5,7 +5,8 @@
 <div class="login register-page">
     <div class="container right-panel-active scroll" id="container">
         <div class="form-container sign-up-container">
-            <form id="registerForm" novalidate>
+            <form id="registerForm" method="POST" action="{{ route('auth.register.store') }}" enctype="multipart/form-data" novalidate>
+                @csrf
                 <input type="hidden" name="data_privacy_consent" id="data_privacy_consent" value="">
                 <h1 class="fw-bold mb-1">Create Account</h1>
                 <span>Register as a concessionaire</span>
@@ -665,14 +666,17 @@
 
         function submitRegistration() {
             const submitButton = form.querySelector('button[type="submit"]');
+
             const recaptchaResponse = grecaptcha.getResponse();
+
+            console.log('reCAPTCHA token exists:', !!recaptchaResponse);
+            console.log('reCAPTCHA token length:', recaptchaResponse ? recaptchaResponse.length : 0);
 
             if (!recaptchaResponse) {
                 showAlert(
                     'danger',
                     'Please complete the reCAPTCHA verification.'
                 );
-
                 return;
             }
 
@@ -700,29 +704,19 @@
 
             const formData = new FormData(form);
 
-            formData.append(
+            formData.set(
                 'g-recaptcha-response',
                 recaptchaResponse
             );
 
-            fetch('{{ route('auth.register.store') }}', {
-                method: 'POST',
-
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                },
-
-                body: formData,
-            })
-
-            fetch('{{ route('auth.register.store') }}', {
+            fetch(form.action, {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: new FormData(form),
+                credentials: 'same-origin',
+                body: formData
             })
             .then(async function (response) {
                 const payload = await response.json().catch(function () {
@@ -731,32 +725,71 @@
 
                 if (!response.ok) {
                     const errors = payload.errors || {};
+
                     if (errors.name) {
                         form.name.classList.add('is-invalid');
                     }
+
+                    if (errors.email) {
+                        form.email.classList.add('is-invalid');
+                    }
+
+                    if (errors.contact_no) {
+                        form.contact_no.classList.add('is-invalid');
+                    }
+
                     if (errors.account_no) {
                         form.account_no.classList.add('is-invalid');
                     }
-                    const firstError = Object.values(errors).flat()[0] || null;
-                    throw new Error(firstError || payload.message || 'Registration failed.');
+
+                    if (errors.address) {
+                        form.address.classList.add('is-invalid');
+                    }
+
+                    if (errors.password) {
+                        form.password.classList.add('is-invalid');
+                    }
+
+                    if (errors.password_confirmation) {
+                        form.password_confirmation.classList.add('is-invalid');
+                    }
+
+                    const firstError =
+                        Object.values(errors).flat()[0] ||
+                        payload.message ||
+                        'Registration failed.';
+
+                    throw new Error(firstError);
                 }
 
                 return payload;
             })
             .then(function (payload) {
-
-                showAlert('success', payload.message || 'Registration submitted successfully.');
+                showAlert(
+                    'success',
+                    payload.message || 'Registration submitted successfully.'
+                );
 
                 setTimeout(function () {
-                    window.location.href = payload.redirect || "{{ route('account-overview.index') }}";
-
+                    window.location.href =
+                        payload.redirect ||
+                        "{{ route('account-overview.index') }}";
                 }, 1000);
-
             })
             .catch(function (error) {
-                showAlert('danger', error.message);
+                console.error('Registration error:', error);
+
+                showAlert(
+                    'danger',
+                    error.message || 'Registration failed. Please try again.'
+                );
+
                 submitButton.disabled = false;
                 submitButton.textContent = 'Submit Registration';
+                
+                if (typeof grecaptcha !== 'undefined') {
+                    grecaptcha.reset();
+                }
             });
         }
 
