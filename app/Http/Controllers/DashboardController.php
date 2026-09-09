@@ -32,6 +32,9 @@ class DashboardController extends Controller
 
     public function index()
     {
+        ini_set('memory_limit', '512M');
+
+        $flatReadings = collect();
         $users = $this->dashboardService->getAllUsers() ?? [];
 
         $billedBills = Bill::query()->whereHas('reading', fn ($q) => $q->where('isReRead', false));
