@@ -42,6 +42,8 @@ Route::get('app-version', function () {
             return response()->json([
                 'version' => $data['latest_version_name'] ?? ($data['version'] ?? '1.0.0'),
                 'build_number' => (int) ($data['latest_version'] ?? $data['build_number'] ?? 1),
+                'latest_version' => (int) ($data['latest_version'] ?? $data['build_number'] ?? 1),
+                'latest_version_name' => $data['latest_version_name'] ?? ($data['version'] ?? ''),
                 'apk_url' => $data['apk_url'] ?? '',
                 'force_update' => (bool) ($data['force_update'] ?? false),
                 'release_notes' => $data['release_notes'] ?? '',
