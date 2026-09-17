@@ -782,28 +782,10 @@ class ReadingController extends Controller
             // ->whereDate('expired_date', '>=', $today)
             ->first();
 
-        $hardcodedDiscounts = [
-            '011-22-011450' => 0.02, // 2%
-            '091-22-092230' => 0.05, // 5%
-            '111-22-111720' => 0.02, // 2%
-        ];
         // 1. Apply discount if account is eligible
         $totalDiscount = 0;
         $discountRecord = Discount::where('account_no', $account->account_no)->first();
 
-        if (isset($hardcodedDiscounts[$account_no])) {
-            $discountRate = $hardcodedDiscounts[$account_no];
-            $hardcodedAmount = round($basicCharge * $discountRate, 2);
-
-            BillDiscount::create([
-                'bill_id' => $bill->id,
-                'name' => 'Franchise Tax',
-                'description' => ($discountRate * 100) . '%',
-                'amount' => $hardcodedAmount,
-            ]);
-
-            $totalDiscount += $hardcodedAmount;
-        }
 
         $ruling = DB::table('global_ruling')->first();
         $consumptionLimit = $ruling->snr_dc_rule ?? 0;
@@ -872,33 +854,6 @@ class ReadingController extends Controller
                 $penaltyAmount = floatval($penaltyEntry->amount);
             }
         }
-
-        // // Hardcoded accounts exempted from penalties
-        // $penaltyExemptAccounts = [
-        //     '011-22-011450', // San Basilio High School
-        //     '031-22-030360', // San Basilio Brgy Hall
-        //     '031-22-030220', // San Basilio Health Center
-        //     '011-22-011350', // San Basilio Covered Court
-        //     '081-22-082580', // Dila-Dila Gym
-        //     '081-22-082560', // Dila-Dila Sports Center
-        //     '081-22-082570', // Dila-Dila Daycare
-        //     '101-22-102580', // Dila-Dila Senior Citizen
-        //     '081-22-080980', // Dila-Dila Brgy Hall
-        //     '111-22-111720', // Holy Family Elementary School
-        //     '091-22-092230', // Material Recovery Facilities
-        //     '061-22-060250', // VDLR Parish
-        //     '071-22-073120', // MUN. OF STA. RITA, DIALYSIS CENTER
-        //     '111-22-110290', // Aetahanan
-        //     '111-22-111650', // HOLY FAMILY DAY CARE CENTER
-        //     '011-22-010120', //SRWD PS I
-        //     '091-22-091120', //SRWD PS II
-        //     '091-22-091130', //SRWD PS II-A
-        // ];
-
-        // // Check if account is exempted from penalty
-        // if (in_array($account_no, $penaltyExemptAccounts)) {
-        //     $penaltyAmount = 0;
-        // }
 
         $today = Carbon::today();
 
