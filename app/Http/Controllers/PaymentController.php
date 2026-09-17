@@ -105,21 +105,34 @@ class PaymentController extends Controller
             }
         }
 
-        $base = round(max((float) ($billData['total'] ?? $billData['amount'] ?? 0) - $discount, 0), 2);
+        $total = isset($billData['total']) && is_numeric($billData['total'])
+            ? round((float) $billData['total'], 2)
+            : 0.0;
+        $storedAmount = isset($billData['amount']) && is_numeric($billData['amount'])
+            ? round((float) $billData['amount'], 2)
+            : 0.0;
+        $penalty = (float) ($billData['penalty'] ?? 0);
+        $afterDue = isset($billData['amount_after_due']) && is_numeric($billData['amount_after_due'])
+            ? round((float) $billData['amount_after_due'], 2)
+            : 0.0;
+
+        $base = round(max($total - $discount, 0), 2);
+        if ($base <= 0 && $storedAmount > 0) {
+            $base = round(max($storedAmount - $discount, 0), 2);
+            // bill.amount is historically stored as amount-after-due (includes penalty).
+            if ($penalty > 0 && ($afterDue <= 0 || abs($storedAmount - $afterDue) < 0.01)) {
+                $base = round(max($base - $penalty, 0), 2);
+            }
+        }
 
         if (!self::isPastDue($billData)) {
             return $base;
         }
 
-        $afterDue = isset($billData['amount_after_due']) && is_numeric($billData['amount_after_due'])
-            ? round((float) $billData['amount_after_due'], 2)
-            : 0.0;
-
         if ($afterDue > $base + 0.001) {
             return $afterDue;
         }
 
-        $penalty = (float) ($billData['penalty'] ?? 0);
         if ($penalty > 0) {
             return round($base + $penalty, 2);
         }
@@ -1053,6 +1066,15 @@ class PaymentController extends Controller
     {
         $billResult = $this->getBill($reference_no, $payload, false);
         $billData = $billResult['data']['current_bill'] ?? null;
+        if ($billData && !empty($billData['isPaid'])) {
+            $completedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $completedId ? self::buildHitpayCompletedUrl($completedId) : null,
+            ]);
+        }
+
         if ($billData && self::isSoaQrVoided($billData)) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
@@ -1068,6 +1090,14 @@ class PaymentController extends Controller
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => 'Failed to generate HitPay payment request.',
+            ]);
+        }
+
+        if (!empty($hitpayData['already_paid'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $hitpayData['url'],
             ]);
         }
 
@@ -1092,6 +1122,13 @@ class PaymentController extends Controller
 
 
 
+    /**
+     * Create or reuse a HitPay payment request for a Sta. Rita bill.
+     *
+     * @param string $reference_no
+     * @param array $payload
+     * @return array<string, mixed>|null
+     */
     public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
     {
         try {
@@ -1113,6 +1150,31 @@ class PaymentController extends Controller
 
             if (self::isSoaQrVoided($billData)) {
                 \Log::info('HitPay request skipped: bill past due date (void mode)', ['reference_no' => $reference_no]);
+                return null;
+            }
+
+            if (!empty($billData['isPaid']) || ($existingBill && $existingBill->isPaid)) {
+                $completedId = $billData['hitpay_payment_id']
+                    ?? $billData['hitpay_reference']
+                    ?? $existingBill?->hitpay_payment_id
+                    ?? $existingBill?->hitpay_reference
+                    ?? null;
+
+                \Log::info('HitPay request skipped: bill already paid', [
+                    'reference_no' => $reference_no,
+                    'hitpay_id' => $completedId,
+                ]);
+
+                if ($completedId) {
+                    return [
+                        'id' => $completedId,
+                        'url' => self::buildHitpayCompletedUrl($completedId),
+                        'reference' => $existingBill?->hitpay_reference ?? $completedId,
+                        'reference_number' => $existingBill?->hitpay_reference ?? $completedId,
+                        'already_paid' => true,
+                    ];
+                }
+
                 return null;
             }
 
@@ -1340,7 +1402,6 @@ class PaymentController extends Controller
         $status = $this->resolveHitpayStatus($payment, $status);
         $reference_number = $payment['reference_number'] ?? null;
         $amount = $this->parseHitpayAmount($payment['amount'] ?? 0);
-        $payor = $payment['name'] ?? 'Unknown';
         $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
 
         // ✅ Step 2: Find bill (redirect "reference" is payment-request ID; also match by our reference_number from API response)
@@ -1348,6 +1409,8 @@ class PaymentController extends Controller
             ->orWhere('hitpay_payment_id', $hitpay_reference)
             ->orWhere('reference_no', $reference_number)
             ->first();
+
+        $payor = $this->resolvePayorFromHitpayPayload($payment, $bill);
 
         $days_before_due = 15;
         $due_date = !empty($bill['due_date'])
@@ -1517,7 +1580,6 @@ class PaymentController extends Controller
         $payment_request_id = $payload['payment_request_id'] ?? $payload['id'] ?? null;
         $payment_status = $this->resolveHitpayStatus($payload);
         $payment_amount = $this->parseHitpayAmount($payload['amount'] ?? 0);
-        $payor = $payload['customer']['name'] ?? $payload['name'] ?? 'Unknown';
 
         if (empty($reference_number) && empty($payment_request_id)) {
             Log::warning('HitPay webhook: missing reference_number and id');
@@ -1563,22 +1625,11 @@ class PaymentController extends Controller
         }
 
         if ($existingBill->isPaid) {
-            $accountNo = (string) optional($existingBill->reading)->account_no;
-            $redirectBill = $this->staritaNovupayBillService->findUnpaidBillMatchingPayment(
-                $accountNo,
-                NovupayStaritaBill::make([
-                    'account_no' => $accountNo,
-                    'amount' => $payment_amount,
-                    'present_reading' => data_get($payload, 'present_reading'),
-                    'payload' => $payload,
-                ])
-            ) ?? $this->staritaNovupayBillService->findOldestUnpaidBillForAccount($accountNo);
-            if (!$redirectBill) {
-                Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
-                return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
-            }
-            $existingBill = $redirectBill;
+            Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
+            return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
         }
+
+        $payor = $this->resolvePayorFromHitpayPayload($payload, $existingBill);
 
         if (!in_array($payment_status, ['completed', 'succeeded', 'success'], true)) {
             Log::info('HitPay webhook ignored; status not completed', ['status' => $payment_status]);
@@ -1664,6 +1715,33 @@ class PaymentController extends Controller
             })
             ->rawColumns(['status', 'actions'])
             ->make(true);
+    }
+
+    private function resolvePayorFromHitpayPayload(array $payload, ?Bill $bill = null): ?string
+    {
+        $fromPayload = StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            data_get($payload, 'payments.0.customer.name'),
+            data_get($payload, 'payments.0.name')
+        );
+        if ($fromPayload) {
+            return $fromPayload;
+        }
+
+        if ($bill) {
+            $bill->loadMissing('reading.concessionaire.user');
+            $fromBill = StaritaNovupayBillService::firstUsablePayor(
+                $bill->payor_name ?? null,
+                optional(optional(optional($bill->reading)->concessionaire)->user)->name
+            );
+            if ($fromBill) {
+                return $fromBill;
+            }
+        }
+
+        return null;
     }
 
     private function parseHitpayAmount($value): float

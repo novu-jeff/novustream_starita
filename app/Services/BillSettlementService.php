@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Bill;
 use App\Models\BillBreakdown;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 
 class BillSettlementService
@@ -166,8 +167,14 @@ class BillSettlementService
             return round($amountAfterDue, 2);
         }
 
+        $discount = self::numericBillAttribute($bill, 'discount');
         if ($total > 0) {
-            return round($total, 2);
+            return round(max($total - $discount, 0), 2);
+        }
+
+        $penalty = (float) ($bill->penalty ?? 0);
+        if ($amountAfterDue > 0 && $penalty > 0 && abs($amountAfterDue - $amount) < 0.01) {
+            return round(max($amountAfterDue - $penalty, 0), 2);
         }
 
         if ($amountAfterDue > 0) {
@@ -177,8 +184,80 @@ class BillSettlementService
         return round($amount, 2);
     }
 
+    /**
+     * HitPay checkout total = bill amount + convenience fee. District amount_paid is the bill only.
+     */
+    public static function convenienceFeeForBillAmount(float $billAmount, float $novupayFee = 10.0): float
+    {
+        $billAmount = round($billAmount, 2);
+        $qrphFee = $billAmount <= 2000 ? 20.0 : round($billAmount * 0.01, 1);
+        $gcashFee = round($billAmount * 0.023, 1);
+        $hitpayFee = $billAmount < 800 ? $gcashFee : $qrphFee;
+
+        return round($hitpayFee + $novupayFee, 2);
+    }
+
+    public static function looksLikeCheckoutTotal(float $billAmount, float $reportedAmount): bool
+    {
+        $reported = round($reportedAmount, 2);
+        $billAmount = round($billAmount, 2);
+        if ($reported <= 0 || $billAmount <= 0) {
+            return false;
+        }
+
+        foreach ([10.0, 25.0] as $novupayFee) {
+            $expected = round($billAmount + self::convenienceFeeForBillAmount($billAmount, $novupayFee), 2);
+            if (abs($reported - $expected) < 0.06) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Online amount_paid is the SOA amount due, never HitPay gross (bill + convenience fee).
+     */
+    public function resolveOnlineAmountPaid(Bill $bill, ?float $reportedAmount, $paidAt = null): float
+    {
+        $billAmount = $this->inferSettledAmount($bill, $paidAt);
+        $reported = $reportedAmount !== null && $reportedAmount !== ''
+            ? round((float) $reportedAmount, 2)
+            : 0.0;
+
+        if ($reported <= 0 || abs($reported - $billAmount) < 0.06) {
+            return $billAmount;
+        }
+
+        if (self::looksLikeCheckoutTotal($billAmount, $reported)) {
+            return $billAmount;
+        }
+
+        $afterDue = round((float) ($bill->amount_after_due ?? $bill->amount ?? 0), 2);
+        $paidAtNorm = $this->normalizePaidAt($paidAt ?? $bill->date_paid ?? now());
+        $dueDate = !empty($bill->due_date) ? Carbon::parse($bill->due_date)->startOfDay() : null;
+        $beforeDue = !$dueDate || !$paidAtNorm->gt($dueDate);
+
+        if ($beforeDue && $afterDue > $billAmount + 0.001) {
+            if (abs($reported - $afterDue) < 0.06 || self::looksLikeCheckoutTotal($afterDue, $reported)) {
+                return $billAmount;
+            }
+        }
+
+        if (!$beforeDue && $afterDue > 0 && self::looksLikeCheckoutTotal($afterDue, $reported)) {
+            return $afterDue;
+        }
+
+        return $reported;
+    }
+
     private function applySettlement(Bill $bill, Carbon $paidAt, ?float $amountPaid, array $attributes = []): void
     {
+        $paymentMethod = $attributes['payment_method'] ?? $bill->payment_method ?? null;
+        if (in_array($paymentMethod, ['online', 'hitpay'], true)) {
+            $amountPaid = $this->resolveOnlineAmountPaid($bill, $amountPaid, $paidAt);
+        }
+
         $update = [
             'isPaid' => true,
             'amount_paid' => $amountPaid ?? $this->inferSettledAmount($bill, $paidAt),
@@ -187,18 +266,42 @@ class BillSettlementService
         ];
 
         foreach (['payor_name', 'payment_method', 'paid_by_reference_no'] as $field) {
-            if (array_key_exists($field, $attributes) && !empty($attributes[$field])) {
-                $update[$field] = $attributes[$field];
+            if (!array_key_exists($field, $attributes) || $attributes[$field] === null || $attributes[$field] === '') {
+                continue;
             }
+            if ($field === 'payor_name' && StaritaNovupayBillService::isPlaceholderPayor((string) $attributes[$field])) {
+                continue;
+            }
+            $update[$field] = $attributes[$field];
         }
 
         foreach (['change', 'isChangeForAdvancePayment', 'hitpay_reference', 'hitpay_payment_id', 'initiated_at'] as $field) {
-            if (array_key_exists($field, $attributes)) {
-                $update[$field] = $attributes[$field];
+            if (!array_key_exists($field, $attributes)) {
+                continue;
             }
+
+            if ($field === 'hitpay_reference' && $this->isForeignSoaHitpayReference($bill, $attributes[$field])) {
+                continue;
+            }
+
+            $update[$field] = $attributes[$field];
         }
 
         $bill->update($update);
+    }
+
+    /**
+     * Read a numeric column even when the model also has a same-named relation
+     * (e.g. bill.discount vs discount()).
+     */
+    public static function numericBillAttribute(Bill $bill, string $key): float
+    {
+        $raw = $bill->getAttributes()[$key] ?? null;
+        if ($raw === null || $raw === '' || !is_numeric($raw)) {
+            return 0.0;
+        }
+
+        return round((float) $raw, 2);
     }
 
     private function extractAmountPaid(array $attributes): ?float
@@ -208,6 +311,17 @@ class BillSettlementService
         }
 
         return round((float) $attributes['amount_paid'], 2);
+    }
+
+    private function isForeignSoaHitpayReference(Bill $bill, $hitpayReference): bool
+    {
+        $hitpay = trim((string) $hitpayReference);
+        $billRef = trim((string) ($bill->reference_no ?? ''));
+        if ($hitpay === '' || $billRef === '' || strcasecmp($hitpay, $billRef) === 0) {
+            return false;
+        }
+
+        return (bool) preg_match('/NST-SRWD-/i', $hitpay);
     }
 
     private function normalizePaidAt($paidAt): Carbon

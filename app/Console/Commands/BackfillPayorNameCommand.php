@@ -21,7 +21,12 @@ class BackfillPayorNameCommand extends Command
         $dryRun = $this->option('dry-run');
 
         $bills = Bill::with('reading.concessionaire.user')
-            ->whereNull('payor_name')
+            ->where(function ($q) {
+                $q->whereNull('payor_name')
+                    ->orWhereRaw('LOWER(TRIM(payor_name)) IN (?, ?, ?, ?, ?, ?)', [
+                        'unknown', 'n/a', 'na', 'null', '-', 'none',
+                    ]);
+            })
             ->whereHas('reading')
             ->limit($limit)
             ->get();

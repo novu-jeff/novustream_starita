@@ -22,6 +22,7 @@ use App\Services\BillSettlementService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
 use App\Services\OfflineMergeGuard;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -636,12 +637,18 @@ class OfflineSyncController extends Controller
                                 'reference_no' => $referenceNo,
                                 'account_no' => $off->account_no,
                             ]);
+                        } elseif (app(StaritaNovupayBillService::class)->paymentWouldMisapply($localBill, $novupayBill)) {
+                            Log::channel('single')->warning('Novustream offline API: merge skipping Novupay auto-settlement (would misapply)', [
+                                'reference_no' => $referenceNo,
+                                'source_reference' => $novupayBill->reference_no,
+                                'account_no' => $off->account_no,
+                            ]);
                         } else {
                             $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
                             $update = [
                                 'payment_method' => 'online',
                             ];
-                            if (empty($localBill->payor_name)) {
+                            if (StaritaNovupayBillService::isPlaceholderPayor($localBill->payor_name)) {
                                 $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
                                 $update['payor_name'] = $payor;
                             }
@@ -733,26 +740,20 @@ class OfflineSyncController extends Controller
     private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): string
     {
         $payload = $nb->payload ?? [];
-        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if (!empty($nb->payor)) {
-            return trim((string) $nb->payor);
-        }
-        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if ($localBill->reading) {
-            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
-            if (!empty($payor)) {
-                return trim((string) $payor);
-            }
-        }
+        $fromReading = optional(optional($localBill->reading)->concessionaire)->user->name ?? null;
         $account = $this->meterService->getAccount($localBill->reading?->account_no ?? $nb->account_no ?? '');
-        $payor = optional(optional($account)->user)->name ?? null;
-        return !empty($payor) ? trim((string) $payor) : 'Sta. Rita Customer';
+        $fromAccount = optional(optional($account)->user)->name ?? null;
+
+        return StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['payor'] ?? null,
+            $nb->payor ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            $fromReading,
+            $fromAccount,
+            'Sta. Rita Customer'
+        );
     }
 
     /** Normalize to whole number for readings/consumption (no decimal); null if empty. */

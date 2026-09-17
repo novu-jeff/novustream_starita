@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 class OnlinePaymentsAuditCommand extends Command
 {
     protected $signature = 'online-payments:audit
-                            {--execute : Apply safe repairs (unsynced same-ref + copied older payments)}';
+                            {--execute : Apply safe repairs (unsynced same-ref, copied later bills, unknown payors, convenience-fee amount_paid)}';
 
     protected $description = 'Find online payments that never posted, or were stamped on the wrong later bill';
 
@@ -21,7 +21,9 @@ class OnlinePaymentsAuditCommand extends Command
     ): int {
         $applySameRef = $this->findUnsyncedSameRef($novupay);
         $applyMissingRef = $this->findMissingRefMatches($novupay);
-        $unpayCopied = $this->findCopiedOlderPayments();
+        $unpayCopied = $this->findCopiedOlderPayments($novupay);
+        $unknownPayors = $this->findUnknownPayors();
+        $feeInAmountPaid = $this->findConvenienceFeeInAmountPaid($settlement);
 
         $this->info('A. Paid in Novupay, local bill with the same reference still unpaid: '.count($applySameRef));
         $this->table(
@@ -35,14 +37,26 @@ class OnlinePaymentsAuditCommand extends Command
             array_map(fn ($r) => [$r['account'], $r['nb_ref'], $r['amount'], $r['paid_at'], $r['target_ref'], $r['target_period']], $applyMissingRef)
         );
 
-        $this->info('C. Later bill marked paid with an older payment (date_paid before billing period): '.count($unpayCopied));
+        $this->info('C. Later bill marked paid with an older payment (foreign HitPay ref / paid before bill existed): '.count($unpayCopied));
         $this->table(
-            ['account', 'later_ref', 'period', 'date_paid', 'older_ref'],
-            array_map(fn ($r) => [$r['account'], $r['later_ref'], $r['period'], $r['date_paid'], $r['older_ref']], $unpayCopied)
+            ['account', 'later_ref', 'period', 'date_paid', 'older_ref', 'reason'],
+            array_map(fn ($r) => [$r['account'], $r['later_ref'], $r['period'], $r['date_paid'], $r['older_ref'], $r['reason']], $unpayCopied)
+        );
+
+        $this->info('D. Online bills with placeholder payor (Unknown): '.count($unknownPayors));
+        $this->table(
+            ['account', 'reference', 'current_payor', 'resolved_payor'],
+            array_map(fn ($r) => [$r['account'], $r['reference'], $r['current'], $r['resolved']], $unknownPayors)
+        );
+
+        $this->info('E. Online amount_paid includes HitPay convenience fee: '.count($feeInAmountPaid));
+        $this->table(
+            ['account', 'reference', 'amount_paid', 'should_be'],
+            array_map(fn ($r) => [$r['account'], $r['reference'], $r['current'], $r['corrected']], $feeInAmountPaid)
         );
 
         if (!$this->option('execute')) {
-            $this->comment('Dry run only. Re-run with --execute to apply A and C (safe). Review B before applying those by hand.');
+            $this->comment('Dry run only. Re-run with --execute to apply A, C, D, and E (safe). Review B before applying those by hand.');
             return self::SUCCESS;
         }
 
@@ -60,7 +74,21 @@ class OnlinePaymentsAuditCommand extends Command
             $this->line('Cleared copied payment from '.$row['account'].' '.$row['later_ref']);
         }
 
-        $this->info("Done. Applied {$applied} missing payment(s), cleared {$unpaid} copied later bill(s). Category B left for review.");
+        $named = 0;
+        foreach ($unknownPayors as $row) {
+            $row['bill']->update(['payor_name' => $row['resolved']]);
+            $named++;
+            $this->line('Restored payor on '.$row['account'].' '.$row['reference'].' → '.$row['resolved']);
+        }
+
+        $fees = 0;
+        foreach ($feeInAmountPaid as $row) {
+            $row['bill']->update(['amount_paid' => $row['corrected']]);
+            $fees++;
+            $this->line('Stripped convenience fee on '.$row['account'].' '.$row['reference'].' '.$row['current'].' → '.$row['corrected']);
+        }
+
+        $this->info("Done. Applied {$applied} missing payment(s), cleared {$unpaid} copied later bill(s), restored {$named} payor name(s), corrected {$fees} amount_paid value(s). Category B left for review.");
 
         return self::SUCCESS;
     }
@@ -143,15 +171,18 @@ class OnlinePaymentsAuditCommand extends Command
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function findCopiedOlderPayments(): array
+    private function findCopiedOlderPayments(StaritaNovupayBillService $novupay): array
     {
         $rows = [];
         $laterBills = Bill::query()
-            ->with('reading')
+            ->with('reading.concessionaire.user')
             ->where('isPaid', 1)
             ->whereNotNull('date_paid')
-            ->whereNotNull('bill_period_from')
-            ->whereColumn('date_paid', '<', 'bill_period_from')
+            ->where(function ($q) {
+                $q->where('payment_method', 'online')
+                    ->orWhereNotNull('hitpay_reference')
+                    ->orWhereNotNull('hitpay_payment_id');
+            })
             ->get();
 
         foreach ($laterBills as $later) {
@@ -160,25 +191,45 @@ class OnlinePaymentsAuditCommand extends Command
                 continue;
             }
 
-            $older = Bill::query()
-                ->where('id', '!=', $later->id)
-                ->whereHas('reading', function ($q) use ($account) {
-                    $q->where('account_no', $account);
-                })
-                ->where('isPaid', 1)
-                ->where('bill_period_to', '<=', $later->bill_period_from)
-                ->where(function ($q) use ($later) {
-                    if (!empty($later->hitpay_reference)) {
-                        $q->orWhere('hitpay_reference', $later->hitpay_reference)
-                            ->orWhere('hitpay_payment_id', $later->hitpay_reference)
-                            ->orWhere('reference_no', $later->hitpay_reference);
-                    }
-                    if (!empty($later->date_paid)) {
-                        $q->orWhere('date_paid', $later->date_paid);
-                    }
-                })
-                ->orderByDesc('bill_period_to')
-                ->first();
+            $reason = null;
+            $older = null;
+
+            if (!empty($later->hitpay_reference) && $novupay->isForeignSoaReference((string) $later->hitpay_reference, (string) $later->reference_no)) {
+                $older = Bill::query()
+                    ->where('id', '!=', $later->id)
+                    ->where(function ($q) use ($later) {
+                        $q->where('reference_no', $later->hitpay_reference)
+                            ->orWhere('hitpay_reference', $later->hitpay_reference)
+                            ->orWhere('hitpay_payment_id', $later->hitpay_reference);
+                    })
+                    ->orderByDesc('bill_period_to')
+                    ->first();
+                $reason = 'foreign_hitpay_reference';
+            }
+
+            if (!$older && !empty($later->date_paid) && !empty($later->created_at)
+                && $novupay->paymentDateIsBeforeBillPeriod($later, $later->date_paid)) {
+                $older = Bill::query()
+                    ->where('id', '!=', $later->id)
+                    ->whereHas('reading', function ($q) use ($account) {
+                        $q->where('account_no', $account);
+                    })
+                    ->where('isPaid', 1)
+                    ->where('bill_period_to', '<=', $later->bill_period_from)
+                    ->where(function ($q) use ($later) {
+                        if (!empty($later->hitpay_reference)) {
+                            $q->orWhere('hitpay_reference', $later->hitpay_reference)
+                                ->orWhere('hitpay_payment_id', $later->hitpay_reference)
+                                ->orWhere('reference_no', $later->hitpay_reference);
+                        }
+                        if (!empty($later->date_paid)) {
+                            $q->orWhere('date_paid', $later->date_paid);
+                        }
+                    })
+                    ->orderByDesc('bill_period_to')
+                    ->first();
+                $reason = 'paid_before_bill_existed';
+            }
 
             if (!$older) {
                 continue;
@@ -190,7 +241,95 @@ class OnlinePaymentsAuditCommand extends Command
                 'period' => substr((string) $later->bill_period_from, 0, 10).' .. '.substr((string) $later->bill_period_to, 0, 10),
                 'date_paid' => (string) $later->date_paid,
                 'older_ref' => $older->reference_no,
+                'reason' => $reason,
                 'later' => $later,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function findUnknownPayors(): array
+    {
+        $rows = [];
+        $bills = Bill::query()
+            ->with('reading.concessionaire.user')
+            ->where('payment_method', 'online')
+            ->whereNotNull('payor_name')
+            ->get();
+
+        foreach ($bills as $bill) {
+            if (!StaritaNovupayBillService::isPlaceholderPayor($bill->payor_name)) {
+                continue;
+            }
+
+            $nb = NovupayStaritaBill::where('reference_no', $bill->reference_no)->first();
+            $payload = $nb->payload ?? [];
+            $resolved = StaritaNovupayBillService::firstUsablePayor(
+                $payload['customer']['name'] ?? null,
+                $payload['payor'] ?? null,
+                $nb->payor ?? null,
+                optional(optional(optional($bill->reading)->concessionaire)->user)->name,
+                'Sta. Rita Customer'
+            );
+            if (!$resolved || StaritaNovupayBillService::isPlaceholderPayor($resolved)) {
+                continue;
+            }
+
+            $rows[] = [
+                'account' => (string) optional($bill->reading)->account_no,
+                'reference' => $bill->reference_no,
+                'current' => $bill->payor_name,
+                'resolved' => $resolved,
+                'bill' => $bill,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function findConvenienceFeeInAmountPaid(BillSettlementService $settlement): array
+    {
+        $rows = [];
+        $bills = Bill::query()
+            ->with('reading')
+            ->where('isPaid', 1)
+            ->whereIn('payment_method', ['online', 'hitpay'])
+            ->whereNotNull('amount_paid')
+            ->get();
+
+        foreach ($bills as $bill) {
+            $current = round((float) $bill->amount_paid, 2);
+            $bases = [
+                $settlement->inferSettledAmount($bill, $bill->date_paid),
+                round((float) ($bill->total ?? 0), 2),
+                round(max((float) ($bill->total ?? 0) - BillSettlementService::numericBillAttribute($bill, 'discount'), 0), 2),
+            ];
+
+            $corrected = null;
+            foreach ($bases as $base) {
+                if ($base > 0 && BillSettlementService::looksLikeCheckoutTotal($base, $current)) {
+                    $corrected = round($base, 2);
+                    break;
+                }
+            }
+
+            if ($corrected === null || abs($current - $corrected) < 0.06) {
+                continue;
+            }
+
+            $rows[] = [
+                'account' => (string) optional($bill->reading)->account_no,
+                'reference' => $bill->reference_no,
+                'current' => number_format($current, 2, '.', ''),
+                'corrected' => number_format($corrected, 2, '.', ''),
+                'bill' => $bill,
             ];
         }
 
@@ -232,6 +371,7 @@ class OnlinePaymentsAuditCommand extends Command
             'hitpay_payment_id' => null,
             'paid_by_reference_no' => null,
             'isPartial' => 0,
+            'initiated_at' => null,
             'hitpay_reference' => $bill->reference_no,
         ]);
     }
