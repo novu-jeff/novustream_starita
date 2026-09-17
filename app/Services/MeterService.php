@@ -23,6 +23,7 @@ use App\Models\PartialPayment;
 use App\Models\Discount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\InstallmentSchedule;
+use App\Models\PenaltyExemption;
 
 class MeterService {
 
@@ -877,7 +878,7 @@ class MeterService {
 
         $dateNow = Carbon::parse($payload['date'])->format('Y-m-d');
 
-        $penaltyExemption = \DB::table('penalty_exemptions')
+        $penaltyExemption = DB::table('penalty_exemptions')
             ->where('account_no', $payload['account_no'])
             ->where(function ($q) use ($dateNow) {
                 $q->whereNull('effective_date')
@@ -973,6 +974,7 @@ class MeterService {
 
         //     $finalAmountAfterDue = $basic_charge + $penaltyAmount + $remainingUnpaid;
         // }
+
 
         $payorName = optional($concessionaire->user)->name ?? null;
 
@@ -1222,26 +1224,75 @@ class MeterService {
 
             $total = (float) ($billData['total'] ?? 0);
             $prevUnpaid = (float) ($billData['previous_unpaid'] ?? 0);
-            $totalAmountPenalty = max($total - $prevUnpaid - $totalDiscount, 0);
+
+            $totalAmountPenalty = max(
+                $total - $prevUnpaid - $totalDiscount,
+                0
+            );
+
+            $penaltyAmount = 0;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Determine penalty
+            |--------------------------------------------------------------------------
+            */
+
             if ($penaltyEntry) {
                 if ($penaltyEntry->amount_type === 'percentage') {
-                    $penaltyAmount = $totalAmountPenalty * floatval($penaltyEntry->amount);
+                    $penaltyAmount = round(
+                        $totalAmountPenalty * floatval($penaltyEntry->amount),
+                        2
+                    );
                 } elseif ($penaltyEntry->amount_type === 'fixed') {
-                    $penaltyAmount = floatval($penaltyEntry->amount);
+                    $penaltyAmount = round(
+                        floatval($penaltyEntry->amount),
+                        2
+                    );
                 }
             }
 
-            $penaltyExemptAccounts = [
-                '011-22-011450', '031-22-030360', '031-22-030220', '011-22-011350', '081-22-082580',
-                '081-22-082560', '081-22-082570', '101-22-102580', '081-22-080980', '111-22-111720',
-                '091-22-092230', '061-22-060250', '071-22-073120', '111-22-110290', '111-22-111650',
-            ];
-            if (in_array($account_no, $penaltyExemptAccounts)) {
+            $today = Carbon::today();
+
+            $hasActivePenaltyExemption = PenaltyExemption::where(
+                'account_no',
+                trim($account_no)
+            )
+                ->where(function ($query) use ($today) {
+                    $query->where('penalty_exemption_type_id', 2)
+                        ->orWhere(function ($query) use ($today) {
+                            $query->where('penalty_exemption_type_id', 1)
+                                ->whereDate('effective_date', '<=', $today)
+                                ->where(function ($query) use ($today) {
+                                    $query->whereNull('expired_date')
+                                        ->orWhereDate('expired_date', '>=', $today);
+                                });
+                        });
+                })
+                ->exists();
+
+            if ($hasActivePenaltyExemption) {
+                Log::channel('single')->info(
+                    'Penalty exemption applied during bill post-processing',
+                    [
+                        'account_no' => $account_no,
+                        'reference_no' => $referenceNo,
+                        'penalty_before_exemption' => $penaltyAmount,
+                    ]
+                );
+
                 $penaltyAmount = 0;
             }
 
-            $amountDue = round(max($total - $totalDiscount, 0), 2);
-            $amountAfterDue = round($amountDue + $penaltyAmount, 2);
+            $amountDue = round(
+                max($total - $totalDiscount, 0),
+                2
+            );
+
+            $amountAfterDue = round(
+                $amountDue + $penaltyAmount,
+                2
+            );
 
             $bill->update([
                 'penalty' => $penaltyAmount,
@@ -1253,7 +1304,6 @@ class MeterService {
             ]);
 
             if (!$skipHitPayQr && !$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
-                // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
                 $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
                 $hitpayPayload = [
                     'reference_no' => $referenceNo,

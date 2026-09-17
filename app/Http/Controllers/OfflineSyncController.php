@@ -24,6 +24,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Models\PenaltyExemption;
 
 class OfflineSyncController extends Controller
 {
@@ -593,7 +594,7 @@ class OfflineSyncController extends Controller
                 if (
                     $off->source === 'novupay'
                     && $localBill
-                    && \Schema::connection($novupayConnection)->hasTable('starita_bills')
+                    && Schema::connection($novupayConnection)->hasTable('starita_bills')
                 ) {
                     $novupayBill = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
                     if ($novupayBill && strtolower($novupayBill->status ?? '') === 'paid') {
