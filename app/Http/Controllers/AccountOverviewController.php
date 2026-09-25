@@ -76,14 +76,12 @@ class AccountOverviewController extends Controller
         foreach ($approvedAccounts as $account) {
             $bill = $this->meterService::getBills($account->account_no);
 
-            // Only include unpaid bills
             if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
                 $bill['account_no'] = $account->account_no;
                 $statement['transactions'][] = $bill;
             }
         }
 
-        // Determine the current bill
         $statement['current_bill'] = collect($statement['transactions'])
             ->filter(function ($bill) {
                 return ($bill['isPaid'] ?? 0) == 0
@@ -100,8 +98,6 @@ class AccountOverviewController extends Controller
                     $this->computeBillPenalty($statement['current_bill']);
             }
 
-
-        // Compute total for all transactions
         $statement['total'] = !empty($statement['transactions'])
             ? array_sum(array_map(function($bill) {
                 $amount = $bill['total'] ?? 0;
@@ -159,11 +155,83 @@ class AccountOverviewController extends Controller
             $accountStatements[] = $accountStatement;
         }
 
-        $sc_discounts = $accounts->pluck('sc_discount');
+        $monthlyHistory = [];
 
-        // -----------------------------
-        // Generate online payment URL
-        // -----------------------------
+        $chartAccountNos = $accounts
+            ->filter(function ($account) {
+                return $this->canUseAccount($account);
+            })
+            ->pluck('account_no')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (!empty($chartAccountNos)) {
+
+            $bills = Bill::with('reading')
+                ->whereHas('reading', function ($query) use ($chartAccountNos) {
+                    $query->whereIn('account_no', $chartAccountNos);
+                })
+                ->whereNotNull('bill_period_to')
+                ->orderBy('bill_period_to')
+                ->get();
+
+            foreach ($bills as $bill) {
+
+                $month = Carbon::parse($bill->bill_period_to)
+                    ->format('Y-m');
+
+                if (!isset($monthlyHistory[$month])) {
+                    $monthlyHistory[$month] = [
+                        'consumption' => 0,
+                        'bill' => 0,
+                        'payment' => 0,
+                    ];
+                }
+
+                $monthlyHistory[$month]['consumption'] +=
+                    (float) optional($bill->reading)->consumption;
+
+                $monthlyHistory[$month]['bill'] +=
+                    (float) ($bill->amount ?? 0);
+
+                if ((bool) $bill->isPaid) {
+                    $monthlyHistory[$month]['payment'] +=
+                        (float) ($bill->amount_paid ?? 0);
+                }
+            }
+        }
+
+        $chartMonths = collect(range(11, 0))
+            ->map(function ($monthsAgo) {
+                return Carbon::now()
+                    ->subMonths($monthsAgo)
+                    ->startOfMonth();
+            });
+
+        $chartMonthlyLabels = [];
+        $chartMonthlyConsumption = [];
+        $chartMonthlyBill = [];
+        $chartMonthlyPayment = [];
+
+        foreach ($chartMonths as $month) {
+
+            $key = $month->format('Y-m');
+
+            $chartMonthlyLabels[] = $month->format('M Y');
+
+            $chartMonthlyConsumption[] =
+                round((float) ($monthlyHistory[$key]['consumption'] ?? 0), 2);
+
+            $chartMonthlyBill[] =
+                round((float) ($monthlyHistory[$key]['bill'] ?? 0), 2);
+
+            $chartMonthlyPayment[] =
+                round((float) ($monthlyHistory[$key]['payment'] ?? 0), 2);
+        }
+
+        $sc_discounts = $accounts->pluck('sc_discount');
         $statement['current_bill_qr'] = null;
 
         if (!empty($statement['current_bill'])) {
@@ -189,7 +257,7 @@ class AccountOverviewController extends Controller
             $statement['current_bill_qr'] = $qrResolved['url'];
         }
 
-        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication'));
+        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication', 'chartMonthlyLabels', 'chartMonthlyConsumption', 'chartMonthlyBill', 'chartMonthlyPayment'));
     }
 
 public function addAccount(Request $request)

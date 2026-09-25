@@ -41,6 +41,15 @@
         </div>
 
         <div class="mb-3">
+            <label class="form-label">Sheet Grouping</label>
+
+            <select name="sheet_grouping" class="form-select">
+                <option value="all">All Months in One Sheet</option>
+                <option value="monthly">Separate Sheet per Month</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
             <label class="form-label">Format</label>
             <select name="format" class="form-select">
                 <option value="xlsx">Excel (.xlsx)</option>

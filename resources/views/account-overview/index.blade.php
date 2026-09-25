@@ -112,6 +112,43 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </div>
 
+            <div class="dashboard-charts-grid w-100">
+                <div class="chart-card chart-card--wide w-100">
+
+                    <div class="chart-card__header">
+                        <div>
+                            <h3>Monthly Consumption & Billing</h3>
+                            <span class="chart-card__sub">Last 12 months</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-card__body w-100">
+
+                        <div class="custom-chart-legend">
+                            <div class="custom-legend-item">
+                                <span class="legend-dot legend-consumption"></span>
+                                <span>Consumption (m³)</span>
+                            </div>
+
+                            <div class="custom-legend-item">
+                                <span class="legend-dot legend-bill"></span>
+                                <span>Bill (₱)</span>
+                            </div>
+
+                            <div class="custom-legend-item">
+                                <span class="legend-dot legend-payment"></span>
+                                <span>Payment (₱)</span>
+                            </div>
+                        </div>
+
+                        <div class="chart-scroll-wrapper">
+                            <div id="chartConsumptionBilling"></div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
             <div class="modal fade" id="addAccountConsentModal" tabindex="-1" aria-labelledby="addAccountConsentTitle" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered add-account-consent-dialog">
                     <div class="modal-content">
@@ -911,26 +948,25 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
     </main>
-    <style>
+<style>
 
-        .add-account-consent-dialog {
-            width: min(560px, calc(100% - 2rem));
-            max-width: none;
-        }
+.add-account-consent-dialog {
+        width: min(560px, calc(100% - 2rem));
+        max-width: none;
+    }
 
-        .add-account-consent-dialog .modal-content {
-            border: 2px solid #0d6efd;
-            box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3);
-        }
+.add-account-consent-dialog .modal-content {
+        border: 2px solid #0d6efd;
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.3);
+    }
 
 
-        .document-actions {
+.document-actions {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     margin-left: 8px;
 }
-
 .document-btn {
     width: 34px;
     height: 34px;
@@ -975,67 +1011,215 @@ document.addEventListener('DOMContentLoaded', function () {
     box-shadow: 0 3px 8px rgba(245, 158, 11, 0.25);
 }
 
-        .application-notification {
-            position: fixed;
-            right: 24px;
-            top: 8rem;
-            z-index: 1050;
-        }
+.application-notification {
+    position: fixed;
+    right: 24px;
+    top: 8rem;
+    z-index: 1050;
+}
 
-        .application-notification-button {
-            position: relative;
-            width: 52px;
-            height: 52px;
-            border: 0;
-            border-radius: 50%;
-            background: #0d6efd;
-            color: #fff;
-            box-shadow: 0 12px 30px rgba(13, 110, 253, 0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+.application-notification-button {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border: 0;
+    border-radius: 50%;
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 12px 30px rgba(13, 110, 253, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        .application-notification-button i {
-            font-size: 1.55rem;
-        }
+.application-notification-button i {
+    font-size: 1.55rem;
+}
 
-        .application-notification-dot {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-        }
+.application-notification-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
 
-        .application-notification-panel {
-            position: absolute;
-            right: 0;
-            top: 64px;
-            width: min(340px, calc(100vw - 32px));
-            max-height: min(520px, calc(100vh - 120px));
-            overflow-y: auto;
-            background: #fff;
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 8px;
-            padding: 16px;
-            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
-        }
+.application-notification-panel {
+    position: absolute;
+    right: 0;
+    top: 64px;
+    width: min(340px, calc(100vw - 32px));
+    max-height: min(520px, calc(100vh - 120px));
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+}
 
-        .application-notification-item {
-            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-            padding-bottom: 12px;
-            margin-bottom: 12px;
-        }
+.application-notification-item {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+}
 
-        @media (max-width: 600px) {
-            .application-notification {
-                right: 16px;
-                bottom: 16px;
-            }
-        }
+.dashboard-charts-grid {
+    width: 100% !important;
+    display: block;
+}
+
+.chart-card--wide {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+.chart-card__body {
+    width: 100% !important;
+    min-height: 360px;
+}
+
+.apexcharts-legend {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 20px !important;
+    width: 100% !important;
+}
+
+.apexcharts-legend-series {
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+}
+
+.custom-chart-legend {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+    padding: 10px 0 15px;
+    flex-wrap: nowrap;
+}
+
+.custom-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.legend-consumption {
+    background: #2196f3;
+}
+
+.legend-payment {
+    background: #d89a21;
+}
+
+.legend-bill {
+    background: #22a875;
+}
+
+.table-responsive-custom {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive-custom table {
+    width: 100%;
+    min-width: 100%;
+    white-space: nowrap;
+}
+
+.chart-scroll-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+}
+
+/*
+ * Keep the graph wide enough so it does not get compressed
+ * on phones.
+ */
+#chartConsumptionBilling {
+    width: 100%;
+    min-width: 100%;
+}
+
+/* Scrollbar */
+.chart-scroll-wrapper::-webkit-scrollbar {
+    height: 7px;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: #b8b8b8;
+    border-radius: 10px;
+}
+
+.chart-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #888;
+}
+
+@media (max-width: 768px) {
+
+    .chart-scroll-wrapper {
+        overflow-x: auto;
+    }
+
+    #chartConsumptionBilling {
+        min-width: 100%;
+    }
+
+    .custom-chart-legend {
+        justify-content: flex-start;
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-responsive-custom table {
+        min-width: 900px;
+    }
+}
+
+@media (max-width: 600px) {
+    .custom-chart-legend {
+        gap: 12px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 600px) {
+    .application-notification {
+        right: 16px;
+        bottom: 16px;
+    }
+}
     </style>
 
     <div class="modal fade" id="serviceApplicationModal" tabindex="-1">
@@ -1104,8 +1288,11 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 @endsection
 
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
 @if(session('success'))
 <script>
+
     document.addEventListener('DOMContentLoaded', function () {
         Swal.fire({
             icon: 'success',
@@ -1123,6 +1310,118 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @section('script')
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const labels = @json($chartMonthlyLabels ?? []);
+            const consumptionData = @json($chartMonthlyConsumption ?? []);
+            const billData = @json($chartMonthlyBill ?? []);
+            const paymentData = @json($chartMonthlyPayment ?? []);
+
+            const chartElement = document.querySelector('#chartConsumptionBilling');
+
+            if (!chartElement) {
+                return;
+            }
+
+            if (
+                labels.length === 0 ||
+                (
+                    consumptionData.every(v => Number(v) === 0) &&
+                    billData.every(v => Number(v) === 0) &&
+                    paymentData.every(v => Number(v) === 0)
+                )
+            ) {
+                chartElement.innerHTML = `
+                    <div class="chart-empty">
+                        <span>No consumption or billing history available</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const options = {
+
+                series: [
+                    {
+                        name: 'Consumption (m³)',
+                        type: 'column',
+                        data: consumptionData
+                    },
+                    {
+                        name: 'Bill (₱)',
+                        type: 'line',
+                        data: billData
+                    },
+                    {
+                        name: 'Payment (₱)',
+                        type: 'line',
+                        data: paymentData
+                    }
+                ],
+
+                chart: {
+                    height: 360,
+                    width: 1100,
+                    type: 'line',
+                    toolbar: {
+                        show: false
+                    }
+                },
+
+                stroke: {
+                    width: [0, 3, 3],
+                    curve: 'smooth'
+                },
+
+                plotOptions: {
+                    bar: {
+                        borderRadius: 4,
+                        columnWidth: '45%'
+                    }
+                },
+
+                dataLabels: {
+                    enabled: false
+                },
+
+                xaxis: {
+                    categories: labels,
+                    labels: {
+                        style: {
+                            fontSize: '11px'
+                        }
+                    }
+                },
+
+                yaxis: [
+                    {
+                        title: {
+                            text: 'Consumption (m³)'
+                        }
+                    },
+                    {
+                        opposite: true,
+                        title: {
+                            text: 'Amount (₱)'
+                        }
+                    }
+                ],
+
+                legend: {
+                    show: false,
+                },
+
+                tooltip: {
+                    shared: true,
+                    intersect: false
+                }
+            };
+
+            const chart = new ApexCharts(chartElement, options);
+
+            chart.render();
+
+        });
         const addAccountForm = document.getElementById('addAccountForm');
         const addAccountConsentModal = document.getElementById('addAccountConsentModal');
         const confirmAddAccountConsent = document.getElementById('confirmAddAccountConsent');
