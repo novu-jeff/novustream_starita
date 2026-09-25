@@ -199,8 +199,8 @@ class ReadingController extends Controller
         // Get today's penalty config
         $currentDay = now()->day;
 
-        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
-            ->where('due_to', '>=', $currentDay)
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+            ->where('due_to', '>', $currentDay)
             ->first();
 
         $assumed_penalty = 0;
@@ -298,8 +298,8 @@ class ReadingController extends Controller
         // Get today's penalty config
         $currentDay = now()->day;
 
-        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
-            ->where('due_to', '>=', $currentDay)
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+            ->where('due_to', '>', $currentDay)
             ->first();
 
         $assumed_penalty = 0;
@@ -702,25 +702,57 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $installmentArrears = (float) (InstallmentSchedule::where('is_paid', false)
+        $remainingUnpaid = (float) ($billData['previous_unpaid'] ?? 0);
+
+        $installmentArrears = InstallmentSchedule::where('is_paid', false)
             ->whereHas('installment.bill.reading', function ($query) use ($payload) {
                 $query->where('account_no', $payload['account_no']);
             })
             ->orderBy('month_no')
-            ->value('amount') ?? 0);
+            ->value('amount') ?? 0;
+
+        $installmentArrears = (float) $installmentArrears;
+
+        // $partialPaymentTotal = PartialPayment::whereHas('reading.bill', function ($query) use ($payload) {
+        //     $query->where('account_no', $payload['account_no'])
+        //         ->where('isPaid', false);
+        // })->sum('partial_payment');
+
+        // $unpaidAmount = Bill::with('reading')
+        //     ->where('isPaid', false)
+        //     ->where('isInstallment', false)
+        //     ->whereNotNull('amount')
+        //     ->whereHas('reading', function ($query) use ($payload) {
+        //         $query->where('account_no', $payload['account_no'])
+        //             ->where('isReRead', false);
+        //     })
+        //     ->sum('amount') ?? 0;
+
+        // $installmentArrears = InstallmentSchedule::where('is_paid', false)
+        //     ->whereHas('installment.bill.reading', function ($query) use ($payload) {
+        //         $query->where('account_no', $payload['account_no']);
+        //     })
+        //     ->orderBy('month_no')
+        //     ->value('amount') ?? 0;
+
+        // $installmentArrears = (float) $installmentArrears;
+
+        // $totalArrears = ($unpaidAmount - $installmentArrears) - $partialPaymentTotal;
+
+        // $remainingUnpaid = max($totalArrears, 0);
 
 
         // $penaltyRate = 0.15;
         // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
 
-        $currentDay = now()->day;
+        // $currentDay = now()->day;
 
-        // Get the applicable penalty entry
-        $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
-            ->where('due_to', '>=', $currentDay)
-            ->first();
+        // // Get the applicable penalty entry
+        // $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+        //     ->where('due_to', '>', $currentDay)
+        //     ->first();
 
-        $penaltyAmount = 0;
+        // $penaltyAmount = 0;
 
         $billPeriodFrom = null;
         $billPeriodTo = null;
@@ -740,6 +772,26 @@ class ReadingController extends Controller
 
             $penaltyDate = $dueDate->copy()->addDay();
             $disconnectionDate = $dueDate->copy()->addDays(7);
+        }
+
+        $penaltyAmount = 0;
+        $penaltyEntry = null;
+
+        $isAfterDueDate = false;
+
+        if ($dueDate) {
+            $isAfterDueDate = $date->copy()
+                ->startOfDay()
+                ->gt($dueDate->copy()->startOfDay());
+        }
+
+        if ($isAfterDueDate) {
+
+            $currentDay = $date->day;
+
+            $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+                ->where('due_to', '>=', $currentDay)
+                ->first();
         }
 
         // Save bill — preserve existing HitPay data when updating
@@ -762,7 +814,7 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-                'previous_unpaid' => $billData['previous_unpaid'] ?? $installmentArrears,
+                'previous_unpaid' => $billData['previous_unpaid'] ?? 0,
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,
@@ -839,53 +891,73 @@ class ReadingController extends Controller
 
         }
 
-        $total = $billData['total'];
-        $prevUnpaid = $billData['previous_unpaid'];
-        $discounted = $totalDiscount;
 
-        $totalAmountPenalty = $total - $prevUnpaid - $discounted;
-
-        if ($penaltyEntry) {
-            $penaltyBase = ($totalAmountPenalty ?? 0);
-
-            if ($penaltyEntry->amount_type === 'percentage') {
-                $penaltyAmount = $penaltyBase * floatval($penaltyEntry->amount);
-            } elseif ($penaltyEntry->amount_type === 'fixed') {
-                $penaltyAmount = floatval($penaltyEntry->amount);
-            }
-        }
-
+        $penaltyAmount = 0;
         $today = Carbon::today();
 
         $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
             ->where(function ($query) use ($today) {
-
                 $query->where('penalty_exemption_type_id', 2)
-
-                ->orWhere(function ($subQuery) use ($today) {
-                    $subQuery->where('penalty_exemption_type_id', 1)
-                        ->whereDate('effective_date', '<=', $today)
-                        ->where(function ($dateQuery) use ($today) {
-                            $dateQuery->whereNull('expired_date')
-                                ->orWhereDate('expired_date', '>=', $today);
-                        });
-                });
+                    ->orWhere(function ($subQuery) use ($today) {
+                        $subQuery->where('penalty_exemption_type_id', 1)
+                            ->whereDate('effective_date', '<=', $today)
+                            ->where(function ($dateQuery) use ($today) {
+                                $dateQuery->whereNull('expired_date')
+                                    ->orWhereDate('expired_date', '>=', $today);
+                            });
+                    });
             })
             ->exists();
 
-        if ($hasActivePenaltyExemption || $installmentArrears > 0) {
-            $penaltyAmount = 0;
+        if (
+            !$hasActivePenaltyExemption &&
+            $installmentArrears <= 0
+        ) {
+
+            $penalties = PaymentBreakdownPenalty::query()->get();
+            $penaltyBase = max(
+                (float) $basicCharge - (float) $totalDiscount,
+                0
+            );
+
+            foreach ($penalties as $penalty) {
+
+                if (strtolower($penalty->amount_type) === 'percentage') {
+
+                    $penaltyAmount = round(
+                        $penaltyBase * (float) $penalty->amount,
+                        2
+                    );
+
+                } elseif (strtolower($penalty->amount_type) === 'fixed') {
+
+                    $penaltyAmount = round(
+                        (float) $penalty->amount,
+                        2
+                    );
+
+                }
+
+                break;
+            }
         }
 
-        $newTotalAmount = round($total + $penaltyAmount, 2);
+        $total = (float) ($billData['total'] ?? 0);
+        $amountDue = round(
+            max($total - $totalDiscount, 0),
+            2
+        );
 
-        $amountDue = round($newTotalAmount - $discounted, 2);
+        $amountAfterDue = round(
+            $amountDue + $penaltyAmount,
+            2
+        );
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $amountDue,
+            'amount' => $amountDue + $penaltyAmount,
             'discount' => $totalDiscount,
-            'amount_after_due' => $amountDue,
+            'amount_after_due' => $amountAfterDue + $penaltyAmount,
             'hasPenalty' => $penaltyAmount > 0,
         ]);
 

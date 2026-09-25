@@ -248,16 +248,38 @@ class MeterService {
     public function getPreviousReadingBefore(string $account_no, string $readingMonth): array
     {
         $date = Carbon::parse($readingMonth)->startOfMonth();
+
         $previousReading = Reading::where('account_no', $account_no)
             ->where('created_at', '<', $date)
             ->where('isReRead', false)
             ->latest('created_at')
             ->first();
+
         $previousUnpaid = 0;
+
         if ($previousReading) {
-            $previousBill = Bill::where('reading_id', $previousReading->id)->first();
+
+            $previousBill = Bill::where(
+                'reading_id',
+                $previousReading->id
+            )->first();
+
             if ($previousBill && !$previousBill->isPaid) {
-                $previousUnpaid = (float) $previousBill->amount;
+
+                $billTotal = (float) ($previousBill->total ?? 0);
+                $billAmount = (float) ($previousBill->amount ?? 0);
+
+                $dueDate = $previousBill->due_date
+                    ? Carbon::parse($previousBill->due_date)->startOfDay()
+                    : null;
+
+                $checkDate = $date->copy()->startOfDay();
+
+                if ($dueDate && $checkDate->gt($dueDate)) {
+                    $previousUnpaid = $billAmount;
+                } else {
+                    $previousUnpaid = $billTotal;
+                }
             }
         }
 
@@ -740,12 +762,115 @@ class MeterService {
             ];
         }
 
-        $arrears = app(BillArrearsService::class)->carriedArrearsForAccount(
-            trim($payload['account_no']),
-            ['force_zero_arrears' => !empty($payload['force_zero_arrears'])]
-        );
+        $readingIds = Reading::where('account_no', trim($payload['account_no']))
+            ->where('isReRead', 0)
+            ->pluck('id');
 
-        $remainingUnpaid = $arrears['remaining_unpaid'];
+        $forceZeroArrears = !empty($payload['force_zero_arrears']);
+
+        // If the chronologically latest bill period is fully paid, do not carry older unpaid balances forward.
+        $mostRecentBill = Bill::whereIn('reading_id', $readingIds)
+            ->orderByDesc('bill_period_to')
+            ->first();
+
+        $skipLegacyArrears = !$forceZeroArrears
+            && $mostRecentBill
+            && (bool) $mostRecentBill->isPaid
+            && !(bool) $mostRecentBill->isPartial;
+
+        $latestUnpaidBill = null;
+        $unpaidAmount = 0;
+        $partialPaymentTotal = 0;
+        $remainingUnpaid = 0;
+
+        if (!$forceZeroArrears && !$skipLegacyArrears) {
+
+            $latestUnpaidBill = Bill::whereIn('reading_id', $readingIds)
+                ->where('isInstallment', 0)
+                ->where(function ($q) {
+                    $q->where('isPaid', 0)
+                        ->orWhere('isPartial', 1);
+                })
+                ->orderByDesc('bill_period_to')
+                ->first();
+
+            if ($latestUnpaidBill) {
+
+                $billTotal = (float) ($latestUnpaidBill->total ?? 0);
+                $billAmount = (float) ($latestUnpaidBill->amount ?? 0);
+
+                $partialPayments = PartialPayment::where(
+                    'reading_id',
+                    $latestUnpaidBill->reading_id
+                )
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                if ($partialPayments->isEmpty()) {
+                    $remainingUnpaid = max($billAmount, 0);
+
+                } else {
+
+                    $paidBeforeOrOnDue = 0;
+                    $paidAfterDue = 0;
+                    $hasAfterDuePayment = false;
+
+                    $dueDate = $latestUnpaidBill->due_date
+                        ? Carbon::parse($latestUnpaidBill->due_date)->startOfDay()
+                        : null;
+
+                    foreach ($partialPayments as $partialPayment) {
+
+                        $paymentAmount = (float) (
+                            $partialPayment->partial_payment ?? 0
+                        );
+
+                        if ($paymentAmount <= 0) {
+                            continue;
+                        }
+
+                        $paymentDate = $partialPayment->created_at
+                            ? Carbon::parse($partialPayment->created_at)->startOfDay()
+                            : null;
+
+                        if (
+                            $paymentDate &&
+                            $dueDate &&
+                            $paymentDate->lte($dueDate)
+                        ) {
+                            $paidBeforeOrOnDue += $paymentAmount;
+                        } else {
+                            $paidAfterDue += $paymentAmount;
+                            $hasAfterDuePayment = true;
+                        }
+                    }
+
+                    $partialPaymentTotal =
+                        $paidBeforeOrOnDue + $paidAfterDue;
+
+                    if ($hasAfterDuePayment) {
+
+                        $remainingUnpaid = max(
+                            $billAmount - $partialPaymentTotal,
+                            0
+                        );
+
+                    } else {
+
+                        $remainingUnpaid = max(
+                            $billTotal - $partialPaymentTotal,
+                            0
+                        );
+                    }
+                }
+            }
+        }
+
+        if ($forceZeroArrears) {
+            $unpaidAmount = 0;
+            $partialPaymentTotal = 0;
+            $remainingUnpaid = 0;
+        }
 
         $installmentSchedule = InstallmentSchedule::where('is_paid', 0)
             ->whereHas('installment.bill.reading', function ($q) use ($payload) {
@@ -803,8 +928,7 @@ class MeterService {
         if ($accountDiscountType == 1) {
             $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
             if ($seniorDiscount) {
-                // Determine base amount (basic_charge or total)
-                $baseAmount = $basic_charge; // default to basic
+                $baseAmount = $basic_charge;
                 if ($seniorDiscount->percentage_of === 'total_amount') {
                     $baseAmount = $total;
                 }
@@ -824,8 +948,7 @@ class MeterService {
         } elseif ($accountDiscountType == 2) {
             $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
             if ($franchiseDiscount) {
-                // Determine base amount (basic_charge or total)
-                $baseAmount = $basic_charge; // default to basic
+                $baseAmount = $basic_charge;
                 if ($franchiseDiscount->percentage_of === 'total_amount') {
                     $baseAmount = $total;
                 }
@@ -852,35 +975,52 @@ class MeterService {
         $amount_after_due = 0;
         $hasPenalty = false;
 
-        $dateNow = Carbon::parse($payload['date'])->format('Y-m-d');
+        $dateNow = Carbon::parse($payload['date'])->startOfDay();
 
         $penaltyExemption = DB::table('penalty_exemptions')
             ->where('account_no', $payload['account_no'])
             ->where(function ($q) use ($dateNow) {
                 $q->whereNull('effective_date')
-                ->orWhere('effective_date', '<=', $dateNow);
+                    ->orWhereDate('effective_date', '<=', $dateNow);
             })
             ->where(function ($q) use ($dateNow) {
                 $q->whereNull('expired_date')
-                ->orWhere('expired_date', '>=', $dateNow);
+                    ->orWhereDate('expired_date', '>=', $dateNow);
             })
             ->first();
 
         $isPenaltyExempt = !is_null($penaltyExemption);
 
-        if (!$installmentSchedule && !$isPenaltyExempt) {
+        $dueDate = null;
+
+        if (!empty($readingDate) && !empty($readingDate->due_date)) {
+            $dueDate = Carbon::parse($readingDate->due_date)->startOfDay();
+        }
+
+        $isAfterDueDate = $dueDate
+            ? $dateNow->gt($dueDate)
+            : false;
+
+        if (
+            !$installmentSchedule &&
+            !$isPenaltyExempt &&
+            $isAfterDueDate
+        ) {
             $penalties = $this->paymentBreakdownService::getPenalty();
+
             $amountPayable = $basic_charge - $totalDiscount;
 
             foreach ($penalties as $penalty) {
                 if (strtolower($penalty->amount_type) === 'percentage') {
-                    $penaltyAmount = $amountPayable * ($penalty->amount);
+                    $penaltyAmount = $amountPayable * (float) $penalty->amount;
                 } else {
-                    $penaltyAmount = $penalty->amount;
+                    $penaltyAmount = (float) $penalty->amount;
                 }
 
                 $amount_after_due = $overall_total + $penaltyAmount + $remainingUnpaid;
                 $hasPenalty = true;
+
+                break;
             }
         } else {
             $penaltyAmount = 0;
@@ -891,7 +1031,6 @@ class MeterService {
         $date = Carbon::parse($payload['date']);
         $days_due = $ruling->due_date;
 
-        // Safely handle previous reading's bill
         $lastBillPeriodTo = optional(optional($latest_reading)->bill)->bill_period_to;
 
         if ($lastBillPeriodTo) {
@@ -899,7 +1038,6 @@ class MeterService {
             $nextReading = $lastReading->addDays(1);
             $bill_period_from = $nextReading->format('Y-m-d H:i:s');
         } else {
-            // No previous bill or reading — fallback to current date range
             $bill_period_from = $date->copy()->subDays($days_due)->format('Y-m-d H:i:s');
         }
 
