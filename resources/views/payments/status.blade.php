@@ -104,7 +104,7 @@
                         <box-icon color='white' name='download'></box-icon>
                         Download Receipt
                     </button>
-                    <button onclick="window.location.href='/'">
+                    <button onclick="window.location.href='{{ $payload['back_url'] ?? '/' }}'">
                         <box-icon color='dark' name='arrow-back'></box-icon>
                         Go Back
                     </button>

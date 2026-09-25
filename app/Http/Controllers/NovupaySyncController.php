@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\NovupayStaritaBill;
 use App\Models\Bill;
+use App\Services\BillSettlementService;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -318,17 +320,33 @@ class NovupaySyncController extends Controller
     private function billToRow(NovupayStaritaBill $b, ?Bill $localBill = null): array
     {
         $payload = $b->payload ?? [];
-        $payor = null;
-        if ($localBill && trim((string) ($localBill->payor_name ?? '')) !== '') {
-            $payor = trim((string) $localBill->payor_name);
+        $fromLocal = $localBill ? ($localBill->payor_name ?? null) : null;
+        $fromReading = null;
+        if ($localBill) {
+            $localBill->loadMissing('reading.concessionaire.user');
+            $fromReading = optional(optional(optional($localBill->reading)->concessionaire)->user)->name;
         }
-        if ($payor === null) {
-            $payor = $payload['customer']['name'] ?? $payload['payor'] ?? $b->payor ?? $payload['name'] ?? $payload['customer_name'] ?? null;
+        $payor = StaritaNovupayBillService::firstUsablePayor(
+            $fromLocal,
+            $payload['customer']['name'] ?? null,
+            $payload['payor'] ?? null,
+            $b->payor ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            $fromReading
+        );
+
+        $amount = $b->amount;
+        if ($localBill && $localBill->isPaid && $localBill->amount_paid !== null && $localBill->amount_paid !== '') {
+            $amount = (float) $localBill->amount_paid;
+        } elseif ($localBill) {
+            $amount = app(BillSettlementService::class)->inferSettledAmount($localBill);
         }
+
         return [
             'reference_no' => $b->reference_no,
             'account_no' => $b->account_no,
-            'amount' => $b->amount,
+            'amount' => $amount,
             'paid_at' => $b->paid_at?->format('Y-m-d H:i'),
             'payor_name' => $payor,
             'status' => $b->status,

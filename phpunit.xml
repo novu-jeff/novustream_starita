@@ -28,5 +28,11 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NOVUPAY_API_URL" value="https://api.novu-pay.com"/>
+        <env name="NOVUPAY_CHECKOUT_BASE" value="https://novu-pay.com"/>
+        <env name="NOVUPAY_API_KEY" value="test-novupay-api-key"/>
+        <env name="NOVUPAY_CLIENT_ID" value="0000000006"/>
+        <env name="NOVUPAY_CLIENT_SECRET" value="test-novupay-secret"/>
+        <env name="APP_URL" value="https://staging.example.test"/>
     </php>
 </phpunit>

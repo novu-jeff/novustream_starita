@@ -587,22 +587,24 @@ public function addAccount(Request $request)
             'amount' => $bill['current_bill']['amount'] ?? 0,
         ];
 
-        $paymentController = app(\App\Http\Controllers\PaymentController::class);
-
         if (\App\Http\Controllers\PaymentController::isSoaQrVoided($bill['current_bill'] ?? [])) {
             return redirect()->route('payments.qr-voided', ['reference_no' => $reference_no]);
         }
 
-        $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
+        $result = app(\App\Services\NovuPayCheckoutService::class)->startForReference($reference_no, $payload);
 
-        if (!$hitpayData || empty($hitpayData['url'])) {
+        if (!empty($result['already_paid']) && !empty($result['complete_url'])) {
+            return redirect()->away($result['complete_url']);
+        }
+
+        if (empty($result['ok']) || empty($result['checkout_url'])) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
-                'message' => 'Failed to initiate online payment.'
+                'message' => $result['message'] ?? 'Failed to initiate online payment.',
             ]);
         }
 
-        return redirect($hitpayData['url']);
+        return redirect()->away($result['checkout_url']);
     }
 
     private function hasUsableAccount($accounts): bool

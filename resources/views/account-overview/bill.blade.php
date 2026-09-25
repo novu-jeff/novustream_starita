@@ -26,7 +26,11 @@
                 @if($viewer == 'receipt')
                     <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
                         @php
-                            $backUrl = route('account-overview.bills', ['account_no' => $data['client']['account_no'], 'view' => 'unpaid']);
+                            $backView = !empty($data['current_bill']['isPaid']) ? 'paid' : 'unpaid';
+                            $backUrl = route('account-overview.bills', [
+                                'account_no' => $data['client']['account_no'],
+                                'view' => $backView,
+                            ]);
                         @endphp
 
                         <a href="{{ $backUrl }}"
@@ -423,7 +427,7 @@
                                         <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                         <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                             <li>Scan the QR code.</li>
-                                            <li>Choose a merchant on NovuPay.</li>
+                                            <li>Pay with QR Ph on NovuPay.</li>
                                             <li>Pay the total amount due.</li>
                                             <li>Keep your receipt.</li>
                                         </ol>
@@ -473,11 +477,25 @@
                                 </div>
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             </div>
-                            @if($viewer === 'receipt' && !empty($payment_url) && !$data['current_bill']['isPaid'])
+                            @if($viewer === 'receipt' && !empty($data['current_bill']['isPaid']))
+                                <div class="d-flex flex-column align-items-center gap-3">
+                                    <div class="bg-primary rounded d-flex align-items-center justify-content-center mt-4 p-3 text-uppercase fw-bold text-white w-100">
+                                        <h3 class="ms-2 mb-0 text-center">Already Paid</h3>
+                                    </div>
+                                    @if(!empty($data['current_bill']['date_paid']))
+                                        <div class="text-muted text-uppercase">
+                                            Paid {{ \Carbon\Carbon::parse($data['current_bill']['date_paid'])->timezone('Asia/Manila')->format('M d, Y h:i A') }}
+                                            @if(!empty($data['current_bill']['amount_paid']))
+                                                · PHP {{ number_format((float) $data['current_bill']['amount_paid'], 2) }}
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            @elseif($viewer === 'receipt' && !empty($payment_url) && !$data['current_bill']['isPaid'])
                                 <div class="d-flex justify-content-center">
                                     <a href="{{ $payment_url }}"
-                                    target="_blank"
-                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold">
+                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold"
+                                    id="pay-online-btn">
                                         <i class="bx bx-credit-card"></i> Pay Online
                                     </a>
                                 </div>
@@ -560,8 +578,65 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <!-- Custom script -->
+@php
+    $pollReferenceNo = $reference_no ?? ($data['current_bill']['reference_no'] ?? '');
+    $pollStatusUrl = $pollReferenceNo !== ''
+        ? route('transaction.status', ['reference_no' => $pollReferenceNo])
+        : '';
+@endphp
 <script>
 $(function () {
+    const isPaid = @json((bool) ($data['current_bill']['isPaid'] ?? false));
+    const referenceNo = @json($pollReferenceNo);
+    const statusUrl = @json($pollStatusUrl);
+
+    async function checkPaymentStatus() {
+        if (!statusUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ isApi: true })
+            });
+
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            const data = await response.json();
+            if (data.status === 'paid') {
+                window.location.reload();
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking payment status:', error);
+        }
+
+        window.setTimeout(checkPaymentStatus, 4000);
+    }
+
+    if (!isPaid && referenceNo && statusUrl) {
+        checkPaymentStatus();
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                checkPaymentStatus();
+            }
+        });
+    }
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted && referenceNo) {
+            window.location.reload();
+        }
+    });
+
     $(document).on('click', '.pay-now-btn', function() {
     const reference = $(this).data('reference');
     if (!reference) return;

@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\NovuPayController;
 use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
@@ -402,6 +403,14 @@ Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallba
 Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
 Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
 Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'showQrVoided'])->name('payments.qr-voided');
+
+Route::post('/webhooks/novupay', [NovuPayController::class, 'webhook'])->name('webhooks.novupay');
+Route::get('/payments/{reference_no}/checkout', [NovuPayController::class, 'checkout'])
+    ->middleware('throttle:20,1')
+    ->name('payments.novupay.checkout');
+Route::get('/orders/{id}/complete', [NovuPayController::class, 'complete'])
+    ->whereNumber('id')
+    ->name('orders.complete');
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');

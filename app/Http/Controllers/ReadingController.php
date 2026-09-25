@@ -25,7 +25,6 @@ use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
-use App\Models\PartialPayment;
 use App\Models\PenaltyExemption;
 use App\Models\InstallmentSchedule;
 use App\Models\ReadingAdjustment;
@@ -718,33 +717,12 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $partialPaymentTotal = PartialPayment::whereHas('reading.bill', function ($query) use ($payload) {
-            $query->where('account_no', $payload['account_no'])
-                ->where('isPaid', false);
-        })->sum('partial_payment');
-
-        $unpaidAmount = Bill::with('reading')
-            ->where('isPaid', false)
-            ->where('isInstallment', false)
-            ->whereNotNull('amount')
-            ->whereHas('reading', function ($query) use ($payload) {
-                $query->where('account_no', $payload['account_no'])
-                    ->where('isReRead', false);
-            })
-            ->sum('amount') ?? 0;
-
-        $installmentArrears = InstallmentSchedule::where('is_paid', false)
+        $installmentArrears = (float) (InstallmentSchedule::where('is_paid', false)
             ->whereHas('installment.bill.reading', function ($query) use ($payload) {
                 $query->where('account_no', $payload['account_no']);
             })
             ->orderBy('month_no')
-            ->value('amount') ?? 0;
-
-        $installmentArrears = (float) $installmentArrears;
-
-        $totalArrears = ($unpaidAmount - $installmentArrears) - $partialPaymentTotal;
-
-        $remainingUnpaid = max($totalArrears, 0);
+            ->value('amount') ?? 0);
 
 
         // $penaltyRate = 0.15;
@@ -799,7 +777,7 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-                'previous_unpaid' => $installmentArrears,
+                'previous_unpaid' => $billData['previous_unpaid'] ?? $installmentArrears,
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,
@@ -937,30 +915,8 @@ class ReadingController extends Controller
             }
         }
 
-        // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+        // NovuPay hosted checkout is created when the customer pays, not when the SOA is printed.
         $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
-
-        if (!$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
-            $hitpayPayload = [
-                'reference_no' => $reference_no,
-                'amount' => $baseAmount,
-                'payor' => $account->user->name ?? 'Sta. Rita Customer',
-                'email' => $account->user->email ?? null,
-                'account_no' => $account->account_no ?? '',
-            ];
-
-            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                ->createHitpayPaymentRequest($reference_no, $hitpayPayload);
-
-            if ($hitpayData && (!empty($hitpayData['reference']) || !empty($hitpayData['id']))) {
-                $bill->update([
-                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
-                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
-                    'initiated_at' => now(),
-                ]);
-            }
-        }
-
 
         // Generate payment QR (use base amount so Novupay/HitPay shows normal amount, not overdue)
         $paymentPayload = [

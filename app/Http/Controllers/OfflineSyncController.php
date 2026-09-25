@@ -23,6 +23,7 @@ use App\Services\BillingPeriodService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
 use App\Services\OfflineMergeGuard;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -261,10 +262,20 @@ class OfflineSyncController extends Controller
                 }
 
                 $unpaidAmount = 0.0;
+                $partialPayment = 0.0;
+                $isPartial = false;
+                $previousUnpaid = 0.0;
+                $previousPartial = (float) ($prior['partial_payment'] ?? 0);
                 if ($bill && !$bill->isPaid) {
                     $unpaidAmount = $bill->netUnpaidAmount();
-                } elseif ($prior && !empty($prior['unpaid_amount'])) {
-                    $unpaidAmount = (float) $prior['unpaid_amount'];
+                    $partialPayment = $bill->creditedPartialAmount();
+                    $isPartial = (bool) $bill->isPartial;
+                    $previousUnpaid = (float) ($prior['unpaid_amount'] ?? $bill->previous_unpaid ?? 0);
+                } elseif ($prior) {
+                    $unpaidAmount = (float) ($prior['unpaid_amount'] ?? 0);
+                    $partialPayment = $previousPartial;
+                    $isPartial = $partialPayment > 0;
+                    $previousUnpaid = $unpaidAmount;
                 }
 
                 return [
@@ -278,6 +289,28 @@ class OfflineSyncController extends Controller
                     'discount_type'    => $acc->discount->discount_type_id ?? 0,
                     'previous_reading' => (float) $presentForPrevious,
                     'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'previous_partial_payment' => $previousPartial,
+                    'is_partial'       => $isPartial,
+                    'created_at'       => $readingCreatedAt,
+                    'sequence_no'      => $acc->sequence_no ?? null,
+                ];
+
+                return [
+                    'account_no'       => $acc->account_no,
+                    'name'             => $acc->user->name ?? 'N/A',
+                    'address'          => $acc->address,
+                    'meter_serial_no'  => $acc->meter_serial_no,
+                    'zone'             => $acc->zone,
+                    'status'           => $acc->status ?? null,
+                    'property_type_id' => $acc->property_types_by_name->id ?? null,
+                    'discount_type'    => $acc->discount->discount_type_id ?? 0,
+                    'previous_reading' => (float) $presentForPrevious,
+                    'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'is_partial'       => $isPartial,
                     'created_at'       => $readingCreatedAt,
                     'sequence_no'      => $acc->sequence_no ?? null,
                 ];
@@ -361,8 +394,13 @@ class OfflineSyncController extends Controller
                 continue;
             }
             $prior = $priorByAccount[$reading->account_no] ?? [];
+            $priorNetUnpaid = array_key_exists('unpaid_amount', $prior)
+                ? (float) $prior['unpaid_amount']
+                : (float) ($bill->previous_unpaid ?? 0);
+            $priorPartial = (float) ($prior['partial_payment'] ?? 0);
             $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill, [
-                'previous_partial_payment' => (float) ($prior['partial_payment'] ?? 0),
+                'previous_unpaid' => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
             ]);
             $readingsList[] = [
                 'reference_no'          => $refNo,
@@ -374,6 +412,8 @@ class OfflineSyncController extends Controller
                 'high_consumption_note' => (string) ($bill->high_consumption_note ?? ''),
                 'amount'                => (float) ($bill->amount ?? 0),
                 'amount_after_due'      => (float) ($bill->amount_after_due ?? $bill->amount ?? 0),
+                'previous_unpaid'       => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
                 'timestamp'             => $this->readingTimestampIso($reading->created_at),
                 'soa_json'              => json_encode($soaData),
             ];
@@ -599,12 +639,18 @@ class OfflineSyncController extends Controller
                                 'reference_no' => $referenceNo,
                                 'account_no' => $off->account_no,
                             ]);
+                        } elseif (app(StaritaNovupayBillService::class)->paymentWouldMisapply($localBill, $novupayBill)) {
+                            Log::channel('single')->warning('Novustream offline API: merge skipping Novupay auto-settlement (would misapply)', [
+                                'reference_no' => $referenceNo,
+                                'source_reference' => $novupayBill->reference_no,
+                                'account_no' => $off->account_no,
+                            ]);
                         } else {
                             $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
                             $update = [
                                 'payment_method' => 'online',
                             ];
-                            if (empty($localBill->payor_name)) {
+                            if (StaritaNovupayBillService::isPlaceholderPayor($localBill->payor_name)) {
                                 $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
                                 $update['payor_name'] = $payor;
                             }
@@ -696,26 +742,20 @@ class OfflineSyncController extends Controller
     private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): string
     {
         $payload = $nb->payload ?? [];
-        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if (!empty($nb->payor)) {
-            return trim((string) $nb->payor);
-        }
-        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if ($localBill->reading) {
-            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
-            if (!empty($payor)) {
-                return trim((string) $payor);
-            }
-        }
+        $fromReading = optional(optional($localBill->reading)->concessionaire)->user->name ?? null;
         $account = $this->meterService->getAccount($localBill->reading?->account_no ?? $nb->account_no ?? '');
-        $payor = optional(optional($account)->user)->name ?? null;
-        return !empty($payor) ? trim((string) $payor) : 'Sta. Rita Customer';
+        $fromAccount = optional(optional($account)->user)->name ?? null;
+
+        return StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['payor'] ?? null,
+            $nb->payor ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            $fromReading,
+            $fromAccount,
+            'Sta. Rita Customer'
+        );
     }
 
     /** Normalize to whole number for readings/consumption (no decimal); null if empty. */

@@ -19,6 +19,7 @@ class TrustHosts extends Middleware
             'staritawaterdistrictpamp\.novulutions\.com',
             '127\.0\.0\.1',
             'localhost',
+            '38\.226\.41\.3',
         ];
     }
 }

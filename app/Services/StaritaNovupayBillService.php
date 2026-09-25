@@ -12,7 +12,10 @@ class StaritaNovupayBillService
 {
     /**
      * Resolve which local bill should receive a Novupay / online payment.
-     * When the QR reference bill is already paid, apply to the oldest unpaid bill instead.
+     *
+     * The SOA / HitPay reference is authoritative. Never retarget a payment onto
+     * a later bill just because paid_at falls in that bill's calendar month —
+     * that copied August payments onto the next month's SOA.
      */
     public function resolveLocalBillForPayment(NovupayStaritaBill $nb, ?Bill $billByReference = null): ?Bill
     {
@@ -21,22 +24,21 @@ class StaritaNovupayBillService
 
         $localBill = $billByReference ?? ($referenceNo !== '' ? Bill::where('reference_no', $referenceNo)->first() : null);
 
-        if ($localBill && !$localBill->isPaid) {
-            return $localBill;
-        }
-
-        if ($accountNo !== '') {
-            $oldestUnpaid = $this->findOldestUnpaidBillForAccount($accountNo);
-            if ($oldestUnpaid) {
-                return $oldestUnpaid;
-            }
-        }
-
         if ($localBill) {
             return $localBill;
         }
 
-        return $this->findBillByBillingPeriod($accountNo, $nb);
+        $matched = $this->findUnpaidBillMatchingPayment($accountNo, $nb);
+        if ($matched && !$this->paymentWouldMisapply($matched, $nb)) {
+            return $matched;
+        }
+
+        $oldestUnpaid = $accountNo !== '' ? $this->findOldestUnpaidBillForAccount($accountNo) : null;
+        if ($oldestUnpaid && !$this->paymentWouldMisapply($oldestUnpaid, $nb)) {
+            return $oldestUnpaid;
+        }
+
+        return $matched;
     }
 
     public function findOldestUnpaidBillForAccount(string $accountNo): ?Bill
@@ -54,6 +56,101 @@ class StaritaNovupayBillService
             ->orderBy('bill_period_from')
             ->orderBy('id')
             ->first();
+    }
+
+    /**
+     * Match an unpaid bill to the payment using present reading, then SOA amount.
+     */
+    public function findUnpaidBillMatchingPayment(string $accountNo, NovupayStaritaBill $nb): ?Bill
+    {
+        if ($accountNo === '') {
+            return null;
+        }
+
+        $unpaid = Bill::query()
+            ->with('reading')
+            ->whereHas('reading', function ($q) use ($accountNo) {
+                $q->where('account_no', $accountNo);
+            })
+            ->where('isPaid', false)
+            ->orderByDesc('bill_period_to')
+            ->orderByDesc('id')
+            ->get();
+
+        if ($unpaid->isEmpty()) {
+            return null;
+        }
+
+        $present = $this->novupayPresentReading($nb);
+        if ($present > 0) {
+            $byReading = $unpaid->first(function (Bill $bill) use ($present) {
+                return (int) optional($bill->reading)->present_reading === $present;
+            });
+            if ($byReading) {
+                return $byReading;
+            }
+
+            // Payment is tied to a specific meter state. Do not amount-match a later bill
+            // that happens to have the same minimum charge (e.g. 160).
+            return null;
+        }
+
+        $amount = $this->novupayBillAmount($nb);
+        if ($amount > 0) {
+            $byAmount = $unpaid->first(function (Bill $bill) use ($amount) {
+                return $this->billAmountMatchesPayment($bill, $amount);
+            });
+            if ($byAmount) {
+                return $byAmount;
+            }
+        }
+
+        return null;
+    }
+
+    public function billAmountMatchesPayment(Bill $bill, float $amount): bool
+    {
+        $amount = round($amount, 2);
+        $candidates = array_unique(array_filter([
+            round((float) ($bill->total ?? 0), 2),
+            round(max((float) ($bill->total ?? 0) - BillSettlementService::numericBillAttribute($bill, 'discount'), 0), 2),
+            round((float) ($bill->amount ?? 0), 2),
+            round((float) ($bill->amount_after_due ?? 0), 2),
+        ], fn ($value) => $value > 0));
+
+        foreach ($candidates as $candidate) {
+            if (abs($candidate - $amount) < 0.06) {
+                return true;
+            }
+            if (BillSettlementService::looksLikeCheckoutTotal($candidate, $amount)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function novupayBillAmount(NovupayStaritaBill $nb): float
+    {
+        $raw = $nb->amount
+            ?? data_get($nb->payload, 'purpose_amount')
+            ?? 0;
+
+        if (is_string($raw)) {
+            $raw = str_replace([',', '₱', ' '], '', $raw);
+        }
+
+        $amount = round((float) $raw, 2);
+        if ($amount > 0) {
+            return $amount;
+        }
+
+        $purpose = (string) data_get($nb->payload, 'purpose', '');
+        if (preg_match('/Amount Due:\s*₱?\s*([\d,]+(?:\.\d+)?)/u', $purpose, $m)) {
+            return round((float) str_replace(',', '', $m[1]), 2);
+        }
+
+        return 0.0;
     }
 
     /**
@@ -96,34 +193,163 @@ class StaritaNovupayBillService
     }
 
     /**
-     * Paid Novupay rows synced to an already-paid reference while newer bills remain unpaid.
+     * Paid Novupay rows applied to the wrong local bill (missing QR ref, or oldest-unpaid).
+     * Do not re-apply a payment that is already on its own reference bill.
      */
     public function needsMisappliedPaymentRepair(NovupayStaritaBill $nb): bool
     {
         $accountNo = trim((string) ($nb->account_no ?? ''));
+        if ($accountNo === '' || !$nb->paid_at) {
+            return false;
+        }
+
         $referenceNo = trim((string) ($nb->reference_no ?? ''));
-        if ($accountNo === '' || $referenceNo === '' || !$nb->paid_at) {
-            return false;
-        }
-
-        $referenceBill = Bill::where('reference_no', $referenceNo)->first();
-        if (!$referenceBill || !$referenceBill->isPaid) {
-            return false;
-        }
-
-        if (!$this->findOldestUnpaidBillForAccount($accountNo)) {
-            return false;
-        }
-
-        $referencePaidAt = $referenceBill->date_paid
-            ? Carbon::parse($referenceBill->date_paid)
+        $referenceBill = $referenceNo !== ''
+            ? Bill::where('reference_no', $referenceNo)->first()
             : null;
 
-        if ($referencePaidAt === null) {
+        if ($referenceBill && $referenceBill->isPaid && $this->billAlreadyHasThisPayment($referenceBill, $nb)) {
+            return false;
+        }
+
+        $matched = $this->findUnpaidBillMatchingPayment($accountNo, $nb);
+        if (!$matched) {
+            return false;
+        }
+
+        if ($referenceBill && (int) $referenceBill->id === (int) $matched->id) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public function billAlreadyHasThisPayment(Bill $bill, NovupayStaritaBill $nb): bool
+    {
+        if (!$bill->isPaid) {
+            return false;
+        }
+
+        $ref = trim((string) ($nb->reference_no ?? ''));
+        $hitpay = trim((string) ($nb->hitpay_reference ?? ''));
+
+        if ($ref !== '' && in_array($ref, [
+            (string) $bill->reference_no,
+            (string) $bill->hitpay_reference,
+            (string) $bill->hitpay_payment_id,
+        ], true)) {
             return true;
         }
 
-        return Carbon::parse($nb->paid_at)->gt($referencePaidAt);
+        if ($hitpay !== '' && in_array($hitpay, [
+            (string) $bill->hitpay_reference,
+            (string) $bill->hitpay_payment_id,
+        ], true)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * True when applying this Novupay payment would stamp an older payment onto a later SOA.
+     */
+    public function paymentWouldMisapply(Bill $bill, NovupayStaritaBill $nb): bool
+    {
+        $ref = trim((string) ($nb->reference_no ?? ''));
+        if ($ref !== '' && $ref === trim((string) ($bill->reference_no ?? ''))) {
+            return false;
+        }
+
+        $paidAt = $nb->paid_at ?? $nb->initiated_at ?? $nb->created_at ?? null;
+        if ($paidAt && $this->paymentDateIsBeforeBillPeriod($bill, $paidAt)) {
+            return true;
+        }
+
+        $hitpay = trim((string) ($nb->hitpay_reference ?? ''));
+        if ($hitpay !== '' && $this->isForeignSoaReference($hitpay, (string) ($bill->reference_no ?? ''))) {
+            return true;
+        }
+
+        $amount = $this->novupayBillAmount($nb);
+        if ($amount > 0 && !$this->billAmountMatchesPayment($bill, $amount)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function paymentDateIsBeforeBillPeriod(Bill $bill, $paidAt): bool
+    {
+        try {
+            $paid = Carbon::parse($paidAt);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        if (!empty($bill->bill_period_from)) {
+            try {
+                if ($paid->lt(Carbon::parse($bill->bill_period_from)->startOfDay())) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // ignore unparseable period
+            }
+        }
+
+        if (!empty($bill->created_at)) {
+            try {
+                if ($paid->lt(Carbon::parse($bill->created_at)->startOfDay())) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // ignore unparseable created_at
+            }
+        }
+
+        return false;
+    }
+
+    public function isForeignSoaReference(string $hitpayReference, string $billReference): bool
+    {
+        $hitpay = trim($hitpayReference);
+        $billRef = trim($billReference);
+        if ($hitpay === '' || $billRef === '' || strcasecmp($hitpay, $billRef) === 0) {
+            return false;
+        }
+
+        return (bool) preg_match('/NST-SRWD-/i', $hitpay);
+    }
+
+    public function novupayPresentReading(NovupayStaritaBill $nb): int
+    {
+        $column = (int) ($nb->present_reading ?? 0);
+        if ($column > 0) {
+            return $column;
+        }
+
+        return (int) (data_get($nb->payload, 'present_reading') ?: 0);
+    }
+
+    public static function isPlaceholderPayor(?string $name): bool
+    {
+        $trimmed = strtolower(trim((string) $name));
+        if ($trimmed === '') {
+            return true;
+        }
+
+        return in_array($trimmed, ['unknown', 'n/a', 'na', 'null', '-', 'none'], true);
+    }
+
+    public static function firstUsablePayor(?string ...$candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (!self::isPlaceholderPayor($candidate)) {
+                return trim((string) $candidate);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -163,7 +389,9 @@ class StaritaNovupayBillService
         $row = [
             'account_no' => $accountNo,
             'payor' => $bill->payor_name ?? null,
-            'amount' => (float) ($bill->amount ?? 0),
+            'amount' => (float) ($bill->isPaid && $bill->amount_paid !== null && $bill->amount_paid !== ''
+                ? $bill->amount_paid
+                : (new BillSettlementService())->inferSettledAmount($bill)),
             'status' => 'paid',
             'payload' => $payload,
             'initiated_at' => $initiatedAt,

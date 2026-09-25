@@ -212,7 +212,7 @@
 
             searchTimer = setTimeout(() => {
                 updateUrl();
-            }, 400); // 400ms debounce
+            }, 700);
         });
 
         $('#entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
@@ -235,36 +235,6 @@
         const url = `/admin/reports/download?type=${type}&date=${date}&zone=${zone}`;
         window.location.href = url;
     });
-
-
     });
-
-    let searchTimer = null;
-
-function updateUrl() {
-    const params = new URLSearchParams(window.location.search);
-
-    ['search', 'entries', 'filter', 'payment_method', 'zone_no', 'date'].forEach(id => {
-        const val = $('#' + id).val();
-        const key = id === 'zone_no' ? 'zone' : id;
-
-        val ? params.set(key, val) : params.delete(key);
-    });
-
-    $('#page-loader').css('display', 'flex');
-    window.location.href = window.location.pathname + '?' + params.toString();
-}
-
-$('#search').on('keyup', function () {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(updateUrl, 400);
-});
-
-$('#entries, #filter, #payment_method, #zone_no, #date').on('change', updateUrl);
-
-$('#clear-search').on('click', function () {
-    $('#search').val('');
-    updateUrl();
-});
 </script>
 @endsection

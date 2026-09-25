@@ -43,4 +43,23 @@ return [
     */
     'due_date_qr_penalty' => env('DUE_DATE_QR_PENALTY', true),
 
+    /*
+    | NovuPay hosted checkout (Sta-Rita Water District / NovuBiz).
+    | Keep API key and client secret server-side only. Never send client_secret
+    | on checkout requests. QR Ph biller name is set by NovuPay, not staging.
+    */
+    'novupay' => [
+        'api_url' => rtrim((string) env('NOVUPAY_API_URL', 'https://api.novu-pay.com'), '/'),
+        'checkout_base' => rtrim((string) env('NOVUPAY_CHECKOUT_BASE', 'https://novu-pay.com'), '/'),
+        'api_key' => env('NOVUPAY_API_KEY'),
+        'client_id' => env('NOVUPAY_CLIENT_ID'),
+        'client_secret' => env('NOVUPAY_CLIENT_SECRET'),
+        'public_url' => env('NOVUPAY_PUBLIC_URL'),
+        // LAN IP for CURLOPT_RESOLVE when hairpin to the public VIP fails. Not DNS.
+        'api_resolve' => env('NOVUPAY_API_RESOLVE'),
+        'min_amount' => (float) env('NOVUPAY_MIN_AMOUNT', 100),
+        'enabled_channels' => ['qrph'],
+        'description' => env('NOVUPAY_DESCRIPTION', 'Sta-Rita Water District bill'),
+    ],
+
 ];

@@ -332,7 +332,7 @@
                                                 <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                                 <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                                     <li>Scan the QR code.</li>
-                                                    <li>Choose a merchant on NovuPay.</li>
+                                                    <li>Pay with QR Ph on NovuPay.</li>
                                                     <li>Pay the total amount due.</li>
                                                     <li>Keep your receipt.</li>
                                                 </ol>
@@ -589,7 +589,10 @@
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                             <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
-                                            <!-- <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button> -->
+                                            <a href="{{ route('payments.novupay.checkout', ['reference_no' => $reference_no]) }}"
+                                               class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold">
+                                                Pay Online
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
