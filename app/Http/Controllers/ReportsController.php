@@ -33,6 +33,7 @@ class ReportsController extends Controller
             'Billed Con by Category and Size',
             'Consumption by Category & Size',
             'All Payments',
+            'Online Payments',
             'Unpaid Bills',
             'Paid Bills',
             'Readings (90days)',
@@ -295,6 +296,7 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
         'mode' => 'required|in:combined,separate',
         'format' => 'required|in:xlsx,csv',
         'zone' => 'required',
+        'sheet_grouping' => 'required|in:all,monthly',
     ]);
 
     $reports = $request->input('reports', []);
@@ -305,12 +307,29 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
     $endDate = $request->input('end_date');
     $zone = $request->input('zone');
     $classification = $request->input('classification');
+    $sheetGrouping = $request->input('sheet_grouping', 'all');
 
-    /*
-    |--------------------------------------------------------------------------
-    | SEPARATE MODE
-    |--------------------------------------------------------------------------
-    */
+    $months = [];
+
+    if (
+        $sheetGrouping === 'monthly' &&
+        $startDate &&
+        $endDate
+    ) {
+        $currentMonth = Carbon::parse($startDate)->startOfMonth();
+        $lastMonth = Carbon::parse($endDate)->startOfMonth();
+
+        while ($currentMonth->lte($lastMonth)) {
+            $months[] = [
+                'name' => $currentMonth->format('F Y'),
+                'start' => $currentMonth->copy()->startOfMonth()->format('Y-m-d'),
+                'end' => $currentMonth->copy()->endOfMonth()->format('Y-m-d'),
+            ];
+
+            $currentMonth->addMonth();
+        }
+    }
+
     if ($mode === 'separate') {
 
         $files = [];
@@ -427,99 +446,249 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
     $firstSheet = true;
 
     foreach ($reports as $reportName) {
-        $data = $this->fetchReportsFromDb(
-            [$reportName],
-            $startDate,
-            $endDate,
-            $zone,
-            $classification
-        )[$reportName] ?? [];
+        $dateRanges = [];
 
-        // ✅ FORMATTED (MATRIX)
-        if (is_array($data) && isset($data['type']) && $data['type'] === 'formatted') {
+        if ($sheetGrouping === 'monthly' && $startDate && $endDate) {
 
-            $sourceSheets = $data['spreadsheet']->getAllSheets();
+            $currentMonth = \Carbon\Carbon::parse($startDate)->startOfMonth();
+            $lastMonth = \Carbon\Carbon::parse($endDate)->startOfMonth();
 
-            if (count($sourceSheets) === 1) {
-                $sourceSheets[0]->setTitle(substr($reportName, 0, 31));
+            while ($currentMonth->lte($lastMonth)) {
+
+                $monthStart = $currentMonth->copy()->startOfMonth();
+                $monthEnd = $currentMonth->copy()->endOfMonth();
+
+                if ($monthStart->lt(\Carbon\Carbon::parse($startDate))) {
+                    $monthStart = \Carbon\Carbon::parse($startDate);
+                }
+
+                if ($monthEnd->gt(\Carbon\Carbon::parse($endDate))) {
+                    $monthEnd = \Carbon\Carbon::parse($endDate);
+                }
+
+                $dateRanges[] = [
+                    'name'  => $currentMonth->format('F Y'),
+                    'start' => $monthStart->format('Y-m-d'),
+                    'end'   => $monthEnd->format('Y-m-d'),
+                ];
+
+                $currentMonth->addMonth();
             }
 
-            foreach ($sourceSheets as $sourceSheet) {
-                $baseTitle = substr($sourceSheet->getTitle(), 0, 31);
-                $title = $baseTitle;
-                $suffix = 1;
-
-                while ($spreadsheet->sheetNameExists($title)) {
-                    $suffixText = ' ' . $suffix++;
-                    $title = substr($baseTitle, 0, 31 - strlen($suffixText)) . $suffixText;
-                }
-
-                $sourceSheet->setTitle($title);
-
-                if ($firstSheet) {
-                    $spreadsheet->removeSheetByIndex(0);
-                    $spreadsheet->addExternalSheet($sourceSheet, 0);
-                    $firstSheet = false;
-                } else {
-                    $spreadsheet->addExternalSheet($sourceSheet);
-                }
-            }
-
-            $data['spreadsheet']->disconnectWorksheets();
-            unset($data);
-
-            continue;
-        }
-
-        // ✅ MULTI-SHEET (ZONE GROUPED)
-        if (is_array($data) && !isset($data[0])) {
-
-            foreach ($data as $subSheetName => $rows) {
-
-                $rows = array_values($rows);
-
-                if ($firstSheet) {
-                    $sheet = $spreadsheet->getActiveSheet();
-                    $sheet->setTitle(substr($subSheetName, 0, 31));
-                    $firstSheet = false;
-                } else {
-                    $sheet = $spreadsheet->createSheet();
-                    $sheet->setTitle(substr($subSheetName, 0, 31));
-                }
-
-                if (!empty($rows) && isset($rows[0])) {
-                    $headers = array_keys($rows[0]);
-                    $sheet->fromArray([$headers], null, 'A1');
-                    $sheet->fromArray($rows, null, 'A2');
-                }
-            }
-
-            unset($data);
-
-            continue;
-        }
-
-        // ✅ NORMAL FLAT ARRAY
-        if (!array_is_list($data)) {
-            $data = array_values($data);
-        }
-
-        if ($firstSheet) {
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle(substr($reportName, 0, 31));
-            $firstSheet = false;
         } else {
-            $sheet = $spreadsheet->createSheet();
-            $sheet->setTitle(substr($reportName, 0, 31));
+
+            $dateRanges[] = [
+                'name'  => null,
+                'start' => $startDate,
+                'end'   => $endDate,
+            ];
         }
 
-        if (!empty($data) && isset($data[0])) {
-            $headers = array_keys($data[0]);
-            $sheet->fromArray([$headers], null, 'A1');
-            $sheet->fromArray($data, null, 'A2');
-        }
+        foreach ($dateRanges as $dateRange) {
 
-        unset($data);
+            $data = $this->fetchReportsFromDb(
+                [$reportName],
+                $dateRange['start'],
+                $dateRange['end'],
+                $zone,
+                $classification
+            )[$reportName] ?? [];
+
+            $sheetPrefix = $reportName;
+
+            if ($dateRange['name']) {
+                $sheetPrefix .= ' - ' . $dateRange['name'];
+            }
+
+            if (
+                is_array($data) &&
+                isset($data['type']) &&
+                $data['type'] === 'formatted'
+            ) {
+
+                $sourceSheets = $data['spreadsheet']->getAllSheets();
+
+                if (count($sourceSheets) === 1) {
+
+                    $sourceSheets[0]->setTitle(
+                        substr($sheetPrefix, 0, 31)
+                    );
+                }
+
+                foreach ($sourceSheets as $sourceSheet) {
+
+                    $baseTitle = $sourceSheet->getTitle();
+
+                    if ($dateRange['name']) {
+                        $baseTitle .= ' - ' . $dateRange['name'];
+                    }
+
+                    $baseTitle = substr($baseTitle, 0, 31);
+
+                    $title = $baseTitle;
+                    $suffix = 1;
+
+                    while ($spreadsheet->sheetNameExists($title)) {
+
+                        $suffixText = ' ' . $suffix++;
+
+                        $title = substr(
+                            $baseTitle,
+                            0,
+                            31 - strlen($suffixText)
+                        ) . $suffixText;
+                    }
+
+                    $sourceSheet->setTitle($title);
+
+                    if ($firstSheet) {
+
+                        $spreadsheet->removeSheetByIndex(0);
+
+                        $spreadsheet->addExternalSheet(
+                            $sourceSheet,
+                            0
+                        );
+
+                        $firstSheet = false;
+
+                    } else {
+
+                        $spreadsheet->addExternalSheet(
+                            $sourceSheet
+                        );
+                    }
+                }
+
+                $data['spreadsheet']->disconnectWorksheets();
+
+                unset($data);
+
+                continue;
+            }
+
+            if (
+                is_array($data) &&
+                !isset($data[0])
+            ) {
+
+                foreach ($data as $subSheetName => $rows) {
+
+                    $rows = array_values($rows);
+
+                    $sheetName = $subSheetName;
+
+                    if ($dateRange['name']) {
+                        $sheetName .= ' - ' . $dateRange['name'];
+                    }
+
+                    $sheetName = substr($sheetName, 0, 31);
+                    $title = $sheetName;
+                    $suffix = 1;
+
+                    while ($spreadsheet->sheetNameExists($title)) {
+
+                        $suffixText = ' ' . $suffix++;
+
+                        $title = substr(
+                            $sheetName,
+                            0,
+                            31 - strlen($suffixText)
+                        ) . $suffixText;
+                    }
+
+                    if ($firstSheet) {
+
+                        $sheet = $spreadsheet->getActiveSheet();
+
+                        $sheet->setTitle($title);
+
+                        $firstSheet = false;
+
+                    } else {
+
+                        $sheet = $spreadsheet->createSheet();
+
+                        $sheet->setTitle($title);
+                    }
+
+                    if (
+                        !empty($rows) &&
+                        isset($rows[0])
+                    ) {
+
+                        $headers = array_keys($rows[0]);
+
+                        $sheet->fromArray(
+                            [$headers],
+                            null,
+                            'A1'
+                        );
+
+                        $sheet->fromArray(
+                            $rows,
+                            null,
+                            'A2'
+                        );
+                    }
+                }
+
+                unset($data);
+
+                continue;
+            }
+
+            if (!array_is_list($data)) {
+                $data = array_values($data);
+            }
+
+            $sheetName = substr($sheetPrefix, 0, 31);
+            $title = $sheetName;
+            $suffix = 1;
+
+            while ($spreadsheet->sheetNameExists($title)) {
+
+                $suffixText = ' ' . $suffix++;
+
+                $title = substr(
+                    $sheetName,
+                    0,
+                    31 - strlen($suffixText)
+                ) . $suffixText;
+            }
+
+
+            if ($firstSheet) {
+                $sheet = $spreadsheet->getActiveSheet();
+                $sheet->setTitle($title);
+                $firstSheet = false;
+            } else {
+                $sheet = $spreadsheet->createSheet();
+                $sheet->setTitle($title);
+            }
+
+            if (
+                !empty($data) &&
+                isset($data[0])
+            ) {
+
+                $headers = array_keys($data[0]);
+
+                $sheet->fromArray(
+                    [$headers],
+                    null,
+                    'A1'
+                );
+
+                $sheet->fromArray(
+                    $data,
+                    null,
+                    'A2'
+                );
+            }
+
+            unset($data);
+        }
     }
 
     /*
@@ -1680,6 +1849,50 @@ protected function generateMatrixReport($startDate, $endDate, $zone)
                 }
 
                 $result[$report] = $rows;
+                break;
+
+                case 'Online Payments':
+
+                $query = Bill::query()
+                    ->with(['reading.concessionaire.user'])
+                    ->whereNotNull('amount_paid')
+                    ->where('payment_method', 'online')
+                    ->when($zone !== 'all', function ($q) use ($zone) {
+                        $q->whereHas('reading', function ($q2) use ($zone) {
+                            $q2->where('zone', $zone);
+                        });
+                    })
+                    ->when($startDate, function ($q) use ($startDate) {
+                        $q->whereDate('date_paid', '>=', $startDate);
+                    })
+                    ->when($endDate, function ($q) use ($endDate) {
+                        $q->whereDate('date_paid', '<=', $endDate);
+                    })
+                    ->orderBy('date_paid', 'asc')
+                    ->get();
+
+                $rows = [];
+
+                foreach ($query as $bill) {
+                    $reading = $bill->reading;
+
+                    $rows[] = [
+                        'ACCOUNT NO'      => $reading->account_no ?? 'N/A',
+                        'ZONE'            => $reading->zone ?? 'N/A',
+                        'CONCESSIONAIRE'  => optional(
+                            optional($reading->concessionaire)->user
+                        )->name ?? 'N/A',
+                        'REFERENCE NO'    => $bill->reference_no,
+                        'BILL PERIOD'     => $bill->bill_period_from . ' - ' . $bill->bill_period_to,
+                        'AMOUNT'          => $bill->date_paid > $bill->due_date ? $bill->amount : $bill->total,
+                        'AMOUNT PAID'     => $bill->amount_paid,
+                        'PAYMENT METHOD'  => $bill->payment_method ?? 'N/A',
+                        'DATE PAID'       => $bill->date_paid,
+                    ];
+                }
+
+                $result[$report] = $rows;
+
                 break;
 
                 case 'Unpaid Bills':
