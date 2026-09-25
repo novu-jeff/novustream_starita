@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bill;
+use App\Services\BillSettlementService;
 use App\Services\GenerateService;
 use App\Services\MeterService;
+use App\Services\StaritaNovupayBillService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -24,7 +26,6 @@ class HitpayController extends Controller
     {
         $status = strtolower($request->get('status'));
         $amount = (float)$request->get('amount', 0);
-        $payor = $request->get('name') ?? 'Unknown';
 
         // Find your local bill by hitpay_reference
         $hitpay_reference = $request->get('reference')
@@ -36,6 +37,11 @@ class HitpayController extends Controller
             ->orWhere('hitpay_payment_id', $payment_id)
             ->orWhere('reference_no', $hitpay_reference)
             ->first();
+
+        $payor = StaritaNovupayBillService::firstUsablePayor(
+            $request->get('name'),
+            optional($bill)->payor_name
+        );
 
 
         \Log::info('HitPay redirect received', $request->all());
@@ -73,44 +79,28 @@ class HitpayController extends Controller
                 $data = $result['data'];
                 $now = Carbon::now()->format('Y-m-d H:i:s');
 
-                $amount_due = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
-                $change = $amount - $amount_due;
-                $saveChange = ($change != 0);
                 \Log::info('HitPay redirect reached bill update', [
                     'bill_id' => $bill->id,
                     'status' => $status,
                     'amount' => $amount
                 ]);
-                $bill->update([
-                    'isPaid' => 1,
-                    'amount_paid' => $amount,
-                    'change' => $change,
-                    'payor_name' => $payor,
-                    'date_paid' => $now,
-                    'isChangeForAdvancePayment' => $saveChange,
-                    'payment_method' => 'online',
-                    'hitpay_payment_id' => $payment_id,
-                ]);
+                app(BillSettlementService::class)->settlePaidBillChain(
+                    $bill,
+                    [
+                        'amount_paid' => $amount > 0 ? $amount : null,
+                        'payor_name' => $payor,
+                        'date_paid' => $now,
+                        'payment_method' => 'online',
+                        'hitpay_payment_id' => $payment_id,
+                    ],
+                    [
+                        'payor_name' => $payor,
+                        'date_paid' => $now,
+                        'payment_method' => 'online',
+                    ]
+                );
 
                 \Log::info('Bill updated', $bill->only(['id', 'isPaid', 'amount_paid', 'payment_method']));
-
-
-                // Optional: update unpaid bills if any
-                if (!empty($data['unpaid_bills'])) {
-                    foreach ($data['unpaid_bills'] as $unpaid_bill) {
-                        $unpaidBill = Bill::find($unpaid_bill['id']);
-                        if ($unpaidBill) {
-                            $unpaidBill->update([
-                                'isPaid' => true,
-                                'amount_paid' => $amount,
-                                'change' => $change,
-                                'payor_name' => $payor,
-                                'date_paid' => $now,
-                                'paid_by_reference_no' => $bill->reference_no,
-                            ]);
-                        }
-                    }
-                }
 
                 // ✅ Redirect user to your existing redirect handler
                 return redirect()->route('payments.redirect', [

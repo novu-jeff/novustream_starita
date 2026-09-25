@@ -25,7 +25,6 @@ use App\Models\BillDiscount;
 use App\Models\Discount;
 use App\Models\DiscountType;
 use App\Models\PaymentBreakdownPenalty;
-use App\Models\PartialPayment;
 use App\Models\PenaltyExemption;
 use App\Models\InstallmentSchedule;
 use App\Models\ReadingAdjustment;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Bill;
+use App\Models\PartialPayment;
 use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Models\NovupayStaritaBill;
@@ -20,6 +21,8 @@ use App\Models\InstallmentSchedule;
 use App\Services\BillSettlementService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
+use App\Services\OfflineMergeGuard;
+use App\Services\StaritaNovupayBillService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -31,7 +34,8 @@ class OfflineSyncController extends Controller
     public function __construct(
         protected MeterService $meterService,
         protected BillSettlementService $billSettlementService,
-        protected MergeBillReadingDatesService $mergeBillReadingDatesService
+        protected MergeBillReadingDatesService $mergeBillReadingDatesService,
+        protected OfflineMergeGuard $offlineMergeGuard
     ) {
     }
 
@@ -225,11 +229,9 @@ class OfflineSyncController extends Controller
         }
 
         $currentPeriodReadings = $this->fetchCurrentPeriodReadings($year, $month, $zoneAccountNos);
-        $readingsList = $wantReadings
-            ? $this->buildDownloadReadingsList($currentPeriodReadings)
-            : [];
 
         $data = [];
+        $priorPresentByAccount = [];
         if ($wantAccounts) {
             $accountsQuery = UserAccounts::with(['user', 'property_types_by_name', 'discount'])
                 ->when($zoneNames->isNotEmpty(), function ($query) use ($zoneNames) {
@@ -259,10 +261,20 @@ class OfflineSyncController extends Controller
                 }
 
                 $unpaidAmount = 0.0;
+                $partialPayment = 0.0;
+                $isPartial = false;
+                $previousUnpaid = 0.0;
+                $previousPartial = (float) ($prior['partial_payment'] ?? 0);
                 if ($bill && !$bill->isPaid) {
-                    $unpaidAmount = (float) ($bill->amount ?? 0);
-                } elseif ($prior && !empty($prior['unpaid_amount'])) {
-                    $unpaidAmount = (float) $prior['unpaid_amount'];
+                    $unpaidAmount = $bill->netUnpaidAmount();
+                    $partialPayment = $bill->creditedPartialAmount();
+                    $isPartial = (bool) $bill->isPartial;
+                    $previousUnpaid = (float) ($prior['unpaid_amount'] ?? $bill->previous_unpaid ?? 0);
+                } elseif ($prior) {
+                    $unpaidAmount = (float) ($prior['unpaid_amount'] ?? 0);
+                    $partialPayment = $previousPartial;
+                    $isPartial = $partialPayment > 0;
+                    $previousUnpaid = $unpaidAmount;
                 }
 
                 return [
@@ -276,6 +288,28 @@ class OfflineSyncController extends Controller
                     'discount_type'    => $acc->discount->discount_type_id ?? 0,
                     'previous_reading' => (float) $presentForPrevious,
                     'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'previous_partial_payment' => $previousPartial,
+                    'is_partial'       => $isPartial,
+                    'created_at'       => $readingCreatedAt,
+                    'sequence_no'      => $acc->sequence_no ?? null,
+                ];
+
+                return [
+                    'account_no'       => $acc->account_no,
+                    'name'             => $acc->user->name ?? 'N/A',
+                    'address'          => $acc->address,
+                    'meter_serial_no'  => $acc->meter_serial_no,
+                    'zone'             => $acc->zone,
+                    'status'           => $acc->status ?? null,
+                    'property_type_id' => $acc->property_types_by_name->id ?? null,
+                    'discount_type'    => $acc->discount->discount_type_id ?? 0,
+                    'previous_reading' => (float) $presentForPrevious,
+                    'unpaid_amount'    => $unpaidAmount,
+                    'previous_unpaid'  => $previousUnpaid,
+                    'partial_payment'  => $partialPayment,
+                    'is_partial'       => $isPartial,
                     'created_at'       => $readingCreatedAt,
                     'sequence_no'      => $acc->sequence_no ?? null,
                 ];
@@ -297,7 +331,14 @@ class OfflineSyncController extends Controller
         }
 
         if ($wantReadings) {
-            $data['readings'] = $readingsList;
+            if (!$wantAccounts) {
+                $priorPresentByAccount = $this->fetchPriorPresentReadingByAccount(
+                    $currentPeriodReadings->keys()->all(),
+                    $year,
+                    $month
+                );
+            }
+            $data['readings'] = $this->buildDownloadReadingsList($currentPeriodReadings, $priorPresentByAccount);
         }
 
         Log::channel('single')->info('Novustream offline API: offline/download success', [
@@ -305,7 +346,7 @@ class OfflineSyncController extends Controller
             'zone_assigned' => $user->zone_assigned,
             'zone_names_count' => $zoneNames->count(),
             'include' => $includeParam ?: 'all',
-            'readings_count' => count($readingsList),
+            'readings_count' => count($data['readings'] ?? []),
             'billing_period' => sprintf('%04d-%02d', $year, $month),
         ]);
 
@@ -337,8 +378,9 @@ class OfflineSyncController extends Controller
 
     /**
      * @param  \Illuminate\Support\Collection<string, Reading>  $currentPeriodReadings
+     * @param  array<string, array{present_reading?: float, created_at?: mixed, unpaid_amount?: float, partial_payment?: float}>  $priorByAccount
      */
-    private function buildDownloadReadingsList($currentPeriodReadings): array
+    private function buildDownloadReadingsList($currentPeriodReadings, array $priorByAccount = []): array
     {
         $readingsList = [];
         foreach ($currentPeriodReadings as $reading) {
@@ -350,7 +392,15 @@ class OfflineSyncController extends Controller
             if (!$refNo) {
                 continue;
             }
-            $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill);
+            $prior = $priorByAccount[$reading->account_no] ?? [];
+            $priorNetUnpaid = array_key_exists('unpaid_amount', $prior)
+                ? (float) $prior['unpaid_amount']
+                : (float) ($bill->previous_unpaid ?? 0);
+            $priorPartial = (float) ($prior['partial_payment'] ?? 0);
+            $soaData = OfflineDataController::minimalSoaFromModels($refNo, $reading, $bill, [
+                'previous_unpaid' => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
+            ]);
             $readingsList[] = [
                 'reference_no'          => $refNo,
                 'account_no'            => $reading->account_no,
@@ -361,6 +411,8 @@ class OfflineSyncController extends Controller
                 'high_consumption_note' => (string) ($bill->high_consumption_note ?? ''),
                 'amount'                => (float) ($bill->amount ?? 0),
                 'amount_after_due'      => (float) ($bill->amount_after_due ?? $bill->amount ?? 0),
+                'previous_unpaid'       => $priorNetUnpaid,
+                'previous_partial_payment' => $priorPartial,
                 'timestamp'             => $this->readingTimestampIso($reading->created_at),
                 'soa_json'              => json_encode($soaData),
             ];
@@ -371,7 +423,7 @@ class OfflineSyncController extends Controller
 
     /**
      * @param  array<int, string>  $accountNos
-     * @return array<string, array{present_reading: float, created_at: mixed, unpaid_amount: float}>
+     * @return array<string, array{present_reading: float, created_at: mixed, unpaid_amount: float, partial_payment: float}>
      */
     private function fetchPriorPresentReadingByAccount(array $accountNos, int $year, int $month): array
     {
@@ -385,24 +437,48 @@ class OfflineSyncController extends Controller
             ->whereIn('readings.account_no', $accountNos)
             ->where('bill.bill_period_to', '<', $periodStart)
             ->select(
+                'readings.id as reading_id',
                 'readings.account_no',
                 'readings.present_reading',
                 'readings.created_at',
                 'bill.amount',
-                'bill.isPaid'
+                'bill.isPaid',
+                'bill.isPartial',
+                'bill.partial_payment',
+                'bill.amount_paid'
             )
             ->orderByDesc('bill.bill_period_to')
             ->orderByDesc('readings.created_at')
             ->get()
             ->unique('account_no');
 
+        $tablePartials = [];
+        $readingIds = $rows->pluck('reading_id')->filter()->all();
+        if ($readingIds && Schema::hasTable('partial_payments')) {
+            $tablePartials = PartialPayment::whereIn('reading_id', $readingIds)
+                ->selectRaw('reading_id, SUM(partial_payment) as total_partial')
+                ->groupBy('reading_id')
+                ->pluck('total_partial', 'reading_id')
+                ->all();
+        }
+
         $result = [];
         foreach ($rows as $row) {
-            $unpaid = (!$row->isPaid && $row->amount !== null) ? (float) $row->amount : 0.0;
+            $credited = max(
+                Bill::creditedPartialFromValues(
+                    $row->partial_payment,
+                    $row->isPartial,
+                    $row->amount_paid
+                ),
+                (float) ($tablePartials[$row->reading_id] ?? 0)
+            );
             $result[$row->account_no] = [
                 'present_reading' => (float) ($row->present_reading ?? 0),
                 'created_at'      => $row->created_at,
-                'unpaid_amount'   => $unpaid,
+                'unpaid_amount'   => filter_var($row->isPaid, FILTER_VALIDATE_BOOLEAN)
+                    ? 0.0
+                    : max((float) ($row->amount ?? 0) - $credited, 0),
+                'partial_payment' => $credited,
             ];
         }
 
@@ -444,67 +520,36 @@ class OfflineSyncController extends Controller
         $errors = [];
         $accountsPaid = [];
 
-        // Pre-pass: mark duplicate offline readings where account+month already exists in readings (remove from queue)
-        foreach ($pending as $off) {
-            $year = $off->created_at?->year ?? now()->year;
-            $month = $off->created_at?->month ?? now()->month;
-            $existingReading = Reading::where('account_no', $off->account_no)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->first();
-            if ($existingReading) {
-                $off->update([
-                    'synced_at' => now(),
-                    'merged_into_reading_id' => $existingReading->id,
-                    'status' => 'skipped_duplicate',
-                ]);
-                $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
-                $count++;
-            }
+        $winnerIds = [];
+        foreach ($pending->groupBy('account_no') as $rows) {
+            $winnerIds[] = (int) $this->offlineMergeGuard->pickWinner($rows)->id;
         }
-        // Re-fetch pending after pre-pass (excludes now-marked rows from duplicate grouping)
-        $pending = $query->get();
-
-        // Duplicate account_no in batch: do not merge multiple pending readings for same account
-        $byAccount = $pending->groupBy('account_no');
-        $duplicateAccountNos = $byAccount->filter(fn ($rows) => $rows->count() > 1)->keys()->all();
 
         foreach ($pending as $off) {
             try {
-                if (in_array($off->account_no, $duplicateAccountNos, true)) {
-                    $off->update(['status' => 'skipped_duplicate']);
-                    $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Duplicate account_no in batch (multiple pending readings for same account)'];
+                if (!in_array((int) $off->id, $winnerIds, true)) {
+                    $this->markOfflineSkippedDuplicate($off, null);
                     continue;
                 }
 
-                // Already merged: account + same month/year exists in readings (e.g. cashier did web reading from SOA and customer already paid)
-                $year = $off->created_at?->year ?? now()->year;
-                $month = $off->created_at?->month ?? now()->month;
-                $existingReading = Reading::where('account_no', $off->account_no)
-                    ->whereYear('created_at', $year)
-                    ->whereMonth('created_at', $month)
-                    ->first();
+                $account = $this->meterService->getAccount($off->account_no);
+                $mergeBillingDate = $this->offlineMergeGuard->resolveMergeBillingDate($off, $account);
+                $existingReading = $this->offlineMergeGuard->findConflictingReading($off, $mergeBillingDate);
                 if ($existingReading) {
-                    $off->update([
-                        'synced_at' => now(),
-                        'merged_into_reading_id' => $existingReading->id,
-                        'status' => 'skipped_duplicate',
-                    ]);
+                    $this->markOfflineSkippedDuplicate($off, $existingReading);
                     $this->updateAccountPreviousReading($off->account_no, $existingReading->present_reading);
                     $count++;
                     continue;
                 }
 
-                DB::beginTransaction();
-
-                $account = $this->meterService->getAccount($off->account_no);
                 if (!$account) {
-                    DB::rollBack();
                     Log::warning('Merge: account not found', ['reference_no' => $off->reference_no, 'account_no' => $off->account_no]);
                     $off->update(['status' => 'rejected']);
                     $errors[] = ['reference_no' => $off->reference_no, 'error' => 'Account not found'];
                     continue;
                 }
+
+                DB::beginTransaction();
 
                 $propertyTypeId = DB::table('property_types')
                     ->whereRaw("LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?", [
@@ -522,17 +567,6 @@ class OfflineSyncController extends Controller
 
                 $arrearsCorrectedAccounts = config('merge.arrears_corrected_accounts', []);
                 $forceZeroArrears = in_array(trim($off->account_no), $arrearsCorrectedAccounts, true);
-
-                $mergeBillingDate = $off->created_at ? Carbon::parse($off->created_at) : now();
-                $zone = Zone::where('zone', $account->zone)->first();
-                if ($zone) {
-                    $readingDateRow = ReadingDate::where('zone_id', $zone->id)
-                        ->where('is_active', 1)
-                        ->first();
-                    if ($readingDateRow && !empty($readingDateRow->bill_period_to)) {
-                        $mergeBillingDate = Carbon::parse($readingDateRow->bill_period_to);
-                    }
-                }
 
                 $payload = [
                     'account_no'         => $off->account_no,
@@ -604,12 +638,18 @@ class OfflineSyncController extends Controller
                                 'reference_no' => $referenceNo,
                                 'account_no' => $off->account_no,
                             ]);
+                        } elseif (app(StaritaNovupayBillService::class)->paymentWouldMisapply($localBill, $novupayBill)) {
+                            Log::channel('single')->warning('Novustream offline API: merge skipping Novupay auto-settlement (would misapply)', [
+                                'reference_no' => $referenceNo,
+                                'source_reference' => $novupayBill->reference_no,
+                                'account_no' => $off->account_no,
+                            ]);
                         } else {
                             $paidAt = $novupayBill->paid_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s');
                             $update = [
                                 'payment_method' => 'online',
                             ];
-                            if (empty($localBill->payor_name)) {
+                            if (StaritaNovupayBillService::isPlaceholderPayor($localBill->payor_name)) {
                                 $payor = $this->resolvePayorFromNovupayBill($novupayBill, $localBill);
                                 $update['payor_name'] = $payor;
                             }
@@ -701,26 +741,20 @@ class OfflineSyncController extends Controller
     private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): string
     {
         $payload = $nb->payload ?? [];
-        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if (!empty($nb->payor)) {
-            return trim((string) $nb->payor);
-        }
-        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        if ($localBill->reading) {
-            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
-            if (!empty($payor)) {
-                return trim((string) $payor);
-            }
-        }
+        $fromReading = optional(optional($localBill->reading)->concessionaire)->user->name ?? null;
         $account = $this->meterService->getAccount($localBill->reading?->account_no ?? $nb->account_no ?? '');
-        $payor = optional(optional($account)->user)->name ?? null;
-        return !empty($payor) ? trim((string) $payor) : 'Sta. Rita Customer';
+        $fromAccount = optional(optional($account)->user)->name ?? null;
+
+        return StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['payor'] ?? null,
+            $nb->payor ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            $fromReading,
+            $fromAccount,
+            'Sta. Rita Customer'
+        );
     }
 
     /** Normalize to whole number for readings/consumption (no decimal); null if empty. */
@@ -730,6 +764,15 @@ class OfflineSyncController extends Controller
             return null;
         }
         return (int) round((float) $value);
+    }
+
+    private function markOfflineSkippedDuplicate(ReadingOffline $off, ?Reading $existingReading): void
+    {
+        $off->update([
+            'synced_at' => now(),
+            'merged_into_reading_id' => $existingReading?->id,
+            'status' => 'skipped_duplicate',
+        ]);
     }
 
     private function updateAccountPreviousReading(string $accountNo, mixed $presentReading): void

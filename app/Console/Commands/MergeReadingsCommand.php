@@ -3,10 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Http\Controllers\OfflineSyncController;
-use App\Models\Reading;
 use App\Models\ReadingOffline;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
+use App\Services\OfflineMergeGuard;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 
@@ -27,7 +27,8 @@ class MergeReadingsCommand extends Command
     public function handle(
         OfflineSyncController $controller,
         MergeBillReadingDatesService $mergeBillReadingDatesService,
-        MeterService $meterService
+        MeterService $meterService,
+        OfflineMergeGuard $offlineMergeGuard
     ): int {
         $limitRaw = $this->option('limit');
         $limit = ($limitRaw !== null && $limitRaw !== '') ? (int) $limitRaw : null;
@@ -41,7 +42,7 @@ class MergeReadingsCommand extends Command
         }
 
         if ($dryRun) {
-            return $this->dryRun($limit, $showDates, $mergeBillReadingDatesService, $meterService);
+            return $this->dryRun($limit, $showDates, $mergeBillReadingDatesService, $meterService, $offlineMergeGuard);
         }
 
         $payload = $limit !== null ? ['limit' => $limit] : [];
@@ -74,13 +75,14 @@ class MergeReadingsCommand extends Command
     }
 
     /**
-     * Dry-run: report pending count and run validation (duplicate account_no in batch, already in readings).
+     * Dry-run: report pending count and run validation (same-account extras, already billed).
      */
     private function dryRun(
         ?int $limit,
         bool $showDates,
         MergeBillReadingDatesService $datesService,
-        MeterService $meterService
+        MeterService $meterService,
+        OfflineMergeGuard $offlineMergeGuard
     ): int {
         $query = ReadingOffline::eligibleForMerge()->orderBy('id');
         if ($limit !== null && $limit > 0) {
@@ -93,40 +95,37 @@ class MergeReadingsCommand extends Command
 
         $hasIssues = false;
 
-        // 1) Duplicate account_no in pending batch (multiple readings_offline for same account)
         $byAccount = $pending->groupBy('account_no');
         $duplicateAccounts = $byAccount->filter(fn ($rows) => $rows->count() > 1);
         if ($duplicateAccounts->isNotEmpty()) {
             $hasIssues = true;
-            $this->warn('Duplicate account_no in pending readings_offline (multiple pending readings per account):');
+            $this->warn('Multiple pending readings_offline per account (winner with highest present_reading will merge; extras skipped):');
             foreach ($duplicateAccounts as $accountNo => $rows) {
+                $winner = $offlineMergeGuard->pickWinner($rows);
                 $refs = $rows->pluck('reference_no')->implode(', ');
-                $this->line("  - Account {$accountNo} has {$rows->count()} pending: [{$refs}]");
+                $this->line("  - Account {$accountNo} has {$rows->count()} pending: [{$refs}] → keep {$winner->reference_no} ({$winner->previous_reading}->{$winner->present_reading})");
             }
         }
 
-        // 2) Already merged: account_no + same month/year already exists in readings
         $alreadyInReadings = [];
         foreach ($pending as $off) {
-            $year = $off->created_at?->year ?? now()->year;
-            $month = $off->created_at?->month ?? now()->month;
-            $exists = Reading::where('account_no', $off->account_no)
-                ->whereYear('created_at', $year)
-                ->whereMonth('created_at', $month)
-                ->exists();
-            if ($exists) {
+            $account = $meterService->getAccount($off->account_no);
+            $mergeBillingDate = $offlineMergeGuard->resolveMergeBillingDate($off, $account);
+            $existing = $offlineMergeGuard->findConflictingReading($off, $mergeBillingDate);
+            if ($existing) {
                 $alreadyInReadings[] = [
                     'reference_no' => $off->reference_no,
                     'account_no'   => $off->account_no,
-                    'period'       => "{$year}-" . str_pad((string) $month, 2, '0', STR_PAD_LEFT),
+                    'period'       => $mergeBillingDate->format('Y-m'),
+                    'existing_ref' => $existing->reference_no,
                 ];
             }
         }
         if (!empty($alreadyInReadings)) {
             $hasIssues = true;
-            $this->warn('Already in readings (account + period already merged):');
+            $this->warn('Would skip (already billed for period, same meter state, or stale present_reading):');
             foreach (array_slice($alreadyInReadings, 0, 20) as $e) {
-                $this->line("  - {$e['reference_no']} (account {$e['account_no']}, period {$e['period']})");
+                $this->line("  - {$e['reference_no']} (account {$e['account_no']}, period {$e['period']}, existing {$e['existing_ref']})");
             }
             if (count($alreadyInReadings) > 20) {
                 $this->line('  ... and ' . (count($alreadyInReadings) - 20) . ' more.');

@@ -110,7 +110,7 @@ class SyncNovupayReadingsCommand extends Command
                     }
 
                     $this->syncLocalBillPaymentStatus($localBill, $nb);
-                    $payor = $nb->payload['customer']['name'] ?? $nb->payload['payor'] ?? $localBill->payor_name ?? null;
+                    $payor = $this->resolvePayorFromNovupayBill($nb, $localBill);
                     $accountsPaid[] = ['account_no' => $accountNo, 'payor_name' => $payor];
                 } catch (\Throwable $e) {
                     Log::error('SyncNovupayReadings: failed for reference_no', [
@@ -246,9 +246,24 @@ class SyncNovupayReadingsCommand extends Command
         }
 
         if ($isPaid) {
-            // Set payor_name when empty (from starita_bills: payload, payor column, or account)
+            if ($this->staritaNovupayBillService->paymentWouldMisapply($localBill, $nb)) {
+                Log::warning('SyncNovupayReadings: refusing to apply payment onto a later/unrelated bill', [
+                    'source_reference' => $nb->reference_no,
+                    'target_reference' => $localBill->reference_no,
+                    'account_no' => optional($localBill->reading)->account_no,
+                ]);
+                $this->markSourceRowAsSynced($nb, true);
+                return;
+            }
+
+            if ($localBill->isPaid && $this->staritaNovupayBillService->billAlreadyHasThisPayment($localBill, $nb)) {
+                $this->markSourceRowAsSynced($nb, true);
+                return;
+            }
+
+            // Set payor_name when empty or placeholder (from starita_bills: payload, payor column, or account)
             $payor = null;
-            if (empty($localBill->payor_name)) {
+            if (StaritaNovupayBillService::isPlaceholderPayor($localBill->payor_name)) {
                 $payor = $this->resolvePayorFromNovupayBill($nb, $localBill);
                 if (!empty($payor)) {
                     $update['payor_name'] = $payor;
@@ -292,26 +307,20 @@ class SyncNovupayReadingsCommand extends Command
     private function resolvePayorFromNovupayBill(NovupayStaritaBill $nb, Bill $localBill): ?string
     {
         $payload = $nb->payload ?? [];
-        $payor = $payload['customer']['name'] ?? $payload['payor'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
-        // Payor column on starita_bills (set at creation; not overwritten by webhook)
-        if (!empty($nb->payor)) {
-            return trim((string) $nb->payor);
-        }
-        // HitPay webhook often sends name at top level or customer_name
-        $payor = $payload['name'] ?? $payload['customer_name'] ?? null;
-        if (!empty($payor)) {
-            return trim((string) $payor);
-        }
+        $fromReading = null;
         if ($localBill->reading) {
-            $payor = optional(optional($localBill->reading->concessionaire)->user)->name ?? null;
-            if (!empty($payor)) {
-                return trim((string) $payor);
-            }
+            $fromReading = optional(optional($localBill->reading->concessionaire)->user)->name;
         }
-        return 'Sta. Rita Customer';
+
+        return StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['payor'] ?? null,
+            $nb->payor ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            $fromReading,
+            'Sta. Rita Customer'
+        );
     }
 
     private function markSourceRowAsSynced(NovupayStaritaBill $nb, bool $isPaid): void

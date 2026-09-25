@@ -111,7 +111,7 @@ class OfflineDataController extends Controller
 
             $bill = $latest?->bill;
             $unpaidAmount = ($bill && !$bill->isPaid)
-                ? (float) ($bill->amount ?? 0)
+                ? $bill->netUnpaidAmount()
                 : 0.0;
 
             $previousReadings[$acc->account_no] = [
@@ -250,6 +250,10 @@ class OfflineDataController extends Controller
             'amount'               => $cb['amount'] ?? 0,
             'amount_after_due'     => $cb['amount_after_due'] ?? 0,
             'isPaid'               => $cb['isPaid'] ?? false,
+            'isPartial'            => (bool) ($cb['isPartial'] ?? ($bill->isPartial ?? false)),
+            'partial_payment'      => (float) ($cb['partial_payment'] ?? ($bill->partial_payment ?? 0)),
+            'amount_paid'          => (float) ($cb['amount_paid'] ?? ($bill->amount_paid ?? 0)),
+            'previous_partial_payment' => 0,
             'isInstallment'        => (bool) ($cb['isInstallment'] ?? ($bill->isInstallment ?? false)),
             'date_paid'            => $cb['date_paid'] ?? null,
             'payor_name'           => $cb['payor_name'] ?? $client['name'] ?? '',
@@ -272,13 +276,21 @@ class OfflineDataController extends Controller
         ];
     }
 
-    public static function minimalSoaFromModels(string $refNo, $reading, $bill): array
+    public static function minimalSoaFromModels(string $refNo, $reading, $bill, array $extras = []): array
     {
         $breakdown = [];
         if ($bill->relationLoaded('breakdown') && $bill->breakdown) {
             $breakdown = $bill->breakdown->map(function ($row) {
                 return ['name' => $row->name ?? '', 'description' => $row->description ?? '', 'amount' => $row->amount ?? 0];
             })->values()->toArray();
+        }
+        if (array_key_exists('previous_unpaid', $extras)) {
+            $prev = (float) $extras['previous_unpaid'];
+            foreach ($breakdown as $i => $row) {
+                if (strcasecmp((string) ($row['name'] ?? ''), 'Previous Balance') === 0) {
+                    $breakdown[$i]['amount'] = $prev;
+                }
+            }
         }
         $dateExtras = self::enrichReadingScheduleDates($bill->due_date ?? null, $bill->bill_period_to ?? null, $bill, $reading);
         return [
@@ -290,13 +302,19 @@ class OfflineDataController extends Controller
             'reading_date'         => $dateExtras['reading_date'],
             'penalty_date'         => $dateExtras['penalty_date'],
             'disconnection_date'   => $dateExtras['disconnection_date'],
-            'previous_unpaid'      => $bill->previous_unpaid ?? 0,
+            'previous_unpaid'      => array_key_exists('previous_unpaid', $extras)
+                ? $extras['previous_unpaid']
+                : ($bill->previous_unpaid ?? 0),
             'total'                => $bill->total ?? 0,
             'discount'             => $bill->discount ?? 0,
             'penalty'              => $bill->penalty ?? 0,
             'amount'               => $bill->amount ?? 0,
             'amount_after_due'     => $bill->amount_after_due ?? $bill->amount ?? 0,
             'isPaid'               => (bool) ($bill->isPaid ?? false),
+            'isPartial'            => (bool) ($bill->isPartial ?? false),
+            'partial_payment'      => (float) ($bill->partial_payment ?? 0),
+            'amount_paid'          => (float) ($bill->amount_paid ?? 0),
+            'previous_partial_payment' => (float) ($extras['previous_partial_payment'] ?? 0),
             'isInstallment'        => (bool) ($bill->isInstallment ?? false),
             'date_paid'            => $bill->date_paid ?? null,
             'payor_name'           => $bill->payor_name ?? '',

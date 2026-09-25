@@ -2,22 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Bill;
 use App\Models\Reading;
 use App\Models\User;
 use App\Services\DashboardService;
-use App\Services\MeterService;
 use Carbon\Carbon;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class DashboardController extends Controller
 {
     protected $dashboardService;
-    protected $meterService;
 
-    public function __construct(DashboardService $dashboardService, MeterService $meterService)
+    public function __construct(DashboardService $dashboardService)
     {
         $this->middleware(function ($request, $next) {
             if (Gate::allows('technician') || Gate::allows('inspector')) {
@@ -32,64 +28,72 @@ class DashboardController extends Controller
         });
 
         $this->dashboardService = $dashboardService;
-        $this->meterService = $meterService;
     }
 
     public function index()
     {
-        ini_set('memory_limit', '512M');
+        try {
+            DB::statement('SET SESSION MAX_EXECUTION_TIME=15000');
+        } catch (\Throwable $e) {
+            // Ignore if the session variable is unavailable.
+        }
 
-        $flatReadings = collect();
         $users = $this->dashboardService->getAllUsers() ?? [];
-        $readings = $this->meterService->getReport() ?? collect([]);
 
-        $flatReadings = collect($readings)->flatten(1);
-        $total_unpaid = $flatReadings
-            ->where('bill.isPaid', false)
-            ->sum(fn ($r) =>
-                (float) ($r['bill']['previous_unpaid'] ?? 0) +
-                (float) ($r['bill']['amount'] ?? 0) +
-                (float) ($r['bill']['penalty'] ?? 0)
-            );
+        $totals = DB::table('bill')
+            ->join('readings', 'bill.reading_id', '=', 'readings.id')
+            ->where('readings.isReRead', 0)
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN bill.isPaid = 0 THEN
+                    CAST(COALESCE(bill.previous_unpaid, 0) AS DECIMAL(15,2))
+                    + CAST(COALESCE(bill.amount, 0) AS DECIMAL(15,2))
+                    + CAST(COALESCE(bill.penalty, 0) AS DECIMAL(15,2))
+                ELSE 0 END), 0) AS total_unpaid,
+                COALESCE(SUM(CASE WHEN bill.isPaid = 1 THEN
+                    CAST(COALESCE(bill.amount_paid, 0) AS DECIMAL(15,2))
+                ELSE 0 END), 0) AS total_paid,
+                COALESCE(SUM(CAST(COALESCE(bill.amount, 0) AS DECIMAL(15,2))), 0) AS total_payments,
+                SUM(CASE WHEN bill.isPaid = 1 THEN 1 ELSE 0 END) AS total_transactions_count,
+                COUNT(*) AS total_readings
+            ")
+            ->first();
 
-        $total_paid = $flatReadings
-            ->where('bill.isPaid', true)
-            ->sum(fn ($r) => (float) ($r['bill']['amount_paid'] ?? 0));
-
-        $total_transactions = $total_paid + $total_unpaid;
-        $total_payments = $flatReadings->sum(fn ($r) => (float) ($r['bill']['amount'] ?? 0));
-        $total_transactions_count = $flatReadings->where('bill.isPaid', true)->count();
-
-        $payment_method_count = $flatReadings
-            ->where('bill.isPaid', true)
+        $paymentMethodCount = DB::table('bill')
+            ->join('readings', 'bill.reading_id', '=', 'readings.id')
+            ->where('readings.isReRead', 0)
+            ->where('bill.isPaid', 1)
             ->groupBy('bill.payment_method')
-            ->map(fn ($group) => $group->count());
+            ->select('bill.payment_method', DB::raw('COUNT(*) as cnt'))
+            ->pluck('cnt', 'payment_method')
+            ->toArray();
+
+        $totalUnpaid = (float) ($totals->total_unpaid ?? 0);
+        $totalPaid = (float) ($totals->total_paid ?? 0);
 
         $data = [
             'admins' => $users['admins'] ?? 0,
             'concessionaires' => $users['concessionaires'] ?? 0,
             'technicians' => $users['technicians'] ?? 0,
-            'total_readings' => $flatReadings->count(),
-            'total_transactions' => $total_transactions,
-            'total_unpaid' => $total_unpaid,
-            'total_paid' => $total_paid,
-            'total_payments' => $total_payments,
-            'total_transactions_count' => $total_transactions_count,
-            'payment_method_count' => $payment_method_count,
+            'total_readings' => (int) ($totals->total_readings ?? 0),
+            'total_transactions' => $totalPaid + $totalUnpaid,
+            'total_unpaid' => $totalUnpaid,
+            'total_paid' => $totalPaid,
+            'total_payments' => (float) ($totals->total_payments ?? 0),
+            'total_transactions_count' => (int) ($totals->total_transactions_count ?? 0),
+            'payment_method_count' => $paymentMethodCount,
         ];
 
         if (Gate::any(['superadmin', 'admin', 'cashier'])) {
-            $startDate = Carbon::now()->subMonths(11)->startOfMonth();
-            $monthlyRevenue = Bill::query()
-                ->where('isPaid', true)
-                ->whereNotNull('date_paid')
-                ->where('date_paid', '>=', $startDate)
-                ->whereHas('reading', fn ($q) => $q->where('isReRead', false))
-                ->select(
-                    DB::raw("DATE_FORMAT(date_paid, '%Y-%m') as month"),
-                    DB::raw('COALESCE(SUM(CAST(amount_paid AS DECIMAL(15,2))), 0) as total')
-                )
-                ->groupBy('month')
+            $startDate = Carbon::now()->subMonths(11)->startOfMonth()->toDateString();
+            $monthlyRevenue = DB::table('bill')
+                ->join('readings', 'bill.reading_id', '=', 'readings.id')
+                ->where('readings.isReRead', 0)
+                ->where('bill.isPaid', 1)
+                ->whereNotNull('bill.date_paid')
+                ->where('bill.date_paid', '!=', '')
+                ->where('bill.date_paid', '>=', $startDate)
+                ->selectRaw("LEFT(bill.date_paid, 7) as month, COALESCE(SUM(CAST(bill.amount_paid AS DECIMAL(15,2))), 0) as total")
+                ->groupByRaw("LEFT(bill.date_paid, 7)")
                 ->orderBy('month')
                 ->pluck('total', 'month')
                 ->toArray();
@@ -103,10 +107,12 @@ class DashboardController extends Controller
             $data['chart_monthly_labels'] = $allMonths->keys()->map(fn ($m) => Carbon::parse($m . '-01')->format('M Y'))->values()->toArray();
             $data['chart_monthly_data'] = $allMonths->values()->toArray();
 
+            $now = Carbon::now();
+            $monthStart = $now->copy()->startOfMonth()->toDateTimeString();
+            $monthEnd = $now->copy()->endOfMonth()->toDateTimeString();
             $readingsByZone = Reading::query()
                 ->where('isReRead', false)
-                ->whereYear('created_at', Carbon::now()->year)
-                ->whereMonth('created_at', Carbon::now()->month)
+                ->whereBetween('created_at', [$monthStart, $monthEnd])
                 ->select('zone', DB::raw('COUNT(*) as cnt'))
                 ->groupBy('zone')
                 ->orderByDesc('cnt')
@@ -116,23 +122,20 @@ class DashboardController extends Controller
             $data['chart_zone_labels'] = array_keys($readingsByZone);
             $data['chart_zone_data'] = array_values(array_map('intval', $readingsByZone));
 
-            $todayPaid = Bill::query()
-                ->where('isPaid', true)
-                ->whereDate('date_paid', Carbon::today())
-                ->sum(DB::raw('CAST(amount_paid AS DECIMAL(15,2))'));
-            $todayCount = Bill::query()
-                ->where('isPaid', true)
-                ->whereDate('date_paid', Carbon::today())
-                ->count();
-            $data['today_paid'] = (float) $todayPaid;
-            $data['today_count'] = (int) $todayCount;
+            $todayStart = Carbon::today()->toDateString();
+            $tomorrowStart = Carbon::tomorrow()->toDateString();
+            $todayStats = DB::table('bill')
+                ->where('isPaid', 1)
+                ->whereNotNull('date_paid')
+                ->where('date_paid', '>=', $todayStart)
+                ->where('date_paid', '<', $tomorrowStart)
+                ->selectRaw('COALESCE(SUM(CAST(amount_paid AS DECIMAL(15,2))), 0) as today_paid, COUNT(*) as today_count')
+                ->first();
+            $data['today_paid'] = (float) ($todayStats->today_paid ?? 0);
+            $data['today_count'] = (int) ($todayStats->today_count ?? 0);
 
-            $data['unique_online_payments'] = Bill::query()
-                ->where('isPaid', true)
-                ->where('payment_method', 'online')
-                ->whereHas('reading', fn ($q) => $q->where('isReRead', false))
-                ->count();
-            $data['concessionaire_accounts'] = \App\Models\User::whereNotNull('email')
+            $data['unique_online_payments'] = (int) ($paymentMethodCount['online'] ?? 0);
+            $data['concessionaire_accounts'] = User::whereNotNull('email')
                 ->where('email', '!=', '')
                 ->whereNotNull('contact_no')
                 ->where('contact_no', '!=', '')

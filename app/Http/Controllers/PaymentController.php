@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Imports\PreviousBillingImport;
 use App\Models\Bill;
+use App\Models\NovupayStaritaBill;
 use App\Services\GenerateService;
 use App\Services\BillSettlementService;
 use App\Services\MeterService;
@@ -45,7 +46,35 @@ class PaymentController extends Controller
     }
 
     /**
-     * SOA QR payment is void after the bill due date (same rule as SOA penalty display).
+     * When true (default), past-due SOA QR continues to HitPay with penalty.
+     * When false, QR is voided (legacy behavior). Aligns with NovuPay DUE_DATE_QR_PENALTY.
+     */
+    public static function dueDateQrAllowsPenalty(): bool
+    {
+        return filter_var(config('services.due_date_qr_penalty', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Bill is past due when today is AFTER the due date (due date itself is still valid).
+     */
+    public static function isPastDue(array $billData): bool
+    {
+        $dueDateString = $billData['due_date'] ?? null;
+        if (empty($dueDateString)) {
+            return false;
+        }
+
+        try {
+            $dueDate = Carbon::parse($dueDateString)->timezone('Asia/Manila')->startOfDay();
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return Carbon::today('Asia/Manila')->gt($dueDate);
+    }
+
+    /**
+     * SOA QR is void only when past due AND penalty mode is disabled.
      */
     public static function isSoaQrVoided(array $billData): bool
     {
@@ -53,15 +82,63 @@ class PaymentController extends Controller
             return false;
         }
 
-        $dueDateString = $billData['due_date'] ?? null;
-        if (empty($dueDateString)) {
+        if (!self::isPastDue($billData)) {
             return false;
         }
 
-        $dueDate = Carbon::parse($dueDateString)->timezone('Asia/Manila')->startOfDay();
-        $today = Carbon::today('Asia/Manila');
+        return !self::dueDateQrAllowsPenalty();
+    }
 
-        return $today->gt($dueDate);
+    /**
+     * Base amount for HitPay (before convenience fees). Past due → amount_after_due / +penalty.
+     */
+    public static function resolveOnlinePayableAmount(array $billData): float
+    {
+        $discount = 0.0;
+        if (isset($billData['discount'])) {
+            if (is_array($billData['discount'])) {
+                $discount = (float) collect($billData['discount'])->sum(function ($row) {
+                    return is_array($row) ? (float) ($row['amount'] ?? 0) : (float) $row;
+                });
+            } else {
+                $discount = (float) $billData['discount'];
+            }
+        }
+
+        $total = isset($billData['total']) && is_numeric($billData['total'])
+            ? round((float) $billData['total'], 2)
+            : 0.0;
+        $storedAmount = isset($billData['amount']) && is_numeric($billData['amount'])
+            ? round((float) $billData['amount'], 2)
+            : 0.0;
+        $penalty = (float) ($billData['penalty'] ?? 0);
+        $afterDue = isset($billData['amount_after_due']) && is_numeric($billData['amount_after_due'])
+            ? round((float) $billData['amount_after_due'], 2)
+            : 0.0;
+
+        $base = round(max($total - $discount, 0), 2);
+        if ($base <= 0 && $storedAmount > 0) {
+            $base = round(max($storedAmount - $discount, 0), 2);
+            // bill.amount is historically stored as amount-after-due (includes penalty).
+            if ($penalty > 0 && ($afterDue <= 0 || abs($storedAmount - $afterDue) < 0.01)) {
+                $base = round(max($base - $penalty, 0), 2);
+            }
+        }
+
+        if (!self::isPastDue($billData)) {
+            return $base;
+        }
+
+        if ($afterDue > $base + 0.001) {
+            return $afterDue;
+        }
+
+        if ($penalty > 0) {
+            return round($base + $penalty, 2);
+        }
+
+        // Match NovuPay Starita fallback: 10% of amount due
+        return round($base * 1.10, 2);
     }
 
     /**
@@ -145,6 +222,26 @@ class PaymentController extends Controller
             ]);
         }
 
+        // Existing printed QRs may still point here after due date.
+        // In penalty mode, continue to HitPay with overdue amount instead of voiding.
+        if ($billData && self::dueDateQrAllowsPenalty() && self::isPastDue($billData)) {
+            $payload = [
+                'payor' => $client['name'] ?? ($bill->payor_name ?? 'Sta. Rita Customer'),
+                'email' => $client['email'] ?? 'srwdsystem2023@gmail.com',
+                'account_no' => $client['account_no'] ?? ($bill->account_no ?? null),
+            ];
+
+            $hitpayData = $this->createHitpayPaymentRequest($reference_no, $payload);
+            if ($hitpayData && !empty($hitpayData['url'])) {
+                \Log::info('Past-due QR (penalty mode): redirecting from qr-voided to HitPay', [
+                    'reference_no' => $reference_no,
+                    'payable_amount' => self::resolveOnlinePayableAmount($billData),
+                ]);
+
+                return redirect()->away((string) $hitpayData['url']);
+            }
+        }
+
         if ($billData && !self::isSoaQrVoided($billData)) {
             $hitpayId = $bill?->hitpay_payment_id;
             if ($hitpayId) {
@@ -184,121 +281,84 @@ class PaymentController extends Controller
     }
 
     public function index(Request $request)
-{
-    $filter = $request->filter ?? 'unpaid';
+    {
+        $filter = $request->filter ?? 'unpaid';
 
-    if (!in_array($filter, ['unpaid', 'paid'], true)) {
-        return redirect()->route('payments.index', ['filter' => 'unpaid']);
+        if (!in_array($filter, ['unpaid', 'paid'], true)) {
+            return redirect()->route('payments.index', ['filter' => 'unpaid']);
+        }
+
+        $zones = $this->meterService->getZones();
+        $zone  = $request->zone ?? 'all';
+
+        $paymentMethod = $request->payment_method ?? 'all';
+        if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
+            $paymentMethod = 'all';
+        }
+
+        $entries  = $request->entries ?? 10;
+        $search   = trim($request->search ?? '');
+        $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
+
+        $startDate = Carbon::parse($date)->startOfMonth()->format('Y-m-d 00:00:00');
+        $endDate   = Carbon::parse($date)->endOfMonth()->format('Y-m-d 23:59:59');
+
+        try {
+            DB::statement('SET SESSION MAX_EXECUTION_TIME=8000');
+        } catch (\Throwable $e) {
+            // Ignore if the session variable is unavailable.
+        }
+
+        $query = Bill::query()
+            ->select('bill.*')
+            ->join('readings', 'bill.reading_id', '=', 'readings.id')
+            ->leftJoin('concessioner_accounts as ca', 'readings.account_no', '=', 'ca.account_no')
+            ->leftJoin('users', 'ca.user_id', '=', 'users.id')
+            ->with(['reading.concessionaire.user'])
+            ->whereBetween('bill.bill_period_to', [$startDate, $endDate]);
+
+        if ($filter === 'paid') {
+            $query->where('bill.isPaid', 1);
+        } else {
+            $query->where('bill.isPaid', 0);
+        }
+
+        if ($zone !== 'all') {
+            $query->where('readings.zone', $zone);
+        }
+
+        if ($paymentMethod !== 'all') {
+            $query->where('bill.payment_method', $paymentMethod);
+        }
+
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('bill.reference_no', 'like', $like)
+                    ->orWhere('readings.account_no', 'like', $like)
+                    ->orWhere('bill.payor_name', 'like', $like)
+                    ->orWhere('users.name', 'like', $like);
+            });
+        }
+
+        $data = $query
+            ->orderByDesc('bill.created_at')
+            ->paginate($entries)
+            ->withQueryString();
+
+        return view(
+            'payments.index',
+            compact(
+                'data',
+                'entries',
+                'filter',
+                'zones',
+                'zone',
+                'date',
+                'paymentMethod'
+            )
+        )->with('toSearch', $search);
     }
-
-    $zones = $this->meterService->getZones();
-    $zone  = $request->zone ?? 'all';
-
-    $paymentMethod = $request->payment_method ?? 'all';
-    if (!in_array($paymentMethod, ['all', 'walk-in', 'online'], true)) {
-        $paymentMethod = 'all';
-    }
-
-    $entries  = $request->entries ?? 10;
-    $search   = trim($request->search ?? '');
-    $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
-
-    $startDate = \Carbon\Carbon::parse($date)->startOfMonth();
-    $endDate   = \Carbon\Carbon::parse($date)->endOfMonth();
-
-    /*
-    |--------------------------------------------------------------------------
-    | BASE QUERY
-    |--------------------------------------------------------------------------
-    */
-
-    $query = \App\Models\Bill::query()
-        ->with(['reading.concessionaire.user'])
-        ->whereBetween('bill_period_to', [$startDate, $endDate]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Paid / Unpaid
-    |--------------------------------------------------------------------------
-    */
-
-    if ($filter === 'paid') {
-    $query->where('isPaid', 1);
-} else {
-    $query->where('isPaid', 0);
-}
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Zone
-    |--------------------------------------------------------------------------
-    */
-
-    if ($zone !== 'all') {
-        $query->whereHas('reading.concessionaire', function ($q) use ($zone) {
-            $q->where('zone', $zone);
-        });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | FILTER: Payment Method
-    |--------------------------------------------------------------------------
-    */
-
-    if ($paymentMethod !== 'all') {
-        $query->where('payment_method', $paymentMethod);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | SMART SEARCH (FAST TOKEN SEARCH)
-    |--------------------------------------------------------------------------
-    */
-
-    if (!empty($search)) {
-        $tokens = preg_split('/\s+/', strtolower($search));
-
-        $query->where(function ($q) use ($tokens, $search) {
-
-            // Reference number
-            $q->where('reference_no', 'like', "%{$search}%")
-
-              ->orWhereHas('reading', function ($rq) use ($tokens, $search) {
-                  $rq->where('account_no', 'like', "%{$search}%")
-                     ->orWhereHas('concessionaire.user', function ($uq) use ($tokens) {
-                         foreach ($tokens as $token) {
-                             $uq->where('name', 'like', "%{$token}%");
-                         }
-                     });
-              });
-        });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | DATABASE PAGINATION
-    |--------------------------------------------------------------------------
-    */
-
-    $data = $query
-        ->orderByDesc('created_at')
-        ->paginate($entries)
-        ->withQueryString();
-
-    return view(
-    'payments.index',
-        compact(
-            'data',
-            'entries',
-            'filter',
-            'zones',
-            'zone',
-            'date',
-            'paymentMethod'
-        )
-    )->with('toSearch', $search);
-}
 
 
     public function upload(Request $request)
@@ -681,17 +741,6 @@ class PaymentController extends Controller
             return ['error' => 'Reading not found.'];
         }
 
-        $accountNo = $reading->account_no;
-
-        $unpaidBills = Bill::whereHas('reading', function($query) use ($accountNo) {
-            $query->where('account_no', $accountNo);
-        })
-        ->where('isPaid', 0)
-        ->orderBy('bill_period_from')
-        ->get();
-
-        $fullArrears = $unpaidBills->sum(fn($b) => $b->previous_unpaid);
-
         $totalDueResult = $this->calculateTotalDue($data['current_bill'], $payload);
         $totalDue = $totalDueResult['total_due'];
         $breakdown = $totalDueResult['breakdown'];
@@ -710,7 +759,6 @@ class PaymentController extends Controller
 
         $data['current_bill']['assumed_amount_after_due'] = $totalDue;
         $data['current_bill']['breakdown'] = $breakdown;
-        $data['current_bill']['previous_unpaid'] = $fullArrears;
 
         return [
             'data' => $data,
@@ -802,7 +850,7 @@ class PaymentController extends Controller
         $payPartialOnly = !empty($payload['partial_payment']);
         $total = round((float)$currentBill->total - $discount, 2);
         $amount = round((float)$currentBill->amount - $discount, 2);
-        $dueDate = \Carbon\Carbon::parse($currentBill->due_date);
+        $dueDate = \Carbon\Carbon::parse($currentBill->penalty_date);
         $isOverdue = now()->greaterThan($dueDate);
         $billAmount = round((float) $currentBill->amount_after_due - $discount, 2);
 
@@ -858,7 +906,7 @@ class PaymentController extends Controller
                 ->update([
                     'isPaid'        => 1,
                     'isPartial'     => 0,
-                    'amount_paid'   => DB::raw('amount_after_due'),
+                    'amount_paid'   => $paymentAmount,
                     'date_paid'     => now(),
                     'payment_method'=> 'cash',
                 ]);
@@ -931,7 +979,7 @@ class PaymentController extends Controller
         ->update([
             'isPaid'        => 1,
             'isPartial'     => 0,
-            'amount_paid'   => DB::raw('amount_after_due'),
+            'amount_paid'   => $paymentAmount,
             'date_paid'     => now(),
             'payment_method'=> 'cash',
         ]);
@@ -1018,6 +1066,15 @@ class PaymentController extends Controller
     {
         $billResult = $this->getBill($reference_no, $payload, false);
         $billData = $billResult['data']['current_bill'] ?? null;
+        if ($billData && !empty($billData['isPaid'])) {
+            $completedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $completedId ? self::buildHitpayCompletedUrl($completedId) : null,
+            ]);
+        }
+
         if ($billData && self::isSoaQrVoided($billData)) {
             return redirect()->back()->with('alert', [
                 'status' => 'error',
@@ -1033,6 +1090,14 @@ class PaymentController extends Controller
             return redirect()->back()->with('alert', [
                 'status' => 'error',
                 'message' => 'Failed to generate HitPay payment request.',
+            ]);
+        }
+
+        if (!empty($hitpayData['already_paid'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $hitpayData['url'],
             ]);
         }
 
@@ -1057,6 +1122,13 @@ class PaymentController extends Controller
 
 
 
+    /**
+     * Create or reuse a HitPay payment request for a Sta. Rita bill.
+     *
+     * @param string $reference_no
+     * @param array $payload
+     * @return array<string, mixed>|null
+     */
     public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
     {
         try {
@@ -1077,31 +1149,62 @@ class PaymentController extends Controller
             }
 
             if (self::isSoaQrVoided($billData)) {
-                \Log::info('HitPay request skipped: bill past due date', ['reference_no' => $reference_no]);
+                \Log::info('HitPay request skipped: bill past due date (void mode)', ['reference_no' => $reference_no]);
+                return null;
+            }
+
+            if (!empty($billData['isPaid']) || ($existingBill && $existingBill->isPaid)) {
+                $completedId = $billData['hitpay_payment_id']
+                    ?? $billData['hitpay_reference']
+                    ?? $existingBill?->hitpay_payment_id
+                    ?? $existingBill?->hitpay_reference
+                    ?? null;
+
+                \Log::info('HitPay request skipped: bill already paid', [
+                    'reference_no' => $reference_no,
+                    'hitpay_id' => $completedId,
+                ]);
+
+                if ($completedId) {
+                    return [
+                        'id' => $completedId,
+                        'url' => self::buildHitpayCompletedUrl($completedId),
+                        'reference' => $existingBill?->hitpay_reference ?? $completedId,
+                        'reference_number' => $existingBill?->hitpay_reference ?? $completedId,
+                        'already_paid' => true,
+                    ];
+                }
+
                 return null;
             }
 
             $days_before_due = 15;
             if (!empty($billData['due_date'])) {
                 try {
-                    $due_date = Carbon::parse($billData['due_date']);
+                    $billDueEnd = Carbon::parse($billData['due_date'])->timezone('Asia/Manila')->endOfDay();
                 } catch (\Exception $e) {
-                    $due_date = Carbon::now()->addDays($days_before_due);
+                    $billDueEnd = Carbon::now('Asia/Manila')->addDays($days_before_due)->endOfDay();
                 }
             } else {
-                $due_date = Carbon::now()->addDays($days_before_due);
+                $billDueEnd = Carbon::now('Asia/Manila')->addDays($days_before_due)->endOfDay();
             }
-            $due_date = $due_date->endOfDay()->format('Y-m-d H:i:s');
+            // HitPay requires expiry strictly after now; due-date-today / past-due need extension.
+            $minExpiry = Carbon::now('Asia/Manila')->addDay()->endOfDay();
+            $due_date = ($billDueEnd->greaterThan($minExpiry) ? $billDueEnd : $minExpiry)
+                ->format('Y-m-d H:i:s');
 
 
             // dd($billData);
             $rateCode = $result['data']['client']['rate_code'] ?? null;
-            $amount = (float) $billData['total'];
-            $discount = !empty($billData['discount'][0]['amount'])
-                ? (float) $billData['discount'][0]['amount']
-                : 0;
+            $amount = self::resolveOnlinePayableAmount($billData);
 
-            $amount = $amount - $discount;
+            if (self::isPastDue($billData)) {
+                \Log::info('HitPay: past-due payable amount (penalty mode)', [
+                    'reference_no' => $reference_no,
+                    'amount' => $amount,
+                    'due_date' => $billData['due_date'] ?? null,
+                ]);
+            }
 
             // dd($amount, $discount);
 
@@ -1299,7 +1402,6 @@ class PaymentController extends Controller
         $status = $this->resolveHitpayStatus($payment, $status);
         $reference_number = $payment['reference_number'] ?? null;
         $amount = $this->parseHitpayAmount($payment['amount'] ?? 0);
-        $payor = $payment['name'] ?? 'Unknown';
         $paymentId = $payment['payment_id'] ?? $payment['id'] ?? null;
 
         // ✅ Step 2: Find bill (redirect "reference" is payment-request ID; also match by our reference_number from API response)
@@ -1307,6 +1409,8 @@ class PaymentController extends Controller
             ->orWhere('hitpay_payment_id', $hitpay_reference)
             ->orWhere('reference_no', $reference_number)
             ->first();
+
+        $payor = $this->resolvePayorFromHitpayPayload($payment, $bill);
 
         $days_before_due = 15;
         $due_date = !empty($bill['due_date'])
@@ -1476,7 +1580,6 @@ class PaymentController extends Controller
         $payment_request_id = $payload['payment_request_id'] ?? $payload['id'] ?? null;
         $payment_status = $this->resolveHitpayStatus($payload);
         $payment_amount = $this->parseHitpayAmount($payload['amount'] ?? 0);
-        $payor = $payload['customer']['name'] ?? $payload['name'] ?? 'Unknown';
 
         if (empty($reference_number) && empty($payment_request_id)) {
             Log::warning('HitPay webhook: missing reference_number and id');
@@ -1500,20 +1603,33 @@ class PaymentController extends Controller
             ->first();
 
         if (!$existingBill) {
+            $nb = NovupayStaritaBill::query()
+                ->where(function ($q) use ($reference_number, $payment_request_id) {
+                    if (!empty($reference_number)) {
+                        $q->where('reference_no', $reference_number)
+                            ->orWhere('hitpay_reference', $reference_number);
+                    }
+                    if (!empty($payment_request_id)) {
+                        $q->orWhere('hitpay_reference', $payment_request_id);
+                    }
+                })
+                ->first();
+            if ($nb) {
+                $existingBill = $this->staritaNovupayBillService->resolveLocalBillForPayment($nb);
+            }
+        }
+
+        if (!$existingBill) {
             Log::warning('HitPay webhook: bill not found', ['reference_number' => $reference_number, 'id' => $payment_request_id]);
             return response()->json(['status' => 'error', 'message' => 'Bill not found'], 404);
         }
 
         if ($existingBill->isPaid) {
-            $redirectBill = $this->staritaNovupayBillService->findOldestUnpaidBillForAccount(
-                (string) optional($existingBill->reading)->account_no
-            );
-            if (!$redirectBill) {
-                Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
-                return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
-            }
-            $existingBill = $redirectBill;
+            Log::info('HitPay webhook ignored; bill already paid', ['reference_no' => $existingBill->reference_no]);
+            return response()->json(['status' => 'ignored', 'message' => 'Bill already paid'], 200);
         }
+
+        $payor = $this->resolvePayorFromHitpayPayload($payload, $existingBill);
 
         if (!in_array($payment_status, ['completed', 'succeeded', 'success'], true)) {
             Log::info('HitPay webhook ignored; status not completed', ['status' => $payment_status]);
@@ -1599,6 +1715,33 @@ class PaymentController extends Controller
             })
             ->rawColumns(['status', 'actions'])
             ->make(true);
+    }
+
+    private function resolvePayorFromHitpayPayload(array $payload, ?Bill $bill = null): ?string
+    {
+        $fromPayload = StaritaNovupayBillService::firstUsablePayor(
+            $payload['customer']['name'] ?? null,
+            $payload['name'] ?? null,
+            $payload['customer_name'] ?? null,
+            data_get($payload, 'payments.0.customer.name'),
+            data_get($payload, 'payments.0.name')
+        );
+        if ($fromPayload) {
+            return $fromPayload;
+        }
+
+        if ($bill) {
+            $bill->loadMissing('reading.concessionaire.user');
+            $fromBill = StaritaNovupayBillService::firstUsablePayor(
+                $bill->payor_name ?? null,
+                optional(optional(optional($bill->reading)->concessionaire)->user)->name
+            );
+            if ($fromBill) {
+                return $fromBill;
+            }
+        }
+
+        return null;
     }
 
     private function parseHitpayAmount($value): float
