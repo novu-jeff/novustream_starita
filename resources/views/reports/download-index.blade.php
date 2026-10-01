@@ -32,45 +32,44 @@
             </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Mode</label>
-            <select name="mode" class="form-select">
-                <option value="combined">Combined (all reports in one file)</option>
-                <option value="separate">Separate (one file per report, returned as ZIP)</option>
-            </select>
-        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label fw-medium">Mode</label>
+                <select name="mode" class="form-select">
+                    <option value="combined">Combined (all reports in one file)</option>
+                    <option value="separate">Separate (one file per report, returned as ZIP)</option>
+                </select>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label">Sheet Grouping</label>
+            <div class="col-md-4">
+                <label class="form-label fw-medium">Sheet Grouping</label>
+                <select name="sheet_grouping" class="form-select">
+                    <option value="all">All Months in One Sheet</option>
+                    <option value="monthly">Separate Sheet per Month</option>
+                </select>
+            </div>
 
-            <select name="sheet_grouping" class="form-select">
-                <option value="all">All Months in One Sheet</option>
-                <option value="monthly">Separate Sheet per Month</option>
-            </select>
-        </div>
+            <div class="col-md-4">
+                <label class="form-label fw-medium">Format</label>
+                <select name="format" class="form-select">
+                    <option value="xlsx">Excel (.xlsx)</option>
+                    <option value="csv">CSV (.csv)</option>
+                    <option value="plain">Plain Sheet (.xlsx)</option>
+                </select>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label">Format</label>
-            <select name="format" class="form-select">
-                <option value="xlsx">Excel (.xlsx)</option>
-                <option value="csv">CSV (.csv)</option>
-                <option value="plain">Plain Sheet (.xlsx)</option>
-            </select>
-        </div>
-
-        <div class="row">
-            <div class="col-md-3">
-                <label class="form-label">Start Date</label>
+            <div class="col-md-4">
+                <label class="form-label fw-medium">Start Date</label>
                 <input type="date" name="start_date" class="form-control">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">End Date</label>
+
+            <div class="col-md-4">
+                <label class="form-label fw-medium">End Date</label>
                 <input type="date" name="end_date" class="form-control">
             </div>
 
-            {{-- ✅ Zone Dropdown (Required) --}}
-            <div class="col-md-3">
-                <label class="form-label">Zone</label>
+            <div class="col-md-4">
+                <label class="form-label fw-medium">Zone <span class="text-danger">*</span></label>
                 <select name="zone" class="form-select" required>
                     <option value="">Select Zone</option>
                     <option value="all">All Zones</option>
@@ -79,16 +78,10 @@
                     @endforeach
                 </select>
             </div>
-
-
-            <!-- <div class="col-md-3">
-                <label class="form-label">Classification (optional)</label>
-                <input type="text" name="classification" class="form-control">
-            </div> -->
         </div>
 
         <div class="mt-4">
-            <button type="submit" class="btn btn-primary">Generate</button>
+            <button type="submit" class="btn btn-primary px-4">Generate</button>
         </div>
     </form>
 </div>
