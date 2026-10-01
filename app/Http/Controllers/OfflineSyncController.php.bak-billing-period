@@ -36,8 +36,7 @@ class OfflineSyncController extends Controller
         protected MeterService $meterService,
         protected BillSettlementService $billSettlementService,
         protected MergeBillReadingDatesService $mergeBillReadingDatesService,
-        protected OfflineMergeGuard $offlineMergeGuard,
-        protected BillingPeriodService $billingPeriodService
+        protected OfflineMergeGuard $offlineMergeGuard
     ) {
     }
 
