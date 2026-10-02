@@ -138,9 +138,9 @@
                     <p class="file-hint mb-0">Accepted: PDF, JPG, PNG</p>
                 </div>
 
-                <div class="w-100 mt-2">
+                <div class="w-100 mt-2 recaptcha-wrapper">
                     <div
-                        class="g-recaptcha"
+                        class=" g-recaptcha"
                         data-sitekey="{{ config('services.recaptcha.site_key') }}">
                     </div>
                 </div>
@@ -410,6 +410,16 @@
         display: none;
     }
 
+    .recaptcha-wrapper {
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .recaptcha-wrapper .g-recaptcha {
+        transform: scale(0.75);
+        transform-origin: top left;
+    }
+
     @media (min-width: 0px) and (max-width: 600px) {
         .overlay-container {
             display: none;
@@ -417,6 +427,7 @@
 
         .register-page .sign-up-container form {
             justify-content: flex-start;
+            padding: 2rem 0 2rem 0;
             overflow-y: auto;
         }
 
