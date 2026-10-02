@@ -41,6 +41,7 @@
                 <div id="registrationFormStep" class="registration-form-step d-none">
                 <input type="hidden" name="registration_type" id="registration_type" value="existing_account">
                 <input type="hidden" name="data_privacy_consent" id="data_privacy_consent" value="">
+                <img class="mobile-logo" src="{{ asset('images/client1nobg.png') }}" alt="Sta Rita Logo" />
                 <h1 class="fw-bold mb-1">Create Account</h1>
                 <span>Register as a concessionaire</span>
 
@@ -102,7 +103,7 @@
                         <div class="file-upload w-100">
                             <label for="cedula_file" class="file-label">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Latest Cedula / Residence Certificate <span class="text-danger">*</span></span>
+                                <span class="file-text">Cedula / Residence Certificate <span class="text-danger">*</span></span>
                                 <span class="file-name" id="cedula_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -113,7 +114,7 @@
                         <div class="file-upload w-100">
                             <label for="billing_file" class="file-label">
                                 <i class="bx bx-receipt"></i>
-                                <span class="file-text">Proof of Billing (Electric Bill) <span class="text-danger">*</span></span>
+                                <span class="file-text">Proof of Billing <span class="text-danger">*</span></span>
                                 <span class="file-name" id="billing_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -122,9 +123,9 @@
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
                         <div class="file-upload w-100">
-                            <label for="authorization_file" class="file-label">
+                            <label for="authorization_file" class="file-label overflow-hidden">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Authorization Letter / SPA with Valid ID (Representative)</span>
+                                <span class="file-text">Authorization Letter</span>
                                 <span class="file-name" id="authorization_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -405,9 +406,26 @@
         color: #fff;
     }
 
+    .mobile-logo {
+        display: none;
+    }
+
     @media (min-width: 0px) and (max-width: 600px) {
         .overlay-container {
             display: none;
+        }
+
+        .register-page .sign-up-container form {
+            justify-content: flex-start;
+            overflow-y: auto;
+        }
+
+        .mobile-logo {
+            width: 8rem;
+            height: 8rem;
+            display: block;
+            text-align: center;
+            margin-bottom: 20px;
         }
 
         .login {
