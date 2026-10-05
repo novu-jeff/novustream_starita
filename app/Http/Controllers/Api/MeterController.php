@@ -7,6 +7,7 @@ use App\Models\Bill;
 use App\Models\BillBreakdown;
 use App\Models\Reading;
 use App\Models\User;
+use App\Services\AccountMailer;
 use App\Services\MeterService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -174,6 +175,10 @@ class MeterController extends Controller
             }
 
             DB::commit();
+
+            if (!$bill->isPaid) {
+                app(AccountMailer::class)->notifyBillDue($bill);
+            }
 
             $reference_no = $bill->reference_no;
 

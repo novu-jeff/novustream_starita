@@ -33,6 +33,7 @@
         <env name="NOVUPAY_API_KEY" value="test-novupay-api-key"/>
         <env name="NOVUPAY_CLIENT_ID" value="0000000006"/>
         <env name="NOVUPAY_CLIENT_SECRET" value="test-novupay-secret"/>
+        <env name="NOVUPAY_NOTIFICATION_URL" value=""/>
         <env name="APP_URL" value="https://staging.example.test"/>
     </php>
 </phpunit>

@@ -55,9 +55,15 @@ return [
         'client_id' => env('NOVUPAY_CLIENT_ID'),
         'client_secret' => env('NOVUPAY_CLIENT_SECRET'),
         'public_url' => env('NOVUPAY_PUBLIC_URL'),
+        // Full webhook URL. Use a host this server can reach when the public IP cannot hairpin.
+        'notification_url' => env('NOVUPAY_NOTIFICATION_URL'),
         // LAN IP for CURLOPT_RESOLVE when hairpin to the public VIP fails. Not DNS.
+        // Leave empty for the Novulutions staging API; that pin is only for api.novu-pay.com.
         'api_resolve' => env('NOVUPAY_API_RESOLVE'),
+        // Staging docs: minimum PHP 50. Production default stays 100 unless overridden.
         'min_amount' => (float) env('NOVUPAY_MIN_AMOUNT', 100),
+        // Flat merchant fee added on top of the amount due. Not part of the water bill.
+        'transaction_fee' => (float) env('NOVUPAY_TRANSACTION_FEE', 10),
         'enabled_channels' => ['qrph'],
         'description' => env('NOVUPAY_DESCRIPTION', 'Sta-Rita Water District bill'),
     ],

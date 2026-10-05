@@ -10,11 +10,13 @@ class CheckDefaultPassword
 {
     public function handle($request, Closure $next)
     {
-        $user = Auth::user();
+        $user = Auth::guard('web')->user();
 
-        // Check if user is logged in and password is default
+        if ($user) {
+            $user->refresh();
+        }
+
         if ($user && Hash::check('password', $user->password)) {
-            // Set a session flag to show modal in Blade
             session()->flash('using_default_password', true);
         }
 

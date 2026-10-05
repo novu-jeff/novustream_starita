@@ -8,6 +8,9 @@
             <form id="registerForm" method="POST" action="{{ route('auth.register.store') }}" enctype="multipart/form-data" novalidate>
                 @csrf
                 <div id="registrationTypeStep" class="registration-type-step">
+                    @if(session('error'))
+                        <div class="alert alert-danger w-100 py-2 px-3 mb-3">{{ session('error') }}</div>
+                    @endif
                     <h1 class="fw-bold mb-1">Choose Your Account Type</h1>
                     <p class="registration-type-subtitle">Please select the option that best describes your situation.</p>
 
@@ -865,8 +868,8 @@
                 setTimeout(function () {
                     window.location.href =
                         payload.redirect ||
-                        "{{ route('account-overview.index') }}";
-                }, 1000);
+                        "{{ route('register.verify') }}";
+                }, 800);
             })
             .catch(function (error) {
                 console.error('Registration error:', error);

@@ -2,7 +2,7 @@
 
 @section('content')
 
-@if(session('using_default_password'))
+@if(session('using_default_password') && !data_get(session('alert'), 'password_changed'))
 <div class="modal fade" id="changePasswordModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-md">
         <div class="modal-content">
@@ -1310,6 +1310,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
 @section('script')
     <script>
+        @if(session('alert'))
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof Swal === 'undefined') {
+                return;
+            }
+
+            const profileAlert = @json(session('alert'));
+            Swal.fire({
+                icon: profileAlert.status === 'success' ? 'success' : 'error',
+                title: profileAlert.password_changed ? 'Password updated' : 'Profile updated',
+                text: profileAlert.message || '',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 6000,
+                timerProgressBar: true
+            });
+        });
+        @endif
+
         document.addEventListener('DOMContentLoaded', function () {
 
             const labels = @json($chartMonthlyLabels ?? []);

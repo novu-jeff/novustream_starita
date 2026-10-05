@@ -20,6 +20,25 @@ class BillSettlementServiceTest extends TestCase
         $this->assertTrue(BillSettlementService::looksLikeCheckoutTotal(580.58, 603.98));
     }
 
+    public function test_online_amount_paid_strips_flat_transaction_fee(): void
+    {
+        config(['services.novupay.transaction_fee' => 10]);
+
+        $bill = new Bill([
+            'total' => 351.50,
+            'amount' => 351.50,
+            'amount_after_due' => 351.50,
+            'penalty' => 0,
+            'discount' => 0,
+            'due_date' => '2026-10-15',
+        ]);
+
+        $paid = (new BillSettlementService())->resolveOnlineAmountPaid($bill, 361.50, '2026-10-02 15:50:00');
+
+        $this->assertTrue(BillSettlementService::looksLikeCheckoutTotal(351.50, 361.50));
+        $this->assertSame(351.50, $paid);
+    }
+
     public function test_online_amount_paid_strips_hitpay_checkout_total_before_due(): void
     {
         $bill = new Bill([

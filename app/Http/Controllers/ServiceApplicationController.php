@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ServiceApplication;
+use App\Services\AccountMailer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +121,13 @@ class ServiceApplicationController extends Controller
             );
 
             DB::commit();
+
+            $application->refresh();
+            app(AccountMailer::class)->notifyServiceApplication(
+                Auth::user()?->email,
+                $application->application_no,
+                Auth::user()?->name
+            );
 
             return redirect()
                 ->route('account-overview.index')

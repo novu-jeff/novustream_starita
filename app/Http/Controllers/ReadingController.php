@@ -9,6 +9,7 @@ use App\Models\Bill;
 use App\Models\BillBreakdown;
 use App\Models\Rates;
 use App\Models\Reading;
+use App\Services\AccountMailer;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
@@ -679,6 +680,11 @@ class ReadingController extends Controller
             ], 400);
         }
 
+        $referenceBefore = $payload['reference_no'] ?? null;
+        $billExisted = $referenceBefore
+            ? Bill::where('reference_no', $referenceBefore)->exists()
+            : false;
+
         $computed = $this->meterService->create_breakdown([
             'account_no' => $account_no,
             'property_types_id' => $propertyTypeId,
@@ -1020,6 +1026,10 @@ class ReadingController extends Controller
                 ]]);
 
                 DB::commit();
+
+                if (empty($billExisted) && !$bill->isPaid) {
+                    app(AccountMailer::class)->notifyBillDue($bill);
+                }
 
                 return response()->json([
                     'status' => 'success',

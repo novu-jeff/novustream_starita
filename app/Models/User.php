@@ -2,13 +2,18 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotice;
+use App\Notifications\VerifyEmailNotice;
+use Illuminate\Auth\MustVerifyEmail;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmailContract
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, CanResetPassword, MustVerifyEmail;
 
     protected $fillable = [
         'contact_no',
@@ -44,6 +49,16 @@ class User extends Authenticatable
 
     public function serviceApplications() {
         return $this->hasMany(ServiceApplication::class);
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotice);
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotice($token));
     }
 
 }

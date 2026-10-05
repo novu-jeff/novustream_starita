@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
+use App\Services\AccountMailer;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\MeterService;
@@ -15,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
@@ -493,27 +493,12 @@ class ConcessionaireController extends Controller
             return;
         }
 
-        $message = $decision === 'approved'
-            ? 'Your concessionaire application has been approved. You can now use your online account services.'
-            : 'Your concessionaire application has been denied. Please contact Sta. Rita Water District for more information.';
-
-        if ($decision === 'denied' && !empty($account->approval_denial_reason)) {
-            $message .= "\n\nReason: " . $account->approval_denial_reason;
-        }
-
-        try {
-            Mail::raw($message, function ($mail) use ($user, $decision) {
-                $mail->to($user->email)
-                    ->subject('Concessionaire Application ' . ucfirst($decision));
-            });
-        } catch (\Throwable $e) {
-            Log::warning('Unable to send application decision email.', [
-                'user_id' => $user->id,
-                'account_id' => $account->id,
-                'decision' => $decision,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        app(AccountMailer::class)->notifyApplicationDecision(
+            $user->email,
+            $user->name,
+            $decision,
+            $account->approval_denial_reason
+        );
     }
 
 
@@ -558,6 +543,8 @@ class ConcessionaireController extends Controller
             }
 
             DB::commit();
+
+            app(AccountMailer::class)->notifyAccountCreated($client->email ?? null, $client->name ?? null);
 
             return response([
                 'data' => $client,
@@ -675,6 +662,8 @@ class ConcessionaireController extends Controller
 
         DB::beginTransaction();
 
+        $newlyApprovedAccountId = null;
+
         try {
             $client = $this->clientService::update($payload, $id);
 
@@ -695,6 +684,17 @@ class ConcessionaireController extends Controller
 
                 $canApprove = $connectionType !== 'traverse'
                     || !empty($application?->documents?->boring_permit);
+
+                $registrantAccount = UserAccounts::where('id', $request->registrant_id)
+                    ->where('user_id', $id)
+                    ->where('application_type', 'new_connection')
+                    ->first();
+                $wasApproved = $registrantAccount
+                    && ($registrantAccount->application_status === 'approved' || $registrantAccount->isApproved);
+
+                if ($canApprove && !$wasApproved && $registrantAccount) {
+                    $newlyApprovedAccountId = $registrantAccount->id;
+                }
 
                 UserAccounts::where('id', $request->registrant_id)
                     ->where('user_id', $id)
@@ -761,6 +761,15 @@ class ConcessionaireController extends Controller
             }
 
             DB::commit();
+
+            app(AccountMailer::class)->notifyAccountUpdated($client->email ?? $payload['email'] ?? null, $client->name ?? $payload['name'] ?? null);
+
+            if ($newlyApprovedAccountId) {
+                $approvedAccount = UserAccounts::with('user')->find($newlyApprovedAccountId);
+                if ($approvedAccount) {
+                    $this->sendApplicationDecisionNotification($approvedAccount, 'approved');
+                }
+            }
 
             $message = 'Client ' . $payload['name'] . ' updated successfully.';
 

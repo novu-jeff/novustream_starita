@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Imports\PreviousBillingImport;
 use App\Models\Bill;
 use App\Models\NovupayStaritaBill;
+use App\Services\AccountMailer;
 use App\Services\GenerateService;
 use App\Services\BillSettlementService;
 use App\Services\MeterService;
@@ -901,6 +902,8 @@ class PaymentController extends Controller
                 'partial_payment'   => $paymentAmount,
             ]);
 
+            app(AccountMailer::class)->notifyPaymentPosted($currentBill->fresh());
+
             return back()->with('alert', [
                 'status'  => 'success',
                 'message' => 'Arrears successfully paid.'
@@ -968,6 +971,8 @@ class PaymentController extends Controller
             'date_paid'     => now(),
             'payment_method'=> 'cash',
         ]);
+
+        app(AccountMailer::class)->notifyPaymentPosted($currentBill->fresh());
 
         $installment = \App\Models\Installment::where('status','active')
             ->whereHas('bill.reading', function ($q) use ($account_no) {
@@ -1397,7 +1402,8 @@ class PaymentController extends Controller
                     'payor_name' => $payor,
                     'date_paid' => now(),
                     'payment_method' => 'online',
-                ]
+                ],
+                true
             );
             \Log::info('HitPay redirect: bill marked as paid', [
                 'bill_id' => $bill->id,
@@ -1600,7 +1606,8 @@ class PaymentController extends Controller
                     'payor_name' => $payor,
                     'date_paid' => now(),
                     'payment_method' => 'online',
-                ]
+                ],
+                true
             );
             $existingBill->refresh();
             $this->staritaNovupayBillService->upsertFromLocalBill($existingBill);

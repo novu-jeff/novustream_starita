@@ -18,7 +18,10 @@ use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
@@ -79,6 +82,31 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 // Handle register form
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
+
+Route::get('/register/verify', [RegisterController::class, 'showVerification'])
+    ->name('register.verify');
+Route::post('/register/verify', [RegisterController::class, 'verifyOtp'])
+    ->middleware('throttle:10,1')
+    ->name('register.verify.store');
+Route::post('/register/verify/resend', [RegisterController::class, 'resendOtp'])
+    ->middleware('throttle:3,1')
+    ->name('register.verify.resend');
+
+Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkRequestForm'])
+    ->name('password.request');
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])
+    ->name('password.email');
+Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showResetForm'])
+    ->name('password.reset');
+Route::post('/reset-password', [ResetPasswordController::class, 'reset'])
+    ->name('password.update');
+
+Route::get('/email/verify', [VerificationController::class, 'show'])
+    ->name('verification.notice');
+Route::get('/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])
+    ->name('verification.verify');
+Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
+    ->name('verification.resend');
 
 
 Route::middleware('auth:admins')->prefix('admin')->group(function () {
@@ -360,6 +388,7 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
+            ->middleware('check.default.password')
             ->name('account-overview.index');
         Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
             ->name('account-overview.accounts.store');
@@ -389,11 +418,6 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
-
-Route::middleware(['auth', 'check.default.password'])->prefix('concessionaire')->group(function() {
-    Route::get('my/overview', [AccountOverviewController::class, 'index'])
-        ->name('account-overview.index');
-});
 
 Route::delete('reading-dates/destroy-all', [ReadingDateController::class, 'destroyAll'])
 ->name('reading-dates.destroy-all');

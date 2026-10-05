@@ -32,6 +32,11 @@ class NovuPayCheckoutService
 
     public function notificationUrl(): string
     {
+        $override = trim((string) config('services.novupay.notification_url', ''));
+        if ($override !== '') {
+            return $override;
+        }
+
         return $this->publicBaseUrl() . '/webhooks/novupay';
     }
 
@@ -58,7 +63,8 @@ class NovuPayCheckoutService
     }
 
     /**
-     * Force hosted checkout onto novu-pay.com. Never use merchant subdomains.
+     * Keep hosted checkout on the configured NovuPay host.
+     * Merchant subdomains such as srwd.novu-pay.com are rewritten to that host.
      */
     public function normalizeCheckoutUrl(?string $url, ?string $uid = null): ?string
     {
@@ -124,6 +130,13 @@ class NovuPayCheckoutService
         return $configured > 0 ? $configured : self::MIN_AMOUNT;
     }
 
+    public function transactionFee(): float
+    {
+        $fee = round((float) config('services.novupay.transaction_fee', 10), 2);
+
+        return $fee > 0 ? $fee : 0.0;
+    }
+
     /**
      * Create a QR Ph hosted checkout for a bill and persist the NovuPay uid.
      *
@@ -172,7 +185,9 @@ class NovuPayCheckoutService
             ];
         }
 
-        $amount = PaymentController::resolveOnlinePayableAmount($billData);
+        $billAmount = PaymentController::resolveOnlinePayableAmount($billData);
+        $transactionFee = $this->transactionFee();
+        $amount = round($billAmount + $transactionFee, 2);
         $minAmount = $this->minAmount();
         if ($amount + 0.001 < $minAmount) {
             return [
@@ -195,7 +210,7 @@ class NovuPayCheckoutService
             $billData,
             $customer['account_no'] ?? optional($bill->reading)->account_no
         );
-        $details = $this->checkoutDetails($billData, $reqId, $amount);
+        $details = $this->checkoutDetails($billData, $reqId, $billAmount, $transactionFee);
         $payload = [
             'req_id' => $reqId,
             'client_id' => $this->clientId(),
@@ -454,7 +469,8 @@ class NovuPayCheckoutService
                 'payor_name' => $payor,
                 'date_paid' => now(),
                 'payment_method' => 'online',
-            ]
+            ],
+            true
         );
 
         $bill->refresh();
@@ -514,7 +530,7 @@ class NovuPayCheckoutService
      *
      * @return array{description: string, cart: array<int, array{name: string, amount: float, quantity: int}>, param1: string, param2: string}
      */
-    public function checkoutDetails(array $billData, string $referenceNo, float $payable): array
+    public function checkoutDetails(array $billData, string $referenceNo, float $payable, float $transactionFee = 0.0): array
     {
         $payable = round($payable, 2);
         $penalty = PaymentController::resolveAppliedPenaltyAmount($billData);
@@ -540,6 +556,10 @@ class NovuPayCheckoutService
         if ($penalty > 0.001) {
             $parts[] = 'Penalty PHP ' . number_format($penalty, 2, '.', '');
         }
+        $transactionFee = round($transactionFee, 2);
+        if ($transactionFee > 0.001) {
+            $parts[] = 'Transaction fee PHP ' . number_format($transactionFee, 2, '.', '');
+        }
 
         $description = implode(' | ', $parts);
         if (mb_strlen($description) > 250) {
@@ -562,6 +582,13 @@ class NovuPayCheckoutService
             $cart[] = [
                 'name' => 'Penalty fee',
                 'amount' => $penalty,
+                'quantity' => 1,
+            ];
+        }
+        if ($transactionFee > 0.001) {
+            $cart[] = [
+                'name' => 'Transaction fee',
+                'amount' => $transactionFee,
                 'quantity' => 1,
             ];
         }
@@ -659,16 +686,40 @@ class NovuPayCheckoutService
         $base = rtrim((string) config('services.novupay.checkout_base', $default), '/');
         $host = strtolower((string) parse_url($base, PHP_URL_HOST));
 
-        if (in_array($host, ['novu-pay.com', 'www.novu-pay.com'], true)) {
-            return $host === 'www.novu-pay.com' ? $default : $base;
+        if ($host === 'www.novu-pay.com' || $host === 'novu-pay.com') {
+            return $default;
+        }
+
+        if ($this->isAllowedCheckoutHost($host)) {
+            return $base;
         }
 
         return $default;
     }
 
+    private function isAllowedCheckoutHost(string $host): bool
+    {
+        if ($host === '' || str_ends_with($host, '.novu-pay.com')) {
+            return false;
+        }
+
+        return in_array($host, [
+            'novu-pay.com',
+            'www.novu-pay.com',
+            'novupay-staging-app-fe.novulutions.com',
+        ], true);
+    }
+
     private function apiKey(): string
     {
-        return trim((string) config('services.novupay.api_key'));
+        $key = trim((string) config('services.novupay.api_key'));
+
+        // Link Store sometimes labels the key as "key-<32 hex>". The API stores the hex only.
+        if (str_starts_with($key, 'key-')) {
+            $key = substr($key, 4);
+        }
+
+        return $key;
     }
 
     private function clientId(): string

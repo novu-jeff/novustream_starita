@@ -95,7 +95,8 @@ class CallbackController extends Controller {
                     'payor_name' => $payload['payor'] ?? null,
                     'date_paid' => $now,
                     'payment_method' => 'online',
-                ]
+                ],
+                true
             );
         }
 

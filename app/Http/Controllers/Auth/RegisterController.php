@@ -7,6 +7,7 @@ use App\Models\ApplicationDocument;
 use App\Models\ServiceApplication;
 use App\Models\UserAccounts;
 use App\Models\User;
+use App\Services\AccountMailer;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -164,19 +165,153 @@ class RegisterController extends Controller
             return $user;
         });
 
-        Auth::guard()->login($user);
+        $user = $user->fresh();
+        $this->sendRegistrationOtp($user);
 
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
-                'message' => 'Registration submitted for review.',
-                'redirect' => route('account-overview.index'),
+                'message' => 'Enter the verification code we sent to your email.',
+                'redirect' => route('register.verify'),
             ]);
         }
 
         return redirect()
+            ->route('register.verify')
+            ->with('status', 'Enter the verification code we sent to your email.');
+    }
+
+    public function showVerification()
+    {
+        $user = $this->pendingVerificationUser();
+
+        if (!$user) {
+            return redirect()
+                ->route('register')
+                ->with('error', 'Submit your registration first so we can email you a verification code.');
+        }
+
+        return view('auth.verify-otp', [
+            'maskedEmail' => $this->maskEmail($user->email),
+        ]);
+    }
+
+    public function verifyOtp(Request $request)
+    {
+        $request->merge([
+            'otp' => preg_replace('/\D+/', '', (string) $request->input('otp')),
+        ]);
+
+        $payload = $request->validate([
+            'otp' => ['required', 'digits:6'],
+        ]);
+
+        $user = $this->pendingVerificationUser();
+
+        if (!$user) {
+            return redirect()
+                ->route('register')
+                ->with('error', 'Your verification session expired. Please register again.');
+        }
+
+        if (empty($user->email_otp) || empty($user->email_otp_expires_at) || now()->greaterThan($user->email_otp_expires_at)) {
+            return back()->withErrors([
+                'otp' => 'That code has expired. Send a new code and try again.',
+            ]);
+        }
+
+        $attempts = (int) $request->session()->get('registration_otp_attempts', 0);
+
+        if ($attempts >= 5) {
+            return back()->withErrors([
+                'otp' => 'Too many incorrect codes. Send a new code and try again.',
+            ]);
+        }
+
+        if (!Hash::check($payload['otp'], $user->email_otp)) {
+            $request->session()->put('registration_otp_attempts', $attempts + 1);
+
+            return back()->withErrors([
+                'otp' => 'The verification code is incorrect.',
+            ]);
+        }
+
+        $user->forceFill([
+            'email_verified_at' => now(),
+            'email_otp' => null,
+            'email_otp_expires_at' => null,
+        ])->save();
+
+        $request->session()->forget([
+            'registration_otp_user_id',
+            'registration_otp_attempts',
+        ]);
+
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
+
+        $user->current_session_id = $request->session()->getId();
+        $user->save();
+
+        return redirect()
             ->route('account-overview.index')
-            ->with('status', 'Registration submitted for review.');
+            ->with('status', 'Your email is verified. Registration was submitted for review.');
+    }
+
+    public function resendOtp(Request $request)
+    {
+        $user = $this->pendingVerificationUser();
+
+        if (!$user) {
+            return redirect()
+                ->route('register')
+                ->with('error', 'Your verification session expired. Please register again.');
+        }
+
+        $this->sendRegistrationOtp($user);
+
+        return back()->with('status', 'A new verification code was sent to your email.');
+    }
+
+    private function sendRegistrationOtp(User $user): void
+    {
+        $code = (string) random_int(100000, 999999);
+
+        $user->forceFill([
+            'email_otp' => Hash::make($code),
+            'email_otp_expires_at' => now()->addMinutes(10),
+        ])->save();
+
+        session([
+            'registration_otp_user_id' => $user->id,
+            'registration_otp_attempts' => 0,
+        ]);
+
+        app(AccountMailer::class)->notifyEmailOtp($user->email, $user->name, $code);
+    }
+
+    private function pendingVerificationUser(): ?User
+    {
+        $userId = session('registration_otp_user_id');
+
+        if (!$userId) {
+            return null;
+        }
+
+        return User::find($userId);
+    }
+
+    private function maskEmail(?string $email): string
+    {
+        $email = trim((string) $email);
+        if (!str_contains($email, '@')) {
+            return 'your email';
+        }
+
+        [$name, $domain] = explode('@', $email, 2);
+        $visible = substr($name, 0, 1);
+
+        return $visible.str_repeat('*', max(strlen($name) - 1, 1)).'@'.$domain;
     }
 
     private function createNewConnectionApplication(Request $request): User
@@ -282,13 +417,14 @@ class RegisterController extends Controller
             ]);
         }
 
-        $user->update([
+        $user->forceFill([
             'registrants' => $data['name'],
             'contact_no' => $data['contact_no'],
             'email' => $data['email'],
             'user_type' => 'concessionaire',
             'password' => Hash::make($data['password']),
-        ]);
+            'email_verified_at' => null,
+        ])->save();
 
         return $user->refresh();
     }
