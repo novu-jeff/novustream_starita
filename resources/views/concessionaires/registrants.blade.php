@@ -1,6 +1,31 @@
 @extends('layouts.app')
 
 @section('content')
+    <style>
+        .registrant-documents-column {
+            width: 220px;
+            min-width: 220px;
+            max-width: 220px;
+        }
+
+        .registrant-documents-scroll {
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .registrant-documents-row {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            gap: .5rem;
+            width: max-content;
+        }
+
+        .registrant-documents-row > * {
+            flex: 0 0 auto;
+        }
+    </style>
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
@@ -23,6 +48,9 @@
                                 aria-controls="registrants-pane"
                                 aria-selected="{{ request('tab') === 'linked' ? 'false' : 'true' }}">
                                 Registrants
+                                @if($pendingRegistrantCount > 0)
+                                    <span class="badge bg-warning text-dark ms-1">{{ $pendingRegistrantCount }}</span>
+                                @endif
                             </button>
                         </li>
 
@@ -37,7 +65,7 @@
                                 aria-controls="linked-accounts-pane"
                                 aria-selected="{{ request('tab') === 'linked' ? 'true' : 'false' }}">
                                 Linked Accounts
-                                @if($accountLinkRequests->isNotEmpty())
+                                @if($pendingAccountLinkCount > 0)
                                     <span class="badge bg-warning text-dark ms-1">
                                         {{ $pendingAccountLinkCount }}
                                     </span>
@@ -145,7 +173,7 @@
                                             <th>Account No.</th>
                                             <th>Address</th>
                                             <th>Status</th>
-                                            <th>Documents</th>
+                                            <th class="registrant-documents-column">Documents</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -163,6 +191,9 @@
                                                 $hasBoringPermit = !empty(
                                                     $serviceApplication?->documents?->boring_permit
                                                 );
+                                                $hasRegistrantDocuments = !empty($account->application_soa_path)
+                                                    || !empty($account->application_id_path)
+                                                    || (bool) $serviceApplication?->documents;
                                                 $needsCompletion =
                                                     $applicationType === 'new_connection'
                                                     && str_starts_with(
@@ -253,37 +284,46 @@
                                                         </span>
                                                     @endif
                                                 </td>
-                                                <td>
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        @if(
-                                                            $applicationType === 'new_connection'
-                                                            && str_starts_with(
-                                                                (string) $account->account_no,
-                                                                'NEW-'
-                                                            )
-                                                        )
-                                                            <a
-                                                                href="{{ route('registrants.form', $account->id) }}"
-                                                                target="_blank"
+                                                <td class="registrant-documents-column">
+                                                    <div class="registrant-documents-scroll">
+                                                    <div class="registrant-documents-row">
+                                                        @if($hasRegistrantDocuments)
+                                                            <a href="{{ route('registrants.documents', $account->id) }}"
+                                                               class="btn btn-outline-primary btn-sm"
+                                                               title="Download all documents as PDF"
+                                                               aria-label="Download all submitted documents as PDF">
+                                                                <i class="bx bx-download"></i>
+                                                            </a>
+                                                        @endif
+                                                        @if($applicationType === 'new_connection')
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('registrants.form', $account->id) }}"
+                                                                data-document-name="Application Form"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 Form
-                                                            </a>
+                                                            </button>
                                                         @endif
                                                         @if($serviceApplication)
-                                                            <a
-                                                                href="{{ route('admin.application.contract', $serviceApplication) }}"
-                                                                target="_blank"
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('admin.application.contract', $serviceApplication) }}"
+                                                                data-document-name="Service Contract"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 Contract
-                                                            </a>
+                                                            </button>
                                                         @endif
                                                         @if($serviceApplication?->documents?->boring_permit)
-                                                            <a
-                                                                href="{{ asset('storage/' . $serviceApplication->documents->boring_permit) }}"
-                                                                target="_blank"
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('registrants.document', [$account->id, 'boring_permit']) }}"
+                                                                data-document-name="Boring/Cutting Permit"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 Permit
-                                                            </a>
+                                                            </button>
                                                         @elseif($connectionType === 'traverse')
                                                             <span class="d-inline-flex align-items-center">
                                                                 <span
@@ -295,22 +335,48 @@
                                                         @endif
 
                                                         @if($account->application_soa_path)
-                                                            <a
-                                                                href="{{ asset('storage/' . $account->application_soa_path) }}"
-                                                                target="_blank"
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('registrants.document', [$account->id, 'soa']) }}"
+                                                                data-document-name="Latest SOA"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 SOA
-                                                            </a>
+                                                            </button>
                                                         @endif
 
-                                                        @if($account->application_id_path)
-                                                            <a
-                                                                href="{{ asset('storage/' . $account->application_id_path) }}"
-                                                                target="_blank"
+                                                        @if($account->application_id_path || $serviceApplication?->documents?->valid_id)
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('registrants.document', [$account->id, 'valid_id']) }}"
+                                                                data-document-name="{{ $applicationType === 'new_connection' ? '1x1 Image' : 'Valid ID' }}"
                                                                 class="btn btn-outline-primary btn-sm">
-                                                                Valid ID
-                                                            </a>
+                                                                {{ $applicationType === 'new_connection' ? '1x1 Image' : 'Valid ID' }}
+                                                            </button>
                                                         @endif
+
+                                                        @foreach([
+                                                            'cedula' => 'Cedula',
+                                                            'proof_of_billing' => 'Proof of Billing',
+                                                            'authorization_letter' => 'Authorization Letter',
+                                                            'proof_of_ownership' => 'Proof of Ownership',
+                                                            'tax_declaration' => 'Tax Declaration',
+                                                            'barangay_clearance' => 'Barangay Clearance',
+                                                            'others' => 'Other Document',
+                                                        ] as $field => $label)
+                                                            @if($serviceApplication?->documents?->{$field})
+                                                                <button type="button"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#registrantPreviewModal"
+                                                                    data-document-url="{{ route('registrants.document', [$account->id, $field]) }}"
+                                                                    data-document-name="{{ $label }}"
+                                                                    class="btn btn-outline-primary btn-sm">
+                                                                    {{ $label }}
+                                                                </button>
+                                                            @endif
+                                                        @endforeach
+                                                    </div>
                                                     </div>
                                                 </td>
                                                 <td>
@@ -446,7 +512,7 @@
                                                 <th>Account No.</th>
                                                 <th>Existing Account Name</th>
                                                 <th>Requested By</th>
-                                                <th>Documents</th>
+                                                <th class="registrant-documents-column">Documents</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
@@ -468,20 +534,33 @@
                                                             {{ $link->user?->email ?? 'N/A' }}
                                                         </div>
                                                     </td>
-                                                    <td>
-                                                        <div class="d-flex gap-2">
+                                                    <td class="registrant-documents-column">
+                                                        <div class="registrant-documents-scroll">
+                                                        <div class="registrant-documents-row">
                                                             <a
-                                                                href="{{ asset('storage/' . $link->soa_path) }}"
-                                                                target="_blank"
+                                                                href="{{ route('account-links.documents', $link->id) }}"
+                                                                class="btn btn-outline-primary btn-sm"
+                                                                title="Download all documents as PDF"
+                                                                aria-label="Download all submitted documents as PDF">
+                                                                <i class="bx bx-download"></i>
+                                                            </a>
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('account-links.document', [$link->id, 'soa']) }}"
+                                                                data-document-name="Latest SOA"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 SOA
-                                                            </a>
-                                                            <a
-                                                                href="{{ asset('storage/' . $link->id_path) }}"
-                                                                target="_blank"
+                                                            </button>
+                                                            <button type="button"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#registrantPreviewModal"
+                                                                data-document-url="{{ route('account-links.document', [$link->id, 'valid_id']) }}"
+                                                                data-document-name="Valid ID"
                                                                 class="btn btn-outline-primary btn-sm">
                                                                 Valid ID
-                                                            </a>
+                                                            </button>
+                                                        </div>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -542,12 +621,38 @@
                 </div>
             </div>
         </div>
+        <div class="modal fade" id="registrantPreviewModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="registrantPreviewTitle">Document preview</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-0">
+                        <iframe id="registrantPreviewFrame" title="Document preview" style="display: block; width: 100%; height: 75vh; border: 0;"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 @endsection
 
 @section('script')
 <script>
     $(function () {
+        const previewModal = document.getElementById('registrantPreviewModal');
+        const previewFrame = document.getElementById('registrantPreviewFrame');
+
+        previewModal.addEventListener('show.bs.modal', function (event) {
+            const trigger = event.relatedTarget;
+            document.getElementById('registrantPreviewTitle').textContent = trigger.dataset.documentName || 'Document preview';
+            previewFrame.src = trigger.dataset.documentUrl;
+        });
+
+        previewModal.addEventListener('hidden.bs.modal', function () {
+            previewFrame.src = 'about:blank';
+        });
+
         function updateUrl() {
             const params = new URLSearchParams(window.location.search);
 

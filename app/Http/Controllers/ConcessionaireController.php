@@ -16,8 +16,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use setasign\Fpdi\Fpdi;
 use Yajra\DataTables\Facades\DataTables;
 
 
@@ -300,8 +303,114 @@ class ConcessionaireController extends Controller
         $pendingAccountLinkCount = ConcessionerAccountLink::where('status', 'pending')->count();
 
         $linkSearch = trim($request->link_search ?? '');
+        $pendingRegistrantCount = UserAccounts::where('application_status', 'pending')->count();
 
-        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type', 'accountLinkRequests', 'linkSearch', 'pendingAccountLinkCount'));
+        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type', 'accountLinkRequests', 'linkSearch', 'pendingAccountLinkCount', 'pendingRegistrantCount'));
+    }
+
+    public function downloadRegistrantDocuments(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+        $documents = [
+            'Latest SOA' => $account->application_soa_path,
+            'Valid ID' => $account->application_id_path,
+        ];
+
+        if ($account->user_id) {
+            $applications = ServiceApplication::with('documents')
+                ->where('user_id', $account->user_id)
+                ->latest()
+                ->get();
+
+            foreach ($applications as $application) {
+                foreach ([
+                    'Valid ID' => 'valid_id',
+                    'Cedula' => 'cedula',
+                    'Proof of Billing' => 'proof_of_billing',
+                    'Authorization Letter' => 'authorization_letter',
+                    'Boring Permit' => 'boring_permit',
+                    'Proof of Ownership' => 'proof_of_ownership',
+                    'Tax Declaration' => 'tax_declaration',
+                    'Barangay Clearance' => 'barangay_clearance',
+                    'Other Document' => 'others',
+                ] as $label => $field) {
+                    if ($application->documents?->{$field}) {
+                        $documents[] = $application->documents->{$field};
+                    }
+                }
+            }
+        }
+
+        return $this->documentsPdf($account->account_no, $documents);
+    }
+
+    public function downloadAccountLinkDocuments(int $link)
+    {
+        $accountLink = ConcessionerAccountLink::with('account')->findOrFail($link);
+
+        return $this->documentsPdf($accountLink->account?->account_no ?? 'linked-account', [
+            'Latest SOA' => $accountLink->soa_path,
+            'Valid ID' => $accountLink->id_path,
+        ]);
+    }
+
+    private function documentsPdf(string $accountNo, array $documents)
+    {
+        $pdf = new Fpdi();
+        $pdf->SetAutoPageBreak(false);
+        $addedPages = 0;
+        $includedPaths = [];
+
+        foreach ($documents as $label => $path) {
+            if (!$path || isset($includedPaths[$path]) || !Storage::disk('public')->exists($path)) {
+                continue;
+            }
+            $includedPaths[$path] = true;
+            $filePath = Storage::disk('public')->path($path);
+            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+            if ($extension === 'pdf') {
+                $pageCount = $pdf->setSourceFile($filePath);
+                for ($page = 1; $page <= $pageCount; $page++) {
+                    $template = $pdf->importPage($page);
+                    $size = $pdf->getTemplateSize($template);
+                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $pdf->useTemplate($template);
+                    $addedPages++;
+                }
+                continue;
+            }
+
+            if (in_array($extension, ['jpg', 'jpeg', 'png'], true)) {
+                $imageSize = @getimagesize($filePath);
+                if (!$imageSize) {
+                    continue;
+                }
+
+                $pdf->AddPage('P', 'A4');
+                $pageWidth = 210;
+                $pageHeight = 297;
+                $maxWidth = 190;
+                $maxHeight = 277;
+                $ratio = min($maxWidth / $imageSize[0], $maxHeight / $imageSize[1]);
+                $width = $imageSize[0] * $ratio;
+                $height = $imageSize[1] * $ratio;
+                $pdf->Image($filePath, ($pageWidth - $width) / 2, ($pageHeight - $height) / 2, $width, $height);
+                $addedPages++;
+            }
+        }
+
+        if ($addedPages === 0) {
+            abort(404, 'No downloadable documents were found for this record.');
+        }
+
+        $safeAccountNo = preg_replace('/[^A-Za-z0-9._-]/', '-', $accountNo) ?: 'account';
+        $filename = $safeAccountNo . '-documents.pdf';
+        $content = $pdf->Output('S');
+
+        return response()->streamDownload(static function () use ($content) {
+            echo $content;
+        }, $filename, ['Content-Type' => 'application/pdf']);
     }
 
     public function approveAccountLink(int $link)
@@ -317,6 +426,7 @@ class ConcessionaireController extends Controller
             'approved_at' => now(),
             'denied_at' => null,
             'denial_reason' => null,
+            'notified_at' => null,
         ]);
 
         return back()
@@ -340,6 +450,7 @@ class ConcessionaireController extends Controller
             'approved_at' => null,
             'denied_at' => now(),
             'denial_reason' => $payload['denial_reason'],
+            'notified_at' => null,
         ]);
 
         return back()

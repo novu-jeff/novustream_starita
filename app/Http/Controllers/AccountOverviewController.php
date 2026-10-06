@@ -54,8 +54,41 @@ class AccountOverviewController extends Controller
         $accounts = $accounts->unique('id')->values();
         $data->setRelation('accounts', $accounts);
         $approvalNotice = $this->approvalNotice($accounts);
-        $applicationNotification = $this->applicationNotification($accounts);
-        $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification);
+        $applicationNotification = $this->applicationNotification($accounts, $my);
+        $linkApprovalNotifications = [];
+        foreach ($my->accountLinks->whereIn('status', ['approved', 'denied'])->whereNull('notified_at') as $link) {
+            $notifiedAt = now();
+            $markedNotified = ConcessionerAccountLink::whereKey($link->id)
+                ->whereNull('notified_at')
+                ->update(['notified_at' => $notifiedAt]);
+
+            if ($markedNotified) {
+                $isApproved = $link->status === 'approved';
+                $decisionAt = $isApproved ? $link->approved_at : $link->denied_at;
+                $message = $isApproved
+                    ? 'Your request to link account ' . ($link->account?->account_no ?? '') . ' was approved. The account is now available in your overview.'
+                    : 'Your request to link account ' . ($link->account?->account_no ?? '') . ' was denied.';
+
+                if (!$isApproved && !empty($link->denial_reason)) {
+                    $message .= ' Reason: ' . $link->denial_reason;
+                }
+
+                if ($decisionAt && $my->created_at && $decisionAt->lt($my->created_at)) {
+                    continue;
+                }
+
+                $linkApprovalNotifications[] = [
+                    'type' => 'account_link',
+                    'id' => $link->id,
+                    'status' => $isApproved ? 'success' : 'danger',
+                    'title' => $isApproved ? 'Account link approved' : 'Account link denied',
+                    'message' => $message,
+                    'date' => optional($decisionAt ?? $notifiedAt)->format('M d, Y h:i A'),
+                    'timestamp' => $notifiedAt->timestamp,
+                ];
+            }
+        }
+        $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification, $linkApprovalNotifications);
         $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
         $serviceApplication = ServiceApplication::with('documents')
             ->where('user_id', $id)
@@ -136,12 +169,30 @@ class AccountOverviewController extends Controller
             ];
 
             if ($this->canUseAccount($account)) {
-                $bill = $this->meterService::getBills($account->account_no);
+                $bills = collect($this->meterService::getBills($account->account_no, true, false) ?: [])
+                    ->map(function ($bill) use ($account) {
+                        $bill = $this->computeBillPenalty($bill);
+                        $bill['account_no'] = $account->account_no;
 
-                if (!empty($bill) && ($bill['isPaid'] ?? 0) == 0) {
-                    $bill = $this->computeBillPenalty($bill);
-                    $bill['account_no'] = $account->account_no;
-                    $accountStatement['transactions'][] = $bill;
+                        return $bill;
+                    })
+                    ->sort(function ($left, $right) {
+                        $periodOrder = strcmp(
+                            (string) ($right['bill_period_to'] ?? ''),
+                            (string) ($left['bill_period_to'] ?? '')
+                        );
+
+                        return $periodOrder ?: strcmp(
+                            (string) ($right['created_at'] ?? ''),
+                            (string) ($left['created_at'] ?? '')
+                        );
+                    })
+                    ->values();
+
+                $accountStatement['transactions'] = $bills->all();
+
+                if ($bills->isNotEmpty()) {
+                    $bill = $bills->first();
                     $discount = is_array($bill['discount'] ?? null)
                         ? collect($bill['discount'])->sum('amount')
                         : (float) ($bill['discount'] ?? 0);
@@ -320,6 +371,7 @@ public function addAccount(Request $request)
                     'approved_at' => null,
                     'denied_at' => null,
                     'denial_reason' => null,
+                    'notified_at' => null,
                 ]
             );
         });
@@ -770,11 +822,29 @@ public function addAccount(Request $request)
         ];
     }
 
-    private function applicationNotification($accounts): ?array
+    private function applicationNotification($accounts, $user): ?array
     {
         $application = collect($accounts)
             ->filter(fn ($account) => $this->isRegistrationApplication($account))
-            ->sortBy('updated_at')
+            ->filter(function ($account) use ($user) {
+                $status = $this->applicationStatus($account);
+                $eventAt = match ($status) {
+                    'approved' => $account->approved_at,
+                    'denied' => $account->denied_at,
+                    default => $account->updated_at ?? $account->created_at,
+                };
+
+                if (!$eventAt || !$user->created_at || $eventAt->lt($user->created_at)) {
+                    return false;
+                }
+
+                return $status !== 'approved' || $eventAt->gt(now()->subDay());
+            })
+            ->sort(function ($left, $right) {
+                $updatedAtOrder = ($right->updated_at?->timestamp ?? 0) <=> ($left->updated_at?->timestamp ?? 0);
+
+                return $updatedAtOrder ?: ($right->id <=> $left->id);
+            })
             ->first();
 
         if (!$application) {
@@ -807,15 +877,15 @@ public function addAccount(Request $request)
 
         return [
             'status' => 'warning',
-            'title' => 'Application Created',
-            'message' => 'Your application is currently in the approval stage.',
-            'date' => optional($application->created_at)->format('M d, Y h:i A'),
+                'title' => 'Application Created',
+                'message' => 'Your application is currently in the approval stage.',
+                'date' => optional($application->updated_at ?? $application->created_at)->format('M d, Y h:i A'),
         ];
     }
 
-    private function accountNotifications($user, $accounts, ?array $applicationNotification): array
+    private function accountNotifications($user, $accounts, ?array $applicationNotification, array $linkApprovalNotifications = []): array
     {
-        $notifications = [];
+        $notifications = $linkApprovalNotifications;
 
         if ($applicationNotification) {
             $notifications[] = $applicationNotification + [
@@ -831,6 +901,7 @@ public function addAccount(Request $request)
         if ($accountNos->isNotEmpty()) {
             $latestUnpaidBill = Bill::with('reading')
                 ->where('isPaid', false)
+                ->where('created_at', '>=', $user->created_at)
                 ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
                 ->latest('created_at')
                 ->first();
@@ -848,6 +919,7 @@ public function addAccount(Request $request)
 
             $latestPaidBill = Bill::with('reading')
                 ->where('isPaid', true)
+                ->where('created_at', '>=', $user->created_at)
                 ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
                 ->latest('date_paid')
                 ->latest('updated_at')
@@ -868,8 +940,10 @@ public function addAccount(Request $request)
         }
 
         $latestAccountUpdate = collect($accounts)
-            ->filter(fn ($account) => $account->updated_at && $account->created_at && $account->updated_at->gt($account->created_at))
-            ->sortBy('updated_at')
+            ->filter(fn ($account) => $account->updated_at && $account->created_at
+                && $account->updated_at->gt($account->created_at)
+                && $user->created_at && !$account->updated_at->lt($user->created_at))
+            ->sortByDesc('updated_at')
             ->first();
 
         if ($latestAccountUpdate) {
@@ -881,7 +955,9 @@ public function addAccount(Request $request)
                 'date' => optional($latestAccountUpdate->updated_at)->format('M d, Y h:i A'),
                 'timestamp' => optional($latestAccountUpdate->updated_at)->timestamp,
             ];
-        } elseif ($user->updated_at && $user->created_at && $user->updated_at->gt($user->created_at)) {
+        } elseif ($user->updated_at && $user->created_at
+            && $user->updated_at->gt($user->created_at)
+            && !$user->updated_at->lt($user->created_at)) {
             $notifications[] = [
                 'type' => 'account',
                 'status' => 'info',
@@ -899,8 +975,20 @@ public function addAccount(Request $request)
 
                 return $notification;
             })
-            ->sortByDesc('timestamp')
-            ->take(3)
+            ->filter(fn ($notification) => !$user->created_at || $notification['timestamp'] >= $user->created_at->timestamp)
+            ->sort(function ($left, $right) {
+                $timestampOrder = ($right['timestamp'] ?? 0) <=> ($left['timestamp'] ?? 0);
+                if ($timestampOrder) {
+                    return $timestampOrder;
+                }
+
+                $typeOrder = strcmp($left['type'] ?? '', $right['type'] ?? '');
+                if ($typeOrder) {
+                    return $typeOrder;
+                }
+
+                return ($left['id'] ?? 0) <=> ($right['id'] ?? 0);
+            })
             ->values()
             ->all();
     }

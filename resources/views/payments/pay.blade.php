@@ -215,11 +215,10 @@
                                             }
                                         $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
                                         $isPaid = (float)($data['current_bill']['isPaid'] ?? 0);
-                                        if($isPaid == 1) {
-                                            $advance = 0;
-                                        } else {
-                                            $advance = $advancePayment;
-                                        }
+                                        $advance = min(
+                                            (float) $advancePayment,
+                                            max(0, (float) $data['current_bill']['total'] - (float) $discount - (float) ($franchise->amount ?? 0))
+                                        );
                                         $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
                                         $amountDue = (float) $data['current_bill']['total']
                                                     - (float) $discount

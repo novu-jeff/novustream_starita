@@ -756,7 +756,7 @@ class MeterService {
 
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
 
-        $advances = $isChangeSaved ? (float) $latest_reading->bill->change ?? 0 : 0;
+        $advances = $isChangeSaved ? (float) (optional($latest_reading)->bill->change ?? 0) : 0;
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
 
         $base_rate = null;
@@ -1190,6 +1190,21 @@ class MeterService {
             'bill' => array_merge($bill, ['id' => $billID]),
             'basic_charge' => $basic_charge,
             'reference_no' => $billReferenceNo,
+        ];
+    }
+
+    public static function resolveAdvanceAllocation(float $amountDue, float $advances): array
+    {
+        $amountDue = round(max($amountDue, 0), 2);
+        $advances = round(max($advances, 0), 2);
+        $amountPaid = min($amountDue, $advances);
+        $change = round(max($advances - $amountPaid, 0), 2);
+
+        return [
+            'amount_paid' => $amountPaid,
+            'isPaid' => $advances > 0 && $amountPaid >= $amountDue,
+            'change' => $change,
+            'isChangeForAdvancePayment' => $change > 0,
         ];
     }
 

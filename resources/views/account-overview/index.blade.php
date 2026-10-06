@@ -48,16 +48,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <h1>Account Overview</h1>
 
+                @php
+                    $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
+                @endphp
+
+                @if(!empty($visibleApprovalNotice))
+                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4 mt-4">
+                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
+                    </div>
+                @endif
+
             </div>
-            <div class="mt-3">
-                <button type="button"
-                        class="btn btn-outline-primary fw-bold text-uppercase"
-                        data-bs-toggle="modal"
-                        data-bs-target="#addAccountModal">
-                    <i class="bx bx-link-alt"></i>
-                    Add Account
-                </button>
-            </div>
+            @if(!empty($visibleApprovalNotice) && $accounts->contains('application_type', 'new_connection'))
+                <div class="d-flex justify-content-center w-100">
+                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mt-3 mb-4">
+                        Please provide the original documents in hard copy and submit them to the Sta. Rita Branch.
+                    </div>
+                </div>
+            @endif
             @if(session('status'))
                 <div class="alert alert-success text-uppercase fw-medium text-center mt-4 mb-0">
                     {{ session('status') }}
@@ -108,43 +116,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <button type="submit" class="btn btn-primary text-uppercase fw-bold">Submit Account</button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="dashboard-charts-grid w-100">
-                <div class="chart-card chart-card--wide w-100">
-
-                    <div class="chart-card__header">
-                        <div>
-                            <h3>Monthly Consumption & Billing</h3>
-                            <span class="chart-card__sub">Last 12 months</span>
-                        </div>
-                    </div>
-
-                    <div class="chart-card__body w-100">
-
-                        <div class="custom-chart-legend">
-                            <div class="custom-legend-item">
-                                <span class="legend-dot legend-consumption"></span>
-                                <span>Consumption (m³)</span>
-                            </div>
-
-                            <div class="custom-legend-item">
-                                <span class="legend-dot legend-bill"></span>
-                                <span>Bill (₱)</span>
-                            </div>
-
-                            <div class="custom-legend-item">
-                                <span class="legend-dot legend-payment"></span>
-                                <span>Payment (₱)</span>
-                            </div>
-                        </div>
-
-                        <div class="chart-scroll-wrapper">
-                            <div id="chartConsumptionBilling"></div>
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -204,21 +175,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             @endif
             <div class="inner-content mt-5 pb-5">
-                @php
-                    $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
-                @endphp
-
-	                @if(!empty($visibleApprovalNotice))
-	                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
-	                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
-	                    </div>
-                        @if($accounts->contains('application_type', 'new_connection'))
-                            <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4">
-                                Please provide the original documents in hard copy and submit them to the Sta. Rita Branch.
-                            </div>
-                        @endif
-	                @endif
-
                     @if(!empty($serviceApplication))
                         <div class="card shadow border-0 p-4 mb-4">
                             <div class="card-body">
@@ -238,14 +194,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                                 New Water Service Connection
 
                                             </button>
-                                        @elseif(!empty($serviceApplication))
-                                            <a href="{{ route('application.show', $serviceApplication) }}"
-                                            class="btn btn-primary fw-bold text-uppercase">
-
-                                                <i class="bx bx-file"></i>
-                                                View Application
-
-                                            </a>
                                         @else
                                             <button type="button"
                                                     class="btn btn-primary fw-bold text-uppercase"
@@ -257,18 +205,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                             </button>
                                         @endif
-                                        <a href="{{ route('application.show', $serviceApplication) }}" class="btn btn-primary fw-bold text-uppercase">
+                                        <button type="button" data-bs-toggle="modal" data-bs-target="#viewDocumentModal" data-document-url="{{ route('application.show', $serviceApplication) }}" data-document-name="Application Form" class="btn btn-primary fw-bold text-uppercase">
                                             View Application
-                                        </a>
-                                        <a href="{{ route('application.contract', $serviceApplication) }}" class="btn btn-outline-primary fw-bold text-uppercase">
+                                        </button>
+                                        <button type="button" data-bs-toggle="modal" data-bs-target="#viewDocumentModal" data-document-url="{{ route('application.contract', $serviceApplication) }}" data-document-name="Service Contract" class="btn btn-outline-primary fw-bold text-uppercase">
                                             View Contract
-                                        </a>
-                                        <a href="{{ route('application.contract.print', $serviceApplication) }}" target="_blank" class="btn btn-outline-primary fw-bold text-uppercase">
-                                            Print Contract
-                                        </a>
-                                        <a href="{{ route('application.create') }}" class="btn btn-outline-primary fw-bold text-uppercase">
+                                        </button>
+                                        <button type="button" data-bs-toggle="modal" data-bs-target="#viewDocumentModal" data-document-url="{{ route('application.create') }}" data-document-name="Review Application Form" class="btn btn-outline-primary fw-bold text-uppercase">
                                             Review Form
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
 
@@ -341,15 +286,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                                             </span>
 
                                                             @if($serviceApplication->documents?->valid_id)
-                                                                <a  type="button"
+                                                                <button type="button"
                                                                     class="document-btn document-btn-view"
                                                                     title="View {{ $identityDocumentLabel }}"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#viewDocumentModal"
-                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->valid_id) }}"
+                                                                    data-document-url="{{ route('account-overview.application-document', [$serviceApplication, 'valid_id']) }}"
                                                                     data-document-name="{{ $identityDocumentLabel }}">
                                                                     <i class="bx bx-show"></i>
-                                                                </a>
+                                                                </button>
                                                             @endif
 
                                                             <button type="button"
@@ -372,15 +317,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                                             </span>
 
                                                             @if($serviceApplication->documents?->cedula)
-                                                                <a  type="button"
+                                                                <button type="button"
                                                                     class="document-btn document-btn-view"
                                                                     title="View Cedula"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#viewDocumentModal"
-                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->cedula) }}"
+                                                                    data-document-url="{{ route('account-overview.application-document', [$serviceApplication, 'cedula']) }}"
                                                                     data-document-name="Cedula">
                                                                     <i class="bx bx-show"></i>
-                                                                </a>
+                                                                </button>
                                                             @endif
 
                                                             <button type="button"
@@ -403,15 +348,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                                             </span>
 
                                                             @if($serviceApplication->documents?->proof_of_billing)
-                                                                <a  type="button"
+                                                                <button type="button"
                                                                     class="document-btn document-btn-view"
                                                                     title="View Proof of Billing"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#viewDocumentModal"
-                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->proof_of_billing) }}"
+                                                                    data-document-url="{{ route('account-overview.application-document', [$serviceApplication, 'proof_of_billing']) }}"
                                                                     data-document-name="Proof of Billing">
                                                                     <i class="bx bx-show"></i>
-                                                                </a>
+                                                                </button>
                                                             @endif
 
                                                             <button type="button"
@@ -434,15 +379,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                                             </span>
 
                                                             @if($serviceApplication->documents?->authorization_letter)
-                                                                <a  type="button"
+                                                                <button type="button"
                                                                     class="document-btn document-btn-view"
                                                                     title="View Authorization"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#viewDocumentModal"
-                                                                    data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->authorization_letter) }}"
+                                                                    data-document-url="{{ route('account-overview.application-document', [$serviceApplication, 'authorization_letter']) }}"
                                                                     data-document-name="Authorization Letter">
                                                                     <i class="bx bx-show"></i>
-                                                                </a>
+                                                                </button>
                                                             @endif
 
                                                             <button type="button"
@@ -465,15 +410,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                                                 </span>
 
                                                                 @if($serviceApplication->documents?->boring_permit)
-                                                                    <a  type="button"
+                                                                    <button type="button"
                                                                         class="document-btn document-btn-view"
                                                                         title="View Boring/Cutting Permit"
                                                                         data-bs-toggle="modal"
                                                                         data-bs-target="#viewDocumentModal"
-                                                                        data-document-url="{{ \Illuminate\Support\Facades\Storage::url($serviceApplication->documents->boring_permit) }}"
+                                                                        data-document-url="{{ route('account-overview.application-document', [$serviceApplication, 'boring_permit']) }}"
                                                                         data-document-name="Boring/Cutting Permit">
                                                                         <i class="bx bx-show"></i>
-                                                                    </a>
+                                                                    </button>
                                                                 @endif
 
                                                                 <button type="button"
@@ -505,6 +450,38 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                     @endif
 
+                    <div class="dashboard-charts-grid w-100 mb-4">
+                        <div class="chart-card chart-card--wide w-100">
+
+                            <div class="chart-card__header">
+                                <div>
+                                    <h3>Monthly Consumption & Billing</h3>
+                                    <span class="chart-card__sub">Last 12 months</span>
+                                </div>
+                            </div>
+
+                            <div class="chart-card__body w-100">
+
+                                <div class="custom-chart-legend">
+                                    <div class="custom-legend-item">
+                                        <span class="legend-dot legend-consumption"></span>
+                                        <span>Consumption (m³)</span>
+                                    </div>
+
+                                    <div class="custom-legend-item">
+                                        <span class="legend-dot legend-bill"></span>
+                                        <span>Bill (₱)</span>
+                                    </div>
+                                </div>
+
+                                <div class="chart-scroll-wrapper">
+                                    <div id="chartConsumptionBilling"></div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
                     @if($accounts->isNotEmpty())
                     <div class="card shadow border-0 p-4 mb-4">
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -512,7 +489,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <small class="text-uppercase fw-bold text-muted">My Accounts</small>
                                 <h5 class="fw-bold mb-0">Account Status and Bills</h5>
                             </div>
-                            <span class="small text-muted">{{ $accounts->count() }} linked account(s)</span>
+                            <div class="mt-3">
+                                <button type="button"
+                                        class="btn btn-outline-primary fw-bold text-uppercase"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#addAccountModal">
+                                    <i class="bx bx-link-alt"></i>
+                                    Add Account
+                                </button>
+                            </div>
                         </div>
 
                         <div class="table-responsive">
@@ -573,6 +558,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                     @endforelse
                                 </tbody>
                             </table>
+                            <div class="mt-4 text-end">
+                                <span class="small text-muted">{{ $accounts->count() }} linked account(s)</span>
+                            </div>
                         </div>
                     </div>
                     @endif
@@ -775,18 +763,16 @@ document.addEventListener('DOMContentLoaded', function () {
                                                  id="statement-pane-{{ $index }}"
                                                  role="tabpanel"
                                                  aria-labelledby="statement-tab-{{ $index }}">
+                                                @if($statementStatus === 'pending')
+                                                    <div class="alert alert-warning text-uppercase text-center fw-bold mb-0">
+                                                        Account pending approval. Statement details will be available after approval.
+                                                    </div>
+                                                @else
                                                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                                                     <div>
                                                         <div class="fw-bold text-uppercase">{{ $statementAccount->account_no }}</div>
                                                         <div class="small text-muted text-uppercase">{{ $statementAccount->address ?: 'N/A' }}</div>
                                                     </div>
-                                                    @if($statementStatus === 'pending')
-                                                        <span class="badge bg-warning text-dark">Pending Approval</span>
-                                                    @elseif($statementStatus === 'denied')
-                                                        <span class="badge bg-danger">Denied</span>
-                                                    @else
-                                                        <span class="badge bg-success">Available</span>
-                                                    @endif
                                                 </div>
                                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">
                                                     <span>Total Amount Due</span>
@@ -809,10 +795,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                                         </a>
                                                     @empty
                                                         <div class="alert alert-secondary text-uppercase text-center fw-bold">
-                                                            {{ $statementStatus === 'pending' ? 'Statement unavailable until approval.' : 'No statement found.' }}
+                                                            No statement found.
                                                         </div>
                                                     @endforelse
                                                 </div>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
@@ -930,16 +917,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     <div class="modal-body p-0">
 
-                        <div id="documentViewer"
-                            style="height: 75vh; background: #f5f5f5;">
-
-                            <div class="d-flex justify-content-center align-items-center h-100">
-                                <div class="spinner-border text-primary"
-                                    role="status">
-                                </div>
-                            </div>
-
-                        </div>
+                        <iframe id="documentViewer"
+                            title="Document preview"
+                            style="display: block; width: 100%; height: 75vh; border: 0; background: #f5f5f5;">
+                        </iframe>
 
                     </div>
 
@@ -1369,15 +1350,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     },
                     {
                         name: 'Bill (₱)',
-                        type: 'line',
-                        data: billData
+                        type: 'bar',
+                        data: billData,
                     },
-                    {
-                        name: 'Payment (₱)',
-                        type: 'line',
-                        data: paymentData
-                    }
                 ],
+
+                fill: {
+                    opacity: [1, 0]
+                },
 
                 chart: {
                     height: 360,
@@ -1389,14 +1369,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
 
                 stroke: {
-                    width: [0, 3, 3],
+                    width: [0, 0],
                     curve: 'smooth'
                 },
 
                 plotOptions: {
                     bar: {
                         borderRadius: 4,
-                        columnWidth: '45%'
+                        columnWidth: '85%'
                     }
                 },
 
@@ -1547,6 +1527,28 @@ document.addEventListener('DOMContentLoaded', function () {
                     localStorage.setItem(notificationKey, 'shown');
                 }
             }
+
+            const linkApprovalNotifications = accountNotifications.filter(function (notification) {
+                return notification.type === 'account_link';
+            });
+
+            if (linkApprovalNotifications.length && typeof Swal !== 'undefined') {
+                const hasDeniedLink = linkApprovalNotifications.some(function (notification) {
+                    return notification.status === 'danger';
+                });
+
+                Swal.fire({
+                    icon: hasDeniedLink ? 'error' : 'success',
+                    title: linkApprovalNotifications.length === 1
+                        ? linkApprovalNotifications[0].title
+                        : 'Account link decisions updated',
+                    text: linkApprovalNotifications.map(function (notification) {
+                        return notification.message;
+                    }).join('\n'),
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: hasDeniedLink ? '#dc3545' : '#198754',
+                });
+            }
         });
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -1563,79 +1565,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 const name = button.getAttribute('data-document-name');
 
                 modalTitle.textContent = 'View ' + name;
-
-                viewer.innerHTML = `
-                    <div class="d-flex justify-content-center align-items-center h-100">
-                        <div class="spinner-border text-primary" role="status"></div>
-                    </div>
-                `;
-
-                const extension = url
-                    .split('?')[0]
-                    .split('.')
-                    .pop()
-                    .toLowerCase();
-
-                if (extension === 'pdf') {
-
-                    viewer.innerHTML = `
-                        <iframe
-                            src="${url}"
-                            width="100%"
-                            height="100%"
-                            style="border: none;"
-                            title="${name}">
-                        </iframe>
-                    `;
-
-                } else if (
-                    extension === 'jpg' ||
-                    extension === 'jpeg' ||
-                    extension === 'png' ||
-                    extension === 'gif' ||
-                    extension === 'webp'
-                ) {
-
-                    viewer.innerHTML = `
-                        <div class="d-flex justify-content-center align-items-center h-100 p-3">
-                            <img
-                                src="${url}"
-                                alt="${name}"
-                                style="
-                                    max-width: 100%;
-                                    max-height: 100%;
-                                    object-fit: contain;
-                                    border-radius: 6px;
-                                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-                                ">
-                        </div>
-                    `;
-
-                } else {
-
-                    viewer.innerHTML = `
-                        <div class="d-flex flex-column justify-content-center align-items-center h-100">
-                            <i class="bx bx-file-blank text-muted"
-                            style="font-size: 60px;">
-                            </i>
-
-                            <p class="mt-2 text-muted">
-                                This file type cannot be previewed.
-                            </p>
-
-                            <a href="${url}"
-                            target="_blank"
-                            class="btn btn-primary">
-                                <i class="bx bx-download"></i>
-                                Open File
-                            </a>
-                        </div>
-                    `;
-                }
+                viewer.src = url;
             });
 
             viewModal.addEventListener('hidden.bs.modal', function () {
-                viewer.innerHTML = '';
+                viewer.src = 'about:blank';
             });
 
         });

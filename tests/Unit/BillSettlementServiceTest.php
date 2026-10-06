@@ -4,10 +4,41 @@ namespace Tests\Unit;
 
 use App\Models\Bill;
 use App\Services\BillSettlementService;
+use App\Services\MeterService;
 use Tests\TestCase;
 
 class BillSettlementServiceTest extends TestCase
 {
+    public function test_advance_pays_bill_and_carries_only_the_excess_forward(): void
+    {
+        $allocation = MeterService::resolveAdvanceAllocation(160, 173.70);
+
+        $this->assertSame(160.0, $allocation['amount_paid']);
+        $this->assertTrue($allocation['isPaid']);
+        $this->assertSame(13.7, $allocation['change']);
+        $this->assertTrue($allocation['isChangeForAdvancePayment']);
+    }
+
+    public function test_advance_equal_to_bill_marks_it_paid_without_change(): void
+    {
+        $allocation = MeterService::resolveAdvanceAllocation(160, 160);
+
+        $this->assertSame(160.0, $allocation['amount_paid']);
+        $this->assertTrue($allocation['isPaid']);
+        $this->assertSame(0.0, $allocation['change']);
+        $this->assertFalse($allocation['isChangeForAdvancePayment']);
+    }
+
+    public function test_partial_advance_is_credited_without_creating_change(): void
+    {
+        $allocation = MeterService::resolveAdvanceAllocation(160, 100);
+
+        $this->assertSame(100.0, $allocation['amount_paid']);
+        $this->assertFalse($allocation['isPaid']);
+        $this->assertSame(0.0, $allocation['change']);
+        $this->assertFalse($allocation['isChangeForAdvancePayment']);
+    }
+
     public function test_pineda_convenience_fee_is_13_70_on_160(): void
     {
         $this->assertSame(13.7, BillSettlementService::convenienceFeeForBillAmount(160, 10));
