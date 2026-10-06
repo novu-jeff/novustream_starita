@@ -33,6 +33,7 @@ use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\ServiceApplicationController;
+use App\Http\Controllers\RegistrantDocumentController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\Admin\ReadingAdjustmentController;
 use App\Http\Controllers\Admin\BillingAdjustmentController;
@@ -213,8 +214,17 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::get('registrants', [ConcessionaireController::class, 'registrants'])
             ->name('registrants.index');
 
-        Route::get('registrants/{account}/form', [ConcessionaireController::class, 'printRegistrantForm'])
+        Route::get('registrants/{account}/form', [RegistrantDocumentController::class, 'applicationForm'])
             ->name('registrants.form');
+
+        Route::get('registrants/{account}/document/{field}', [RegistrantDocumentController::class, 'viewRegistrantDocument'])
+            ->name('registrants.document');
+
+        Route::get('registrants/{account}/documents', [RegistrantDocumentController::class, 'downloadRegistrantDocuments'])
+            ->name('registrants.documents');
+
+        Route::get('account-links/{link}/document/{field}', [RegistrantDocumentController::class, 'viewAccountLinkDocument'])
+            ->name('account-links.document');
 
         Route::get('applications/{application}/contract', [ServiceApplicationController::class, 'contract'])
             ->name('admin.application.contract');
@@ -233,6 +243,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
         Route::patch('account-links/{link}/approve', [ConcessionaireController::class, 'approveAccountLink'])
             ->name('account-links.approve');
+
+        Route::get('account-links/{link}/documents', [ConcessionaireController::class, 'downloadAccountLinkDocuments'])
+            ->name('account-links.documents');
 
         Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
             ->name('account-links.deny');
@@ -396,6 +409,8 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills.reference_no');
+        Route::get('documents/{application}/{field}', [RegistrantDocumentController::class, 'viewApplicationDocument'])
+            ->name('account-overview.application-document');
     });
 
     Route::prefix('/support')->group(function() {

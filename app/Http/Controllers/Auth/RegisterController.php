@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApplicationDocument;
+use App\Models\ConcessionerAccountLink;
 use App\Models\ServiceApplication;
 use App\Models\UserAccounts;
 use App\Models\User;
@@ -130,6 +131,14 @@ class RegisterController extends Controller
             if (!$account) {
                 throw ValidationException::withMessages([
                     'name' => 'The name does not match the account no.',
+                ]);
+            }
+
+            if (ConcessionerAccountLink::whereIn('account_id', $matchingAccounts->pluck('id'))
+                ->whereIn('status', ['pending', 'approved'])
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'account_no' => 'This account is already linked to an online concessionaire account and cannot be registered again.',
                 ]);
             }
 

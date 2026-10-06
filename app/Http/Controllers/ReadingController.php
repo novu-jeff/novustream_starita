@@ -978,9 +978,32 @@ class ReadingController extends Controller
             'penalty' => $penaltyAmount,
             'amount' => $amountDue + $penaltyAmount,
             'discount' => $totalDiscount,
-            'amount_after_due' => $amountAfterDue + $penaltyAmount,
+            'amount_after_due' => $amountAfterDue,
             'hasPenalty' => $penaltyAmount > 0,
         ]);
+
+        $advanceAmount = (float) ($billData['advances'] ?? 0);
+        $canApplyAdvance = !$existingBill
+            || (!(bool) $existingBill->isPaid
+                && (float) ($existingBill->amount_paid ?? 0) <= 0
+                && !(bool) $existingBill->isPartial);
+
+        if ($advanceAmount > 0 && $canApplyAdvance && !$isMissingReading) {
+            $advanceAllocation = MeterService::resolveAdvanceAllocation($amountDue, $advanceAmount);
+
+            if ($advanceAllocation['isPaid']) {
+                $advanceAllocation['date_paid'] = now();
+            } elseif ($advanceAllocation['amount_paid'] > 0) {
+                $advanceAllocation['isPartial'] = true;
+                \App\Models\PartialPayment::create([
+                    'reading_id' => $bill->reading_id,
+                    'partial_payment' => $advanceAllocation['amount_paid'],
+                    'remaining_balance' => max($amountDue - $advanceAllocation['amount_paid'], 0),
+                ]);
+            }
+
+            $bill->update($advanceAllocation);
+        }
 
         if ($isMissingReading) {
             $this->applyMissingBillOverrides($bill, $payload);
