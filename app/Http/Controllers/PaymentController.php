@@ -648,7 +648,8 @@ class PaymentController extends Controller
         $q->where('account_no', $data['client']['account_no']);
     })->first();
 
-    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user'));
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user'))
+        ->with('systemFee', (float) config('payments.system_fee', 10));
 }
 
 

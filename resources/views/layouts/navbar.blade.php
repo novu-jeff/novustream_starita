@@ -54,6 +54,7 @@
 						</button>
 						<ul class="dropdown-menu mt-3">
                             <li><a class="dropdown-item" href="{{route('payments.index')}}"> Payments </a></li>
+							<li><a class="dropdown-item" href="{{route('payments.consolidation.index')}}">Consolidation</a></li>
                             <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
                             <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
                             <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>

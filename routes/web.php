@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PaymentConsolidationController;
 use App\Http\Controllers\NovuPayController;
 use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
@@ -264,6 +265,13 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::prefix('payments')->group(function() {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
+        Route::get('consolidation', [PaymentConsolidationController::class, 'index'])
+            ->name('payments.consolidation.index');
+        Route::get('consolidation/export', [PaymentConsolidationController::class, 'export'])
+            ->name('payments.consolidation.export');
+        Route::get('consolidation/{billId}/receipt', [PaymentConsolidationController::class, 'receipt'])
+            ->whereNumber('billId')
+            ->name('payments.consolidation.receipt');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
             ->name('previous-billing.upload');
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
