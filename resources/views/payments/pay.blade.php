@@ -31,7 +31,7 @@
                         </div>
                     </form>
                 </div>
-                <form action="{{route('payments.pay', ['reference_no' => $reference_no]) }}" method="POST">
+                <form id="billPaymentForm" action="{{route('payments.pay', ['reference_no' => $reference_no]) }}" method="POST">
                     @csrf
                     <div class="row">
                         <div class="col-12 col-md-6">
@@ -587,7 +587,7 @@
                                         <input type="hidden" name="payment_type" id="payment_type" value="">
                                         <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
-                                            <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
+                                            <button type="submit" id="cashPaymentButton" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
                                             <a href="{{ route('payments.novupay.checkout', ['reference_no' => $reference_no]) }}"
                                                class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold">
                                                 Pay Online
@@ -641,13 +641,13 @@
 
                     <h4 class="modal-title fw-bold mb-3" id="serviceFeeModalLabel" style="color: #196685ff;">Notice</h4>
 
-                    <p class="text-secondary fs-4 mb-4">
-                    Service fees vary by payment channel and are shown before payment confirmation.
+                    <p class="text-secondary fs-5 mb-4">
+                    Additional <strong>₱{{ number_format((float) ($systemFee ?? config('payments.system_fee', 10)), 2) }} system fee</strong> will be charged.
                     </p>
 
                     <div class="d-flex justify-content-center gap-3">
                         <button type="button" class="mb-3 btn btn-outline-primary px-4 py-2 text-uppercase fw-bold" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" id="confirmPaymentBtn" class="mb-3 btn btn-primary px-4 py-2 text-uppercase fw-bold">Okay</button>
+                        <button type="button" id="confirmPaymentBtn" class="mb-3 btn btn-primary px-4 py-2 text-uppercase fw-bold">Confirm Payment</button>
                     </div>
                 </div>
                 </div>
@@ -691,6 +691,31 @@
         @endif
 
         const isPaid = '{{$data['current_bill']['isPaid'] == true}}';
+
+        const paymentForm = document.getElementById('billPaymentForm');
+        const cashPaymentButton = document.getElementById('cashPaymentButton');
+        const feeModalElement = document.getElementById('serviceFeeModal');
+        let cashPaymentConfirmed = false;
+
+        if (paymentForm && cashPaymentButton && feeModalElement) {
+            const feeModal = bootstrap.Modal.getOrCreateInstance(feeModalElement);
+
+            paymentForm.addEventListener('submit', function (event) {
+                if (event.submitter !== cashPaymentButton || cashPaymentConfirmed) {
+                    return;
+                }
+
+                event.preventDefault();
+                feeModal.show();
+            });
+
+            document.getElementById('confirmPaymentBtn').addEventListener('click', function () {
+                cashPaymentConfirmed = true;
+                this.disabled = true;
+                feeModal.hide();
+                paymentForm.requestSubmit(cashPaymentButton);
+            });
+        }
 
         if(!isPaid) {
             async function checkPaymentStatus() {
