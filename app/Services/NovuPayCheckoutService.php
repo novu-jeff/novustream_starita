@@ -707,6 +707,7 @@ class NovuPayCheckoutService
             'novu-pay.com',
             'www.novu-pay.com',
             'novupay-staging-app-fe.novulutions.com',
+            'novupay-sandbox-app.novulutions.com',
         ], true);
     }
 

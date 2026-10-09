@@ -75,6 +75,24 @@ class NovuPayCheckoutServiceTest extends TestCase
         );
     }
 
+    public function test_sandbox_checkout_host_is_used_when_configured(): void
+    {
+        config([
+            'services.novupay.checkout_base' => 'https://novupay-sandbox-app.novulutions.com',
+        ]);
+
+        $this->assertSame(
+            'https://novupay-sandbox-app.novulutions.com/checkout/abc123/',
+            $this->service->hostedCheckoutUrl('abc123')
+        );
+        $this->assertSame(
+            'https://novupay-sandbox-app.novulutions.com/checkout/abc123/',
+            $this->service->normalizeCheckoutUrl(
+                'https://novupay-sandbox-app.novulutions.com/checkout/abc123/'
+            )
+        );
+    }
+
     public function test_create_checkout_posts_qrph_only_and_omits_client_secret(): void
     {
         Http::fake([
