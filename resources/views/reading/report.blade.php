@@ -37,7 +37,7 @@
                         </select>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label mb-1">Zone</label>
                         <select name="zone_no" id="zone_no" class="form-select text-uppercase">
                             <option value="all" {{ $zone === 'all' ? 'selected' : '' }}>All Zones</option>
@@ -54,7 +54,7 @@
                         <input type="month" name="month" id="date" class="form-control" value="{{$date}}">
                     </div>
 
-                   <div class="col-md-3">
+                   <div class="col-md-4">
                         <label class="form-label mb-1">Search
                             <span class="text-muted ms-1">[name | account no]</span>
                         </label>
@@ -77,6 +77,11 @@
                                 aria-label="Clear search"
                             >&times;</button>
                         </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="button" id="apply-reading-filters" class="btn btn-primary">
+                            <i class="bx bx-filter-alt" aria-hidden="true"></i> Apply Filters
+                        </button>
                     </div>
                 </div>
                 <table class="w-100 table table-bordered table-hover mt-4">
@@ -148,14 +153,14 @@ $(function () {
        AJAX filter updater
     ------------------------------ */
     function updateFilters(page = 1) {
-        let searchValue = $('#search').val().trim();
+        let searchValue = appliedFilters.search;
         if (searchValue === '') searchValue = null; // normalize empty strings
 
         const data = {
             search: searchValue,
-            entries: $('#entries').val(),
-            zone: $('#zone_no').val(),
-            date: $('#date').val(),
+            entries: appliedFilters.entries,
+            zone: appliedFilters.zone,
+            date: appliedFilters.date,
             page
         };
 
@@ -324,22 +329,39 @@ $(function () {
        Event Listeners
     ------------------------------ */
 
-    // Real-time search
+    let appliedFilters = {
+        search: $('#search').val().trim(),
+        entries: $('#entries').val(),
+        zone: $('#zone_no').val(),
+        date: $('#date').val()
+    };
+
     $('#search').on('input', function() {
         toggleClearButton();
-        updateFilters(1);
     });
 
-    // Clear search
     $('#clear-search').on('click', function() {
         $('#search').val('');
         toggleClearButton();
-        updateFilters(1);
+        $('#search').trigger('focus');
     });
 
-    // Dropdown filters
-    $('#entries, #zone_no, #date').on('change', function() {
+    function applyFilters() {
+        appliedFilters = {
+            search: $('#search').val().trim(),
+            entries: $('#entries').val(),
+            zone: $('#zone_no').val(),
+            date: $('#date').val()
+        };
         updateFilters(1);
+    }
+
+    $('#apply-reading-filters').on('click', applyFilters);
+    $('#search').on('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            applyFilters();
+        }
     });
 
     // Pagination click

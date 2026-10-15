@@ -42,7 +42,7 @@ class ReadingAdjustmentController extends Controller
           ->whereMonth('readings.created_at', date('m', strtotime($month)));
 
     $readings = $query->orderByDesc('readings.created_at')
-        ->paginate(20)
+        ->paginate(10)
         ->withQueryString();
 
     $allAdjustments = ReadingAdjustment::leftJoin('readings', 'reading_adjustments.reading_id', '=', 'readings.id')
@@ -57,7 +57,12 @@ class ReadingAdjustmentController extends Controller
     ->limit(200)
     ->get();
 
-    return view('admins.reading-adjustments.index', compact('readings', 'month', 'allAdjustments'));
+    $deletionHistories = DB::table('reading_deletion_histories')
+    ->orderByDesc('created_at')
+    ->limit(200)
+    ->get();
+
+    return view('admins.reading-adjustments.index', compact('readings', 'month', 'allAdjustments', 'deletionHistories'));
 }
 
     public function edit($id)

@@ -2,13 +2,332 @@
 
 @section('content')
 
-<div class="container mt-4">
+<style>
+    /* Installment dashboard — consistent blue-and-white theme */
+    .installment-page {
+        --installment-blue: #32667e;
+        --installment-blue-dark: #32667e;
+        --installment-blue-soft: #eff6ff;
+        --installment-border: #dbe5f1;
+        --installment-text: #32667e;
+        --installment-muted: #64748b;
+        color: var(--installment-text);
+    }
+
+    .installment-page .installment-page-header {
+        gap: 1rem;
+    }
+
+    .installment-page .installment-page-title {
+        color: #32667e;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+    }
+
+    .installment-page .card {
+        border: 1px solid var(--installment-border);
+        border-radius: 0.85rem;
+        box-shadow: 0 4px 14px rgba(30, 64, 175, 0.055);
+        overflow: hidden;
+    }
+
+    .installment-page .summary-card {
+        position: relative;
+        background: #fff;
+        transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+
+    .installment-page .summary-card:hover {
+        border-color: #93c5fd;
+        box-shadow: 0 8px 22px rgba(37, 99, 235, 0.09);
+        transform: translateY(-2px);
+    }
+
+    .installment-page .summary-card::before {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: var(--installment-blue);
+        content: "";
+    }
+
+    .installment-page .summary-label {
+        color: var(--installment-muted);
+        font-size: .82rem;
+        font-weight: 600;
+        margin-bottom: .55rem;
+    }
+
+    .installment-page .summary-value {
+        color: #32667e;
+        font-size: clamp(1.45rem, 2vw, 1.9rem);
+        font-weight: 750;
+        letter-spacing: -.035em;
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .installment-page .card-header {
+        background: var(--installment-blue-soft);
+        border-bottom: 1px solid var(--installment-border);
+        color: #32667e;
+        padding: 1rem 1.15rem;
+    }
+
+    .installment-page .card-header h5 {
+        font-weight: 700;
+    }
+
+    .installment-page .table {
+        margin-bottom: 0;
+        --bs-table-striped-bg: #f8fbff;
+        --bs-table-hover-bg: #eff6ff;
+    }
+
+    .installment-page .table thead th {
+        background: #eff6ff;
+        border-bottom: 1px solid #cbdcf4;
+        color: #32667e;
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .035em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        padding: .85rem .8rem;
+    }
+
+    .installment-page .table tbody td {
+        border-color: #e6edf7;
+        padding: .8rem;
+        vertical-align: middle;
+    }
+
+    .installment-page .btn {
+        border-radius: .55rem;
+        font-weight: 600;
+        transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .installment-page .btn-primary,
+    .installment-page .btn-success {
+        background-color: var(--installment-blue);
+        border-color: var(--installment-blue);
+        color: #fff;
+    }
+
+    .installment-page .btn-primary:hover,
+    .installment-page .btn-success:hover {
+        background-color: var(--installment-blue-dark);
+        border-color: var(--installment-blue-dark);
+        color: #fff;
+    }
+
+    .installment-page .btn-dark {
+        background: #fff;
+        border-color: #bfdbfe;
+        color: #32667e;
+    }
+
+    .installment-page .btn-dark:hover {
+        background: var(--installment-blue-soft);
+        border-color: #93c5fd;
+        color: #32667e;
+    }
+
+    .installment-page .btn-warning {
+        background: #fff;
+        border-color: #93c5fd;
+        color: #32667e;
+    }
+
+    .installment-page .btn-warning:hover {
+        background: #dbeafe;
+        border-color: #60a5fa;
+        color: #32667e;
+    }
+
+    .installment-page .btn-danger {
+        background: #fff;
+        border-color: #fecaca;
+        color: #b91c1c;
+    }
+
+    .installment-page .btn-danger:hover {
+        background: #fef2f2;
+        border-color: #fca5a5;
+        color: #991b1b;
+    }
+
+    .installment-page .form-control,
+    .installment-page .form-select,
+    .installment-page select.form-control {
+        border-color: #cbd5e1;
+        border-radius: .55rem;
+        min-height: 42px;
+    }
+
+    .installment-page .form-control:focus,
+    .installment-page .form-select:focus,
+    .installment-page select.form-control:focus {
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 .2rem rgba(37, 99, 235, .13);
+    }
+
+    .installment-page .form-label {
+        color: #334155;
+        font-size: .88rem;
+        font-weight: 650;
+    }
+
+    .installment-page .input-group .form-control {
+        border-radius: .55rem 0 0 .55rem;
+    }
+
+    .installment-page .input-group .btn {
+        border-radius: 0 .55rem .55rem 0;
+    }
+
+    .installment-page .modal-content {
+        border: 1px solid var(--installment-border);
+        border-radius: .95rem;
+        box-shadow: 0 18px 55px rgba(15, 23, 42, .18);
+        overflow: hidden;
+    }
+
+    .installment-page .modal-header {
+        background: var(--installment-blue-soft);
+        border-bottom-color: var(--installment-border);
+        color: #32667e;
+        padding: 1rem 1.25rem;
+    }
+
+    .installment-page .modal-title {
+        font-weight: 750;
+    }
+
+    .installment-page .modal-footer {
+        background: #f8fbff;
+        border-top-color: var(--installment-border);
+        gap: .5rem;
+    }
+
+    .installment-page .alert {
+        border-radius: .7rem;
+        border-width: 1px;
+    }
+
+    .installment-page .alert-warning {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+        color: #32667e;
+    }
+
+    .installment-page .pagination {
+        gap: .25rem;
+        flex-wrap: wrap;
+    }
+
+    .installment-page .page-link {
+        border-color: #dbe5f1;
+        border-radius: .45rem;
+        color: #32667e;
+        margin: 0;
+    }
+
+    .installment-page .page-item.active .page-link {
+        background: var(--installment-blue);
+        border-color: var(--installment-blue);
+        color: #fff;
+    }
+
+    .installment-page .status-completed {
+        background: #eaf7ef;
+        border: 1px solid #b9e3c8;
+        border-radius: 999px;
+        color: #17633f;
+        display: inline-flex;
+        align-items: center;
+        font-size: .75rem;
+        font-weight: 700;
+        padding: .3rem .6rem;
+        white-space: nowrap;
+    }
+
+    .installment-page .status-active {
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        color: #17633f;
+        display: inline-flex;
+        align-items: center;
+        font-size: .75rem;
+        font-weight: 700;
+        padding: 0;
+        white-space: nowrap;
+    }
+
+    .installment-page .summary-status-value {
+        color: #198754;
+    }
+
+    .installment-page .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #198754;
+        display: inline-block;
+        margin-right: .4rem;
+    }
+
+    .installment-page .table-responsive {
+        border-radius: .55rem;
+    }
+
+    @media (max-width: 767.98px) {
+        .installment-page.container {
+            margin-top: 1rem !important;
+            padding-left: .85rem;
+            padding-right: .85rem;
+        }
+
+        .installment-page .installment-page-header {
+            align-items: flex-start !important;
+            flex-direction: column;
+        }
+
+        .installment-page .installment-page-header .header-actions {
+            display: flex;
+            width: 100%;
+        }
+
+        .installment-page .installment-page-header .header-actions .btn {
+            flex: 1;
+        }
+
+        .installment-page .summary-value {
+            font-size: 1.45rem;
+        }
+
+        .installment-page .modal-dialog {
+            margin: .65rem;
+        }
+
+        .installment-page .table tbody td {
+            white-space: nowrap;
+        }
+    }
+</style>
+
+<div class="container mt-4 installment-page">
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="mb-0">Installment Dashboard</h4>
+    <div class="d-flex justify-content-between align-items-center mb-4 installment-page-header">
+        <div>
+            <h4 class="mb-1 installment-page-title">Installment Dashboard</h4>
+            <p class="mb-0 text-muted small">Manage installment accounts, schedules, and payment arrangements.</p>
+        </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 header-actions">
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#installmentHistoryModal">
                 View History
             </button>
@@ -32,38 +351,38 @@
     <!-- Summary Cards -->
     <div class="row g-3">
 
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-muted">Total Installments</h6>
-                    <h3 class="mb-0">{{ $totalInstallments }}</h3>
+        <div class="col-md-3 col-6">
+            <div class="card summary-card h-100">
+                <div class="card-body p-3 p-lg-4">
+                    <h6 class="summary-label">Total Installments</h6>
+                    <h3 class="summary-value mb-0">{{ $totalInstallments }}</h3>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-muted">Active</h6>
-                    <h3 class="text-success mb-0">{{ $activeInstallments }}</h3>
+        <div class="col-md-3 col-6">
+            <div class="card summary-card h-100">
+                <div class="card-body p-3 p-lg-4">
+                    <h6 class="summary-label">Active</h6>
+                    <h3 class="summary-value summary-status-value mb-0">{{ $activeInstallments }}</h3>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-muted">Completed</h6>
-                    <h3 class="text-success mb-0">{{ $completedInstallments }}</h3>
+        <div class="col-md-3 col-6">
+            <div class="card summary-card h-100">
+                <div class="card-body p-3 p-lg-4">
+                    <h6 class="summary-label">Completed</h6>
+                    <h3 class="summary-value summary-status-value mb-0">{{ $completedInstallments }}</h3>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-muted">Monthly Collectible</h6>
-                    <h3 class="mb-0">₱ {{ number_format($monthlyCollectible, 2) }}</h3>
+        <div class="col-md-3 col-6">
+            <div class="card summary-card h-100">
+                <div class="card-body p-3 p-lg-4">
+                    <h6 class="summary-label">Monthly Collectible</h6>
+                    <h3 class="summary-value mb-0">₱ {{ number_format($monthlyCollectible, 2) }}</h3>
                 </div>
             </div>
         </div>
@@ -72,17 +391,18 @@
 
     <!-- Installment Table -->
     <div class="card mt-4">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0">Installment Accounts</h5>
+            <span class="small text-muted">Account overview and available actions</span>
         </div>
 
-        <div class="card-body">
+        <div class="card-body p-3 p-lg-4">
 
             <div class="table-responsive">
 
-                <table class="table table-bordered table-striped align-middle">
+                <table class="table table-bordered table-striped table-hover align-middle">
 
-                    <thead class="table-light">
+                    <thead>
                         <tr>
                             <th>Account</th>
                             <th>Name</th>
@@ -113,15 +433,9 @@
 
                             <td>
                                 @if($installment->status === 'active')
-                                <span class="d-inline-flex align-items-center">
-                                    <span
-                                        class="rounded-circle bg-success me-2"
-                                        style="width: 8px; height: 8px;">
-                                    </span>
-                                    <span class="badge text-dark">Active</span>
-                                </span>
+                                    <span class="status-active"><span class="status-dot"></span>Active</span>
                                 @else
-                                    <span class="badge bg-success">Completed</span>
+                                    <span class="status-completed">Completed</span>
                                 @endif
                             </td>
 
@@ -159,7 +473,7 @@
 
                         @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted">
+                            <td colspan="8" class="text-center text-muted py-4">
                                 No installment records found.
                             </td>
                         </tr>
@@ -180,6 +494,7 @@
 
 </div>
 
+<div class="installment-page">
 <div class="modal fade" id="installmentModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -207,7 +522,6 @@
                         <button type="button"
                                 class="btn btn-primary"
                                 id="search_account">
-
                             Search
                         </button>
 
@@ -221,9 +535,7 @@
                             id="bill_select"
                             class="form-control"
                             required>
-
                         <option value="">Search account first</option>
-
                     </select>
                 </div>
 
@@ -234,6 +546,7 @@
                         name="months"
                         class="form-control"
                         id="months"
+                        min="1"
                         required>
                 </div>
 
@@ -254,9 +567,7 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn btn-success">
-                    Save Installment
-                </button>
+                <button class="btn btn-primary">Save Installment</button>
             </div>
 
             </form>
@@ -308,8 +619,8 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn btn-success">Save Changes</button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary">Save Changes</button>
+                <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
             </div>
         </form>
     </div>
@@ -343,7 +654,7 @@
 
             <div class="modal-footer">
                 <button class="btn btn-danger">Delete Installment</button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
             </div>
         </form>
     </div>
@@ -362,29 +673,31 @@
 
                 <div id="installmentDetails">
 
-                    <p><strong>Account No:</strong> <span id="detail_account"></span></p>
-                    <p><strong>Name:</strong> <span id="detail_name"></span></p>
-                    <p><strong>Bill Ref:</strong> <span id="detail_reference"></span></p>
-                    <p><strong>Total Bill:</strong> ₱<span id="detail_bill_amount"></span></p>
-                    <p><strong>Monthly:</strong> ₱<span id="detail_monthly"></span></p>
-                    <p><strong>Installment Span:</strong> <span id="detail_span"></span></p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Account No.</small><strong id="detail_account"></strong></div></div>
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Name</small><strong id="detail_name"></strong></div></div>
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Bill Reference</small><strong id="detail_reference"></strong></div></div>
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Total Bill</small><strong>₱<span id="detail_bill_amount"></span></strong></div></div>
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Monthly</small><strong>₱<span id="detail_monthly"></span></strong></div></div>
+                        <div class="col-md-6"><div class="p-3 rounded-3" style="background:#eff6ff;border:1px solid #dbeafe;"><small class="text-muted d-block">Installment Span</small><strong id="detail_span"></strong></div></div>
+                    </div>
 
                     <hr>
 
-                    <h6>Installment Schedule</h6>
+                    <h6 class="mb-3" style="color:#1e3a8a;font-weight:700;">Installment Schedule</h6>
 
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-
-                        <tbody id="schedule_table"></tbody>
-
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schedule_table"></tbody>
+                        </table>
+                    </div>
 
                 </div>
 
@@ -405,7 +718,7 @@
             <div class="modal-body">
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover table-sm">
-                        <thead class="table-light">
+                        <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Action</th>
@@ -429,10 +742,10 @@
                                     <td>
                                         @php
                                             $badgeClass = match(strtolower($history->action)) {
-                                                'created' => 'bg-success',
-                                                'updated' => 'bg-warning text-dark',
+                                                'created' => 'bg-primary',
+                                                'updated' => 'bg-primary',
                                                 'deleted' => 'bg-danger',
-                                                'restored' => 'bg-info text-dark',
+                                                'restored' => 'bg-primary',
                                                 'approved' => 'bg-primary',
                                                 'rejected' => 'bg-dark',
                                                 default => 'bg-secondary',
@@ -465,7 +778,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted">No installment history found.</td>
+                                    <td colspan="7" class="text-center text-muted py-4">No installment history found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -475,11 +788,11 @@
         </div>
     </div>
 </div>
+</div>
 
 @endsection
 
 <script>
-
 document.addEventListener("DOMContentLoaded", function () {
 
     const monthsInput = document.getElementById('months');
@@ -490,99 +803,91 @@ document.addEventListener("DOMContentLoaded", function () {
     const editMonthlyInput = document.getElementById('edit_monthly_amount');
     let editBillAmount = 0;
 
-    if(monthsInput){
-        monthsInput.addEventListener('input', function(){
+    if (monthsInput) {
+        monthsInput.addEventListener('input', function () {
+            const months = parseInt(this.value || 0);
+            const selected = billSelect.options[billSelect.selectedIndex];
 
-            let months = this.value;
-            let selected = billSelect.options[billSelect.selectedIndex];
-
-            if(!selected || !selected.dataset.amount) return;
-
-            let amount = selected.dataset.amount;
-
-            if(months > 0){
-                monthlyInput.value = (amount / months).toFixed(2);
+            if (!selected || !selected.dataset.amount) {
+                monthlyInput.value = '';
+                return;
             }
 
+            const amount = parseFloat(selected.dataset.amount);
+
+            monthlyInput.value = months > 0 ? (amount / months).toFixed(2) : '';
         });
     }
 
-    if(searchBtn){
-        searchBtn.addEventListener('click', function () {
-
-        let keyword = document.getElementById('search_keyword').value.trim();
-
-        if (keyword === '') {
-            alert('Please enter an account number or customer name.');
-            return;
-        }
-
-        billSelect.disabled = true;
-        billSelect.innerHTML = `
-            <option>Loading bills...</option>
-        `;
-
-        fetch(`/admin/installment/bills-by-account?search=${encodeURIComponent(keyword)}`)
-            .then(response => response.json())
-            .then(data => {
-
-                billSelect.disabled = false;
-                billSelect.innerHTML = '';
-
-                if (data.length === 0) {
-                    billSelect.innerHTML = `
-                        <option value="">No unpaid bills found</option>
-                    `;
-                    return;
-                }
-
-                billSelect.innerHTML = `
-                    <option value="">Select Bill</option>
-                `;
-
-                data.forEach(bill => {
-
-                    const today = new Date();
-                    const dueDate = new Date(bill.due_date);
-
-                    let rawAmount = (today <= dueDate)
-                        ? bill.total
-                        : bill.amount_after_due;
-
-                    let amount = rawAmount - bill.partial_payment;
-
-                    if (amount < 0) amount = 0;
-
-                    const date = new Date(bill.bill_period_to);
-
-                    const monthName = date.toLocaleString('en-US', {
-                        month: 'long'
-                    });
-
-                    billSelect.innerHTML += `
-                        <option value="${bill.id}" data-amount="${amount}">
-                            ${bill.account_no} - ${bill.name} | ${monthName} | ₱${amount.toFixed(2)}
-                        </option>
-                    `;
-                });
-
-            })
-            .catch(error => {
-
-                console.error(error);
-
-                billSelect.disabled = false;
-                billSelect.innerHTML = `
-                    <option value="">Error loading bills</option>
-                `;
-            });
-
-    });
+    if (billSelect) {
+        billSelect.addEventListener('change', function () {
+            monthsInput.dispatchEvent(new Event('input'));
+        });
     }
 
-    document.addEventListener('click', function(e){
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function () {
+            const keyword = document.getElementById('search_keyword').value.trim();
+
+            if (keyword === '') {
+                alert('Please enter an account number or customer name.');
+                return;
+            }
+
+            billSelect.disabled = true;
+            billSelect.innerHTML = '<option value="">Loading bills...</option>';
+
+            fetch(`/admin/installment/bills-by-account?search=${encodeURIComponent(keyword)}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load bills.');
+                    return response.json();
+                })
+                .then(data => {
+                    billSelect.disabled = false;
+                    billSelect.innerHTML = '';
+
+                    if (!Array.isArray(data) || data.length === 0) {
+                        billSelect.innerHTML = '<option value="">No unpaid bills found</option>';
+                        monthlyInput.value = '';
+                        return;
+                    }
+
+                    billSelect.innerHTML = '<option value="">Select Bill</option>';
+
+                    data.forEach(bill => {
+                        const today = new Date();
+                        const dueDate = new Date(bill.due_date);
+
+                        const rawAmount = (today <= dueDate) ? bill.total : bill.amount_after_due;
+                        let amount = parseFloat(rawAmount || 0) - parseFloat(bill.partial_payment || 0);
+
+                        if (!Number.isFinite(amount) || amount < 0) amount = 0;
+
+                        const date = new Date(bill.bill_period_to);
+                        const monthName = Number.isNaN(date.getTime())
+                            ? ''
+                            : date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+                        const option = document.createElement('option');
+                        option.value = bill.id;
+                        option.dataset.amount = amount.toFixed(2);
+                        option.textContent = `${bill.account_no} - ${bill.name} | ${monthName} | ₱${amount.toFixed(2)}`;
+                        billSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error(error);
+                    billSelect.disabled = false;
+                    billSelect.innerHTML = '<option value="">Error loading bills</option>';
+                    monthlyInput.value = '';
+                });
+        });
+    }
+
+    document.addEventListener('click', function (e) {
         const editButton = e.target.closest('.edit-installment');
         const deleteButton = e.target.closest('.delete-installment');
+        const viewButton = e.target.closest('.view-installment');
 
         if (editButton) {
             editBillAmount = parseFloat(editButton.dataset.billAmount || 0);
@@ -591,90 +896,85 @@ document.addEventListener("DOMContentLoaded", function () {
             document.getElementById('edit_reference').value = editButton.dataset.reference;
             document.getElementById('edit_months').value = editButton.dataset.months;
             document.getElementById('edit_first_due_date').value = editButton.dataset.firstDueDate;
-            document.getElementById('edit_monthly_amount').value = (editBillAmount / parseInt(editButton.dataset.months || 1)).toFixed(2);
+            document.getElementById('edit_monthly_amount').value =
+                (editBillAmount / parseInt(editButton.dataset.months || 1)).toFixed(2);
 
-            new bootstrap.Modal(document.getElementById('editInstallmentModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('editInstallmentModal')).show();
             return;
         }
 
         if (deleteButton) {
             document.getElementById('deleteInstallmentForm').action = deleteButton.dataset.action;
-            document.getElementById('delete_reference').innerText = deleteButton.dataset.reference;
+            document.getElementById('delete_reference').textContent = deleteButton.dataset.reference;
 
-            new bootstrap.Modal(document.getElementById('deleteInstallmentModal')).show();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteInstallmentModal')).show();
             return;
         }
 
-        if(e.target.classList.contains('view-installment')){
-
-            let id = e.target.dataset.installment;
-
-            let url = "{{ route('installment.details', ':id') }}";
-            url = url.replace(':id', id);
+        if (viewButton) {
+            const id = viewButton.dataset.installment;
+            const detailsUrlTemplate = @json(route('installment.details', ':id'));
+            const url = detailsUrlTemplate.replace(':id', id);
 
             fetch(url)
-            .then(res => res.json())
-            .then(data => {
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load installment details.');
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('detail_account').textContent = data.account_no ?? '-';
+                    document.getElementById('detail_name').textContent = data.name ?? '-';
+                    document.getElementById('detail_reference').textContent = data.reference_no ?? '-';
+                    document.getElementById('detail_bill_amount').textContent = parseFloat(data.bill_amount || 0).toFixed(2);
+                    document.getElementById('detail_monthly').textContent = parseFloat(data.monthly_amount || 0).toFixed(2);
 
-                document.getElementById('detail_account').innerText = data.account_no;
-                document.getElementById('detail_name').innerText = data.name ?? '-';
-                document.getElementById('detail_reference').innerText = data.reference_no;
-                document.getElementById('detail_bill_amount').innerText = parseFloat(data.bill_amount).toFixed(2);
-                document.getElementById('detail_monthly').innerText = parseFloat(data.monthly_amount).toFixed(2);
-                if (data.schedules.length) {
+                    const schedules = Array.isArray(data.schedules) ? data.schedules : [];
+                    const spanElement = document.getElementById('detail_span');
 
-                    const first = new Date(data.schedules[0].due_date);
-                    const last = new Date(data.schedules[data.schedules.length - 1].due_date);
+                    if (schedules.length) {
+                        const first = new Date(schedules[0].due_date);
+                        const last = new Date(schedules[schedules.length - 1].due_date);
+                        const firstMonth = first.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                        const lastMonth = last.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-                    const firstMonth = first.toLocaleString('en-US', {
-                        month: 'long',
-                        year: 'numeric'
+                        spanElement.textContent = `${schedules.length} Months (${firstMonth} - ${lastMonth})`;
+                    } else {
+                        spanElement.textContent = 'No schedule available';
+                    }
+
+                    const scheduleTable = document.getElementById('schedule_table');
+                    scheduleTable.replaceChildren();
+
+                    schedules.forEach(row => {
+                        const tr = document.createElement('tr');
+                        const monthCell = document.createElement('td');
+                        const amountCell = document.createElement('td');
+                        const statusCell = document.createElement('td');
+
+                        const dueDate = new Date(row.due_date);
+                        const monthName = Number.isNaN(dueDate.getTime())
+                            ? ''
+                            : dueDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+                        monthCell.textContent = `${row.month_no} - ${monthName}`;
+                        amountCell.textContent = `₱${parseFloat(row.amount || 0).toFixed(2)}`;
+
+                        const statusBadge = document.createElement('span');
+                        statusBadge.className = row.is_paid ? 'badge bg-primary' : 'badge bg-light text-primary border';
+                        statusBadge.textContent = row.is_paid ? 'Paid' : 'Pending';
+                        statusCell.appendChild(statusBadge);
+
+                        tr.append(monthCell, amountCell, statusCell);
+                        scheduleTable.appendChild(tr);
                     });
 
-                    const lastMonth = last.toLocaleString('en-US', {
-                        month: 'long',
-                        year: 'numeric'
-                    });
-
-                    document.getElementById('detail_span').innerText =
-                        `${data.schedules.length} Months (${firstMonth} - ${lastMonth})`;
-
-                }
-
-                let scheduleTable = document.getElementById('schedule_table');
-                scheduleTable.innerHTML = '';
-
-
-                data.schedules.forEach(row => {
-                    const dueDate = new Date(row.due_date);
-
-                    const monthName = dueDate.toLocaleString('en-US', {
-                        month: 'long',
-                        year: 'numeric'
-                    });
-
-                    scheduleTable.innerHTML += `
-                        <tr>
-                            <td>${row.month_no} - ${monthName}</td>
-                            <td>₱${parseFloat(row.amount).toFixed(2)}</td>
-                            <td>
-                                ${row.is_paid
-                                    ? '<span class="badge bg-success">Paid</span>'
-                                    : '<span class="badge bg-warning text-dark">Pending</span>'}
-                            </td>
-                        </tr>
-                    `;
-
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('viewInstallmentModal')).show();
+                })
+                .catch(error => {
+                    console.error(error);
+                    alert('Unable to load installment details. Please try again.');
                 });
-
-                new bootstrap.Modal(
-                    document.getElementById('viewInstallmentModal')
-                ).show();
-
-            });
-
         }
-
     });
 
     if (editMonthsInput) {
@@ -685,6 +985,4 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 });
-
 </script>
-
