@@ -100,7 +100,7 @@
                             @endif
                         </td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#editModal{{ $exemption->id }}">
+                            <button class="btn btn-primary btn-sm px-2 py-1" data-bs-toggle="modal" data-bs-target="#editModal{{ $exemption->id }}">
                                 Edit
                             </button>
                             <form action="{{ route('penalty-exemption.destroy', $exemption->id) }}" method="POST" class="d-inline">
