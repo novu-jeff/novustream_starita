@@ -42,7 +42,7 @@ class BillingAdjustmentController extends Controller
             ->whereMonth('bill.bill_period_to', date('m', strtotime($month)));
 
         $bills = $query->orderByDesc('bill.created_at')
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         $billAdjustments = DB::table('bill_adjustments as ba')
