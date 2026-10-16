@@ -20,10 +20,6 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>{{$filter}} Bills</h1>
                 <div class="d-flex align-items-center gap-3">
-                    <a href="{{ route('previous-billing.upload') }}"
-                        class="btn btn-outline-primary px-5 py-3 text-uppercase">
-                         Upload Billing
-                     </a>
                     <a href="{{ route('payments.index', array_merge(request()->query(), ['filter' => $filter === 'paid' ? 'unpaid' : 'paid'])) }}"
                         class="btn btn-primary px-5 py-3 text-uppercase">
                          View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
