@@ -6,40 +6,94 @@
             <div class="main-header d-flex justify-content-between">
                 <div>
                     <h1>Import Files</h1>
+                    <p class="text-muted mt-2 mb-0">
+                        Upload a CSV or Excel workbook to import supported system data.
+                    </p>
                 </div>
             </div>
-            <div class="inner-content mt-5 pb-5">
-                <form method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label for="file" class="form-label">CSV or Excel File</label>
-                            <input type="file" class="form-control @error('file') is-invalid @enderror" id="file" name="file">
-                        </div>
-                        <div class="col-12 mt-3 text-muted">
-                            <small class="text-uppercase fw-bold">What can you import?</small>
-                            <ul class="mt-2 text-uppercase fw-bold" style="font-size: 12px;">
-                                <li>Client Informations</li>
-                                <li>Admin Accounts</li>
-                                <li>Technician Accounts</li>
-                                <li>Concessionaires Informations</li>
-                                <li>Advances</li>
-                                <li>Outstanding Balance</li>
-                                <li>Senior Citizen Discounts</li>
-                                <li>Rates / Rate Codes</li>
-                                <li>Status Codes</li>
-                                <li>Zones</li>
-                                <li>Settings</li>
-                            </ul>
-                        </div>
-                        <div class="warning">
 
-                        </div>
+            <div class="inner-content mt-4 pb-5">
+                <div class="card import-upload-card">
+                    <div class="card-header py-3 px-4">
+                        <h5 class="mb-1 fw-bold">Upload an import file</h5>
+                        <p class="small text-muted mb-0">
+                            Choose a file from your device, then submit it for processing.
+                        </p>
                     </div>
-                    <div class="d-flex justify-content-end my-5">
-                        <button type="submit" class="showBtn btn btn-primary px-5 py-3 text-uppercase fw-bold">Submit</button>
+
+                    <div class="card-body p-4">
+                        <form id="importForm" method="POST" enctype="multipart/form-data">
+                            @csrf
+
+                            <div class="mb-4">
+                                <label for="file" class="form-label">CSV or Excel file</label>
+                                <input
+                                    type="file"
+                                    class="form-control @error('file') is-invalid @enderror"
+                                    id="file"
+                                    name="file"
+                                    accept=".csv,.xls,.xlsx"
+                                    required
+                                    aria-describedby="fileHelp"
+                                >
+
+                                <div id="fileHelp" class="form-text mt-2">
+                                    Supported formats: CSV, XLS, and XLSX.
+                                </div>
+
+                                @error('file')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="import-types rounded-3 border p-3 p-md-4 mb-4">
+                                <div class="d-flex align-items-start gap-3 mb-3">
+                                    <div class="import-types-icon rounded-3 d-flex align-items-center justify-content-center flex-shrink-0" aria-hidden="true">
+                                        <i class="bx bx-spreadsheet fs-3"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1">What can you import?</h6>
+                                        <p class="text-muted small mb-0">
+                                            The available data types depend on the worksheets and columns in your file.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2">
+                                    @foreach ([
+                                        'Client Information',
+                                        'Admin Accounts',
+                                        'Technician Accounts',
+                                        'Concessionaire Information',
+                                        'Advances',
+                                        'Outstanding Balance',
+                                        'Senior Citizen Discounts',
+                                        'Rates / Rate Codes',
+                                        'Status Codes',
+                                        'Zones',
+                                        'Settings',
+                                    ] as $item)
+                                        <div class="col-12 col-sm-6 col-lg-4">
+                                            <div class="import-type-item d-flex align-items-center gap-2 h-100 rounded-2 px-3 py-2">
+                                                <i class="bx bx-check-circle" aria-hidden="true"></i>
+                                                <span>{{ $item }}</span>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="warning" aria-live="polite" aria-atomic="false"></div>
+
+                            <div class="d-flex justify-content-end mt-4">
+                                <button type="submit" class="showBtn btn btn-primary px-4 py-2">
+                                    <i class="bx bx-upload me-1" aria-hidden="true"></i>
+                                    <span class="submit-label">Submit import</span>
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </main>
@@ -50,86 +104,107 @@
         $(function () {
             @if (session('alert'))
                 setTimeout(() => {
-                    let alertData = @json(session('alert'));
+                    const alertData = @json(session('alert'));
                     alert(alertData.status, alertData.message);
                 }, 100);
             @endif
 
+            const $form = $("#importForm");
+            const $submitButton = $form.find(".showBtn");
+            const originalButtonHTML = $submitButton.html();
 
-        $("form").on("submit", function (e) {
-
-            e.preventDefault();
-
-            showLoader();
-
-            let formData = new FormData(this);
-
-            $(".warning").html("");
-
-            axios.post("{{ route(Route::currentRouteName()) }}", formData, {
-                headers: {
-                    "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content"),
-                    "Content-Type": "multipart/form-data"
-                }
-            })
-            .then(response => {
-                const res = response.data;
-                const messages = res.messages || [];
-
-                let displayHTML = "";
-                let delay = 0;
-
-                messages.forEach(({ sheet, status, message, errors = [] }) => {
-
-                     setTimeout(() => {
-                        alert(status, `${message}`);
-                    }, delay);
-
-                    delay += 800;
-
-                    let borderColor = status === 'success' ? 'success' : (status === 'warning' ? 'warning' : 'danger');
-                    let textColor = status === 'success' ? 'text-success' : (status === 'warning' ? 'text-warning' : 'text-danger');
-
-                    displayHTML += `
-                        <hr class="mb-4">
-                        <div class="card shadow p-3 rounded mb-3 border-start border-2 border-${borderColor}">
-                            <div class="card-body">
-                                <h6 class="fw-bold text-uppercase mb-2 ${textColor}">${sheet}</h6>
-                                <p class="text-muted text-uppercase fw-bold">${message}</p>
-                                ${errors.length ? `
-                                    <div style="max-height: 200px; overflow-y: auto">
-                                        <ul class="list-unstyled small ${textColor}">
-                                            ${errors.map(err => `<li>${err}</li>`).join('')}
-                                        </ul>
-                                    </div>` : ''
-                                }
-                            </div>
-                        </div>
-                    `;
+            // Escape server-provided strings before inserting them into HTML.
+            function escapeHTML(value) {
+                return String(value ?? "").replace(/[&<>"']/g, function (character) {
+                    return {
+                        "&": "&amp;",
+                        "<": "&lt;",
+                        ">": "&gt;",
+                        '"': "&quot;",
+                        "'": "&#039;"
+                    }[character];
                 });
+            }
 
-                if (displayHTML) {
-                    $(".warning").html(displayHTML);
+            $form.on("submit", function (e) {
+                e.preventDefault();
+
+                const fileInput = document.getElementById("file");
+                if (!fileInput.files || !fileInput.files.length) {
+                    fileInput.reportValidity();
+                    return;
                 }
-            })
-            .catch(() => {
-                alert("error", "Something went wrong while uploading.");
-            })
-            .finally(() => {
-                hideLoader();
-            });
-        });
 
+                showLoader();
+                $submitButton.prop("disabled", true);
+                $(".warning").empty();
+
+                const formData = new FormData(this);
+
+                axios.post("{{ route(Route::currentRouteName()) }}", formData, {
+                    headers: {
+                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content"),
+                        "Content-Type": "multipart/form-data"
+                    }
+                })
+                .then(response => {
+                    const res = response.data || {};
+                    const messages = Array.isArray(res.messages) ? res.messages : [];
+
+                    let displayHTML = "";
+                    let delay = 0;
+
+                    messages.forEach(({ sheet = "Import result", status = "error", message = "", errors = [] }) => {
+                        const safeStatus = ["success", "warning", "error"].includes(status) ? status : "error";
+                        const borderColor = safeStatus === "success" ? "success" : (safeStatus === "warning" ? "warning" : "danger");
+                        const textColor = safeStatus === "success" ? "text-success" : (safeStatus === "warning" ? "text-warning" : "text-danger");
+                        const safeErrors = Array.isArray(errors) ? errors : [];
+
+                        setTimeout(() => {
+                            alert(safeStatus, String(message));
+                        }, delay);
+                        delay += 800;
+
+                        displayHTML += `
+                            <div class="card import-result-card mb-3 border-start border-3 border-${borderColor}">
+                                <div class="card-body p-3">
+                                    <h6 class="fw-bold mb-2 ${textColor}">${escapeHTML(sheet)}</h6>
+                                    <p class="text-muted mb-2">${escapeHTML(message)}</p>
+                                    ${safeErrors.length ? `
+                                        <div class="import-result-errors rounded-2 p-3">
+                                            <ul class="list-unstyled small mb-0 ${textColor}">
+                                                ${safeErrors.map(err => `<li class="mb-1">${escapeHTML(err)}</li>`).join("")}
+                                            </ul>
+                                        </div>` : ""
+                                    }
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    if (displayHTML) {
+                        $(".warning").html(`<div class="mt-4"><h6 class="fw-bold mb-3">Import results</h6>${displayHTML}</div>`);
+                    } else {
+                        alert("warning", res.message || "The server did not return any import results.");
+                    }
+                })
+                .catch(error => {
+                    const message = error?.response?.data?.message || "Something went wrong while uploading. Please check the file and try again.";
+                    alert("error", message);
+                })
+                .finally(() => {
+                    hideLoader();
+                    $submitButton.prop("disabled", false);
+                });
+            });
 
             function showLoader() {
-                $('.showBtn').html("<i class='bx bx-loader-alt bx-spin' ></i>");
+                $submitButton.html("<i class='bx bx-loader-alt bx-spin' aria-hidden='true'></i><span class='ms-1'>Importing...</span>");
             }
 
             function hideLoader() {
-                $('.showBtn').html("Submit");
+                $submitButton.html(originalButtonHTML);
             }
-
         });
     </script>
 @endsection
-
