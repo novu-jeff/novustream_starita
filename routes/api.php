@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\NovuPayController;
 use App\Http\Controllers\OfflineDataController;
 use App\Http\Controllers\OfflineSyncController;
 
@@ -102,6 +103,10 @@ Route::middleware(['log.offline.api', 'auth.offline'])->group(function () {
     Route::get('/offline/download', [OfflineSyncController::class, 'download']);
     Route::get('/offline/reading-dates', [OfflineDataController::class, 'readingDates']);
 });
+
+// SOA QR from the offline app. Public: the customer scans this, they are not logged in.
+Route::match(['get', 'post'], '/novustream/starita/payment-request', [NovuPayController::class, 'paymentRequest'])
+    ->name('novustream.starita.payment-request');
 
 // Fallback last so it does not catch POST /offline/sync, /readings/sync, etc.
 Route::fallback(function () {

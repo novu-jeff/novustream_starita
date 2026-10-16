@@ -53,6 +53,8 @@
                                 Paid
                             @elseif($status === 'active')
                                 Active
+                            @elseif($status === 'error')
+                                Unavailable
                             @else
                                 Voided (past due date)
                             @endif

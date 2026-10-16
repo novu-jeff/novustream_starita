@@ -2,14 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Bill;
+use App\Models\Reading;
 use App\Services\NovuPayCheckoutService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class NovuPayController extends Controller
 {
     public function __construct(private NovuPayCheckoutService $novuPay)
     {
+    }
+
+    /**
+     * Offline SOA QR. Query: rn, an, am, pr, name, email, dd, aad, penalty.
+     * Opens the hosted checkout for that reference, creating the bill from the
+     * printed amounts when the reading has not been synced yet.
+     */
+    public function paymentRequest(Request $request)
+    {
+        $reference = trim((string) $request->input('rn', ''));
+        if ($reference === '') {
+            return $this->qrMessage('Payment link is incomplete', 'This QR code has no bill reference. Ask the meter reader for a new statement.', '', 422);
+        }
+
+        $printedAccount = trim((string) $request->input('an', ''));
+        $accountNo = $this->resolveSoaAccountNo($printedAccount) ?? ($printedAccount !== '' ? $printedAccount : null);
+        $name = trim((string) $request->input('name', ''));
+        $email = trim((string) $request->input('email', ''));
+
+        $bill = Bill::where('reference_no', $reference)->first();
+        if (!$bill) {
+            if ($accountNo === null) {
+                return $this->qrMessage(
+                    'Account not found',
+                    'This QR code has no account number.',
+                    $reference,
+                    404
+                );
+            }
+
+            $bill = $this->createBillFromSoaQr($request, $reference, $accountNo, $name);
+            if (!$bill) {
+                return $this->qrMessage(
+                    'Checkout Unavailable',
+                    'This statement could not be opened for payment. The amount or meter reading on the QR code is missing.',
+                    $reference,
+                    422
+                );
+            }
+        }
+
+        $request->merge(array_filter([
+            'name' => $name !== '' ? $name : null,
+            'email' => $email !== '' ? $email : null,
+            'account_no' => $accountNo ?? optional($bill->reading)->account_no,
+        ]));
+
+        return $this->checkout($request, $reference);
     }
 
     /**
@@ -99,5 +151,144 @@ class NovuPayController extends Controller
                 'back_url' => url('/concessionaire/my/bills/' . $bill->reference_no),
             ],
         ]);
+    }
+
+    /**
+     * The offline app prints the rate code in the account number (071-42-071455).
+     * Staging stores the classification code (071-12-071455). Match the zone and
+     * the last segment when that pair is unique.
+     */
+    private function resolveSoaAccountNo(string $accountNo): ?string
+    {
+        $accountNo = trim($accountNo);
+        if ($accountNo === '') {
+            return null;
+        }
+
+        if (DB::table('concessioner_accounts')->where('account_no', $accountNo)->exists()) {
+            return $accountNo;
+        }
+
+        if (preg_match('/^(\d{3})-\d{2}-(\d+)$/', $accountNo, $matches) !== 1) {
+            return null;
+        }
+
+        $found = DB::table('concessioner_accounts')
+            ->where('account_no', 'like', $matches[1] . '-%-' . $matches[2])
+            ->pluck('account_no');
+
+        return $found->count() === 1 ? (string) $found->first() : null;
+    }
+
+    private function createBillFromSoaQr(Request $request, string $reference, string $accountNo, string $name): ?Bill
+    {
+        $amount = round((float) $request->input('am', 0), 2);
+        $afterDue = round((float) $request->input('aad', 0), 2);
+        $penalty = round((float) $request->input('penalty', 0), 2);
+        $present = $request->input('pr');
+
+        if ($amount <= 0 || $present === null || $present === '') {
+            return null;
+        }
+
+        if ($afterDue <= 0) {
+            $afterDue = round($amount + max($penalty, 0), 2);
+        }
+
+        $presentReading = (float) $present;
+        $latest = Reading::where('account_no', $accountNo)
+            ->where('isReRead', false)
+            ->orderByDesc('id')
+            ->first();
+        $previousReading = $latest ? (float) $latest->present_reading : 0.0;
+        if ($presentReading < $previousReading) {
+            $previousReading = $presentReading;
+        }
+
+        try {
+            $due = Carbon::parse((string) $request->input('dd', now()->toDateString()))->startOfDay();
+        } catch (\Throwable $e) {
+            $due = now()->startOfDay();
+        }
+
+        $periodTo = $due->copy()->subDays(14);
+        $periodFrom = $periodTo->copy()->subMonth();
+        $zone = DB::table('concessioner_accounts')->where('account_no', $accountNo)->value('zone');
+        if (!$zone && preg_match('/^(\d{3})-/', $accountNo, $zoneMatch) === 1) {
+            $zone = $zoneMatch[1];
+        }
+
+        return DB::transaction(function () use (
+            $reference,
+            $accountNo,
+            $name,
+            $amount,
+            $afterDue,
+            $penalty,
+            $presentReading,
+            $previousReading,
+            $due,
+            $periodTo,
+            $periodFrom,
+            $zone,
+            $request
+        ) {
+            $existing = Bill::where('reference_no', $reference)->lockForUpdate()->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $reading = Reading::create([
+                'zone' => $zone,
+                'account_no' => $accountNo,
+                'reference_no' => $reference,
+                'previous_reading' => $previousReading,
+                'present_reading' => $presentReading,
+                'consumption' => max($presentReading - $previousReading, 0),
+                'reader_name' => 'Offline SOA QR',
+                'isReRead' => false,
+            ]);
+
+            $bill = Bill::create([
+                'reading_id' => $reading->id,
+                'reference_no' => $reference,
+                'bill_period_from' => $periodFrom->toDateString(),
+                'bill_period_to' => $periodTo->toDateString(),
+                'previous_unpaid' => 0,
+                'total' => $amount,
+                'discount' => 0,
+                'penalty' => $penalty,
+                'amount' => $amount,
+                'amount_after_due' => $afterDue,
+                'isPaid' => false,
+                'hasPenalty' => $penalty > 0,
+                'due_date' => $due->toDateString(),
+                'penalty_date' => $due->copy()->addDay()->toDateString(),
+                'disconnection_date' => $due->copy()->addDays(7)->toDateString(),
+                'payor_name' => $name !== '' ? $name : null,
+                'isHighConsumption' => in_array(strtolower((string) $request->input('hc', 'no')), ['1', 'yes', 'true'], true),
+            ]);
+
+            Log::info('SOA QR created staging bill from offline payment link', [
+                'reference_no' => $reference,
+                'account_no' => $accountNo,
+                'printed_account' => $request->input('an'),
+                'amount' => $amount,
+            ]);
+
+            return $bill;
+        });
+    }
+
+    private function qrMessage(string $title, string $message, string $reference, int $status)
+    {
+        return response()->view('payments.qr-voided', [
+            'payload' => [
+                'title' => $title,
+                'message' => $message,
+                'reference_no' => $reference !== '' ? $reference : '-',
+                'status' => 'error',
+            ],
+        ], $status);
     }
 }
