@@ -4,161 +4,315 @@ namespace App\Services;
 
 use App\Http\Controllers\PaymentController;
 use App\Models\Bill;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Support\Facades\Schema;
 
 class NovuPayCheckoutService
 {
-    public const MIN_AMOUNT = 100.0;
-
-    public function isConfigured(): bool
-    {
-        return $this->apiKey() !== ''
-            && $this->clientId() !== ''
-            && $this->apiUrl() !== '';
+    public function __construct(
+        private NovuPayClient $client,
+        private BillSettlementService $billSettlementService,
+        private StaritaNovupayBillService $staritaNovupayBillService
+    ) {
     }
 
-    public function publicBaseUrl(): string
+    /**
+     * Create or reuse a hosted NovuPay checkout for a Sta. Rita bill.
+     *
+     * @return array{ok: bool, checkout_url?: string, error?: string, reused?: bool, data?: array}
+     */
+    public function startCheckout(string $referenceNo, array $billData, array $customer = []): array
     {
-        $override = trim((string) config('services.novupay.public_url', ''));
-        if ($override !== '') {
-            return rtrim($override, '/');
+        $amount = PaymentController::resolveOnlinePayableAmount($billData);
+        if ($amount < $this->client->minAmount()) {
+            return [
+                'ok' => false,
+                'error' => 'Amount must be at least PHP ' . number_format($this->client->minAmount(), 2) . '.',
+            ];
         }
 
-        return rtrim((string) config('app.url'), '/');
-    }
-
-    public function notificationUrl(): string
-    {
-        $override = trim((string) config('services.novupay.notification_url', ''));
-        if ($override !== '') {
-            return $override;
+        $bill = Bill::where('reference_no', $referenceNo)->first();
+        if ($bill && $bill->isPaid) {
+            return ['ok' => false, 'error' => 'This bill has already been paid.'];
         }
 
-        return $this->publicBaseUrl() . '/webhooks/novupay';
+        $accountNo = (string) ($customer['account_no'] ?? data_get($billData, 'account_no') ?? '');
+        if ($accountNo === '' && $bill) {
+            $bill->loadMissing('reading');
+            $accountNo = (string) ($bill->reading->account_no ?? '');
+        }
+        $email = $this->chooseCustomerEmail($customer['email'] ?? null, $accountNo);
+
+        if ($bill && !empty($bill->novupay_uid) && !empty($bill->novupay_req_id)) {
+            $storedAmount = round((float) ($bill->novupay_amount ?? 0), 2);
+            if (abs($storedAmount - $amount) < 0.01) {
+                $statusResult = $this->client->checkStatus((string) $bill->novupay_req_id);
+                $remoteStatus = strtolower((string) data_get($statusResult, 'data.status', ''));
+                if ($statusResult['ok'] && $remoteStatus === 'pending' && $this->checkoutEmailMatches((string) $bill->novupay_req_id, $email)) {
+                    return [
+                        'ok' => true,
+                        'reused' => true,
+                        'checkout_url' => $this->client->buildCheckoutUrl((string) $bill->novupay_uid),
+                        'data' => [
+                            'id' => $bill->novupay_id,
+                            'uid' => $bill->novupay_uid,
+                            'req_id' => $bill->novupay_req_id,
+                            'amount' => $amount,
+                        ],
+                    ];
+                }
+
+                if ($statusResult['ok'] && $remoteStatus === 'paid') {
+                    $this->fulfillPaidBill($bill, [
+                        'req_id' => $bill->novupay_req_id,
+                        'amount' => data_get($statusResult, 'data.amount', $amount),
+                        'ref_code' => data_get($statusResult, 'data.ref_code'),
+                    ]);
+
+                    return ['ok' => false, 'error' => 'This bill has already been paid.'];
+                }
+            }
+        }
+
+        $payor = $customer['name']
+            ?? data_get($billData, 'payor')
+            ?? data_get($billData, 'account_name')
+            ?? 'Sta. Rita Customer';
+        $contact = $customer['contact'] ?? $customer['contact_no'] ?? null;
+        $dueDate = $billData['due_date'] ?? null;
+
+        Log::info('NovuPay checkout using customer email', [
+            'reference_no' => $referenceNo,
+            'account_no' => $accountNo,
+            'email' => $email,
+        ]);
+
+        $reqId = $this->client->makeReqId($referenceNo);
+        $result = $this->client->createCheckout([
+            'req_id' => $reqId,
+            'amount' => $amount,
+            'description' => 'Sta. Rita WD bill ' . $referenceNo . ($accountNo !== '' ? ' / Acct ' . $accountNo : ''),
+            'email' => $email,
+            'name' => $payor,
+            'contact' => $contact,
+            'expiry' => $this->client->expiryHours($dueDate),
+            'param1' => $referenceNo,
+            'param2' => $accountNo !== '' ? (string) $accountNo : null,
+            'notification_url' => $this->client->notificationUrl(),
+            'redirect_url' => $this->client->redirectUrl() . '?req_id=' . rawurlencode($reqId),
+        ]);
+
+        if (!$result['ok']) {
+            return [
+                'ok' => false,
+                'error' => $result['error'] ?? 'Unable to create NovuPay checkout.',
+            ];
+        }
+
+        $data = $result['data'];
+        Cache::put($this->checkoutEmailCacheKey((string) ($data['req_id'] ?? $reqId)), $email, now()->addDays(40));
+        $this->persistCheckoutOnBill($bill, $referenceNo, $data, $billData);
+
+        return [
+            'ok' => true,
+            'reused' => false,
+            'checkout_url' => (string) $data['checkout_url'],
+            'data' => $data,
+        ];
     }
 
-    public function redirectUrl(int|string $orderId): string
+    public function persistCheckoutOnBill(?Bill $bill, string $referenceNo, array $checkout, array $billData = []): ?Bill
     {
-        return $this->publicBaseUrl() . '/orders/' . $orderId . '/complete';
+        if (!$bill) {
+            $bill = Bill::where('reference_no', $referenceNo)->first();
+        }
+
+        if (!$bill) {
+            Log::info('NovuPay checkout created without local bill row', [
+                'reference_no' => $referenceNo,
+                'req_id' => $checkout['req_id'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        $updates = [
+            'payment_method' => 'online',
+            'initiated_at' => now(),
+        ];
+
+        if (Schema::hasColumn('bill', 'novupay_id')) {
+            $updates['novupay_id'] = $checkout['id'] ?? null;
+        }
+        if (Schema::hasColumn('bill', 'novupay_uid')) {
+            $updates['novupay_uid'] = $checkout['uid'] ?? null;
+        }
+        if (Schema::hasColumn('bill', 'novupay_req_id')) {
+            $updates['novupay_req_id'] = $checkout['req_id'] ?? null;
+        }
+        if (Schema::hasColumn('bill', 'novupay_amount')) {
+            $updates['novupay_amount'] = $checkout['amount'] ?? null;
+        }
+        if (Schema::hasColumn('bill', 'novupay_status')) {
+            $updates['novupay_status'] = 'pending';
+        }
+
+        $bill->update($updates);
+
+        return $bill->fresh();
+    }
+
+    /**
+     * Fulfill a paid checkout idempotently.
+     *
+     * @return array{ok: bool, settled?: bool, message?: string}
+     */
+    public function fulfillPaidBill(Bill $bill, array $payment = []): array
+    {
+        if ($bill->isPaid) {
+            return ['ok' => true, 'settled' => false, 'message' => 'already_paid'];
+        }
+
+        $amount = isset($payment['amount']) ? round((float) $payment['amount'], 2) : 0.0;
+        $storedAmount = round((float) ($bill->novupay_amount ?? 0), 2);
+        if ($storedAmount > 0 && $amount > 0 && !NovuPayClient::reportedAmountMatchesCheckout($storedAmount, $amount)) {
+            Log::warning('NovuPay fulfillment skipped: amount mismatch', [
+                'reference_no' => $bill->reference_no,
+                'stored' => $storedAmount,
+                'paid' => $amount,
+            ]);
+
+            return ['ok' => false, 'settled' => false, 'message' => 'amount_mismatch'];
+        }
+
+        if ($storedAmount > 0 && !$this->checkoutAmountMatchesBill($bill, $storedAmount)) {
+            Log::warning('NovuPay fulfillment skipped: checkout amount is not the bill amount due', [
+                'reference_no' => $bill->reference_no,
+                'stored' => $storedAmount,
+                'paid' => $amount,
+                'total' => $bill->total,
+            ]);
+
+            return ['ok' => false, 'settled' => false, 'message' => 'amount_mismatch'];
+        }
+
+        $payor = $payment['name']
+            ?? $bill->payor_name
+            ?? 'Sta. Rita Customer';
+        $paidAt = $payment['paid_at'] ?? now();
+        // Record the bill amount. The reported figure includes NovuPay's ₱10 fee.
+        $amountPaid = $storedAmount > 0 ? $storedAmount : ($amount > 0 ? $amount : null);
+
+        $this->billSettlementService->settlePaidBillChain(
+            $bill,
+            [
+                'amount_paid' => $amountPaid,
+                'payor_name' => $payor,
+                'date_paid' => $paidAt,
+                'payment_method' => 'online',
+            ],
+            [
+                'payor_name' => $payor,
+                'date_paid' => $paidAt,
+                'payment_method' => 'online',
+            ]
+        );
+
+        $bill->refresh();
+
+        $meta = [];
+        if (Schema::hasColumn('bill', 'novupay_status')) {
+            $meta['novupay_status'] = 'paid';
+        }
+        if (Schema::hasColumn('bill', 'novupay_ref_code') && !empty($payment['ref_code'])) {
+            $meta['novupay_ref_code'] = (string) $payment['ref_code'];
+        }
+        if (Schema::hasColumn('bill', 'novupay_req_id') && !empty($payment['req_id'])) {
+            $meta['novupay_req_id'] = (string) $payment['req_id'];
+        }
+        if (!empty($meta)) {
+            $bill->update($meta);
+        }
+
+        $this->staritaNovupayBillService->upsertFromLocalBill($bill);
+
+        Log::info('NovuPay fulfillment: bill marked paid', [
+            'bill_id' => $bill->id,
+            'reference_no' => $bill->reference_no,
+            'req_id' => $payment['req_id'] ?? $bill->novupay_req_id,
+        ]);
+
+        return ['ok' => true, 'settled' => true, 'message' => 'settled'];
+    }
+
+    public function findBillByReqId(string $reqId): ?Bill
+    {
+        if ($reqId === '' || !Schema::hasColumn('bill', 'novupay_req_id')) {
+            return null;
+        }
+
+        return Bill::query()
+            ->with('reading')
+            ->where('novupay_req_id', $reqId)
+            ->orderBy('id')
+            ->first();
+    }
+
+    public function findBillByReference(string $referenceNo): ?Bill
+    {
+        if ($referenceNo === '') {
+            return null;
+        }
+
+        $bill = Bill::query()
+            ->with('reading')
+            ->where('reference_no', $referenceNo)
+            ->first();
+        if ($bill) {
+            return $bill;
+        }
+
+        if (Schema::hasColumn('bill', 'novupay_req_id')) {
+            $bill = Bill::query()
+                ->with('reading')
+                ->where('novupay_req_id', $referenceNo)
+                ->orderBy('id')
+                ->first();
+            if ($bill) {
+                return $bill;
+            }
+        }
+
+        $baseReference = NovuPayClient::referenceFromReqId($referenceNo);
+        if ($baseReference === '' || $baseReference === $referenceNo) {
+            return null;
+        }
+
+        return Bill::query()
+            ->with('reading')
+            ->where('reference_no', $baseReference)
+            ->first();
     }
 
     public function checkoutStartUrl(string $referenceNo): string
     {
-        return $this->publicBaseUrl() . '/payments/' . rawurlencode($referenceNo) . '/checkout';
+        return rtrim((string) config('app.url'), '/') . '/payments/' . rawurlencode($referenceNo) . '/checkout';
     }
 
     public function completeUrlForBill(Bill $bill): string
     {
-        return $this->redirectUrl($bill->id);
-    }
-
-    public function hostedCheckoutUrl(string $uid): string
-    {
-        $uid = trim($uid, '/');
-
-        return $this->checkoutBase() . '/checkout/' . $uid . '/';
+        return rtrim((string) config('app.url'), '/') . '/orders/' . $bill->id . '/complete';
     }
 
     /**
-     * Keep hosted checkout on the configured NovuPay host.
-     * Merchant subdomains such as srwd.novu-pay.com are rewritten to that host.
-     */
-    public function normalizeCheckoutUrl(?string $url, ?string $uid = null): ?string
-    {
-        $uid = $uid ? trim($uid, '/') : null;
-
-        if (is_string($url) && $url !== '') {
-            if (preg_match('#/checkout/([^/]+)/?#', $url, $matches) === 1) {
-                $uid = $uid ?: $matches[1];
-            }
-        }
-
-        if ($uid) {
-            return $this->hostedCheckoutUrl($uid);
-        }
-
-        return null;
-    }
-
-    public function formatContact(?string $raw): ?string
-    {
-        if ($raw === null) {
-            return null;
-        }
-
-        $digits = preg_replace('/\D+/', '', $raw) ?? '';
-        if ($digits === '') {
-            return null;
-        }
-
-        if (str_starts_with($digits, '63') && strlen($digits) >= 12) {
-            $digits = substr($digits, 2);
-        }
-
-        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
-            $digits = substr($digits, 1);
-        }
-
-        if (strlen($digits) === 10 && str_starts_with($digits, '9')) {
-            return $digits;
-        }
-
-        return null;
-    }
-
-    public function signatureFor(string $reqId, string $status): string
-    {
-        return sha1($reqId . $status . '{' . $this->clientSecret() . '}');
-    }
-
-    public function signatureIsValid(string $reqId, string $status, ?string $signature): bool
-    {
-        if ($signature === null || $signature === '' || $this->clientSecret() === '') {
-            return false;
-        }
-
-        return hash_equals($this->signatureFor($reqId, $status), $signature);
-    }
-
-    public function minAmount(): float
-    {
-        $configured = (float) config('services.novupay.min_amount', self::MIN_AMOUNT);
-
-        return $configured > 0 ? $configured : self::MIN_AMOUNT;
-    }
-
-    public function transactionFee(): float
-    {
-        $fee = round((float) config('services.novupay.transaction_fee', 10), 2);
-
-        return $fee > 0 ? $fee : 0.0;
-    }
-
-    /**
-     * Create a QR Ph hosted checkout for a bill and persist the NovuPay uid.
-     *
      * @param  array{payor?: string, name?: string, email?: string, contact?: string, account_no?: string}  $customer
-     * @return array{ok: bool, checkout_url?: string, uid?: string, req_id?: string, amount?: float, already_paid?: bool, complete_url?: string, message?: string, status?: int}
+     * @return array{ok: bool, checkout_url?: string, already_paid?: bool, complete_url?: string, message?: string, status?: int}
      */
     public function startForReference(string $referenceNo, array $customer = []): array
     {
-        if (!$this->isConfigured()) {
-            Log::error('NovuPay checkout skipped: missing server credentials');
-
-            return [
-                'ok' => false,
-                'message' => 'Online payment is not configured.',
-                'status' => 503,
-            ];
-        }
-
-        $bill = Bill::with('reading.concessionaire.user')
-            ->where('reference_no', $referenceNo)
-            ->first();
-
+        $bill = Bill::with('reading')->where('reference_no', $referenceNo)->first();
         if (!$bill) {
             return [
                 'ok' => false,
@@ -185,182 +339,22 @@ class NovuPayCheckoutService
             ];
         }
 
-        $billAmount = PaymentController::resolveOnlinePayableAmount($billData);
-        $transactionFee = $this->transactionFee();
-        $amount = round($billAmount + $transactionFee, 2);
-        $minAmount = $this->minAmount();
-        if ($amount + 0.001 < $minAmount) {
+        $result = $this->startCheckout($referenceNo, $billData, $customer);
+        if (empty($result['ok']) || empty($result['checkout_url'])) {
             return [
                 'ok' => false,
-                'message' => 'QR Ph payments require a minimum of ₱' . number_format($minAmount, 2) . '.',
-                'status' => 422,
-            ];
-        }
-
-        $user = optional(optional($bill->reading)->concessionaire)->user;
-        $name = trim((string) ($customer['name'] ?? $customer['payor'] ?? $user->name ?? $bill->payor_name ?? 'Sta. Rita Customer'));
-        $email = trim((string) ($customer['email'] ?? $user->email ?? ''));
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $email = 'srwdsystem2023@gmail.com';
-        }
-        $contact = $this->formatContact($customer['contact'] ?? $user->contact_no ?? null);
-
-        $reqId = (string) $bill->reference_no;
-        $billData['account_no'] = $this->accountNumber(
-            $billData,
-            $customer['account_no'] ?? optional($bill->reading)->account_no
-        );
-        $details = $this->checkoutDetails($billData, $reqId, $billAmount, $transactionFee);
-        $payload = [
-            'req_id' => $reqId,
-            'client_id' => $this->clientId(),
-            'amount' => round($amount, 2),
-            'description' => $details['description'],
-            'email' => $email,
-            'name' => $name,
-            'notification_url' => $this->notificationUrl(),
-            'redirect_url' => $this->redirectUrl($bill->id),
-            'enabled_channels' => config('services.novupay.enabled_channels', ['qrph']),
-            'cart' => $details['cart'],
-        ];
-
-        if ($details['param1'] !== '') {
-            $payload['param1'] = $details['param1'];
-        }
-        if ($details['param2'] !== '') {
-            $payload['param2'] = $details['param2'];
-        }
-
-        if ($contact) {
-            $payload['contact'] = $contact;
-        }
-
-        $created = $this->createCheckout($payload);
-        if (!$created['ok']) {
-            return $created;
-        }
-
-        $bill->update([
-            'payment_method' => 'online',
-            'initiated_at' => now(),
-            'novupay_req_id' => $reqId,
-            'novupay_uid' => $created['uid'] ?? null,
-        ]);
-
-        return [
-            'ok' => true,
-            'checkout_url' => $created['checkout_url'],
-            'uid' => $created['uid'] ?? null,
-            'req_id' => $reqId,
-            'amount' => round($amount, 2),
-        ];
-    }
-
-    /**
-     * POST /api/open/checkout/ — never send client_secret.
-     *
-     * @param  array<string, mixed>  $payload
-     * @return array{ok: bool, checkout_url?: string, uid?: string, message?: string, status?: int}
-     */
-    public function createCheckout(array $payload): array
-    {
-        unset($payload['client_secret'], $payload['api_key'], $payload['secret']);
-
-        try {
-            $response = $this->novuPayHttp([
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'x-api-key' => $this->apiKey(),
-            ], 30)->post($this->apiUrl() . '/api/open/checkout/', $payload);
-        } catch (Throwable $e) {
-            Log::error('NovuPay checkout request failed', [
-                'error' => $e->getMessage(),
-                'api_url' => $this->apiUrl(),
-            ]);
-
-            return [
-                'ok' => false,
-                'message' => 'Unable to reach NovuPay at ' . $this->apiUrl() . '.',
-                'status' => 502,
-            ];
-        }
-
-        if ($response->failed()) {
-            Log::error('NovuPay checkout API error', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-                'req_id' => $payload['req_id'] ?? null,
-            ]);
-
-            $message = $response->json('message') ?: 'Failed to create NovuPay checkout.';
-
-            return [
-                'ok' => false,
-                'message' => is_string($message) ? $message : 'Failed to create NovuPay checkout.',
-                'status' => $response->status() >= 400 ? $response->status() : 502,
-            ];
-        }
-
-        $data = $response->json();
-        $uid = is_array($data) ? ($data['uid'] ?? null) : null;
-        $checkoutUrl = $this->normalizeCheckoutUrl(
-            is_array($data) ? ($data['checkout_url'] ?? null) : null,
-            is_string($uid) ? $uid : null
-        );
-
-        if (!$checkoutUrl) {
-            Log::error('NovuPay checkout missing checkout_url', ['body' => $response->body()]);
-
-            return [
-                'ok' => false,
-                'message' => 'NovuPay did not return a checkout URL.',
+                'message' => $result['error'] ?? 'Failed to start NovuPay checkout.',
                 'status' => 502,
             ];
         }
 
         return [
             'ok' => true,
-            'checkout_url' => $checkoutUrl,
-            'uid' => is_string($uid) ? $uid : null,
+            'checkout_url' => $result['checkout_url'],
+            'uid' => $result['data']['uid'] ?? null,
+            'req_id' => $result['data']['req_id'] ?? null,
+            'amount' => $result['data']['amount'] ?? null,
         ];
-    }
-
-    /**
-     * GET /api/check_code/?client_id=&req_id=&mode=API
-     *
-     * @return array<string, mixed>|null
-     */
-    public function checkCode(string $reqId): ?array
-    {
-        if (!$this->isConfigured() || $reqId === '') {
-            return null;
-        }
-
-        try {
-            $response = $this->novuPayHttp([
-                'Accept' => 'application/json',
-                'x-api-key' => $this->apiKey(),
-            ], 15)->get($this->apiUrl() . '/api/check_code/', [
-                'client_id' => $this->clientId(),
-                'req_id' => $reqId,
-                'mode' => 'API',
-            ]);
-        } catch (Throwable $e) {
-            Log::warning('NovuPay check_code request failed', [
-                'req_id' => $reqId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return null;
-        }
-
-        if ($response->failed()) {
-            return $response->json() ?: null;
-        }
-
-        $data = $response->json();
-
-        return is_array($data) ? $data : null;
     }
 
     /**
@@ -371,31 +365,29 @@ class NovuPayCheckoutService
     {
         $reqId = (string) ($payload['req_id'] ?? '');
         $status = (string) ($payload['status'] ?? '');
-        $signature = isset($payload['signature']) ? (string) $payload['signature'] : null;
+        $signature = isset($payload['signature']) ? (string) $payload['signature'] : '';
 
-        if ($reqId === '' || $status === '') {
+        if ($reqId === '' || $status === '' || $signature === '') {
             return ['ok' => false, 'http' => 400, 'message' => 'Invalid payload'];
         }
 
-        if (!$this->signatureIsValid($reqId, $status, $signature)) {
+        if (!$this->client->verifyWebhookSignature($reqId, $status, $signature)) {
             Log::warning('NovuPay webhook signature mismatch', ['req_id' => $reqId]);
 
             return ['ok' => false, 'http' => 400, 'message' => 'Invalid signature'];
         }
 
         if (strtolower($status) !== 'paid') {
-            Log::info('NovuPay webhook ignored; status not paid', [
-                'req_id' => $reqId,
-                'status' => $status,
-            ]);
-
             return ['ok' => true, 'http' => 200, 'message' => 'Ignored'];
         }
 
+        $referenceNo = (string) (data_get($payload, 'extras.param1') ?? data_get($payload, 'param1') ?? '');
         $bill = $this->findBillByReqId($reqId);
-        if (!$bill) {
-            Log::warning('NovuPay webhook: bill not found', ['req_id' => $reqId]);
+        if (!$bill && $referenceNo !== '') {
+            $bill = $this->findBillByReference($referenceNo);
+        }
 
+        if (!$bill) {
             return ['ok' => false, 'http' => 404, 'message' => 'Bill not found'];
         }
 
@@ -403,7 +395,21 @@ class NovuPayCheckoutService
             return ['ok' => true, 'http' => 200, 'message' => 'Already paid'];
         }
 
-        $this->settleBill($bill, $payload);
+        $fulfilled = $this->fulfillPaidBill($bill, [
+            'req_id' => $reqId,
+            'amount' => $payload['amount'] ?? null,
+            'ref_code' => $payload['ref_code'] ?? null,
+            'name' => data_get($payload, 'name') ?? data_get($payload, 'extras.name') ?? $bill->payor_name,
+            'paid_at' => $payload['paid_at'] ?? now(),
+        ]);
+
+        if (empty($fulfilled['ok'])) {
+            return [
+                'ok' => false,
+                'http' => 422,
+                'message' => $fulfilled['message'] ?? 'Unable to settle bill',
+            ];
+        }
 
         return ['ok' => true, 'http' => 200, 'message' => 'Bill updated'];
     }
@@ -413,18 +419,17 @@ class NovuPayCheckoutService
      */
     public function completeOrder(int $billId): array
     {
-        $bill = Bill::with('reading.concessionaire.user')->findOrFail($billId);
+        $bill = Bill::with('reading')->findOrFail($billId);
 
-        if (!$bill->isPaid) {
-            $reqId = (string) ($bill->novupay_req_id ?: $bill->reference_no);
-            $remote = $this->checkCode($reqId);
-            $remoteStatus = strtolower((string) ($remote['status'] ?? ''));
-            if ($remoteStatus === 'paid') {
-                $this->settleBill($bill, [
-                    'req_id' => $reqId,
-                    'amount' => $remote['amount'] ?? null,
-                    'name' => optional(optional(optional($bill->reading)->concessionaire)->user)->name
-                        ?? $bill->payor_name,
+        if (!$bill->isPaid && !empty($bill->novupay_req_id)) {
+            $statusResult = $this->client->checkStatus((string) $bill->novupay_req_id);
+            $remoteStatus = strtolower((string) data_get($statusResult, 'data.status', ''));
+            if (!empty($statusResult['ok']) && $remoteStatus === 'paid') {
+                $this->fulfillPaidBill($bill, [
+                    'req_id' => $bill->novupay_req_id,
+                    'amount' => data_get($statusResult, 'data.amount'),
+                    'ref_code' => data_get($statusResult, 'data.ref_code'),
+                    'name' => $bill->payor_name,
                 ]);
                 $bill->refresh();
             }
@@ -438,65 +443,6 @@ class NovuPayCheckoutService
             'amount' => number_format((float) ($bill->amount_paid ?? $bill->total ?? 0), 2),
             'paid' => $paid,
         ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    public function settleBill(Bill $bill, array $payload = []): void
-    {
-        $reported = isset($payload['amount']) && is_numeric($payload['amount'])
-            ? (float) $payload['amount']
-            : null;
-
-        $payor = StaritaNovupayBillService::firstUsablePayor(
-            $payload['name'] ?? null,
-            $payload['buyer_name'] ?? null,
-            data_get($payload, 'extras.name'),
-            $bill->payor_name,
-            optional(optional(optional($bill->reading)->concessionaire)->user)->name
-        );
-
-        app(BillSettlementService::class)->settlePaidBillChain(
-            $bill,
-            [
-                'amount_paid' => $reported,
-                'payor_name' => $payor,
-                'date_paid' => now(),
-                'payment_method' => 'online',
-            ],
-            [
-                'payor_name' => $payor,
-                'date_paid' => now(),
-                'payment_method' => 'online',
-            ],
-            true
-        );
-
-        $bill->refresh();
-        $bill->update([
-            'novupay_req_id' => $bill->novupay_req_id ?: ($payload['req_id'] ?? $bill->reference_no),
-        ]);
-
-        app(StaritaNovupayBillService::class)->upsertFromLocalBill($bill);
-
-        Log::info('NovuPay: bill marked as paid', [
-            'bill_id' => $bill->id,
-            'reference_no' => $bill->reference_no,
-            'req_id' => $payload['req_id'] ?? $bill->novupay_req_id,
-        ]);
-    }
-
-    public function findBillByReqId(string $reqId): ?Bill
-    {
-        return Bill::query()
-            ->with('reading.concessionaire.user')
-            ->where(function ($q) use ($reqId) {
-                $q->where('novupay_req_id', $reqId)
-                    ->orWhere('reference_no', $reqId);
-            })
-            ->orderBy('id')
-            ->first();
     }
 
     /**
@@ -526,209 +472,95 @@ class NovuPayCheckoutService
     }
 
     /**
-     * Description, cart line items, and custom params shown on novu-pay.com checkout.
-     *
-     * @return array{description: string, cart: array<int, array{name: string, amount: float, quantity: int}>, param1: string, param2: string}
+     * The hosted checkout must be for this bill's amount due, not a smaller
+     * slice of it. A ₱10 NovuPay fee on a ₱160 checkout must not clear a ₱336 bill.
      */
-    public function checkoutDetails(array $billData, string $referenceNo, float $payable, float $transactionFee = 0.0): array
+    private function checkoutAmountMatchesBill(Bill $bill, float $storedAmount): bool
     {
-        $payable = round($payable, 2);
-        $penalty = PaymentController::resolveAppliedPenaltyAmount($billData);
-        $current = round(max($payable - $penalty, 0), 2);
-        $month = $this->billingMonthLabel($billData);
-        $accountNo = $this->accountNumber($billData);
-        $prefix = trim((string) config('services.novupay.description', 'Sta-Rita Water District bill'));
-        if ($prefix === '') {
-            $prefix = 'Sta-Rita Water District bill';
-        }
+        $candidates = array_unique(array_filter([
+            round((float) ($bill->total ?? 0), 2),
+            round(max((float) ($bill->total ?? 0) - BillSettlementService::numericBillAttribute($bill, 'discount'), 0), 2),
+            round((float) ($bill->amount ?? 0), 2),
+            round((float) ($bill->amount_after_due ?? 0), 2),
+        ], fn ($value) => $value > 0));
 
-        $parts = [$prefix];
-        if ($referenceNo !== '') {
-            $parts[] = 'Ref: ' . $referenceNo;
-        }
-        if ($accountNo !== '') {
-            $parts[] = 'Acct: ' . $accountNo;
-        }
-        if ($month !== '') {
-            $parts[] = $month;
-        }
-        $parts[] = 'Amount PHP ' . number_format($current, 2, '.', '');
-        if ($penalty > 0.001) {
-            $parts[] = 'Penalty PHP ' . number_format($penalty, 2, '.', '');
-        }
-        $transactionFee = round($transactionFee, 2);
-        if ($transactionFee > 0.001) {
-            $parts[] = 'Transaction fee PHP ' . number_format($transactionFee, 2, '.', '');
-        }
-
-        $description = implode(' | ', $parts);
-        if (mb_strlen($description) > 250) {
-            $description = rtrim(mb_substr($description, 0, 247)) . '...';
-        }
-
-        $billName = $month !== '' ? 'Water bill — ' . $month : 'Water bill';
-        if ($accountNo !== '') {
-            $billName .= ' (Acct: ' . $accountNo . ')';
-        }
-        $cart = [];
-        if ($current > 0.001) {
-            $cart[] = [
-                'name' => $billName,
-                'amount' => $current,
-                'quantity' => 1,
-            ];
-        }
-        if ($penalty > 0.001) {
-            $cart[] = [
-                'name' => 'Penalty fee',
-                'amount' => $penalty,
-                'quantity' => 1,
-            ];
-        }
-        if ($transactionFee > 0.001) {
-            $cart[] = [
-                'name' => 'Transaction fee',
-                'amount' => $transactionFee,
-                'quantity' => 1,
-            ];
-        }
-        if ($cart === []) {
-            $cart[] = [
-                'name' => $billName,
-                'amount' => $payable,
-                'quantity' => 1,
-            ];
-        }
-
-        $param2Parts = [];
-        if ($month !== '') {
-            $param2Parts[] = $month;
-        }
-        if ($accountNo !== '') {
-            $param2Parts[] = 'Acct: ' . $accountNo;
-        }
-
-        return [
-            'description' => $description,
-            'cart' => $cart,
-            'param1' => $referenceNo,
-            'param2' => implode(' | ', $param2Parts),
-        ];
-    }
-
-    public function accountNumber(array $billData, $fallback = null): string
-    {
-        $candidates = [
-            $billData['account_no'] ?? null,
-            data_get($billData, 'reading.account_no'),
-            data_get($billData, 'client.account_no'),
-            $fallback,
-        ];
-
-        foreach ($candidates as $value) {
-            $value = trim((string) $value);
-            if ($value !== '' && $value !== '-') {
-                return $value;
+        foreach ($candidates as $candidate) {
+            if (abs($candidate - $storedAmount) < 0.06) {
+                return true;
             }
         }
 
-        return '';
+        return false;
     }
 
-    public function billingMonthLabel(array $billData): string
+    private function placeholderCustomerEmail(): string
     {
-        $raw = $billData['bill_period_to'] ?? $billData['bill_period_from'] ?? null;
-        if ($raw === null || $raw === '') {
-            return '';
-        }
-
-        try {
-            return Carbon::parse($raw)->timezone('Asia/Manila')->format('F Y');
-        } catch (Throwable $e) {
-            return '';
-        }
+        return 'srwdsystem2023@gmail.com';
     }
 
-    private function apiUrl(): string
+    private function isUsableCustomerEmail(?string $email): bool
     {
-        return rtrim((string) config('services.novupay.api_url'), '/');
-    }
-
-    /**
-     * Keep Host/SNI as api.novu-pay.com. Optionally pin the TCP IP when LAN
-     * clients cannot hairpin the public VIP (not a DNS change).
-     *
-     * @param  array<string, string>  $headers
-     */
-    private function novuPayHttp(array $headers, int $timeout)
-    {
-        $pending = Http::timeout($timeout)->withHeaders($headers);
-        $ip = trim((string) config('services.novupay.api_resolve', ''));
-        $host = parse_url($this->apiUrl(), PHP_URL_HOST);
-
-        if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP) && is_string($host) && $host !== '') {
-            $pending = $pending->withOptions([
-                'curl' => [
-                    CURLOPT_RESOLVE => [
-                        sprintf('%s:443:%s', $host, $ip),
-                        sprintf('%s:80:%s', $host, $ip),
-                    ],
-                ],
-            ]);
-        }
-
-        return $pending;
-    }
-
-    private function checkoutBase(): string
-    {
-        $default = 'https://novu-pay.com';
-        $base = rtrim((string) config('services.novupay.checkout_base', $default), '/');
-        $host = strtolower((string) parse_url($base, PHP_URL_HOST));
-
-        if ($host === 'www.novu-pay.com' || $host === 'novu-pay.com') {
-            return $default;
-        }
-
-        if ($this->isAllowedCheckoutHost($host)) {
-            return $base;
-        }
-
-        return $default;
-    }
-
-    private function isAllowedCheckoutHost(string $host): bool
-    {
-        if ($host === '' || str_ends_with($host, '.novu-pay.com')) {
+        $email = trim((string) $email);
+        if ($email === '' || strcasecmp($email, $this->placeholderCustomerEmail()) === 0) {
             return false;
         }
 
-        return in_array($host, [
-            'novu-pay.com',
-            'www.novu-pay.com',
-            'novupay-staging-app-fe.novulutions.com',
-        ], true);
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
     }
 
-    private function apiKey(): string
+    /**
+     * Use the concessionaire account email when one is set up.
+     * srwdsystem2023@gmail.com is only for accounts that have no email yet.
+     */
+    private function chooseCustomerEmail(?string $supplied, string $accountNo): string
     {
-        $key = trim((string) config('services.novupay.api_key'));
-
-        // Link Store sometimes labels the key as "key-<32 hex>". The API stores the hex only.
-        if (str_starts_with($key, 'key-')) {
-            $key = substr($key, 4);
+        $accountEmail = $this->lookupAccountEmail($accountNo);
+        if ($accountEmail !== null) {
+            return $accountEmail;
         }
 
-        return $key;
+        $supplied = trim((string) $supplied);
+        if ($this->isUsableCustomerEmail($supplied)) {
+            return $supplied;
+        }
+
+        return $this->placeholderCustomerEmail();
     }
 
-    private function clientId(): string
+    private function lookupAccountEmail(string $accountNo): ?string
     {
-        return trim((string) config('services.novupay.client_id'));
+        if ($accountNo === '') {
+            return null;
+        }
+
+        try {
+            $email = DB::table('concessioner_accounts as ca')
+                ->leftJoin('users as u', 'u.id', '=', 'ca.user_id')
+                ->where('ca.account_no', $accountNo)
+                ->value('u.email');
+
+            $email = trim((string) $email);
+
+            return $this->isUsableCustomerEmail($email) ? $email : null;
+        } catch (\Throwable $e) {
+            Log::warning('NovuPay checkout: account email lookup failed', [
+                'account_no' => $accountNo,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
-    private function clientSecret(): string
+    private function checkoutEmailCacheKey(string $reqId): string
     {
-        return trim((string) config('services.novupay.client_secret'));
+        return 'novupay.checkout_email.' . $reqId;
+    }
+
+    private function checkoutEmailMatches(string $reqId, string $email): bool
+    {
+        $previous = Cache::get($this->checkoutEmailCacheKey($reqId));
+
+        return is_string($previous) && strcasecmp($previous, $email) === 0;
     }
 }

@@ -36,6 +36,8 @@
                                         <select name="senior_filter" id="senior_filter" class="form-select text-uppercase dropdown-toggle">
                                             <option value="all">All Accounts</option>
                                             <option value="senior">Senior</option>
+                                            <option value="active">Active Accounts</option>
+                                            <option value="inactive">Inactive Accounts</option>
                                         </select>
 
                                         @error('senior_filter')
@@ -416,7 +418,7 @@
                         `);
                         $('.concessionaire-result').html(`
                             <div class="text-uppercase fw-bold text-muted fst-italic mb-2">
-                                Accounts Found: 0
+                                Accounts Found: 0/${total}
                             </div>
                         `);
                     }
@@ -426,7 +428,7 @@
 
                 $('.concessionaire-result').html(`
                     <div class="text-uppercase fw-bold text-muted fst-italic mb-2" data-count="${total}">
-                        Accounts Found: ${total}
+                        Accounts Found: ${data.length}/${total}
                     </div>
                 `);
 
@@ -488,15 +490,8 @@
                                 ${dot}
                                 <h5 class="card-title mb-0 fw-normal d-flex align-items-center gap-2">
                                     <span style="
-                                        width: 28px;
-                                        height: 28px;
-                                        min-width: 28px;
-                                        border-radius: 50%;
-                                        display: inline-flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        background-color: #32667e;
-                                        color: #fff;
+                                        min-width: 2.5em;
+                                        color: #32667e;
                                         font-size: 13px;
                                         font-weight: 700;
                                     ">${index + 1}</span>

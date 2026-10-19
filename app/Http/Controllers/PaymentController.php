@@ -51,6 +51,19 @@ class PaymentController extends Controller
     }
 
     /**
+     * HitPay is disabled while Sta. Rita migrates SOA checkout to NovuPay.
+     */
+    public static function isHitpayEnabled(): bool
+    {
+        return filter_var(env('HITPAY_ENABLED', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public static function buildNovupayCheckoutUrl(string $referenceNo): string
+    {
+        return rtrim((string) env('NOVUPAY_URL'), '/') . '/payment-checkout/srwd/' . rawurlencode($referenceNo);
+    }
+
+    /**
      * When true (default), past-due SOA QR continues to HitPay with penalty.
      * When false, QR is voided (legacy behavior). Aligns with NovuPay DUE_DATE_QR_PENALTY.
      */
@@ -159,10 +172,22 @@ class PaymentController extends Controller
             return $base;
         }
 
+        $storedAmount = isset($billData['amount']) && is_numeric($billData['amount'])
+            ? round((float) $billData['amount'], 2)
+            : 0.0;
+        $penalty = (float) ($billData['penalty'] ?? 0);
         $afterDue = isset($billData['amount_after_due']) && is_numeric($billData['amount_after_due'])
             ? round((float) $billData['amount_after_due'], 2)
             : 0.0;
-        $penalty = (float) ($billData['penalty'] ?? 0);
+
+        if ($penalty > 0) {
+            $single = round($base + $penalty, 2);
+            $doubled = round($base + ($penalty * 2), 2);
+            // Reading save used to add the penalty again onto amount_after_due.
+            if (abs($afterDue - $doubled) < 0.05 && abs($storedAmount - $single) < 0.05) {
+                return $single;
+            }
+        }
 
         if ($afterDue > $base + 0.001) {
             return $afterDue;
@@ -194,14 +219,40 @@ class PaymentController extends Controller
         }
 
         if (self::isSoaQrVoided($billData)) {
+            $existingBill = Bill::where('reference_no', $referenceNo)->first();
+            if ($existingBill && !empty($existingBill->hitpay_payment_id) && self::isHitpayEnabled()) {
+                $this->deleteHitpayPaymentRequest($existingBill);
+                $existingBill->update([
+                    'hitpay_reference' => null,
+                    'hitpay_payment_id' => null,
+                    'initiated_at' => null,
+                ]);
+            }
+
             return [
                 'url' => route('payments.qr-voided', ['reference_no' => $referenceNo]),
                 'voided' => true,
             ];
         }
 
+        if (!self::isHitpayEnabled()) {
+            return [
+                'url' => self::buildNovupayCheckoutUrl($referenceNo),
+                'voided' => false,
+            ];
+        }
+
+        $hitpayData = $this->createHitpayPaymentRequest($referenceNo, $paymentPayload);
+        if ($hitpayData && !empty($hitpayData['url'])) {
+            return [
+                'url' => $hitpayData['url'],
+                'voided' => false,
+                'hitpay' => $hitpayData,
+            ];
+        }
+
         return [
-            'url' => $this->novuPayCheckoutService->checkoutStartUrl($referenceNo),
+            'url' => self::buildNovupayCheckoutUrl($referenceNo),
             'voided' => false,
         ];
     }
@@ -674,11 +725,11 @@ class PaymentController extends Controller
         $advancePayment = (float) ($currentBillData['advances'] ?? 0);
         $partialPayment = (float) ($currentBillData['partial_payment'] ?? 0);
         $dueDatePenalty = 0;
-        $dueDate = $currentBillData['due_date'] ?? null;
         $tax = (float) ($currentBillData['tax'] ?? 0);
 
+        // Penalty starts the calendar day after due date. today > due date is that day.
         $dueDate = isset($currentBillData['due_date'])
-            ? \Carbon\Carbon::parse(trim($currentBillData['due_date']))->addDay()
+            ? \Carbon\Carbon::parse(trim($currentBillData['due_date']))
                 ->timezone('Asia/Manila')
                 ->startOfDay()
             : null;
@@ -938,12 +989,23 @@ class PaymentController extends Controller
             ]);
         }
 
-        $dueDate = \Carbon\Carbon::parse($currentBill->due_date)->addDay();
-        $isOverdue = now()->greaterThan($dueDate);
+        $isOverdue = self::isPastDue([
+            'due_date' => $currentBill->due_date,
+        ]);
 
-        $collectible = $isOverdue
-            ? (float)$currentBill->amount_after_due
-            : (float)$currentBill->total - $discount;
+        $baseCollectible = round(max((float) $currentBill->total - $discount, 0), 2);
+        $storedPenalty = (float) $currentBill->penalty;
+        $storedAfterDue = (float) $currentBill->amount_after_due;
+        $collectible = $isOverdue ? $storedAfterDue : $baseCollectible;
+
+        if (
+            $isOverdue
+            && $storedPenalty > 0
+            && abs($storedAfterDue - round($baseCollectible + ($storedPenalty * 2), 2)) < 0.05
+            && abs((float) $currentBill->amount - round($baseCollectible + $storedPenalty, 2)) < 0.05
+        ) {
+            $collectible = round($baseCollectible + $storedPenalty, 2);
+        }
 
         $alreadyPaid = (float)$currentBill->amount_paid + (float)$currentBill->partial_payment;
 
@@ -1055,12 +1117,83 @@ class PaymentController extends Controller
 
     public function processOnlinePayment(string $reference_no, array $payload)
     {
-        $result = $this->novuPayCheckoutService->startForReference($reference_no, [
-            'payor' => $payload['payor'] ?? null,
-            'name' => $payload['name'] ?? ($payload['payor'] ?? null),
-            'email' => $payload['email'] ?? null,
-            'contact' => $payload['contact'] ?? null,
-            'account_no' => $payload['account_no'] ?? null,
+        $billResult = $this->getBill($reference_no, $payload, false);
+        $billData = $billResult['data']['current_bill'] ?? null;
+        if ($billData && !empty($billData['isPaid'])) {
+            $completedId = $billData['hitpay_payment_id'] ?? $billData['hitpay_reference'] ?? null;
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $completedId ? self::buildHitpayCompletedUrl($completedId) : null,
+            ]);
+        }
+
+        if ($billData && self::isSoaQrVoided($billData)) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Online payment is no longer available for this bill because it is past the due date. Please visit the district office or request an updated SOA.',
+            ]);
+        }
+
+        if (!self::isHitpayEnabled()) {
+            $customer = [
+                'name' => $payload['payor'] ?? data_get($billResult, 'data.client.name') ?? 'Sta. Rita Customer',
+                'email' => $payload['email'] ?? data_get($billResult, 'data.client.email') ?? 'srwdsystem2023@gmail.com',
+                'contact' => $payload['contact'] ?? $payload['contact_no'] ?? data_get($billResult, 'data.client.contact_no'),
+                'account_no' => $payload['account_no'] ?? data_get($billResult, 'data.client.account_no'),
+            ];
+
+            $checkout = $this->novuPayCheckoutService->startCheckout(
+                $reference_no,
+                $billData ?? [],
+                $customer
+            );
+
+            if (!$checkout['ok'] || empty($checkout['checkout_url'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => $checkout['error'] ?? 'Failed to initiate NovuPay checkout.',
+                ]);
+            }
+
+            return redirect()->away((string) $checkout['checkout_url']);
+        }
+
+        // 🔹 Call your existing helper method
+        $hitpayData = $this->createHitpayPaymentRequest($reference_no, $payload);
+
+        // 🔹 Handle error from HitPay
+        if (!$hitpayData || empty($hitpayData['url'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'Failed to generate HitPay payment request.',
+            ]);
+        }
+
+        if (!empty($hitpayData['already_paid'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'success',
+                'message' => 'This bill has already been paid. No further online payment is required.',
+                'redirect' => $hitpayData['url'],
+            ]);
+        }
+
+        // 🔹 Update Bill record (optional, if you want to track the HitPay ID)
+        $bill = \App\Models\Bill::where('reference_no', $reference_no)->first();
+        if ($bill) {
+            $bill->update([
+                'payment_method' => 'online',
+                'initiated_at' => now(),
+                'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                'hitpay_payment_id' => $hitpayData['id'] ?? null,
+            ]);
+        }
+
+        // 🔹 Redirect with success message + payment link
+        return redirect()->back()->with('alert', [
+            'status' => 'success',
+            'payment_request' => true,
+            'redirect' => $hitpayData['url'],
         ]);
 
         if (!empty($result['already_paid']) && !empty($result['complete_url'])) {
@@ -1088,6 +1221,14 @@ class PaymentController extends Controller
      */
     public function createHitpayPaymentRequest(string $reference_no, array $payload): ?array
     {
+        if (!self::isHitpayEnabled()) {
+            \Log::info('HitPay request skipped: HITPAY_ENABLED=false', [
+                'reference_no' => $reference_no,
+            ]);
+
+            return null;
+        }
+
         try {
             $existingBill = Bill::where('reference_no', $reference_no)->first();
 

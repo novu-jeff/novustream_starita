@@ -109,6 +109,12 @@ class MeterService {
             });
         }
 
+        if (($filter['senior_filter'] ?? null) === 'active') {
+            $query->where('status', 'AB');
+        } elseif (($filter['senior_filter'] ?? null) === 'inactive') {
+            $query->whereIn('status', ['ID', 'IV', 'BL']);
+        }
+
         if (!empty($filter['search_by'])) {
             switch ($filter['search_by']) {
                 case 'all':
@@ -212,10 +218,8 @@ class MeterService {
         }
 
         $data = $accountsQuery->get();
-        $shownCount = $limit === null ? $total : min($total, $limit);
-
         return [
-            'total' => $shownCount,
+            'total' => $total,
             'data'  => $data
         ];
     }

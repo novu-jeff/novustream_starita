@@ -43,6 +43,8 @@ class BillSettlementServiceTest extends TestCase
     {
         $this->assertSame(13.7, BillSettlementService::convenienceFeeForBillAmount(160, 10));
         $this->assertTrue(BillSettlementService::looksLikeCheckoutTotal(160, 173.7));
+        $this->assertTrue(BillSettlementService::looksLikeCheckoutTotal(202, 212));
+        $this->assertFalse(BillSettlementService::looksLikeCheckoutTotal(336, 170));
     }
 
     public function test_ong_convenience_fee_is_23_40_on_580_58(): void

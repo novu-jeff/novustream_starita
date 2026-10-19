@@ -976,7 +976,7 @@ class ReadingController extends Controller
 
         $bill->update([
             'penalty' => $penaltyAmount,
-            'amount' => $amountDue + $penaltyAmount,
+            'amount' => $amountAfterDue,
             'discount' => $totalDiscount,
             'amount_after_due' => $amountAfterDue,
             'hasPenalty' => $penaltyAmount > 0,

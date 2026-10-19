@@ -3,7 +3,11 @@
 
 @section('base')
 @php
-    // dd($payload);
+    $status = strtolower($payload['status'] ?? 'unknown');
+    $isSuccess = in_array($status, ['paid', 'completed', 'succeeded'], true);
+    $isPending = in_array($status, ['pending', 'processing'], true);
+    $iconClass = $isSuccess ? 'success' : ($isPending ? 'pending' : 'error');
+    $pillClass = $isSuccess ? '' : ($isPending ? 'pending' : 'error');
 @endphp
 
 <style>
@@ -162,6 +166,10 @@
 
 <div class="outer-wrapper">
     <div class="inner-wrapper">
+        <div class="brand-mark">
+            <img class="logo-starita" src="{{ asset('images/client1nobg.png') }}" alt="Sta. Rita Water District">
+        </div>
+
         <div class="wrapper">
             <div class="top">
                 <div class="icon {{ in_array(strtolower($payload['status']), ['paid', 'completed', 'succeeded']) ? 'success' : 'error' }}">
@@ -194,7 +202,7 @@
 
                     <div class="items">
                         <div>Payment Status:</div>
-                        <div>{{ ucwords($payload['status'] ?? 'Unknown') }}</div>
+                        <div><span class="status-pill {{ $pillClass }}">{{ ucwords($status === 'unknown' ? ($payload['status'] ?? 'Unknown') : $status) }}</span></div>
                     </div>
 
                     <div class="items">
@@ -284,6 +292,15 @@
                 </div>
             </div>
         @endif
+
+        <div class="powered">
+            <div class="powered-by">
+                <span>Powered by</span>
+                <img class="logo-novulutions" src="{{ asset('images/novulutions-logo.png') }}" alt="Novulutions">
+            </div>
+            <img class="logo-novupay" src="{{ asset('images/novupay-logo.png') }}" alt="NovuPay">
+            <img class="logo-novustream" src="{{ asset('images/novustreamlogo.png') }}" alt="NovuStream">
+        </div>
     </div>
 </div>
 @endsection
