@@ -623,11 +623,9 @@ $(function () {
     const reference = $(this).data('reference');
     if (!reference) return;
 
-    alert('Note: Online payments have a service fee.');
-
     $('#payment_type').val('online');
 
-    const url = "{{ url('admin/payments/process') }}/" + reference;
+    const url = @json(url('concessionaire/my/pay')) + '/' + encodeURIComponent(reference);
     $('#paymentForm').attr('action', url);
 
     $('#paymentForm').submit();

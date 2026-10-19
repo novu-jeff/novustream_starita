@@ -36,6 +36,8 @@
                                         <select name="senior_filter" id="senior_filter" class="form-select text-uppercase dropdown-toggle">
                                             <option value="all">All Accounts</option>
                                             <option value="senior">Senior</option>
+                                            <option value="active">Active Accounts</option>
+                                            <option value="inactive">Inactive Accounts</option>
                                         </select>
 
                                         @error('senior_filter')
@@ -51,6 +53,8 @@
                                             <option value="500"> 500 </option>
                                             <option value="700"> 700 </option>
                                             <option value="1000"> 1000 </option>
+                                            <option value="5000"> 5000 </option>
+                                            <option value="all"> All </option>
                                         </select>
                                         @error('filter')
                                             <div class="invalid-feedback">{{ $message }}</div>
@@ -93,7 +97,7 @@
             </div>
         </div>
         <div class="modal fade " id="accountModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="accountModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered text-uppercase" da>
+            <div class="modal-dialog modal-dialog-centered text-uppercase">
                 <div class="modal-content text-uppercase">
                     <div class="modal-header px-4 text-uppercase">
                         <h5 class="modal-title text-uppercase" id="accountModalLabel"></h5>
@@ -112,6 +116,154 @@
         .h-extend {
             height: 50px;
         }
+
+        /* Reading page visual theme only. JavaScript and workflow functions remain unchanged. */
+        .reading-page-filters,
+        .responsive-wrapper .inner-content > .d-md-flex > .mb-5 > .card {
+            border: 1px solid var(--module-blue-border, #dbe7f8) !important;
+            border-radius: 18px !important;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(25, 61, 112, .06) !important;
+        }
+
+        #zone_no, #senior_filter, #filter, #search_by, #search,
+        #accountModal .form-control,
+        #readUnreadModal .form-control {
+            min-height: 44px;
+            border: 1px solid var(--module-border, #d9e3f1);
+            border-radius: 10px;
+            color: #32667e;
+            background-color: #fff;
+        }
+
+        #zone_no:focus, #senior_filter:focus, #filter:focus, #search_by:focus, #search:focus,
+        #accountModal .form-control:focus {
+            border-color: var(--module-blue, #32667e);
+            box-shadow: 0 0 0 .2rem rgba(37, 99, 235, .12);
+        }
+
+        .responsive-wrapper .form-label {
+            color: #32667e;
+            font-size: .84rem;
+            font-weight: 700;
+            margin-bottom: .45rem;
+        }
+
+        .concessionaire-result {
+            border: 1px solid var(--module-border, #d9e3f1);
+            border-radius: 12px;
+            padding: 12px 16px !important;
+            margin-bottom: 12px;
+            background: #f7faff !important;
+        }
+
+        .concessionaire-list {
+            padding: 2px 5px 12px 2px;
+            scrollbar-color: #b8ccec #f2f6fc;
+            scrollbar-width: thin;
+        }
+
+        .concessionaire-list .account-card,
+        #readUnreadModal .card {
+            border: 1px solid var(--module-border, #d9e3f1) !important;
+            border-radius: 14px !important;
+            overflow: hidden;
+            box-shadow: 0 4px 14px rgba(25, 61, 112, .06) !important;
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+
+        .concessionaire-list .account-card:hover,
+        #readUnreadModal .card:hover {
+            border-color: var(--module-blue-border, #b9d0f4) !important;
+            box-shadow: 0 8px 20px rgba(37, 99, 235, .1) !important;
+        }
+
+        .concessionaire-list .account-card .card-body {
+            padding: 18px;
+        }
+
+        .concessionaire-list .account-card h4 {
+            color: #32667e;
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: .4rem;
+        }
+
+        .concessionaire-list .account-card h5,
+        .concessionaire-list .account-card .card-title {
+            color: #32667e;
+            font-size: .88rem;
+        }
+
+        .concessionaire-list .account-card hr {
+            border-color: #e4ebf5;
+            opacity: 1;
+        }
+
+        #accountModal .modal-content,
+        #readUnreadModal .modal-content {
+            border: 1px solid var(--module-blue-border, #dbe7f8);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 18px 50px rgba(20, 45, 85, .18);
+        }
+
+        #accountModal .modal-header,
+        #readUnreadModal .modal-header {
+            border-bottom: 1px solid var(--module-border, #d9e3f1);
+            background: #f5f8ff;
+            color: #32667e;
+        }
+
+        #accountModal .modal-title,
+        #readUnreadModal .modal-title {
+            font-weight: 700;
+        }
+
+        #readUnreadTabs .nav-link {
+            border-radius: 9px;
+            color: #32667e;
+            font-weight: 700;
+        }
+
+        #readUnreadTabs .nav-link.active {
+            background: var(--module-blue, #32667e);
+            color: #fff;
+        }
+
+        #accountModal .btn-primary,
+        #readUnreadModal .btn-primary {
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        #accountModal .alert-warning {
+            border: 1px solid #f4d58b;
+            border-radius: 10px;
+        }
+
+        @media (max-width: 767.98px) {
+            .responsive-wrapper .inner-content > .d-md-flex {
+                gap: 0 !important;
+            }
+
+            .responsive-wrapper .inner-content > .d-md-flex > .mb-5 {
+                margin-bottom: 1rem !important;
+            }
+
+            .concessionaire-list {
+                max-height: 55vh !important;
+            }
+
+            #accountModal .modal-body,
+            #readUnreadModal .modal-body {
+                padding: 1rem !important;
+            }
+
+            #accountModal .btn-primary {
+                width: 100%;
+            }
+        }
     </style>
 @endsection
 
@@ -119,7 +271,7 @@
 <script>
     let selectedAccountNo = null;
     let offset = 0;
-    const limit = 50;
+    let limit = 50;
     let isLoading = false;
     let hasMoreData = true;
     let didScrollToPreviousAccount = false;
@@ -233,6 +385,7 @@
             const zone = $('#zone_no').val();
             const seniorFilter = $('#senior_filter').val();
             const filter = $('#filter').val();
+            limit = filter === 'all' ? null : Number(filter);
             const searchBy = $('#search_by').val();
             const search = $('#search').val();
 
@@ -242,7 +395,7 @@
                 filter,
                 search_by: searchBy,
                 search,
-                offset,
+                offset: 0,
                 limit
             }, function (res) {
                 isLoading = false;
@@ -265,7 +418,7 @@
                         `);
                         $('.concessionaire-result').html(`
                             <div class="text-uppercase fw-bold text-muted fst-italic mb-2">
-                                Accounts Found: 0
+                                Accounts Found: 0/${total}
                             </div>
                         `);
                     }
@@ -275,7 +428,7 @@
 
                 $('.concessionaire-result').html(`
                     <div class="text-uppercase fw-bold text-muted fst-italic mb-2" data-count="${total}">
-                        Accounts Found: ${total}
+                        Accounts Found: ${data.length}/${total}
                     </div>
                 `);
 
@@ -335,12 +488,22 @@
                             data-account='${JSON.stringify(account)}'>
                             <div class="card-body">
                                 ${dot}
-                                <h5 class="card-title mb-0 fw-normal">Account No: ${account.account_no}</h5>
+                                <h5 class="card-title mb-0 fw-normal d-flex align-items-center gap-2">
+                                    <span style="
+                                        min-width: 2.5em;
+                                        color: #32667e;
+                                        font-size: 13px;
+                                        font-weight: 700;
+                                    ">${index + 1}</span>
+                                    <span>Account No: ${account.account_no}</span>
+                                </h5>
                                 <hr class="my-2 mb-2">
                                 <h5 class="fw-normal">Meter No: ${account.meter_serial_no}</h5>
                                 <h4>${account.user ? account.user.name : 'N/A'}</h4>
                                 <h5 class="fw-normal text-capitalize">${account.address ?? 'N/A'}</h5>
-                                <div class="mt-2 small text-muted fw-bold text-uppercase">${statusName}</div>
+                                <div class="mt-2 small fw-bold text-uppercase" style="color: #32667e;">
+                                    ${statusName}
+                                </div>
                             </div>
                         </div>
                     `;
@@ -348,11 +511,8 @@
                     $('.concessionaire-list').append(html);
                 });
 
-                offset += data.length;
-
-                if (data.length < limit) {
-                    hasMoreData = false;
-                }
+                offset = data.length;
+                hasMoreData = false;
 
                 // After appending all cards
                 $('.account-card').off('click').on('click', function () {
@@ -720,13 +880,6 @@
                 fetchAccountData();
             }, 400);
             $(this).data('timer', wait);
-        });
-
-        $('.concessionaire-list').on('scroll', function () {
-            const $list = $(this);
-            if ($list.scrollTop() + $list.innerHeight() >= $list[0].scrollHeight - 20) {
-                fetchAccountData(true);
-            }
         });
 
         $(document).on('change', 'input[name="is_high_consumption"]', function() {

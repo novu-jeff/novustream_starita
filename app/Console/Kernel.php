@@ -19,6 +19,12 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(2)
             ->appendOutputTo($syncLog)
             ->runInBackground();
+
+        $schedule->command('novupay:reconcile-paid --limit=100')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(4)
+            ->appendOutputTo($syncLog)
+            ->runInBackground();
     }
 
     /**
