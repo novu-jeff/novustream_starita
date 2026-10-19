@@ -266,7 +266,7 @@
                             <section id="{{ $section['id'] }}" class="guide-section card shadow-sm">
                                 <div class="card-body p-4 p-md-5">
                                     <h2 class="guide-section-heading">
-                                        <span class="guide-section-number">{{ $loop->iteration }}</span>
+                                        <span class="guide-section-number"></span>
                                         {{ $section['heading'] }}
                                     </h2>
                                     <div class="guide-copy">

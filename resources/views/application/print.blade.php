@@ -248,6 +248,95 @@
             color: #0d6efd;
         }
 
+        .pdf-export .columns,
+        .pdf-export .signature-grid,
+        .pdf-export .reading-grid,
+        .pdf-export .or-grid,
+        .pdf-export .charge-row,
+        .pdf-export .line-row {
+            display: block;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .pdf-export .columns > div,
+        .pdf-export .signature-grid > div,
+        .pdf-export .reading-grid > div,
+        .pdf-export .or-grid > div,
+        .pdf-export .charge-row > span,
+        .pdf-export .charge-row > strong,
+        .pdf-export .line-row > * {
+            display: inline-block;
+            vertical-align: bottom;
+        }
+
+        .pdf-export .columns > div {
+            float: left;
+            width: 49%;
+            padding-right: 4mm;
+        }
+
+        .pdf-export .signature-grid > div {
+            float: left;
+            width: 72%;
+        }
+
+        .pdf-export .signature-grid > div + div {
+            width: 28%;
+        }
+
+        .pdf-export .reading-grid > div {
+            float: left;
+            width: 75%;
+        }
+
+        .pdf-export .reading-grid > div + div {
+            width: 25%;
+        }
+
+        .pdf-export .or-grid > div {
+            float: left;
+            width: 33%;
+        }
+
+        .pdf-export .charge-row > :first-child {
+            width: 70%;
+        }
+
+        .pdf-export .charge-row > :last-child {
+            width: 28%;
+        }
+
+        .pdf-export .line-row > .label {
+            width: 36%;
+            white-space: nowrap;
+        }
+
+        .pdf-export .line-row > .line {
+            width: 60%;
+        }
+
+        .pdf-export .check-row {
+            display: block;
+        }
+
+        .pdf-export .check-row .box {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .pdf-export .application-paper {
+            margin: 0;
+        }
+
+        .pdf-export .header h2 {
+            margin-bottom: 3rem;
+        }
+
+        .pdf-export .control-nos {
+            margin-top: 6rem;
+        }
+
         th,
         td {
             border: 1px solid #000;
@@ -262,8 +351,8 @@
 
         @media print {
     @page {
-        size: A4;
-        margin: 8mm;
+        size: letter;
+        margin: 0;
     }
 
     .application-paper {
@@ -273,11 +362,15 @@
         padding: 3mm 4mm;  /* small residual padding instead of 0 */
         border: none;
     }
+
+    .review-toolbar {
+        display: none !important;
+    }
 }
     </style>
 </head>
-<body>
-    @if(!($autoPrint ?? true))
+<body class="{{ !empty($pdfExport) ? 'pdf-export' : '' }}">
+    @if(!($autoPrint ?? true) && empty($pdfExport))
         <div class="review-toolbar">
             <a href="{{ route('account-overview.index') }}" class="btn btn-primary fw-bold text-uppercase">Back to Overview</a>
             <a href="{{ route('application.create') }}" class="btn btn-primary fw-bold text-uppercase">Review Form</a>
@@ -293,15 +386,15 @@
             <h2>APPLICATION FOR SERVICE CONNECTION</h2>
 
             <div class="control-nos">
-                <div class="line-row"><span class="label">S.C. No.</span><span class="line" data-print-value="sc_no"></span></div>
-                <div class="line-row"><span class="label">Meter No.</span><span class="line" data-print-value="meter_no"></span></div>
-                <div class="line-row"><span class="label">Account No.</span><span class="line" data-print-value="account_no"></span></div>
+                <div class="line-row"><span class="label">S.C. No.</span><span class="line" data-print-value="sc_no">{{ $printData['sc_no'] ?? '' }}</span></div>
+                <div class="line-row"><span class="label">Meter No.</span><span class="line" data-print-value="meter_no">{{ $printData['meter_no'] ?? '' }}</span></div>
+                <div class="line-row"><span class="label">Account No.</span><span class="line" data-print-value="account_no">{{ $printData['account_no'] ?? '' }}</span></div>
             </div>
         </header>
 
         <div class="line-row top-phone">
             <span class="label">CELLPHONE NUMBER</span>
-            <span class="line" data-print-value="cellphone"></span>
+            <span class="line" data-print-value="cellphone">{{ $printData['cellphone'] ?? '' }}</span>
         </div>
 
         <section class="columns">
@@ -309,32 +402,32 @@
                 <div class="section">
                     <div class="line-row">
                         <span class="label">APPLICANT'S NAME</span>
-                        <span class="line" data-print-value="applicant_name"></span>
+                        <span class="line" data-print-value="applicant_name">{{ $printData['applicant_name'] ?? '' }}</span>
                     </div>
                 </div>
 
                 <div class="section">
                     <div class="section-title">SERVICE ADDRESS</div>
-                    <div class="line" style="min-height: 22px;" data-print-value="service_address"></div>
+                    <div class="line" style="min-height: 22px;" data-print-value="service_address">{{ $printData['service_address'] ?? '' }}</div>
                 </div>
 
                 <div class="section">
                     <div class="section-title">I hereby apply for:</div>
-                    <div class="check-row"><span class="box" data-radio-value="Water Service Connection"></span>Water Service Connection</div>
-                    <div class="check-row"><span class="box" data-radio-value="Relocation of Service Line"></span>Relocation of Service Line</div>
-                    <div class="check-row"><span class="box" data-radio-value="Replacement of Pipe"></span>Replacement of Pipe</div>
+                    <div class="check-row"><span class="box" data-radio-value="Water Service Connection">{{ ($printData['application_type'] ?? '') === 'Water Service Connection' ? 'X' : '' }}</span>Water Service Connection</div>
+                    <div class="check-row"><span class="box" data-radio-value="Relocation of Service Line">{{ ($printData['application_type'] ?? '') === 'Relocation of Service Line' ? 'X' : '' }}</span>Relocation of Service Line</div>
+                    <div class="check-row"><span class="box" data-radio-value="Replacement of Pipe">{{ ($printData['application_type'] ?? '') === 'Replacement of Pipe' ? 'X' : '' }}</span>Replacement of Pipe</div>
                 </div>
 
                 <div class="section">
-                    <div class="line-row"><span class="label">Connection Size</span><span class="line" data-print-value="connection_size"></span></div>
-                    <div class="line-row"><span class="label">Installation Location</span><span class="line" data-print-value="installation_location"></span></div>
+                    <div class="line-row"><span class="label">Connection Size</span><span class="line" data-print-value="connection_size">{{ $printData['connection_size'] ?? '' }}</span></div>
+                    <div class="line-row"><span class="label">Installation Location</span><span class="line" data-print-value="installation_location">{{ $printData['installation_location'] ?? '' }}</span></div>
                 </div>
 
                 <p class="note">I understand the connection will not be made until it is approved and all charges are paid. I assume responsibility for the meter and all water passing through the connection. I will conform to the rules and regulations of Sta. Rita Water District.</p>
 
                 <div class="signature-grid">
-                    <div class="line-row"><span class="line" data-print-value="signature_name"></span></div>
-                    <div class="line-row"><span class="line" data-print-value="application_date"></span></div>
+                    <div class="line-row"><span class="line" data-print-value="signature_name">{{ $printData['signature_name'] ?? '' }}</span></div>
+                    <div class="line-row"><span class="line" data-print-value="application_date">{{ $printData['application_date'] ?? '' }}</span></div>
                 </div>
                 <div class="signature-grid" style="margin-top: 1px;">
                     <div>Applicant's Signature</div>
@@ -344,7 +437,7 @@
                 <p class="note" style="margin-top: 12px;">I hereby bind myself to pay any unpaid water bills of the occupant in case he/she vacates the premises permanently.</p>
 
                 <div class="signature-grid">
-                    <div class="line-row"><span class="line" data-print-value="property_owner"></span></div>
+                    <div class="line-row"><span class="line" data-print-value="property_owner">{{ $printData['property_owner'] ?? '' }}</span></div>
                     <div class="line-row"><span class="line"></span></div>
                 </div>
                 <div class="signature-grid" style="margin-top: 1px;">
@@ -354,7 +447,7 @@
 
                 <div class="section" style="margin-top: 14px;">
                     <div class="section-title">Promissory Note (Optional)</div>
-                    <div class="line-row"><span class="label">Amount</span><span class="line" data-print-value="promissory_amount"></span></div>
+                    <div class="line-row"><span class="label">Amount</span><span class="line" data-print-value="promissory_amount">{{ $printData['promissory_amount'] ?? '' }}</span></div>
                 </div>
             </div>
 

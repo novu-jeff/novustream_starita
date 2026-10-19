@@ -3,27 +3,54 @@
 @section('content')
 
 <div class="login register-page">
-    <div class="container right-panel-active scroll" id="container">
+    <div class="container right-panel-active" id="container">
         <div class="form-container sign-up-container">
             <form id="registerForm" method="POST" action="{{ route('auth.register.store') }}" enctype="multipart/form-data" novalidate>
                 @csrf
+                <div id="registrationTypeStep" class="registration-type-step">
+                    @if(session('error'))
+                        <div class="alert alert-danger w-100 py-2 px-3 mb-3">{{ session('error') }}</div>
+                    @endif
+                    <h1 class="fw-bold mb-1">Choose Your Account Type</h1>
+                    <p class="registration-type-subtitle">Please select the option that best describes your situation.</p>
+
+                    <div class="account-type-options">
+                        <label class="account-type-card selected">
+                            <input type="radio" name="registration_choice" value="existing_account" checked>
+                            <span class="account-type-radio"></span>
+                            <img src="{{ asset('images/Existing_Conce.png') }}" alt="Existing Sta. Rita account">
+                            <span class="account-type-details">
+                                <strong>Existing Sta. Rita Account</strong>
+                                <span>You already have a water meter installed at your location, but don't have an online account yet.</span>
+                                <small>(You're a registered concessionaire and need to create your online account.)</small>
+                            </span>
+                        </label>
+                        <label class="account-type-card">
+                            <input type="radio" name="registration_choice" value="new_connection">
+                            <span class="account-type-radio"></span>
+                            <img src="{{ asset('images/New_Concessionaire.png') }}" alt="New concessionaire">
+                            <span class="account-type-details">
+                                <strong>New Concessionaire</strong>
+                                <span>You are a new applicant, either for a new connection or without a meter yet.</span>
+                                <small>(Your application will be subject to approval.)</small>
+                            </span>
+                        </label>
+                    </div>
+
+                    <p class="registration-type-note"><i class="bx bx-info-circle"></i> If you're unsure which option to choose, contact Sta. Rita Water District support.</p>
+                    <button type="button" id="continueRegistration" class="btn-registration-next">Next <i class="bx bx-right-arrow-alt"></i></button>
+                </div>
+
+                <div id="registrationFormStep" class="registration-form-step d-none">
+                <input type="hidden" name="registration_type" id="registration_type" value="existing_account">
                 <input type="hidden" name="data_privacy_consent" id="data_privacy_consent" value="">
+                <img class="mobile-logo" src="{{ asset('images/client1nobg.png') }}" alt="Sta Rita Logo" />
                 <h1 class="fw-bold mb-1">Create Account</h1>
                 <span>Register as a concessionaire</span>
 
                 <div id="registerAlert" class="alert d-none w-100 py-2 px-3 mb-2" role="alert"></div>
 
                 <div class="register-fields w-100">
-                    <div class="registration-type w-100">
-                        <label class="registration-type-option">
-                            <input type="radio" name="registration_type" value="existing_account" checked>
-                            <span>Existing Sta. Rita Account</span>
-                        </label>
-                        <label class="registration-type-option">
-                            <input type="radio" name="registration_type" value="new_connection">
-                            <span>New Concessionaire</span>
-                        </label>
-                    </div>
                     <div class="w-100">
                         <input type="text" class="form-control" name="name" id="name" placeholder="LASTNAME, FIRSTNAME M.I. (e.g. DELA CRUZ, JUAN P.) *" style="text-transform: uppercase;" required/>
                     </div>
@@ -79,7 +106,7 @@
                         <div class="file-upload w-100">
                             <label for="cedula_file" class="file-label">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Latest Cedula / Residence Certificate <span class="text-danger">*</span></span>
+                                <span class="file-text">Cedula / Residence Certificate <span class="text-danger">*</span></span>
                                 <span class="file-name" id="cedula_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -90,7 +117,7 @@
                         <div class="file-upload w-100">
                             <label for="billing_file" class="file-label">
                                 <i class="bx bx-receipt"></i>
-                                <span class="file-text">Proof of Billing (Electric Bill) <span class="text-danger">*</span></span>
+                                <span class="file-text">Proof of Billing <span class="text-danger">*</span></span>
                                 <span class="file-name" id="billing_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -99,9 +126,9 @@
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
                         <div class="file-upload w-100">
-                            <label for="authorization_file" class="file-label">
+                            <label for="authorization_file" class="file-label overflow-hidden">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Authorization Letter / SPA with Valid ID (Representative)</span>
+                                <span class="file-text">Authorization Letter</span>
                                 <span class="file-name" id="authorization_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -114,15 +141,17 @@
                     <p class="file-hint mb-0">Accepted: PDF, JPG, PNG</p>
                 </div>
 
-                <div class="w-100 mt-2">
+                <div class="w-100 mt-2 recaptcha-wrapper">
                     <div
-                        class="g-recaptcha"
+                        class=" g-recaptcha"
                         data-sitekey="{{ config('services.recaptcha.site_key') }}">
                     </div>
                 </div>
 
-                <button type="submit" class="mt-3">Submit Registration</button>
-                <a href="{{ route('auth.index') }}" class="mt-2 mb-0">Already have an account? Sign in</a>
+                <button type="submit" class="mt-3 text-center">Submit Registration</button>
+                </br >
+                <a href="{{ route('auth.index') }}" class="mt-2 mb-0 text-center">Already have an account? Sign in</a>
+                </div>
             </form>
         </div>
         <div class="overlay-container">
@@ -172,9 +201,29 @@
 
 
 <style>
-    .register-page .container.scroll {
-        min-height: 720px;
-    }
+    .register-page .registration-type-step,
+    .register-page .registration-form-step { width: 100%; box-sizing: border-box; }
+
+    .register-page .registration-type-step { min-height: 100%; display: flex; flex-direction: column; justify-content: center; color: #102b50; }
+    .register-page .registration-type-step h1 { color: #102b50; font-size: 1.35rem; text-align: left; }
+    .register-page .registration-type-subtitle { color: #64748b; font-size: .8rem; text-align: left; text-transform: none; margin: 2px 0 18px; }
+    .register-page .account-type-options { display: grid; gap: 12px; margin: 0 0 14px; }
+    .register-page .account-type-card { display: flex; align-items: center; gap: 12px; min-height: 116px; margin: 0; padding: 14px; border: 1px solid #dce5ef; border-radius: 8px; background: #f9fbfd; cursor: pointer; text-align: left; }
+    .register-page .account-type-card.selected { border-color: #72aef5; background: #eef6ff; }
+    .register-page .account-type-card input { position: absolute; opacity: 0; }
+    .register-page .account-type-radio { flex: 0 0 15px; width: 15px; height: 15px; border: 1px solid #73849a; border-radius: 50%; }
+    .register-page .account-type-card.selected .account-type-radio { border: 5px solid #1680f8; }
+    .register-page .account-type-card img { flex: 0 0 68px; width: 68px; height: 68px; object-fit: cover; border-radius: 50%; }
+    .register-page .account-type-details { display: grid; gap: 4px; text-transform: none; }
+    .register-page .account-type-details strong { color: #102b50; font-size: .88rem; }
+    .register-page .account-type-details span, .register-page .account-type-details small { color: #64748b; font-size: .72rem; line-height: 1.4; }
+    .register-page .registration-type-note { color: #64748b; font-size: .7rem; line-height: 1.4; text-transform: none; margin: 0 0 14px; }
+    .register-page .registration-type-note i { color: #1680f8; }
+    .register-page .btn-registration-next { display: flex; align-items: center; gap: 7px; align-self: flex-end; padding: 10px 20px; border: 0; border-radius: 6px; background: #1678e8; color: #fff; font-size: .8rem; font-weight: 700; }
+
+    .register-page .registration-form-step { display: flex; flex-direction: column; align-items: center; }
+    .register-page .registration-form-step > button[type="submit"] { align-self: center; }
+    .register-page .registration-form-step > a { align-self: center; text-align: center; }
 
     .register-page .sign-up-container form {
         justify-content: flex-start;
@@ -360,9 +409,37 @@
         color: #fff;
     }
 
+    .mobile-logo {
+        display: none;
+    }
+
+    .recaptcha-wrapper {
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .recaptcha-wrapper .g-recaptcha {
+        transform: scale(0.75);
+        transform-origin: top left;
+    }
+
     @media (min-width: 0px) and (max-width: 600px) {
         .overlay-container {
             display: none;
+        }
+
+        .register-page .sign-up-container form {
+            justify-content: flex-start;
+            padding: 2rem 0 2rem 0;
+            overflow-y: auto;
+        }
+
+        .mobile-logo {
+            width: 8rem;
+            height: 8rem;
+            display: block;
+            text-align: center;
+            margin-bottom: 20px;
         }
 
         .login {
@@ -480,7 +557,11 @@
         const declineConsent = document.getElementById('declineConsent');
         const confirmConsent = document.getElementById('confirmConsent');
         const nameInput = document.getElementById('name');
-        const registrationTypeInputs = form.querySelectorAll('input[name="registration_type"]');
+        const registrationTypeInputs = form.querySelectorAll('input[name="registration_choice"]');
+        const registrationTypeValue = document.getElementById('registration_type');
+        const registrationTypeStep = document.getElementById('registrationTypeStep');
+        const registrationFormStep = document.getElementById('registrationFormStep');
+        const continueRegistration = document.getElementById('continueRegistration');
         const existingAccountFields = form.querySelectorAll('.existing-account-field');
 
         nameInput.addEventListener('input', function () {
@@ -488,7 +569,7 @@
         });
 
         function selectedRegistrationType() {
-            return form.querySelector('input[name="registration_type"]:checked').value;
+            return registrationTypeValue.value;
         }
 
         const newConnectionFields = form.querySelectorAll('.new-connection-fields');
@@ -514,10 +595,24 @@
         }
 
         registrationTypeInputs.forEach(function (input) {
-            input.addEventListener('change', syncRegistrationTypeFields);
+            input.addEventListener('change', function () {
+                registrationTypeValue.value = input.value;
+                registrationTypeInputs.forEach(function (option) {
+                    option.closest('.account-type-card').classList.toggle('selected', option.checked);
+                });
+                syncRegistrationTypeFields();
+            });
         });
 
         syncRegistrationTypeFields();
+
+        continueRegistration.addEventListener('click', function () {
+            registrationTypeValue.value = form.querySelector('input[name="registration_choice"]:checked').value;
+            syncRegistrationTypeFields();
+            registrationTypeStep.classList.add('d-none');
+            registrationFormStep.classList.remove('d-none');
+            registrationFormStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
 
         function bindFileLabel(inputId, nameId) {
             const input = document.getElementById(inputId);
@@ -773,8 +868,8 @@
                 setTimeout(function () {
                     window.location.href =
                         payload.redirect ||
-                        "{{ route('account-overview.index') }}";
-                }, 1000);
+                        "{{ route('register.verify') }}";
+                }, 800);
             })
             .catch(function (error) {
                 console.error('Registration error:', error);

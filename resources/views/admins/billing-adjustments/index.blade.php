@@ -3,13 +3,13 @@
 @section('content')
 <div class="container">
 
-    <div class="d-flex justify-content-between mb-3 mt-4">
+    <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3 mt-4">
         <h4>Billing Adjustments</h4>
-        <div class="d-flex justify-content-between mb-3">
+        <div class="d-flex flex-column flex-sm-row gap-2 mb-3 mb-sm-0">
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#billHistoryModal">
                 View Adjustment History
             </button>
-            <button class="btn btn-outline-danger ms-2" data-bs-toggle="modal" data-bs-target="#deletedBillHistoryModal">
+            <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deletedBillHistoryModal">
                 Deleted Bill History
             </button>
         </div>
@@ -32,7 +32,7 @@
     <div class="card">
         <div class="table-responsive">
             <form method="GET" id="filterForm" class="card p-3 mb-3">
-                <div class="row">
+                <div class="row g-3">
 
                     <div class="col-md-4">
                         <label>Search</label>
@@ -49,8 +49,8 @@
                             class="form-control">
                     </div>
 
-                    <div class="col-md-5 d-flex align-items-end">
-                        <button class="btn btn-primary me-2">Search</button>
+                    <div class="col-md-5 d-flex align-items-end gap-2 mt-3 mt-md-0">
+                        <button class="btn btn-primary">Search</button>
                         <a href="{{ route('admins.billing-adjustments.index') }}" class="btn btn-secondary">Reset</a>
                     </div>
 

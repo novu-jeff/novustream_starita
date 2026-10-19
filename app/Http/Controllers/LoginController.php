@@ -260,18 +260,16 @@ class LoginController extends Controller
     {
         $path = '/' . ltrim($path, '/');
 
-        /*
-         * Local development:
-         * Never send localhost to a production domain.
-         */
-        if (EnforceStaritaHost::isLocalHost()) {
+        $currentHost = strtolower(request()->getHost());
+        $isProductionHost = in_array($currentHost, [
+            EnforceStaritaHost::ADMIN_HOST,
+            EnforceStaritaHost::PORTAL_HOST,
+        ], true);
+
+        if (! $isProductionHost) {
             return url($path);
         }
 
-        /*
-         * Production:
-         * Use the appropriate HTTPS domain.
-         */
-        return 'https://' . $host . $path;
+        return 'https://'.$host.$path;
     }
 }

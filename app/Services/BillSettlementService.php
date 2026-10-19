@@ -9,11 +9,12 @@ use Carbon\Carbon;
 
 class BillSettlementService
 {
-    public function settlePaidBillChain(Bill $bill, array $currentAttributes = [], array $priorAttributes = []): void
+    public function settlePaidBillChain(Bill $bill, array $currentAttributes = [], array $priorAttributes = [], bool $notifyCustomer = false): void
     {
         $bill->loadMissing('reading');
 
         $paidAt = $this->normalizePaidAt($currentAttributes['date_paid'] ?? $bill->date_paid ?? now());
+        $wasUnpaid = !$bill->isPaid;
 
         $this->applySettlement(
             $bill,
@@ -21,6 +22,10 @@ class BillSettlementService
             $this->extractAmountPaid($currentAttributes),
             $currentAttributes
         );
+
+        if ($notifyCustomer && $wasUnpaid) {
+            app(AccountMailer::class)->notifyPaymentPosted($bill->fresh());
+        }
 
         $accountNo = optional($bill->reading)->account_no;
 
@@ -203,6 +208,11 @@ class BillSettlementService
         $billAmount = round($billAmount, 2);
         if ($reported <= 0 || $billAmount <= 0) {
             return false;
+        }
+
+        $flatFee = round((float) config('services.novupay.transaction_fee', 10), 2);
+        if ($flatFee > 0 && abs($reported - round($billAmount + $flatFee, 2)) < 0.06) {
+            return true;
         }
 
         foreach ([10.0, 25.0] as $novupayFee) {

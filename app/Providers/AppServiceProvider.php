@@ -29,7 +29,14 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
 
         View::composer('layouts.navbar', function ($view) {
-            $view->with('pendingRegistrantsCount', UserAccounts::where('application_status', 'pending')->count());
+            $pendingRegistrantsCount = UserAccounts::where('application_status', 'pending')->count();
+            $pendingAccountLinksCount = \App\Models\ConcessionerAccountLink::where('status', 'pending')->count();
+
+            $view->with([
+                'pendingRegistrantsCount' => $pendingRegistrantsCount,
+                'pendingAccountLinksCount' => $pendingAccountLinksCount,
+                'pendingRegistrationTotal' => $pendingRegistrantsCount + $pendingAccountLinksCount,
+            ]);
         });
 
         if(Request::is('admin/*')) {

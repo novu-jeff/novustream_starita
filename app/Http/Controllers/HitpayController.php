@@ -97,7 +97,8 @@ class HitpayController extends Controller
                         'payor_name' => $payor,
                         'date_paid' => $now,
                         'payment_method' => 'online',
-                    ]
+                    ],
+                    true
                 );
 
                 \Log::info('Bill updated', $bill->only(['id', 'isPaid', 'amount_paid', 'payment_method']));

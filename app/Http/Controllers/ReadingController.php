@@ -9,6 +9,7 @@ use App\Models\Bill;
 use App\Models\BillBreakdown;
 use App\Models\Rates;
 use App\Models\Reading;
+use App\Services\AccountMailer;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
@@ -401,9 +402,10 @@ class ReadingController extends Controller
             ->get();
 
         $readingsPerZone = DB::table('readings')
+            ->join('bill', 'bill.reading_id', '=', 'readings.id')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
-            ->whereMonth('readings.created_at', $month)
-            ->whereYear('readings.created_at', $year)
+            ->whereMonth('bill.bill_period_to', $month)
+            ->whereYear('bill.bill_period_to', $year)
             ->when(!empty($assignedZones), fn($q) =>
                 $q->whereIn('concessioner_accounts.zone', $assignedZones)
             )
@@ -446,8 +448,10 @@ class ReadingController extends Controller
         $accountNos = $accountsQuery->pluck('account_no');
 
         $query = Reading::with(['bill', 'concessionaire.user'])
-            ->whereMonth('created_at', $month)
-            ->whereYear('created_at', $year);
+            ->whereHas('bill', function ($q) use ($month, $year) {
+                $q->whereMonth('bill_period_to', $month)
+                    ->whereYear('bill_period_to', $year);
+            });
 
         if ($accountNos->isNotEmpty()) {
             $query->whereIn('account_no', $accountNos);
@@ -580,8 +584,6 @@ class ReadingController extends Controller
     }
 
     try {
-        // Use reading month from request when provided (allows new readings for current/future months).
-        // Otherwise fall back to current date. Required when IS_TEST_READING is true.
         if (!empty($payload['reading_month'])) {
             $parsed = null;
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $payload['reading_month'])) {
@@ -589,13 +591,9 @@ class ReadingController extends Controller
             } elseif (preg_match('/^\d{4}-\d{2}$/', $payload['reading_month'])) {
                 $parsed = Carbon::createFromFormat('Y-m', $payload['reading_month'])->startOfMonth();
             }
-            if ($parsed) {
-                $date = $parsed;
-            } else {
-                $date = Carbon::now();
-            }
+            $date = $parsed ?: app(\App\Services\BillingPeriodService::class)->activePeriod();
         } else {
-            $date = Carbon::now();
+            $date = app(\App\Services\BillingPeriodService::class)->activePeriod();
         }
     } catch (\Exception $e) {
         return response()->json([
@@ -604,19 +602,37 @@ class ReadingController extends Controller
         ], 400);
     }
 
-    $month = $date->month;
-    $year = $date->year;
     $account_no = $payload['account_no'];
     $isReRead = $payload['isReRead'] === 'true' ? true : false;
     $isMissingReading = filter_var($payload['is_missing_reading'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-    if (!$isReRead) {
-        $exists = Reading::whereMonth('created_at', $month)
-            ->whereYear('created_at', $year)
-            ->where('account_no', $account_no)
-            ->exists();
+    $account = $this->meterService->getAccount($account_no);
+    if (!$account) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Account not found.',
+        ], 404);
+    }
 
-        if ($exists) {
+    $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+    $readingDate = null;
+    if ($zone) {
+        $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+            ->where('is_active', 1)
+            ->first();
+    }
+
+    if ($readingDate && empty($payload['reading_month'])) {
+        $date = Carbon::parse($readingDate->bill_period_to);
+    }
+
+    $month = $date->month;
+    $year = $date->year;
+
+    if (!$isReRead) {
+        $mergeDates = app(\App\Services\MergeBillReadingDatesService::class);
+        $existing = $mergeDates->existingReadingForMergePeriod($account_no, $date);
+        if ($existing) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Reading already exists for {$date->format('F Y')}."
@@ -663,6 +679,11 @@ class ReadingController extends Controller
                 'message' => "No property type found for '{$account->property_type}'."
             ], 400);
         }
+
+        $referenceBefore = $payload['reference_no'] ?? null;
+        $billExisted = $referenceBefore
+            ? Bill::where('reference_no', $referenceBefore)->exists()
+            : false;
 
         $computed = $this->meterService->create_breakdown([
             'account_no' => $account_no,
@@ -961,6 +982,29 @@ class ReadingController extends Controller
             'hasPenalty' => $penaltyAmount > 0,
         ]);
 
+        $advanceAmount = (float) ($billData['advances'] ?? 0);
+        $canApplyAdvance = !$existingBill
+            || (!(bool) $existingBill->isPaid
+                && (float) ($existingBill->amount_paid ?? 0) <= 0
+                && !(bool) $existingBill->isPartial);
+
+        if ($advanceAmount > 0 && $canApplyAdvance && !$isMissingReading) {
+            $advanceAllocation = MeterService::resolveAdvanceAllocation($amountDue, $advanceAmount);
+
+            if ($advanceAllocation['isPaid']) {
+                $advanceAllocation['date_paid'] = now();
+            } elseif ($advanceAllocation['amount_paid'] > 0) {
+                $advanceAllocation['isPartial'] = true;
+                \App\Models\PartialPayment::create([
+                    'reading_id' => $bill->reading_id,
+                    'partial_payment' => $advanceAllocation['amount_paid'],
+                    'remaining_balance' => max($amountDue - $advanceAllocation['amount_paid'], 0),
+                ]);
+            }
+
+            $bill->update($advanceAllocation);
+        }
+
         if ($isMissingReading) {
             $this->applyMissingBillOverrides($bill, $payload);
             $bill->update([
@@ -972,30 +1016,8 @@ class ReadingController extends Controller
             }
         }
 
-        // Base amount (without penalty) for Novupay/HitPay so QR shows normal amount, not overdue
+        // NovuPay hosted checkout is created when the customer pays, not when the SOA is printed.
         $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
-
-        if (!$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
-            $hitpayPayload = [
-                'reference_no' => $reference_no,
-                'amount' => $baseAmount,
-                'payor' => $account->user->name ?? 'Sta. Rita Customer',
-                'email' => $account->user->email ?? null,
-                'account_no' => $account->account_no ?? '',
-            ];
-
-            $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                ->createHitpayPaymentRequest($reference_no, $hitpayPayload);
-
-            if ($hitpayData && (!empty($hitpayData['reference']) || !empty($hitpayData['id']))) {
-                $bill->update([
-                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
-                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
-                    'initiated_at' => now(),
-                ]);
-            }
-        }
-
 
         // Generate payment QR (use base amount so Novupay/HitPay shows normal amount, not overdue)
         $paymentPayload = [
@@ -1027,6 +1049,10 @@ class ReadingController extends Controller
                 ]]);
 
                 DB::commit();
+
+                if (empty($billExisted) && !$bill->isPaid) {
+                    app(AccountMailer::class)->notifyBillDue($bill);
+                }
 
                 return response()->json([
                     'status' => 'success',

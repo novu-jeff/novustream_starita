@@ -234,11 +234,10 @@
                             $advances = $data['current_bill']['advances'];
                             $isPaid = $data['current_bill']['isPaid'];
 
-                            if($isPaid == 1) {
-                                $advance = 0;
-                            } else {
-                                $advance = $advances;
-                            }
+                            $advance = min(
+                                (float) $advances,
+                                max(0, (float) $data['current_bill']['total'] - (float) $discount - (float) ($franchise->amount ?? 0))
+                            );
 
                             $amountDue = (float) $data['current_bill']['total']
                                         - (float) $discount
@@ -289,7 +288,7 @@
                         <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                             <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
                             <div style="text-transform: uppercase; font-size: 20px;">
-                                {{number_format($amountAfter - $advance, 2)}}
+                                {{number_format($amountAfter, 2)}}
                             </div>
                         </div>
                         <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -331,7 +330,7 @@
                                 <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                 <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                     <li>Scan the QR code.</li>
-                                    <li>Choose a merchant on NovuPay.</li>
+                                    <li>Pay with QR Ph on NovuPay.</li>
                                     <li>Pay the total amount due.</li>
                                     <li>Keep your receipt.</li>
                                 </ol>

@@ -19,6 +19,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\Installment;
 use App\Models\InstallmentSchedule;
 use App\Services\BillSettlementService;
+use App\Services\BillingPeriodService;
 use App\Services\MergeBillReadingDatesService;
 use App\Services\MeterService;
 use App\Services\OfflineMergeGuard;
@@ -35,7 +36,8 @@ class OfflineSyncController extends Controller
         protected MeterService $meterService,
         protected BillSettlementService $billSettlementService,
         protected MergeBillReadingDatesService $mergeBillReadingDatesService,
-        protected OfflineMergeGuard $offlineMergeGuard
+        protected OfflineMergeGuard $offlineMergeGuard,
+        protected BillingPeriodService $billingPeriodService
     ) {
     }
 
@@ -217,8 +219,8 @@ class OfflineSyncController extends Controller
             $limit = 0;
         }
 
-        $year = (int) now()->year;
-        $month = (int) now()->month;
+        $year = $this->billingPeriodService->year();
+        $month = $this->billingPeriodService->month();
 
         $zoneIds = $user->zone_assigned ? array_map('trim', explode(',', $user->zone_assigned)) : [];
         $zoneNames = $zoneIds ? Zones::whereIn('id', $zoneIds)->pluck('zone') : collect();
@@ -431,7 +433,7 @@ class OfflineSyncController extends Controller
             return [];
         }
 
-        $periodStart = sprintf('%04d-%02d-01', $year, $month);
+        $periodStart = $this->billingPeriodService->periodStart()->format('Y-m-d');
         $rows = Reading::query()
             ->join('bill', 'bill.reading_id', '=', 'readings.id')
             ->whereIn('readings.account_no', $accountNos)

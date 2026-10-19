@@ -16,6 +16,7 @@ class ConcessionerAccountLink extends Model
     protected $casts = [
         'approved_at' => 'datetime',
         'denied_at' => 'datetime',
+        'notified_at' => 'datetime',
     ];
 
     public function account()

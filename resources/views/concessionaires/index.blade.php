@@ -73,6 +73,11 @@
                             @endif
                         </div>
                     </div>
+                    <div class="col-12 d-flex justify-content-end mb-3">
+                        <button type="button" id="apply-filters" class="btn btn-primary">
+                            <i class="bx bx-filter-alt" aria-hidden="true"></i> Apply Filters
+                        </button>
+                    </div>
                 </div>
                 <table class="table table-bordered table-striped w-100 mt-4">
                     <thead>
@@ -141,24 +146,21 @@
                 val ? params.set(key, val) : params.delete(key);
             });
 
+            params.delete('page');
             window.location.href = window.location.pathname + '?' + params.toString();
         }
 
-        let searchTimer = null;
-
-        $('#search').on('keyup', function () {
-            clearTimeout(searchTimer);
-
-            searchTimer = setTimeout(() => {
+        $('#apply-filters').on('click', updateUrl);
+        $('#search').on('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
                 updateUrl();
-            }, 400); // 400ms debounce
+            }
         });
-
-        $('#entries, #zone_no, #list_filter').on('change', updateUrl);
 
         $('#clear-search').on('click', function () {
             $('#search').val('');
-            updateUrl();
+            $('#search').trigger('focus');
         });
 
         $(document).on('click', '.btn-delete', function() {

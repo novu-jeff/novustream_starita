@@ -35,7 +35,9 @@ class ProfileService {
                 'email' => $payload['email'],
             ];
                 
-            if(isset($payload['password'])) {
+            $passwordChanged = filled($payload['password'] ?? null);
+
+            if ($passwordChanged) {
                 $updateData['password'] = Hash::make($payload['password']);
             }
 
@@ -49,7 +51,10 @@ class ProfileService {
 
             return [
                 'status' => 'success',
-                'message' => 'Your account was updated successfully.'
+                'message' => $passwordChanged
+                    ? 'Your password was changed successfully.'
+                    : 'Your account was updated successfully.',
+                'password_changed' => $passwordChanged,
             ];
 
         } catch (\Exception $e) {

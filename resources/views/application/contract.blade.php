@@ -188,7 +188,7 @@
 
         .signed-presence {
             text-align: center;
-            font-size: 10px;
+            display: block;
             margin-top: 5rem;
             margin-bottom: 30px;
         }
@@ -227,6 +227,76 @@
 
         .doc-details .cert-grid {
             max-width: 70mm;
+        }
+
+        .pdf-export .signature-block,
+        .pdf-export .cert-grid,
+        .pdf-export .ack-venue {
+            display: block;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .pdf-export .signature-block > div,
+        .pdf-export .ack-venue > span {
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .pdf-export .signature-block > div {
+            float: left;
+            width: 49%;
+            padding-right: 5mm;
+        }
+
+        .pdf-export .cert-grid > span {
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        .pdf-export .cert-grid > span:nth-child(odd) {
+            width: 40%;
+        }
+
+        .pdf-export .cert-grid > span:nth-child(even) {
+            width: 60%;
+        }
+
+        .pdf-export .ack-venue > span:first-child {
+            width: 85%;
+        }
+
+        .pdf-export .ack-venue > span:last-child {
+            width: 15%;
+        }
+
+        .pdf-export .application-paper {
+            margin: 0;
+        }
+
+        .pdf-export .header .address {
+            margin-bottom: 1rem;
+        }
+
+        .pdf-export .header h2 {
+            margin-bottom: 1.5rem;
+        }
+
+        .pdf-export .signature-block {
+            margin-top: 3rem;
+        }
+
+        .pdf-export .signed-presence {
+            margin-top: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .pdf-export .ack-title {
+            margin-bottom: 1rem;
+        }
+
+        .pdf-export .doc-details {
+            margin-top: 8px;
         }
 
         .review-toolbar {
@@ -280,13 +350,15 @@
         }
     </style>
 </head>
-<body>
+<body class="{{ !empty($pdfExport) ? 'pdf-export' : '' }}">
+    @if(empty($pdfExport))
     <div class="review-toolbar">
         <a href="{{ route('account-overview.index') }}" class="btn btn-primary fw-bold text-uppercase">Back to Overview</a>
         <a href="{{ route('application.create') }}" class="btn btn-primary fw-bold text-uppercase">Review Form</a>
         <button type="button" onclick="printBlankForm()" class="btn btn-outline-primary fw-bold text-uppercase">Print Blank Form</button>
         <button type="button" onclick="window.print()" class="btn btn-primary fw-bold text-uppercase">Print</button>
     </div>
+    @endif
 
     <main class="application-paper">
         <header class="header">
@@ -306,9 +378,9 @@
         <p class="body-text" style="text-align:center; margin: 6px 0;">-and-</p>
 
         <p class="body-text">
-            Mr./Mrs./Ms. <span class="line" style="min-width: 50mm;" data-print-value="applicant_name"></span>
+            Mr./Mrs./Ms. <span class="line" style="min-width: 50mm;" data-print-value="applicant_name">{{ $printData['applicant_name'] ?? '' }}</span>
             Filipino, of legal age, single/married and residing at
-            <span class="line" style="min-width: 60mm;" data-print-value="service_address"></span>,
+            <span class="line" style="min-width: 60mm;" data-print-value="service_address">{{ $printData['service_address'] ?? '' }}</span>,
             hereinafter referred to as the SECOND PARTY:
         </p>
 
@@ -405,7 +477,7 @@
 
             <div>
                 <div class="party-title">SECOND PARTY (APPLICANT)</div>
-                <div class="sig-name" data-print-value="applicant_name"></div>
+                <div class="sig-name" data-print-value="applicant_name">{{ $printData['applicant_name'] ?? '' }}</div>
                 <div class="sig-caption">Signature of Applicant over printed name</div>
 
                 <div class="cert-grid">

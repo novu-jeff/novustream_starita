@@ -31,11 +31,21 @@ return new class extends Migration
         });
 
         Schema::table('service_applications', function (Blueprint $table) {
-            $table->dropColumn([
+            $columns = [];
+
+            foreach ([
                 'connection_type',
                 'application_fee_amount',
                 'application_fee_status',
-            ]);
+            ] as $column) {
+                if (Schema::hasColumn('service_applications', $column)) {
+                    $columns[] = $column;
+                }
+            }
+
+            if (!empty($columns)) {
+                $table->dropColumn($columns);
+            }
         });
     }
 };

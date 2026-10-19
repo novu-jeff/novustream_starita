@@ -40,9 +40,11 @@ class MeterService {
 
         $accounts = UserAccounts::with('user')->get();
 
-        $readings = Reading::with('concessionaire.user')
-            ->whereYear('created_at', $date->year)
-            ->whereMonth('created_at', $date->month)
+        $readings = Reading::with(['concessionaire.user', 'bill'])
+            ->whereHas('bill', function ($q) use ($date) {
+                $q->whereYear('bill_period_to', $date->year)
+                    ->whereMonth('bill_period_to', $date->month);
+            })
             ->get();
 
         $readData = $readings->map(function ($reading) {
@@ -172,11 +174,23 @@ class MeterService {
                     break;
 
                 case 'read':
-                    $query->whereHas('readings');
+                    $period = app(BillingPeriodService::class);
+                    $query->whereHas('readings', function ($q) use ($period) {
+                        $q->whereHas('bill', function ($bq) use ($period) {
+                            $bq->whereYear('bill_period_to', $period->year())
+                                ->whereMonth('bill_period_to', $period->month());
+                        });
+                    });
                     break;
 
                 case 'unread':
-                    $query->whereDoesntHave('readings');
+                    $period = app(BillingPeriodService::class);
+                    $query->whereDoesntHave('readings', function ($q) use ($period) {
+                        $q->whereHas('bill', function ($bq) use ($period) {
+                            $bq->whereYear('bill_period_to', $period->year())
+                                ->whereMonth('bill_period_to', $period->month());
+                        });
+                    });
                     break;
             }
         }
@@ -742,7 +756,7 @@ class MeterService {
 
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
 
-        $advances = $isChangeSaved ? (float) $latest_reading->bill->change ?? 0 : 0;
+        $advances = $isChangeSaved ? (float) (optional($latest_reading)->bill->change ?? 0) : 0;
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
 
         $base_rate = null;
@@ -884,11 +898,13 @@ class MeterService {
             $remainingUnpaid = (float) $installmentSchedule->amount;
         }
 
+        $arrearsForBreakdown = $remainingUnpaid;
+
         $other_deductions = $this->paymentBreakdownService::getData();
         $deductions = [
             [
                 'name' => 'Previous Balance',
-                'amount' => $remainingUnpaid,
+                'amount' => $arrearsForBreakdown,
                 'description' => ''
             ],
             [
@@ -897,7 +913,7 @@ class MeterService {
                 'description' => '',
             ],
         ];
-        $total_amount = $rate + $remainingUnpaid;
+        $total_amount = $rate + $arrearsForBreakdown;
 
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
@@ -1177,6 +1193,21 @@ class MeterService {
         ];
     }
 
+    public static function resolveAdvanceAllocation(float $amountDue, float $advances): array
+    {
+        $amountDue = round(max($amountDue, 0), 2);
+        $advances = round(max($advances, 0), 2);
+        $amountPaid = min($amountDue, $advances);
+        $change = round(max($advances - $amountPaid, 0), 2);
+
+        return [
+            'amount_paid' => $amountPaid,
+            'isPaid' => $advances > 0 && $amountPaid >= $amountDue,
+            'change' => $change,
+            'isChangeForAdvancePayment' => $change > 0,
+        ];
+    }
+
     private static function previousConsumption(string $account_no, string $bill_period_from) {
 
         $billDate = Carbon::parse($bill_period_from);
@@ -1242,7 +1273,7 @@ class MeterService {
 
     public function getLatestReadingMonth()
     {
-        return now()->format('Y-m');
+        return app(BillingPeriodService::class)->yearMonth();
     }
 
     /**
@@ -1418,25 +1449,7 @@ class MeterService {
                 'high_consumption_note' => $payload['high_consumption_note'] ?? null,
             ]);
 
-            if (!$skipHitPayQr && !$bill->isPaid && empty($bill->hitpay_payment_id) && empty($bill->hitpay_reference)) {
-                $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
-                $hitpayPayload = [
-                    'reference_no' => $referenceNo,
-                    'amount' => $baseAmount,
-                    'payor' => $account->user->name ?? 'Sta. Rita Customer',
-                    'email' => $account->user->email ?? null,
-                    'account_no' => $account->account_no ?? '',
-                ];
-                $hitpayData = app(\App\Http\Controllers\PaymentController::class)
-                    ->createHitpayPaymentRequest($referenceNo, $hitpayPayload);
-                if ($hitpayData && (!empty($hitpayData['reference']) || !empty($hitpayData['id']))) {
-                    $bill->update([
-                        'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
-                        'hitpay_payment_id' => $hitpayData['id'] ?? null,
-                        'initiated_at' => now(),
-                    ]);
-                }
-            }
+            // NovuPay hosted checkout is created when the customer pays, not when the SOA is printed.
 
             return true;
         } catch (\Throwable $e) {

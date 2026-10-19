@@ -178,7 +178,7 @@
                                 <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                 <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                     <li>Scan the QR code.</li>
-                                    <li>Choose a merchant on NovuPay.</li>
+                                    <li>Pay with QR Ph on NovuPay.</li>
                                     <li>Pay the total amount due.</li>
                                     <li>Keep your receipt.</li>
                                 </ol>

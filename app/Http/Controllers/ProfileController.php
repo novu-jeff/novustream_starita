@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Admin;
+use App\Models\User;
+use App\Services\AccountMailer;
 use App\Services\ProfileService;
 use App\Services\PropertyTypesService;
 use Illuminate\Http\Request;
@@ -58,12 +61,25 @@ class ProfileController extends Controller
         $response = $this->profileService::update($id, $payload);
 
         if ($response['status'] === 'success') {
+            $passwordChanged = (bool) ($response['password_changed'] ?? false);
+            $recipient = $user_type === 'concessionaire'
+                ? User::find($id)
+                : Admin::find($id);
+
+            if ($passwordChanged && $recipient instanceof User) {
+                Auth::guard('web')->setUser($recipient);
+                session()->forget('using_default_password');
+            }
+
+            app(AccountMailer::class)->notifyProfileUpdated($recipient?->email, $passwordChanged, $recipient?->name);
+
             if ($user_type === 'concessionaire') {
                 return redirect()
                     ->route('account-overview.index')
                     ->with('alert', [
                         'status' => 'success',
                         'message' => $response['message'],
+                        'password_changed' => $passwordChanged,
                     ]);
             }
 

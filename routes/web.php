@@ -6,6 +6,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PaymentConsolidationController;
+use App\Http\Controllers\NovuPayController;
 use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
@@ -17,7 +19,10 @@ use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\OfflineSyncController;
@@ -29,6 +34,7 @@ use App\Http\Controllers\PenaltyExemptionController;
 use App\Http\Controllers\ReadingDateController;
 use App\Http\Controllers\InstallmentController;
 use App\Http\Controllers\ServiceApplicationController;
+use App\Http\Controllers\RegistrantDocumentController;
 use App\Http\Controllers\GuideController;
 use App\Http\Controllers\Admin\ReadingAdjustmentController;
 use App\Http\Controllers\Admin\BillingAdjustmentController;
@@ -43,6 +49,20 @@ use App\Http\Controllers\Admin\BillingAdjustmentController;
 | be assigned to the "web" middleware group. Make something great!
 |
 */
+
+Route::get('/app-version', function () {
+    $path = public_path('app-version.json');
+    if (!is_readable($path)) {
+        $path = public_path('app-version');
+    }
+    if (is_readable($path)) {
+        $data = json_decode(file_get_contents($path), true);
+        if (is_array($data)) {
+            return response()->json($data)->header('Cache-Control', 'no-store');
+        }
+    }
+    return response()->json(['error' => 'No version info'], 404);
+});
 
 Route::get('/', function () {
     return redirect()->to('/login');
@@ -64,6 +84,31 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 // Handle register form
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
+
+Route::get('/register/verify', [RegisterController::class, 'showVerification'])
+    ->name('register.verify');
+Route::post('/register/verify', [RegisterController::class, 'verifyOtp'])
+    ->middleware('throttle:10,1')
+    ->name('register.verify.store');
+Route::post('/register/verify/resend', [RegisterController::class, 'resendOtp'])
+    ->middleware('throttle:3,1')
+    ->name('register.verify.resend');
+
+Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkRequestForm'])
+    ->name('password.request');
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])
+    ->name('password.email');
+Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showResetForm'])
+    ->name('password.reset');
+Route::post('/reset-password', [ResetPasswordController::class, 'reset'])
+    ->name('password.update');
+
+Route::get('/email/verify', [VerificationController::class, 'show'])
+    ->name('verification.notice');
+Route::get('/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])
+    ->name('verification.verify');
+Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
+    ->name('verification.resend');
 
 
 Route::middleware('auth:admins')->prefix('admin')->group(function () {
@@ -137,6 +182,11 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::resource('reading-dates', ReadingDateController::class)
     ->except(['create', 'show']);
 
+    Route::post('reading-dates/simulate-month', [ReadingDateController::class, 'simulateMonth'])
+        ->name('reading-dates.simulate-month');
+    Route::post('reading-dates/restore-calendar-month', [ReadingDateController::class, 'restoreCalendarMonth'])
+        ->name('reading-dates.restore-calendar-month');
+
     Route::get('/admin/installment/details/{id}',
     [InstallmentController::class,'details'])
     ->name('installment.details');
@@ -165,8 +215,17 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::get('registrants', [ConcessionaireController::class, 'registrants'])
             ->name('registrants.index');
 
-        Route::get('registrants/{account}/form', [ConcessionaireController::class, 'printRegistrantForm'])
+        Route::get('registrants/{account}/form', [RegistrantDocumentController::class, 'applicationForm'])
             ->name('registrants.form');
+
+        Route::get('registrants/{account}/document/{field}', [RegistrantDocumentController::class, 'viewRegistrantDocument'])
+            ->name('registrants.document');
+
+        Route::get('registrants/{account}/documents', [RegistrantDocumentController::class, 'downloadRegistrantDocuments'])
+            ->name('registrants.documents');
+
+        Route::get('account-links/{link}/document/{field}', [RegistrantDocumentController::class, 'viewAccountLinkDocument'])
+            ->name('account-links.document');
 
         Route::get('applications/{application}/contract', [ServiceApplicationController::class, 'contract'])
             ->name('admin.application.contract');
@@ -186,6 +245,9 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::patch('account-links/{link}/approve', [ConcessionaireController::class, 'approveAccountLink'])
             ->name('account-links.approve');
 
+        Route::get('account-links/{link}/documents', [ConcessionaireController::class, 'downloadAccountLinkDocuments'])
+            ->name('account-links.documents');
+
         Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
             ->name('account-links.deny');
 
@@ -203,6 +265,13 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
     Route::prefix('payments')->group(function() {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
+        Route::get('consolidation', [PaymentConsolidationController::class, 'index'])
+            ->name('payments.consolidation.index');
+        Route::get('consolidation/export', [PaymentConsolidationController::class, 'export'])
+            ->name('payments.consolidation.export');
+        Route::get('consolidation/{billId}/receipt', [PaymentConsolidationController::class, 'receipt'])
+            ->whereNumber('billId')
+            ->name('payments.consolidation.receipt');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
             ->name('previous-billing.upload');
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
@@ -338,6 +407,7 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
+            ->middleware('check.default.password')
             ->name('account-overview.index');
         Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
             ->name('account-overview.accounts.store');
@@ -345,8 +415,8 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills.reference_no');
-        Route::post('pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
-            ->name('account-overview.pay-online');
+        Route::get('documents/{application}/{field}', [RegistrantDocumentController::class, 'viewApplicationDocument'])
+            ->name('account-overview.application-document');
     });
 
     Route::prefix('/support')->group(function() {
@@ -370,11 +440,6 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
 
-Route::middleware(['auth', 'check.default.password'])->prefix('concessionaire')->group(function() {
-    Route::get('my/overview', [AccountOverviewController::class, 'index'])
-        ->name('account-overview.index');
-});
-
 Route::delete('reading-dates/destroy-all', [ReadingDateController::class, 'destroyAll'])
 ->name('reading-dates.destroy-all');
 
@@ -385,6 +450,14 @@ Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->
 Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'showQrVoided'])->name('payments.qr-voided');
 Route::post('/webhooks/novupay', \App\Http\Controllers\NovuPayWebhookController::class)->name('webhooks.novupay');
 Route::get('/payments/novupay/return', \App\Http\Controllers\NovuPayReturnController::class)->name('payments.novupay.return');
+
+Route::post('/webhooks/novupay', [NovuPayController::class, 'webhook'])->name('webhooks.novupay');
+Route::get('/payments/{reference_no}/checkout', [NovuPayController::class, 'checkout'])
+    ->middleware('throttle:20,1')
+    ->name('payments.novupay.checkout');
+Route::get('/orders/{id}/complete', [NovuPayController::class, 'complete'])
+    ->whereNumber('id')
+    ->name('orders.complete');
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');

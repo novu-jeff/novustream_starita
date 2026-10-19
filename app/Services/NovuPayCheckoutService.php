@@ -296,6 +296,181 @@ class NovuPayCheckoutService
             ->first();
     }
 
+    public function checkoutStartUrl(string $referenceNo): string
+    {
+        return rtrim((string) config('app.url'), '/') . '/payments/' . rawurlencode($referenceNo) . '/checkout';
+    }
+
+    public function completeUrlForBill(Bill $bill): string
+    {
+        return rtrim((string) config('app.url'), '/') . '/orders/' . $bill->id . '/complete';
+    }
+
+    /**
+     * @param  array{payor?: string, name?: string, email?: string, contact?: string, account_no?: string}  $customer
+     * @return array{ok: bool, checkout_url?: string, already_paid?: bool, complete_url?: string, message?: string, status?: int}
+     */
+    public function startForReference(string $referenceNo, array $customer = []): array
+    {
+        $bill = Bill::with('reading')->where('reference_no', $referenceNo)->first();
+        if (!$bill) {
+            return [
+                'ok' => false,
+                'message' => 'Bill not found.',
+                'status' => 404,
+            ];
+        }
+
+        if ($bill->isPaid) {
+            return [
+                'ok' => true,
+                'already_paid' => true,
+                'complete_url' => $this->completeUrlForBill($bill),
+                'message' => 'This bill has already been paid.',
+            ];
+        }
+
+        $billData = $this->billDataForAmount($bill, $referenceNo);
+        if (PaymentController::isSoaQrVoided($billData)) {
+            return [
+                'ok' => false,
+                'message' => 'Online payment is no longer available for this bill because it is past the due date. Please visit the district office or request an updated SOA.',
+                'status' => 422,
+            ];
+        }
+
+        $result = $this->startCheckout($referenceNo, $billData, $customer);
+        if (empty($result['ok']) || empty($result['checkout_url'])) {
+            return [
+                'ok' => false,
+                'message' => $result['error'] ?? 'Failed to start NovuPay checkout.',
+                'status' => 502,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'checkout_url' => $result['checkout_url'],
+            'uid' => $result['data']['uid'] ?? null,
+            'req_id' => $result['data']['req_id'] ?? null,
+            'amount' => $result['data']['amount'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok: bool, http: int, message: string}
+     */
+    public function markPaidFromWebhook(array $payload): array
+    {
+        $reqId = (string) ($payload['req_id'] ?? '');
+        $status = (string) ($payload['status'] ?? '');
+        $signature = isset($payload['signature']) ? (string) $payload['signature'] : '';
+
+        if ($reqId === '' || $status === '' || $signature === '') {
+            return ['ok' => false, 'http' => 400, 'message' => 'Invalid payload'];
+        }
+
+        if (!$this->client->verifyWebhookSignature($reqId, $status, $signature)) {
+            Log::warning('NovuPay webhook signature mismatch', ['req_id' => $reqId]);
+
+            return ['ok' => false, 'http' => 400, 'message' => 'Invalid signature'];
+        }
+
+        if (strtolower($status) !== 'paid') {
+            return ['ok' => true, 'http' => 200, 'message' => 'Ignored'];
+        }
+
+        $referenceNo = (string) (data_get($payload, 'extras.param1') ?? data_get($payload, 'param1') ?? '');
+        $bill = $this->findBillByReqId($reqId);
+        if (!$bill && $referenceNo !== '') {
+            $bill = $this->findBillByReference($referenceNo);
+        }
+
+        if (!$bill) {
+            return ['ok' => false, 'http' => 404, 'message' => 'Bill not found'];
+        }
+
+        if ($bill->isPaid) {
+            return ['ok' => true, 'http' => 200, 'message' => 'Already paid'];
+        }
+
+        $fulfilled = $this->fulfillPaidBill($bill, [
+            'req_id' => $reqId,
+            'amount' => $payload['amount'] ?? null,
+            'ref_code' => $payload['ref_code'] ?? null,
+            'name' => data_get($payload, 'name') ?? data_get($payload, 'extras.name') ?? $bill->payor_name,
+            'paid_at' => $payload['paid_at'] ?? now(),
+        ]);
+
+        if (empty($fulfilled['ok'])) {
+            return [
+                'ok' => false,
+                'http' => 422,
+                'message' => $fulfilled['message'] ?? 'Unable to settle bill',
+            ];
+        }
+
+        return ['ok' => true, 'http' => 200, 'message' => 'Bill updated'];
+    }
+
+    /**
+     * @return array{bill: Bill, status: string, amount: string, paid: bool}
+     */
+    public function completeOrder(int $billId): array
+    {
+        $bill = Bill::with('reading')->findOrFail($billId);
+
+        if (!$bill->isPaid && !empty($bill->novupay_req_id)) {
+            $statusResult = $this->client->checkStatus((string) $bill->novupay_req_id);
+            $remoteStatus = strtolower((string) data_get($statusResult, 'data.status', ''));
+            if (!empty($statusResult['ok']) && $remoteStatus === 'paid') {
+                $this->fulfillPaidBill($bill, [
+                    'req_id' => $bill->novupay_req_id,
+                    'amount' => data_get($statusResult, 'data.amount'),
+                    'ref_code' => data_get($statusResult, 'data.ref_code'),
+                    'name' => $bill->payor_name,
+                ]);
+                $bill->refresh();
+            }
+        }
+
+        $paid = (bool) $bill->isPaid;
+
+        return [
+            'bill' => $bill,
+            'status' => $paid ? 'paid' : 'pending',
+            'amount' => number_format((float) ($bill->amount_paid ?? $bill->total ?? 0), 2),
+            'paid' => $paid,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function billDataForAmount(Bill $bill, string $referenceNo): array
+    {
+        $fromMeter = app(MeterService::class)::getBill($referenceNo);
+        if (is_array($fromMeter) && isset($fromMeter['current_bill']) && is_array($fromMeter['current_bill'])) {
+            return $fromMeter['current_bill'];
+        }
+
+        return [
+            'id' => $bill->id,
+            'total' => $bill->total,
+            'amount' => $bill->amount,
+            'amount_after_due' => $bill->amount_after_due,
+            'penalty' => $bill->penalty,
+            'discount' => $bill->discount,
+            'due_date' => $bill->due_date,
+            'isPaid' => $bill->isPaid,
+            'reference_no' => $bill->reference_no,
+            'bill_period_from' => $bill->bill_period_from,
+            'bill_period_to' => $bill->bill_period_to,
+            'account_no' => optional($bill->reading)->account_no,
+        ];
+    }
+
     /**
      * The hosted checkout must be for this bill's amount due, not a smaller
      * slice of it. A ₱10 NovuPay fee on a ₱160 checkout must not clear a ₱336 bill.

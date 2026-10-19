@@ -1,0 +1,26 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (Schema::hasTable('billing_period_snapshots')) {
+            return;
+        }
+
+        Schema::create('billing_period_snapshots', function (Blueprint $table) {
+            $table->id();
+            $table->json('payload');
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('billing_period_snapshots');
+    }
+};

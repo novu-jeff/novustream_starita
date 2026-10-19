@@ -4,19 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\ReadingDate;
 use App\Models\Zone;
+use App\Services\BillingPeriodService;
 use Illuminate\Http\Request;
 
 class ReadingDateController extends Controller
 {
+    public function __construct(
+        protected BillingPeriodService $billingPeriodService
+    ) {
+    }
+
     public function index()
     {
         $zones = Zone::all();
 
         $readingDates = ReadingDate::with('zone')
-            ->orderBy('created_at', 'asc')
+            ->orderByDesc('is_active')
+            ->orderBy('zone_id')
+            ->orderByDesc('bill_period_to')
             ->get();
 
-        return view('reading-dates.index', compact('zones', 'readingDates'));
+        $hasSnapshot = $this->billingPeriodService->hasSnapshot();
+        $activeBillingMonth = $this->billingPeriodService->yearMonth();
+
+        return view('reading-dates.index', compact('zones', 'readingDates', 'hasSnapshot', 'activeBillingMonth'));
     }
 
     public function store(Request $request)
@@ -34,15 +45,9 @@ class ReadingDateController extends Controller
 
         $zones = Zone::whereBetween('id', [$from, $to])->pluck('id');
 
-        $existingZones = ReadingDate::whereIn('zone_id', $zones)->pluck('zone_id');
-
-        if ($existingZones->isNotEmpty()) {
-            return back()->withErrors([
-                'zone_id' => 'One or more selected zones already have reading dates configured.'
-            ])->withInput();
-        }
-
         foreach ($zones as $zoneId) {
+            ReadingDate::where('zone_id', $zoneId)->update(['is_active' => false]);
+
             ReadingDate::create([
                 'zone_id' => $zoneId,
                 'bill_period_from' => $validated['bill_period_from'],
@@ -72,7 +77,7 @@ class ReadingDateController extends Controller
             ->where('id', '!=', $id)
             ->update(['is_active' => false]);
 
-        $readingDate->update($validated);
+        $readingDate->update(array_merge($validated, ['is_active' => true]));
 
         return back()->with('success', 'Reading date updated successfully.');
     }
@@ -87,10 +92,54 @@ class ReadingDateController extends Controller
 
     public function destroyAll()
     {
-        ReadingDate::truncate(); // deletes all records
+        ReadingDate::truncate();
 
         return redirect()
             ->route('reading-dates.index')
             ->with('success', 'All reading date schedules have been deleted.');
+    }
+
+    /**
+     * Staging: shift active reading_dates so bill_period_to lands in target yyyy-MM.
+     */
+    public function simulateMonth(Request $request)
+    {
+        if (!app()->environment('staging')) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'target_month' => ['required', 'regex:/^\d{4}-\d{2}$/'],
+        ]);
+
+        try {
+            $count = $this->billingPeriodService->simulateMonth($validated['target_month']);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['target_month' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('reading-dates.index')
+            ->with('success', "Simulated billing month {$validated['target_month']} for {$count} zone(s). Demo app Sync will use these dates.");
+    }
+
+    /**
+     * Staging: restore reading_dates from snapshot taken before simulateMonth.
+     */
+    public function restoreCalendarMonth(Request $request)
+    {
+        if (!app()->environment('staging')) {
+            abort(404);
+        }
+
+        try {
+            $count = $this->billingPeriodService->restoreFromSnapshot();
+        } catch (\Throwable $e) {
+            return back()->withErrors(['restore' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('reading-dates.index')
+            ->with('success', "Restored calendar billing dates for {$count} zone(s).");
     }
 }

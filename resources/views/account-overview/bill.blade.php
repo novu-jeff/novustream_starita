@@ -24,9 +24,13 @@
                 @endif
 
                 @if($viewer == 'receipt')
-                    <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
+                    <div class="print-controls d-flex align-items-start justify-content-between gap-4 mt-5 mb-3">
                         @php
-                            $backUrl = route('account-overview.bills', ['account_no' => $data['client']['account_no'], 'view' => 'unpaid']);
+                            $backView = !empty($data['current_bill']['isPaid']) ? 'paid' : 'unpaid';
+                            $backUrl = route('account-overview.bills', [
+                                'account_no' => $data['client']['account_no'],
+                                'view' => $backView,
+                            ]);
                         @endphp
 
                         <a href="{{ $backUrl }}"
@@ -35,14 +39,24 @@
                             <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
                         </a>
 
-                        <button
-                            class="download-js btn btn-primary px-5 py-3 text-uppercase"
-                            data-target="#bill"
-                            data-filename="{{$data['current_bill']['reference_no']}}"
-                            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-                            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
-                        </button>
-
+                        <div class="d-flex flex-column align-items-end gap-3">
+                            <button
+                                class="download-js btn btn-primary px-5 py-3 text-uppercase"
+                                data-target="#bill"
+                                data-filename="{{$data['current_bill']['reference_no']}}"
+                                style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                                <i style="font-size: 18px;" class='bx bxs-download'></i> Download
+                            </button>
+                            @if($data['current_bill']['isPaid'])
+                                <span class="text-uppercase fw-bold" style="font-size: 0.9rem; background-color: #198754; color: white; padding: 1rem 4.9rem; text-transform: uppercase; display: flex; align-items: center; border: none; font-weight: bold; gap: 0.5rem;"><i class="fa-solid fa-money-check-dollar" style="color: white;"></i>PAID</span>
+                            @elseif(!empty($payment_url))
+                                <a href="{{ $payment_url }}"
+                                    target="_blank"
+                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold">
+                                    <i class="bx bx-credit-card"></i> Pay Online
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 @endif
             </div>
@@ -115,7 +129,7 @@
                                 <th>Billing Period</th>
                                 <th>Bill Date</th>
                                 <th>Amount</th>
-                                <th>Due Date</th>
+                                <th>Date Paid</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -124,9 +138,9 @@
                         </tbody>
                     </table>
                     <form id="paymentForm" method="POST" action="">
-    @csrf
-    <input type="hidden" name="payment_type" id="payment_type" value="">
-</form>
+                        @csrf
+                        <input type="hidden" name="payment_type" id="payment_type" value="">
+                    </form>
 
                 </div>
                 @section('script')
@@ -149,7 +163,13 @@
                                     { data: 'billing_period', name: 'billing_period' },
                                     { data: 'bill_date', name: 'bill_date' },
                                     { data: 'amount', name: 'amount' },
-                                    { data: 'due_date', name: 'due_date' },
+                                    {
+                                        data: 'date_paid',
+                                        name: 'date_paid',
+                                        render: function(data, type, row) {
+                                            return data ? data.split(' ')[0] : '';
+                                        }
+                                    },
                                     { data: 'status', name: 'status' },
                                     { data: 'actions', name: 'actions', orderable: false, searchable: false },
                                 ],
@@ -168,11 +188,6 @@
                     <div id="bill" style="margin-top: 30px">
                         <div class="bill-container d-flex flex-row align-items-start">
                             <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-                                @if($data['current_bill']['isPaid'] == true)
-                                    <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
-                                        PAID
-                                    </div>
-                                @endif
                                 @php
                                     $logoPath = public_path('images/client.png');
 
@@ -327,11 +342,10 @@
                                     $advances = $data['current_bill']['advances'];
                                     $isPaid = $data['current_bill']['isPaid'];
 
-                                    if($isPaid == 1) {
-                                        $advance = 0;
-                                    } else {
-                                        $advance = $advances;
-                                    }
+                                    $advance = min(
+                                        (float) $advances,
+                                        max(0, (float) $data['current_bill']['total'] - (float) $discount - (float) ($franchise->amount ?? 0))
+                                    );
 
                                     $amountDue = (float) $data['current_bill']['total']
                                                 - (float) $discount
@@ -423,7 +437,7 @@
                                         <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                         <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                             <li>Scan the QR code.</li>
-                                            <li>Choose a merchant on NovuPay.</li>
+                                            <li>Pay with QR Ph on NovuPay.</li>
                                             <li>Pay the total amount due.</li>
                                             <li>Keep your receipt.</li>
                                         </ol>
@@ -473,15 +487,6 @@
                                 </div>
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             </div>
-                            @if($viewer === 'receipt' && !empty($payment_url) && !$data['current_bill']['isPaid'])
-                                <div class="d-flex justify-content-center">
-                                    <a href="{{ $payment_url }}"
-                                    target="_blank"
-                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold">
-                                        <i class="bx bx-credit-card"></i> Pay Online
-                                    </a>
-                                </div>
-                            @endif
                         </div>
                     </div>
                 </div>
@@ -535,11 +540,6 @@
                 display: none !important;
             }
 
-            .isPaid {
-                display: none;
-                visibility: hidden;
-            }
-
             svg {
                 width: 80px !important;
             }
@@ -560,8 +560,65 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <!-- Custom script -->
+@php
+    $pollReferenceNo = $reference_no ?? ($data['current_bill']['reference_no'] ?? '');
+    $pollStatusUrl = $pollReferenceNo !== ''
+        ? route('transaction.status', ['reference_no' => $pollReferenceNo])
+        : '';
+@endphp
 <script>
 $(function () {
+    const isPaid = @json((bool) ($data['current_bill']['isPaid'] ?? false));
+    const referenceNo = @json($pollReferenceNo);
+    const statusUrl = @json($pollStatusUrl);
+
+    async function checkPaymentStatus() {
+        if (!statusUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ isApi: true })
+            });
+
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            const data = await response.json();
+            if (data.status === 'paid') {
+                window.location.reload();
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking payment status:', error);
+        }
+
+        window.setTimeout(checkPaymentStatus, 4000);
+    }
+
+    if (!isPaid && referenceNo && statusUrl) {
+        checkPaymentStatus();
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                checkPaymentStatus();
+            }
+        });
+    }
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted && referenceNo) {
+            window.location.reload();
+        }
+    });
+
     $(document).on('click', '.pay-now-btn', function() {
     const reference = $(this).data('reference');
     if (!reference) return;
