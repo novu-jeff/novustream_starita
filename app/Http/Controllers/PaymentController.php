@@ -618,6 +618,13 @@ class PaymentController extends Controller
         ]);
     }
 
+    $arrearsReceiptReference = null;
+    if (!empty($currentBill['isPartial'])) {
+        $arrearsReceiptReference = Bill::where('paid_by_reference_no', $reference_no)
+            ->orderByDesc('bill_period_from')
+            ->value('reference_no');
+    }
+
     // 🔹 Deduct previous partial payment (important new part)
     if (!empty($currentBill['isPartial']) && $currentBill['isPartial'] == 1) {
         $partialAmount = floatval($currentBill['partial_payment'] ?? 0);
@@ -699,7 +706,7 @@ class PaymentController extends Controller
         $q->where('account_no', $data['client']['account_no']);
     })->first();
 
-    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user'))
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code', 'arrearsStack', 'user', 'arrearsReceiptReference'))
         ->with('systemFee', (float) config('payments.system_fee', 10));
 }
 
@@ -947,6 +954,7 @@ class PaymentController extends Controller
                     'amount_paid'   => $paymentAmount,
                     'date_paid'     => now(),
                     'payment_method'=> 'cash',
+                    'paid_by_reference_no' => $currentBill->reference_no,
                 ]);
 
             $currentBill->update([

@@ -59,6 +59,19 @@ class AccountMailer
         );
     }
 
+    public function notifyLoginOtp(?string $email, ?string $name, string $code): void
+    {
+        $this->send(
+            $email,
+            'Your sign-in verification code',
+            "A sign-in attempt was made for your Sta. Rita Water District account. Enter this code on the verification page to complete your login. It expires in 5 minutes.\n\nIf you did not try to sign in, you can ignore this email; your account remains signed out.",
+            $this->hello($name),
+            null,
+            null,
+            ['Verification code' => $code],
+        );
+    }
+
     public function notifyRegistration(User $user): void
     {
         $this->send(

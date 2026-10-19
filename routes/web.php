@@ -73,6 +73,14 @@ Route::get('/login', [LoginController::class, 'index'])
 
 Route::post('/login', [LoginController::class, 'login'])
     ->name('auth.login');
+Route::get('/login/verify', [LoginController::class, 'showLoginVerification'])
+    ->name('login.verify');
+Route::post('/login/verify', [LoginController::class, 'verifyLoginOtp'])
+    ->middleware('throttle:10,1')
+    ->name('login.verify.store');
+Route::post('/login/verify/resend', [LoginController::class, 'resendLoginOtp'])
+    ->middleware('throttle:3,1')
+    ->name('login.verify.resend');
 
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
