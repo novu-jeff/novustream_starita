@@ -196,18 +196,26 @@ class MeterService {
         }
 
         $total = $query->count();
-        $limit = isset($filter['filter']) && is_numeric($filter['filter'])
-            ? (int) $filter['filter']
-            : 50;
+        $selectedLimit = strtolower((string) ($filter['filter'] ?? '50'));
+        $limit = $selectedLimit === 'all'
+            ? null
+            : (in_array((int) $selectedLimit, [50, 100, 300, 500, 700, 1000, 5000], true)
+                ? (int) $selectedLimit
+                : 50);
 
-        $data = $query
+        $accountsQuery = $query
             ->orderByRaw("ISNULL(sequence_no) OR sequence_no = '' ASC")
-            ->orderBy('sequence_no', 'ASC')
-            ->limit($limit)
-            ->get();
+            ->orderBy('sequence_no', 'ASC');
+
+        if ($limit !== null) {
+            $accountsQuery->limit($limit);
+        }
+
+        $data = $accountsQuery->get();
+        $shownCount = $limit === null ? $total : min($total, $limit);
 
         return [
-            'total' => $total,
+            'total' => $shownCount,
             'data'  => $data
         ];
     }
