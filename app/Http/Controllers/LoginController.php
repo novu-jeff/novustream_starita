@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Middleware\EnforceStaritaHost;
 use App\Models\Admin;
 use App\Models\User;
+use App\Services\AccountMailer;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -152,44 +154,190 @@ class LoginController extends Controller
             ]);
         }
 
-        /*
-         * Prevent multiple active sessions for concessionaires/users.
-         */
-        if (
-            $user instanceof User &&
-            in_array($user->user_type, ['concessionaire', 'user'])
-        ) {
-            if (
-                $user->current_session_id &&
-                $user->current_session_id !== session()->getId()
-            ) {
-                session()->getHandler()->destroy(
-                    $user->current_session_id
-                );
+        // Require a fresh email code for every web account before establishing its guard session.
+        if ($user instanceof User || $user instanceof Admin) {
+            if (!filter_var((string) $user->email, FILTER_VALIDATE_EMAIL)) {
+                return back()->withErrors([
+                    'email' => 'This account needs a valid email address before it can sign in.',
+                ]);
             }
 
-            $user->current_session_id = session()->getId();
-            $user->save();
+            if ($this->loginOtpIsLocked($user)) {
+                return back()->withErrors([
+                    'email' => 'Too many incorrect verification codes. Try signing in again after the 5-minute lockout.',
+                ]);
+            }
+
+            $verifiedAt = $user->login_otp_verified_at;
+            if ($verifiedAt && Carbon::parse($verifiedAt)->greaterThan(now()->subHours(24))) {
+                return $this->completeLogin($request, $user, $guard, $request->has('remember'));
+            }
+
+            if ((int) $user->login_otp_failed_attempts >= 5) {
+                $user->login_otp_failed_attempts = 0;
+            }
+
+            $code = (string) random_int(100000, 999999);
+            $user->forceFill([
+                'login_otp' => Hash::make($code),
+                'login_otp_expires_at' => now()->addMinutes(5),
+            ])->save();
+
+            $request->session()->put([
+                'login_otp_user_id' => $user->id,
+                'login_otp_guard' => $guard,
+                'login_otp_remember' => $request->has('remember'),
+            ]);
+
+            app(AccountMailer::class)->notifyLoginOtp($user->email, $user->name, $code);
+
+            return redirect()->route('login.verify');
         }
 
-        Auth::guard($guard)->login(
-            $user,
-            $request->has('remember')
-        );
+        return $this->completeLogin($request, $user, $guard, $request->has('remember'));
+    }
 
-        /*
-         * Redirect based on account type.
-         */
-        $targetHost = $user instanceof Admin
+    public function showLoginVerification(Request $request)
+    {
+        $user = $this->pendingLoginAccount($request);
+
+        if (!$user) {
+            return redirect()->route('auth.index');
+        }
+
+        return view('auth.verify-otp', [
+            'maskedEmail' => $this->maskEmail($user->email),
+            'verifyRoute' => route('login.verify.store'),
+            'resendRoute' => route('login.verify.resend'),
+            'pageTitle' => 'Verify your login',
+            'submitLabel' => 'Verify and sign in',
+            'expiryMinutes' => 5,
+            'lockedUntil' => $this->loginOtpIsLocked($user)
+                ? Carbon::parse($user->login_otp_locked_until)->format('g:i A')
+                : null,
+            'lockoutRemainingSeconds' => $this->loginOtpIsLocked($user)
+                ? max(1, now()->diffInSeconds(Carbon::parse($user->login_otp_locked_until)))
+                : 0,
+            'attemptsRemaining' => max(0, 5 - (int) $user->login_otp_failed_attempts),
+        ]);
+    }
+
+    public function verifyLoginOtp(Request $request)
+    {
+        $request->merge([
+            'otp' => preg_replace('/\\D+/', '', (string) $request->input('otp')),
+        ]);
+        $payload = $request->validate(['otp' => ['required', 'digits:6']]);
+        $user = $this->pendingLoginAccount($request);
+
+        if (!$user) {
+            return redirect()->route('auth.index')->with('error', 'Your verification session expired. Please sign in again.');
+        }
+
+        if ($this->loginOtpIsLocked($user)) {
+            return back()->withErrors(['otp' => 'Verification is locked until '.Carbon::parse($user->login_otp_locked_until)->format('g:i A').'.']);
+        }
+
+        if (empty($user->login_otp) || empty($user->login_otp_expires_at) || now()->greaterThan($user->login_otp_expires_at)) {
+            return back()->withErrors(['otp' => 'That code has expired. Send a new code and try again.']);
+        }
+
+        if (!Hash::check($payload['otp'], $user->login_otp)) {
+            $user->login_otp_failed_attempts = (int) $user->login_otp_failed_attempts + 1;
+            if ($user->login_otp_failed_attempts >= 5) {
+                $user->forceFill([
+                    'login_otp' => null,
+                    'login_otp_expires_at' => null,
+                    'login_otp_locked_until' => now()->addMinutes(5),
+                ]);
+                $user->save();
+                return back()->withErrors(['otp' => 'Five incorrect codes were entered. Verification is locked for 5 minutes.']);
+            }
+            $user->save();
+            return back()->withErrors(['otp' => 'The verification code is incorrect.']);
+        }
+
+        $remember = (bool) $request->session()->get('login_otp_remember', false);
+        $user->forceFill([
+            'login_otp' => null,
+            'login_otp_expires_at' => null,
+            'login_otp_verified_at' => now(),
+            'login_otp_failed_attempts' => 0,
+            'login_otp_locked_until' => null,
+        ])->save();
+        $request->session()->forget(['login_otp_user_id', 'login_otp_guard', 'login_otp_remember']);
+
+        $guard = $user instanceof Admin ? 'admins' : 'web';
+        return $this->completeLogin($request, $user, $guard, $remember);
+    }
+
+    public function resendLoginOtp(Request $request)
+    {
+        $user = $this->pendingLoginAccount($request);
+        if (!$user) {
+            return redirect()->route('auth.index')->with('error', 'Your verification session expired. Please sign in again.');
+        }
+
+        if ($this->loginOtpIsLocked($user)) {
+            return back()->withErrors(['otp' => 'Verification is locked until '.Carbon::parse($user->login_otp_locked_until)->format('g:i A').'.']);
+        }
+
+        $code = (string) random_int(100000, 999999);
+        $user->forceFill([
+            'login_otp' => Hash::make($code),
+            'login_otp_expires_at' => now()->addMinutes(5),
+        ])->save();
+        if ((int) $user->login_otp_failed_attempts >= 5) {
+            $user->login_otp_failed_attempts = 0;
+            $user->save();
+        }
+        app(AccountMailer::class)->notifyLoginOtp($user->email, $user->name, $code);
+
+        return back()->with('status', 'A new verification code was sent to your email.');
+    }
+
+    private function maskEmail(?string $email): string
+    {
+        $email = trim((string) $email);
+        if (!str_contains($email, '@')) return 'your email';
+        [$name, $domain] = explode('@', $email, 2);
+        return substr($name, 0, 1).str_repeat('*', max(strlen($name) - 1, 1)).'@'.$domain;
+    }
+
+    private function pendingLoginAccount(Request $request)
+    {
+        $id = $request->session()->get('login_otp_user_id');
+        return $request->session()->get('login_otp_guard') === 'admins'
+            ? Admin::find($id)
+            : User::find($id);
+    }
+
+    private function loginOtpIsLocked($account): bool
+    {
+        return !empty($account->login_otp_locked_until)
+            && Carbon::parse($account->login_otp_locked_until)->isFuture();
+    }
+
+    private function completeLogin(Request $request, $account, string $guard, bool $remember)
+    {
+        $request->session()->regenerate();
+
+        if ($account instanceof User && in_array($account->user_type, ['concessionaire', 'user'])) {
+            if ($account->current_session_id && $account->current_session_id !== $request->session()->getId()) {
+                $request->session()->getHandler()->destroy($account->current_session_id);
+            }
+
+            $account->current_session_id = $request->session()->getId();
+            $account->save();
+        }
+
+        Auth::guard($guard)->login($account, $remember);
+
+        $targetHost = $account instanceof Admin
             ? EnforceStaritaHost::ADMIN_HOST
             : EnforceStaritaHost::PORTAL_HOST;
 
-        return redirect()->to(
-            $this->absoluteUrl(
-                $targetHost,
-                $this->pathForUser($user)
-            )
-        );
+        return redirect()->to($this->absoluteUrl($targetHost, $this->pathForUser($account)));
     }
 
     public function logout(Request $request)

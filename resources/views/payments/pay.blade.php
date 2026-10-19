@@ -574,7 +574,7 @@
                             @endif
 
                             @if($data['current_bill']['isPartial'] == 1)
-                                <a href="{{ route('reading.orshow', ['reference_no' => $reference_no]) }}" class="mt-4 btn btn-outline-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
+                                <a href="{{ route('reading.orshow', ['reference_no' => $arrearsReceiptReference ?: $reference_no]) }}" class="mt-4 btn btn-outline-primary px-4 py-2 fw-semibold text-uppercase shadow-sm">
                                     <i class="bx bx-printer me-2"></i> Generate Official Receipt
                                 </a>
                             @endif
