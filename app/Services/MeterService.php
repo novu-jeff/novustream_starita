@@ -23,6 +23,7 @@ use App\Models\Discount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\InstallmentSchedule;
 use App\Models\PenaltyExemption;
+use App\Models\PartialPayment;
 
 class MeterService {
 

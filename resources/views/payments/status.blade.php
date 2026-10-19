@@ -2,19 +2,27 @@
 
 @section('base')
 @php
-    // dd($payload);
+    $status = strtolower($payload['status'] ?? 'unknown');
+    $isSuccess = in_array($status, ['paid', 'completed', 'succeeded'], true);
+    $isPending = in_array($status, ['pending', 'processing'], true);
+    $iconClass = $isSuccess ? 'success' : ($isPending ? 'pending' : 'error');
+    $pillClass = $isSuccess ? '' : ($isPending ? 'pending' : 'error');
 @endphp
 <div class="outer-wrapper">
     <div class="inner-wrapper">
+        <div class="brand-mark">
+            <img class="logo-starita" src="{{ asset('images/client1nobg.png') }}" alt="Sta. Rita Water District">
+        </div>
+
         <div class="wrapper">
             <div class="top">
-                <div class="icon {{ in_array(strtolower($payload['status']), ['paid', 'completed', 'succeeded']) ? 'success' : 'error' }}">
-                    @if(in_array(strtolower($payload['status']), ['paid', 'completed', 'succeeded']))
-                        <box-icon color='white' size='md' name='check'></box-icon>
-                    @elseif(strtolower($payload['status']) === 'pending')
-                        <box-icon color='white' name='time-five'></box-icon>
+                <div class="icon status-mark {{ $iconClass }}">
+                    @if($isSuccess)
+                        <box-icon color="white" size="md" name="check"></box-icon>
+                    @elseif($isPending)
+                        <box-icon color="white" size="md" name="time-five"></box-icon>
                     @else
-                        <box-icon color='white' name='x'></box-icon>
+                        <box-icon color="white" size="md" name="x"></box-icon>
                     @endif
                 </div>
                 <div class="header">
@@ -35,15 +43,14 @@
                     </div>
                     <div class="items">
                         <div>Payment Status:</div>
-                        <div>{{ ucwords($payload['status'] ?? 'Unknown') }}</div>
+                        <div><span class="status-pill {{ $pillClass }}">{{ ucwords($status === 'unknown' ? ($payload['status'] ?? 'Unknown') : $status) }}</span></div>
                     </div>
                     <div class="items">
                         <div>Date:</div>
                         <div>{{ $payload['date_paid'] ?? now()->format('M d, Y h:i A') }}</div>
                     </div>
 
-                    {{-- ✅ Show expiration if not yet paid --}}
-                    @if(!in_array(strtolower($payload['status']), ['paid', 'completed', 'succeeded']) && isset($payload['expires_at']))
+                    @if(!$isSuccess && isset($payload['expires_at']))
                         <div class="items">
                             <div>Expires On:</div>
                             <div class="{{ \Carbon\Carbon::parse($payload['expires_at'])->isPast() ? 'text-danger fw-bold' : 'text-warning fw-bold' }}">
@@ -67,51 +74,49 @@
 
                 <hr>
 
-                <div class="text-center mt-3">
-                    <div class="fw-bold">Payment ID</div>
-                    <div class="fw-bold text-muted mt-1">{{ $payload['payment_id'] ?? '-' }}</div>
+                <div class="payment-id">
+                    <div class="label">Payment ID</div>
+                    <div class="value">{{ $payload['payment_id'] ?? '-' }}</div>
                 </div>
             </div>
         </div>
 
-        <div class="wrapper">
-            <div class="others">
-                <div class="d-flex justify-content-between m-auto align-items-center gap-3">
-                    <div class="d-md-flex align-items-center gap-3">
-                        <div class="icon d-none d-md-flex">
-                            <box-icon color='white' animation='tada' name='question-mark'></box-icon>
-                        </div>
-                        <div class="d-block">
-                            <div class="mb-0 fw-bold text-muted" style="font-size: 14px;">
-                                Trouble with your payment?
-                            </div>
-                            <div class="mb-0 fw-bold text-muted" style="font-size: 14px;">
-                                Let us know on our help center!
-                            </div>
-                        </div>
-                    </div>
-                    <div class="icon">
-                        <box-icon name='chevron-right'></box-icon>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <a class="wrapper help-card no-print" href="mailto:support@novupay.ph">
+            <span class="icon">
+                <box-icon color="white" name="question-mark"></box-icon>
+            </span>
+            <span class="help-copy">
+                <strong>Trouble with your payment?</strong>
+                <span>Let us know on our help center!</span>
+            </span>
+            <span class="icon">
+                <box-icon color="white" name="chevron-right"></box-icon>
+            </span>
+        </a>
 
-        @if(in_array(strtolower($payload['status']), ['paid', 'completed', 'succeeded']))
-            <div class="wrapper">
+        @if($isSuccess)
+            <div class="wrapper actions no-print">
                 <div class="bottom">
-                    <button onclick="window.print()">
-                        <box-icon color='white' name='download'></box-icon>
+                    <button type="button" class="btn-receipt" onclick="window.print()">
+                        <box-icon color="white" name="download"></box-icon>
                         Download Receipt
                     </button>
-                    <button onclick="window.location.href='/'">
-                        <box-icon color='dark' name='arrow-back'></box-icon>
+                    <a class="btn-back" href="{{ url('/') }}">
+                        <box-icon color="white" name="arrow-back"></box-icon>
                         Go Back
-                    </button>
+                    </a>
                 </div>
             </div>
         @endif
+
+        <div class="powered">
+            <div class="powered-by">
+                <span>Powered by</span>
+                <img class="logo-novulutions" src="{{ asset('images/novulutions-logo.png') }}" alt="Novulutions">
+            </div>
+            <img class="logo-novupay" src="{{ asset('images/novupay-logo.png') }}" alt="NovuPay">
+            <img class="logo-novustream" src="{{ asset('images/novustreamlogo.png') }}" alt="NovuStream">
+        </div>
     </div>
 </div>
-
 @endsection

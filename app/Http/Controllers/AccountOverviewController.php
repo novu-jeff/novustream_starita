@@ -661,6 +661,29 @@ public function addAccount(Request $request)
             return redirect()->route('payments.qr-voided', ['reference_no' => $reference_no]);
         }
 
+        if (!\App\Http\Controllers\PaymentController::isHitpayEnabled()) {
+            $checkoutService = app(\App\Services\NovuPayCheckoutService::class);
+            $checkout = $checkoutService->startCheckout(
+                $reference_no,
+                $bill['current_bill'] ?? [],
+                [
+                    'name' => $clientData->name ?? 'Customer',
+                    'email' => $clientData->email ?? 'srwdsystem2023@gmail.com',
+                    'contact' => $clientData->contact_no ?? null,
+                    'account_no' => $bill['current_bill']['account_no'] ?? null,
+                ]
+            );
+
+            if (!$checkout['ok'] || empty($checkout['checkout_url'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => $checkout['error'] ?? 'Failed to initiate online payment.',
+                ]);
+            }
+
+            return redirect()->away((string) $checkout['checkout_url']);
+        }
+
         $hitpayData = $paymentController->createHitpayPaymentRequest($reference_no, $payload);
 
         if (!$hitpayData || empty($hitpayData['url'])) {

@@ -44,6 +44,12 @@ class Bill extends Model
         'isPartial',
         'hitpay_reference',
         'hitpay_payment_id',
+        'novupay_id',
+        'novupay_uid',
+        'novupay_req_id',
+        'novupay_amount',
+        'novupay_status',
+        'novupay_ref_code',
         'initiated_at',
     ];
 

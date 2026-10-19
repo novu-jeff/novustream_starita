@@ -412,6 +412,15 @@ class StaritaNovupayBillService
         if (in_array('is_high_consumption', $columns, true)) {
             $row['is_high_consumption'] = (bool) ($bill->isHighConsumption ?? false);
         }
+        if (in_array('novupay_status', $columns, true) && !empty($bill->novupay_status)) {
+            $row['novupay_status'] = $bill->novupay_status;
+        }
+        if (in_array('novupay_ref_code', $columns, true) && !empty($bill->novupay_ref_code)) {
+            $row['novupay_ref_code'] = $bill->novupay_ref_code;
+        }
+        if (in_array('novupay_req_id', $columns, true) && !empty($bill->novupay_req_id)) {
+            $row['novupay_req_id'] = $bill->novupay_req_id;
+        }
 
         $existing = NovupayStaritaBill::where('reference_no', $referenceNo)->first();
         if ($existing) {

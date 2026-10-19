@@ -212,6 +212,11 @@ class BillSettlementService
             }
         }
 
+        // Direct NovuPay QR Ph checkout: customer pays the bill plus a flat ₱10 fee.
+        if (abs($reported - round($billAmount + 10, 2)) < 0.06) {
+            return true;
+        }
+
         return false;
     }
 

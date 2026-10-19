@@ -207,8 +207,6 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
             ->name('previous-billing.upload');
         Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
-        Route::post('/account-overview/pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
-            ->name('account-overview.pay-online');
 
 
     Route::get('/admin/payments/application-fees', [PaymentController::class, 'applicationFees'])
@@ -347,6 +345,8 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills.reference_no');
+        Route::post('pay/{reference_no}', [AccountOverviewController::class, 'payOnline'])
+            ->name('account-overview.pay-online');
     });
 
     Route::prefix('/support')->group(function() {
@@ -383,6 +383,8 @@ Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallba
 Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
 Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
 Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'showQrVoided'])->name('payments.qr-voided');
+Route::post('/webhooks/novupay', \App\Http\Controllers\NovuPayWebhookController::class)->name('webhooks.novupay');
+Route::get('/payments/novupay/return', \App\Http\Controllers\NovuPayReturnController::class)->name('payments.novupay.return');
 
 
 // Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
