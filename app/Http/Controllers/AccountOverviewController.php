@@ -99,6 +99,11 @@ class AccountOverviewController extends Controller
             ->pluck('application_status')
             ->filter()
             ->first();
+        $hasApprovedConcessionaireAccount = $accounts->contains(
+            fn ($account) => $this->applicationStatus($account) === 'approved'
+        );
+        $hideServiceApplicationContainer = $hasApprovedConcessionaireAccount
+            || ($serviceApplication && strtolower((string) $serviceApplication->status) === 'approved');
         $approvedAccounts = collect($accounts)->filter(function ($account) {
             return $this->canUseAccount($account);
         });
@@ -308,7 +313,7 @@ class AccountOverviewController extends Controller
             $statement['current_bill_qr'] = $qrResolved['url'];
         }
 
-        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication', 'chartMonthlyLabels', 'chartMonthlyConsumption', 'chartMonthlyBill', 'chartMonthlyPayment'));
+        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication', 'hideServiceApplicationContainer', 'chartMonthlyLabels', 'chartMonthlyConsumption', 'chartMonthlyBill', 'chartMonthlyPayment'));
     }
 
 public function addAccount(Request $request)
@@ -922,40 +927,39 @@ public function addAccount(Request $request)
             ->values();
 
         if ($accountNos->isNotEmpty()) {
-            $latestUnpaidBill = Bill::with('reading')
-                ->where('isPaid', false)
+            $soaBills = Bill::with('reading')
                 ->where('created_at', '>=', $user->created_at)
                 ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
-                ->latest('created_at')
-                ->first();
+                ->orderByDesc('created_at')
+                ->get();
 
-            if ($latestUnpaidBill) {
+            foreach ($soaBills as $soaBill) {
                 $notifications[] = [
                     'type' => 'bill',
-                    'status' => 'danger',
-                    'title' => 'Bill to pay',
-                    'message' => 'A new statement of account is available. Amount due: PHP ' . number_format((float) ($latestUnpaidBill->total ?? 0), 2) . '.',
-                    'date' => optional($latestUnpaidBill->created_at)->format('M d, Y h:i A'),
-                    'timestamp' => optional($latestUnpaidBill->created_at)->timestamp,
+                    'status' => $soaBill->isPaid ? 'success' : 'danger',
+                    'title' => 'Statement of Account available',
+                    'message' => 'A new statement of account is available for reference ' . $soaBill->reference_no . '. Amount: PHP ' . number_format((float) ($soaBill->total ?? 0), 2) . '.',
+                    'date' => optional($soaBill->created_at)->format('M d, Y h:i A'),
+                    'timestamp' => optional($soaBill->created_at)->timestamp,
                 ];
             }
 
-            $latestPaidBill = Bill::with('reading')
+            $paidBills = Bill::with('reading')
                 ->where('isPaid', true)
-                ->where('created_at', '>=', $user->created_at)
                 ->whereHas('reading', fn ($query) => $query->whereIn('account_no', $accountNos))
-                ->latest('date_paid')
-                ->latest('updated_at')
-                ->first();
+                ->get();
 
-            if ($latestPaidBill) {
-                $paidAt = $this->notificationDate($latestPaidBill->date_paid) ?? $latestPaidBill->updated_at;
+            foreach ($paidBills as $paidBill) {
+                $paidAt = $this->notificationDate($paidBill->date_paid) ?? $paidBill->updated_at;
+                if (!$paidAt || ($user->created_at && $paidAt->lt($user->created_at))) {
+                    continue;
+                }
 
                 $notifications[] = [
                     'type' => 'payment',
                     'status' => 'success',
                     'title' => 'Payment posted',
-                    'message' => 'Your payment for reference ' . $latestPaidBill->reference_no . ' was successfully posted.',
+                    'message' => 'Your payment for reference ' . $paidBill->reference_no . ' was successfully posted.',
                     'date' => optional($paidAt)->format('M d, Y h:i A'),
                     'timestamp' => optional($paidAt)->timestamp,
                 ];

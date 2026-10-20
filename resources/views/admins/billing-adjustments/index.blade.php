@@ -60,6 +60,7 @@
 
                 <thead>
                     <tr>
+                        <th>#</th>
                         <th>Account</th>
                         <th>Name</th>
                         <th>Reference Number</th>
@@ -73,6 +74,7 @@
                 <tbody>
                     @foreach($bills as $bill)
                         <tr>
+                            <td>{{ $loop->iteration }}</td>
                             <td>{{ $bill->account_no }}</td>
                             <td>{{ $bill->concessioner_name ?? '-' }}</td>
                             <td>{{ $bill->reference_no }}</td>

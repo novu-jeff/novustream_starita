@@ -404,6 +404,7 @@
 
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Account</th>
                             <th>Name</th>
                             <th>Bill Ref</th>
@@ -419,6 +420,7 @@
                         @forelse($installments as $installment)
 
                         <tr>
+                            <td>{{ $loop->iteration }}</td>
                             <td>{{ $installment->bill->reading->account_no ?? '-' }}</td>
 
                             <td>{{ $installment->bill->reading->concessionaire->user->name ?? '-' }}</td>

@@ -169,7 +169,8 @@ class LoginController extends Controller
             }
 
             $verifiedAt = $user->login_otp_verified_at;
-            if ($verifiedAt && Carbon::parse($verifiedAt)->greaterThan(now()->subHours(24))) {
+            // Daily verification expires at midnight in the application's timezone.
+            if ($verifiedAt && Carbon::parse($verifiedAt)->isSameDay(now())) {
                 return $this->completeLogin($request, $user, $guard, $request->has('remember'));
             }
 
