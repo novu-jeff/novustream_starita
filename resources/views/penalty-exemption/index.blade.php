@@ -64,6 +64,7 @@
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
+                        <th>#</th>
                         <th>Account No</th>
                         <th>Name</th>
                         <th>Type</th>
@@ -81,6 +82,7 @@
                                     \Carbon\Carbon::parse($exemption->expired_date)->gte($today);
                     @endphp
                     <tr>
+                        <td>{{ $loop->iteration }}</td>
                         <td class="fw-semibold">{{ $exemption->account_no }}</td>
                         <td>{{ optional(optional($exemption->account)->user)->name ?? '—' }}</td>
                         <td>{{ optional($exemption->type)->penalty_exemption_name }}</td>

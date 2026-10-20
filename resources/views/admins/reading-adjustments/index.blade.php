@@ -55,6 +55,7 @@
 
                 <thead class="table-light">
                     <tr>
+                        <th>#</th>
                         <th>Account</th>
                         <th>Name</th>
                         <th>Previous</th>
@@ -67,6 +68,7 @@
                 <tbody>
                     @forelse($readings as $reading)
                         <tr>
+                            <td>{{ $loop->iteration }}</td>
                             <td class="fw-semibold">{{ $reading->account_no }}</td>
                             <td>{{ $reading->concessioner_name ?? '-' }}</td>
                             <td>{{ $reading->previous_reading }}</td>

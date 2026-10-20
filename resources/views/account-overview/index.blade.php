@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             @endif
             <div class="inner-content mt-5 pb-5">
-                    @if(!empty($serviceApplication))
+                    @if(!empty($serviceApplication) && empty($hideServiceApplicationContainer))
                         <div class="card shadow border-0 p-4 mb-4">
                             <div class="card-body">
                                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
