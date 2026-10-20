@@ -286,6 +286,242 @@
     }
 }
 
+/* Minimal shared presentation for login and registration OTP screens. */
+.otp-login-page {
+    min-height: 100vh;
+    height: auto;
+    padding: 2rem 1rem;
+    background: #f5f8fa;
+
+    .container.otp-shell {
+        width: min(100%, 440px);
+        max-width: 440px;
+        min-height: 0;
+        height: auto;
+        overflow: hidden;
+        border: 1px solid var(--module-border, #e1ebfa);
+        border-radius: 1.15rem;
+        background: #fff;
+        box-shadow: 0 16px 48px rgba(22, 47, 62, .09);
+    }
+
+    .otp-shell form {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 2rem 2rem 1rem;
+        background: #fff;
+    }
+
+    .otp-shell .otp-brand {
+        display: block;
+        width: auto;
+        height: 58px;
+        max-width: 180px;
+        object-fit: contain;
+        margin: 0 auto 1.25rem;
+    }
+
+    .otp-shell .otp-title {
+        margin: 0;
+        color: var(--module-ink, #172b36);
+        font-size: 1.5rem;
+        font-weight: 750;
+        letter-spacing: -.025em;
+        line-height: 1.25;
+        text-align: center;
+        text-transform: none;
+    }
+
+    .otp-shell .otp-description {
+        margin: .55rem 0 1.2rem;
+        color: var(--module-muted, #7184a5);
+        font-size: .9rem;
+        font-weight: 400;
+        line-height: 1.55;
+        letter-spacing: 0;
+        text-align: center;
+        text-transform: none;
+    }
+
+    .otp-shell .otp-description strong {
+        color: var(--module-ink, #172b36);
+        font-weight: 650;
+        overflow-wrap: anywhere;
+    }
+
+    .otp-shell .otp-alert {
+        width: 100%;
+        margin: 0 0 .9rem;
+        padding: .7rem .85rem;
+        border-radius: .7rem;
+        font-size: .84rem;
+        line-height: 1.45;
+        text-align: left;
+    }
+
+    .otp-shell .otp-entry {
+        width: 100%;
+        margin-top: .4rem;
+    }
+
+    .otp-shell .otp-digit-group {
+        display: flex;
+        justify-content: center;
+        gap: .6rem;
+    }
+
+    .otp-shell .otp-digit {
+        width: 48px;
+        height: 54px;
+        min-height: 54px;
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--module-border, #dce6eb);
+        border-radius: .7rem;
+        background: #f8fafb;
+        color: var(--module-ink, #172b36);
+        font-size: 1.3rem;
+        font-weight: 700;
+        text-align: center;
+        transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+    }
+
+    .otp-shell .otp-digit:focus {
+        border-color: var(--module-blue, #32667e);
+        background: #fff;
+        box-shadow: 0 0 0 .2rem rgba(50, 102, 126, .14);
+        outline: 0;
+    }
+
+    .otp-shell .otp-digit.is-invalid {
+        border-color: #c93645;
+        background: #fff8f8;
+    }
+
+    .otp-shell .otp-digit:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+    }
+
+    .otp-shell .otp-error {
+        display: block;
+        margin-top: .65rem;
+        color: #b42332;
+        font-size: .82rem;
+        line-height: 1.4;
+        text-align: center;
+        text-transform: none;
+    }
+
+    .otp-shell .otp-meta,
+    .otp-shell .otp-expiry {
+        width: 100%;
+        margin: .7rem 0 0;
+        color: var(--module-muted, #7184a5);
+        font-size: .78rem;
+        font-weight: 500;
+        line-height: 1.4;
+        letter-spacing: 0;
+        text-align: center;
+        text-transform: none;
+    }
+
+    .otp-shell .otp-expiry {
+        margin-top: .3rem;
+
+        strong {
+            color: var(--module-ink, #172b36);
+            font-variant-numeric: tabular-nums;
+        }
+    }
+
+    .otp-shell .otp-resend-hint {
+        min-height: 1.1rem;
+        margin: .2rem 0 0;
+        color: var(--module-muted, #7184a5);
+        font-size: .75rem;
+        font-weight: 500;
+        line-height: 1.4;
+        letter-spacing: 0;
+        text-align: center;
+        text-transform: none;
+    }
+
+    .otp-shell .otp-submit {
+        width: 100%;
+        min-height: 46px;
+        margin-top: 1.2rem;
+        border: 1px solid var(--module-blue, #32667e);
+        border-radius: .7rem;
+        background: var(--module-blue, #32667e);
+        color: #fff;
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-transform: none;
+        transition: background-color .15s ease, opacity .15s ease;
+    }
+
+    .otp-shell .otp-submit:hover:not(:disabled) {
+        background: var(--module-blue-dark, #285467);
+    }
+
+    .otp-shell .otp-submit:disabled,
+    .otp-shell .otp-resend button:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+    }
+
+    .otp-shell .otp-resend {
+        padding: 0 2rem 1.5rem;
+
+        button {
+            width: 100%;
+            padding: .55rem .75rem;
+            border: 0;
+            background: transparent;
+            color: var(--module-blue, #32667e);
+            font-size: .86rem;
+            font-weight: 650;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        button:hover:not(:disabled) {
+            text-decoration: underline;
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    .otp-login-page {
+        padding: 1rem .75rem;
+
+        .container.otp-shell {
+            border-radius: .9rem;
+        }
+
+        .otp-shell form {
+            padding: 1.6rem 1.15rem .9rem;
+        }
+
+        .otp-shell .otp-digit-group {
+            gap: .42rem;
+        }
+
+        .otp-shell .otp-digit {
+            width: min(13vw, 44px);
+            height: 50px;
+            min-height: 50px;
+        }
+
+        .otp-shell .otp-resend {
+            padding: 0 1.15rem 1.2rem;
+        }
+    }
+}
+
 .invalid-feedback {
     font-size: 12px !important;
 }

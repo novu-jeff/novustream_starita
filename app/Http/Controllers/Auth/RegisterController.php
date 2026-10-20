@@ -9,6 +9,7 @@ use App\Models\ServiceApplication;
 use App\Models\UserAccounts;
 use App\Models\User;
 use App\Services\AccountMailer;
+use Carbon\Carbon;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -200,8 +201,16 @@ class RegisterController extends Controller
                 ->with('error', 'Submit your registration first so we can email you a verification code.');
         }
 
+        $expiresAt = $user->email_otp_expires_at
+            ? Carbon::parse($user->email_otp_expires_at)
+            : null;
+
         return view('auth.verify-otp', [
             'maskedEmail' => $this->maskEmail($user->email),
+            'expiryMinutes' => 10,
+            'expiresAtTimestampMs' => $expiresAt?->getTimestamp() * 1000,
+            'resendCooldownSeconds' => 0,
+            'codeExpired' => !$expiresAt || $expiresAt->isPast(),
         ]);
     }
 
