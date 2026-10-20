@@ -174,6 +174,23 @@ class LoginController extends Controller
                 return $this->completeLogin($request, $user, $guard, $request->has('remember'));
             }
 
+            // Reuse an outstanding code so repeated password submissions cannot
+            // resend email or extend its expiry window.
+            if (!empty($user->login_otp) && !empty($user->login_otp_expires_at)) {
+                $samePendingLogin = (int) $request->session()->get('login_otp_user_id') === (int) $user->id
+                    && $request->session()->get('login_otp_guard') === $guard;
+
+                $request->session()->put([
+                    'login_otp_user_id' => $user->id,
+                    'login_otp_guard' => $guard,
+                ]);
+                if (!$samePendingLogin) {
+                    $request->session()->put('login_otp_remember', $request->has('remember'));
+                }
+
+                return redirect()->route('login.verify');
+            }
+
             if ((int) $user->login_otp_failed_attempts >= 5) {
                 $user->login_otp_failed_attempts = 0;
             }
@@ -206,6 +223,12 @@ class LoginController extends Controller
             return redirect()->route('auth.index');
         }
 
+        $expiresAt = $user->login_otp_expires_at
+            ? Carbon::parse($user->login_otp_expires_at)
+            : null;
+        $resendAvailableAt = $expiresAt?->copy()->subMinutes(4);
+        $isLocked = $this->loginOtpIsLocked($user);
+
         return view('auth.verify-otp', [
             'maskedEmail' => $this->maskEmail($user->email),
             'verifyRoute' => route('login.verify.store'),
@@ -213,13 +236,21 @@ class LoginController extends Controller
             'pageTitle' => 'Verify your login',
             'submitLabel' => 'Verify and sign in',
             'expiryMinutes' => 5,
-            'lockedUntil' => $this->loginOtpIsLocked($user)
+            'expiresAtTimestampMs' => $expiresAt
+                ? $expiresAt->getTimestamp() * 1000
+                : now()->getTimestamp() * 1000,
+            'resendAvailableAtTimestampMs' => $resendAvailableAt?->getTimestamp() * 1000,
+            'resendCooldownSeconds' => $resendAvailableAt
+                ? max(0, $resendAvailableAt->getTimestamp() - now()->getTimestamp())
+                : 0,
+            'lockedUntil' => $isLocked
                 ? Carbon::parse($user->login_otp_locked_until)->format('g:i A')
                 : null,
-            'lockoutRemainingSeconds' => $this->loginOtpIsLocked($user)
+            'lockoutRemainingSeconds' => $isLocked
                 ? max(1, now()->diffInSeconds(Carbon::parse($user->login_otp_locked_until)))
                 : 0,
             'attemptsRemaining' => max(0, 5 - (int) $user->login_otp_failed_attempts),
+            'codeExpired' => !$expiresAt || $expiresAt->isPast(),
         ]);
     }
 
@@ -281,6 +312,13 @@ class LoginController extends Controller
 
         if ($this->loginOtpIsLocked($user)) {
             return back()->withErrors(['otp' => 'Verification is locked until '.Carbon::parse($user->login_otp_locked_until)->format('g:i A').'.']);
+        }
+
+        if (!empty($user->login_otp_expires_at)) {
+            $resendAvailableAt = Carbon::parse($user->login_otp_expires_at)->subMinutes(4);
+            if (now()->lt($resendAvailableAt)) {
+                return back()->withErrors(['otp' => 'You can resend the code when 4 minutes remain on the countdown.']);
+            }
         }
 
         $code = (string) random_int(100000, 999999);
