@@ -15,7 +15,7 @@
                     <div class="register-step-heading">
                         <span class="register-heading-icon"><i class="bx bx-water"></i></span>
                         <div>
-                            <h1>How do you use Sta. Rita Water District?</h1>
+                            <h1 class="text-uppercase">How do you use Sta. Rita Water District?</h1>
                             <p class="registration-type-subtitle">Choose the option that best describes your application.</p>
                         </div>
                     </div>
@@ -26,7 +26,7 @@
                             <span class="account-type-radio"></span>
                             <img src="{{ asset('images/Existing_Conce.png') }}" alt="Existing Sta. Rita account">
                             <span class="account-type-details">
-                                <strong>Existing account</strong>
+                                <strong class="text-uppercase">Existing account</strong>
                                 <span>You already have a Sta. Rita water meter and need online access to your account.</span>
                                 <small>Have your account number and latest SOA ready.</small>
                             </span>
@@ -36,7 +36,7 @@
                             <span class="account-type-radio"></span>
                             <img src="{{ asset('images/New_Concessionaire.png') }}" alt="New concessionaire">
                             <span class="account-type-details">
-                                <strong>New connection</strong>
+                                <strong class="text-uppercase">New connection</strong>
                                 <span>You are applying for a new water service connection.</span>
                                 <small>Your application will be reviewed by the district.</small>
                             </span>
@@ -55,7 +55,7 @@
                         <img class="mobile-logo" src="{{ asset('images/client1nobg.png') }}" alt="Sta. Rita Water District">
                         <div>
                             <div class="register-step-label"><span>STEP 2 OF 2</span><span>Account details</span></div>
-                            <h1>Create your online account</h1>
+                            <h1 class="text-uppercase">Create your online account</h1>
                             <p id="registrationTypeSummary">Existing account registration</p>
                         </div>
                     </div>
@@ -67,48 +67,48 @@
                 <div class="register-fields w-100">
                     <div class="register-name-group register-field-wide">
                         <div class="register-field">
-                            <label class="register-field-label" for="first_name">First name <i class="register-required-mark">*</i></label>
-                            <input type="text" class="form-control name-part-input" name="first_name" id="first_name" placeholder="First name" maxlength="100" autocomplete="given-name" required />
+                            <label class="register-field-label text-uppercase" for="first_name">First Name <i class="register-required-mark">*</i></label>
+                            <input type="text" class="form-control name-part-input" name="first_name" id="first_name" placeholder="JUAN" maxlength="100" autocomplete="given-name" required />
                         </div>
                         <div class="register-field">
-                            <label class="register-field-label" for="middle_initial">Middle initial</label>
-                            <input type="text" class="form-control name-part-input" name="middle_initial" id="middle_initial" placeholder="Initial or NA" maxlength="50" autocomplete="additional-name" aria-describedby="middle-initial-help" />
-                            <small id="middle-initial-help" class="form-text text-muted">Optional. Enter NA if none.</small>
+                            <label class="register-field-label text-uppercase" for="middle_initial">Middle Initial</label>
+                            <input type="text" class="form-control name-part-input" name="middle_initial" id="middle_initial" placeholder="N" maxlength="50" autocomplete="additional-name" aria-describedby="middle-initial-help" />
+                            <small id="middle-initial-help" class="form-text text-muted">Leave it blank if none.</small>
                         </div>
                         <div class="register-field">
-                            <label class="register-field-label" for="last_name">Last name <i class="register-required-mark">*</i></label>
-                            <input type="text" class="form-control name-part-input" name="last_name" id="last_name" placeholder="Last name" maxlength="100" autocomplete="family-name" required />
+                            <label class="register-field-label text-uppercase" for="last_name">Last Name <i class="register-required-mark">*</i></label>
+                            <input type="text" class="form-control name-part-input" name="last_name" id="last_name" placeholder="DELA CRUZ" maxlength="100" autocomplete="family-name" required />
                         </div>
                     </div>
                     <div class="register-field">
-                        <label class="register-field-label" for="email">Email address <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="email">Email Address <i class="register-required-mark">*</i></label>
                         <input type="email" class="form-control" name="email" id="email" placeholder="you@example.com" autocomplete="email" required />
                     </div>
                     <div class="register-field">
-                        <label class="register-field-label" for="contact_no">Mobile number <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="contact_no">Mobile Number <i class="register-required-mark">*</i></label>
                         <input type="tel" class="form-control" name="contact_no" id="contact_no" placeholder="09XXXXXXXXX" maxlength="11" inputmode="numeric" autocomplete="tel" required />
                     </div>
                     <div class="register-field existing-account-field">
-                        <label class="register-field-label" for="account_no">Account number <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="account_no">Account Number <i class="register-required-mark">*</i></label>
                         <input type="text" class="form-control" name="account_no" id="account_no" placeholder="000-00-000000" maxlength="13" inputmode="numeric" autocomplete="off" aria-describedby="account-no-help" required />
                         <small class="form-text text-muted" id="account-no-help">Enter the account number in the format 000-00-000000.</small>
                     </div>
                     <div class="register-field register-field-wide">
-                        <label class="register-field-label" for="address">Service address <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="address">Service Address <i class="register-required-mark">*</i></label>
                         <input type="text" class="form-control" name="address" id="address" placeholder="House number, street, barangay, municipality" autocomplete="street-address" required />
                     </div>
                     <div class="register-field">
-                        <label class="register-field-label" for="password">Password <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="password">Password <i class="register-required-mark">*</i></label>
                         <input type="password" class="form-control" name="password" id="password" placeholder="Create a password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="Your password must have at least 8 characters, one capital letter, one number, and one special character (like !, @, or #)." autocomplete="new-password" aria-describedby="registration-password-help" required />
                         <small class="form-text text-muted" id="registration-password-help" aria-live="polite">Password must contain at least 8 characters, one capital letter, one number, and one special character (like !, @, or #).</small>
                     </div>
                     <div class="register-field">
-                        <label class="register-field-label" for="password_confirmation">Confirm password <i class="register-required-mark">*</i></label>
+                        <label class="register-field-label text-uppercase" for="password_confirmation">Confirm Password <i class="register-required-mark">*</i></label>
                         <input type="password" class="form-control" name="password_confirmation" id="password_confirmation" placeholder="Enter your password again" minlength="8" autocomplete="new-password" required />
                     </div>
 
                     <div class="register-section-heading register-field-wide existing-account-field">
-                        <div><strong>Verify your existing account</strong><small style="color: #ca0505;">Upload your latest SOA and a 1x1 or 2x2 photo. PDF, JPG, or PNG; up to 2 MB each.</small></div>
+                        <div><strong>Verify your existing account</strong><small class="form-text text-muted">Upload your latest SOA and a Valid ID. PDF, JPG, or PNG; up to 2 MB each.</small></div>
                     </div>
                     <div class="register-document-grid register-field-wide existing-account-field">
                     <div class="file-upload">
@@ -123,7 +123,7 @@
                     <div class="file-upload">
                         <label for="id_file" class="file-label">
                             <i class="bx bx-id-card"></i>
-                            <span class="file-text">1x1 or 2x2 Picture <span class="text-danger">*</span></span>
+                            <span class="file-text">Valid ID <span class="text-danger">*</span></span>
                             <span class="file-name" id="id_file_name">Choose file</span>
                         </label>
                         <input type="file" id="id_file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" required />
@@ -132,7 +132,7 @@
 
                     <div class="new-connection-fields d-none w-100">
                         <div class="register-section-heading">
-                            <div><strong>Application documents</strong><small style="color: #ca0505;">Upload clear copies of the required documents. PDF, JPG, or PNG; up to 2 MB each.</small></div>
+                            <div><strong>Application documents</strong><small class="form-text text-muted">Upload clear copies of the required documents. PDF, JPG, or PNG; up to 2 MB each.</small></div>
                         </div>
                         <div class="register-document-grid">
                         <div class="file-upload">
@@ -184,7 +184,7 @@
 
                 </div>
 
-                <div class="register-security-note"><i class="bx bx-lock-alt"></i><span>Your details are used to verify your account and application.</span></div>
+                <div class="register-security-note"><span>Your details are used to verify your account and application.</span></div>
                 <div class="w-100 mt-2 recaptcha-wrapper">
                     <div
                         class=" g-recaptcha"
@@ -857,9 +857,7 @@
         gap: .75rem;
         margin: .35rem 0 0;
         padding: .85rem;
-        border: 1px solid #e8eff1;
-        border-radius: .75rem;
-        background: #f8fafb;
+        border-top: 2px solid #e8eff1;
     }
 
     .register-page .register-section-icon { flex-basis: 38px; width: 38px; height: 38px; border-radius: 11px; font-size: 1.2rem; }
