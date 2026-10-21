@@ -11,78 +11,116 @@
                     @if(session('error'))
                         <div class="alert alert-danger w-100 py-2 px-3 mb-3">{{ session('error') }}</div>
                     @endif
-                    <h1 class="fw-bold mb-1">Choose Your Account Type</h1>
-                    <p class="registration-type-subtitle">Please select the option that best describes your situation.</p>
+                    <div class="register-step-label"><span>STEP 1 OF 2</span><span>Account type</span></div>
+                    <div class="register-step-heading">
+                        <span class="register-heading-icon"><i class="bx bx-water"></i></span>
+                        <div>
+                            <h1>How do you use Sta. Rita Water District?</h1>
+                            <p class="registration-type-subtitle">Choose the option that best describes your application.</p>
+                        </div>
+                    </div>
 
                     <div class="account-type-options">
-                        <label class="account-type-card selected">
-                            <input type="radio" name="registration_choice" value="existing_account" checked>
+                        <label class="account-type-card selected" for="registration-existing">
+                            <input id="registration-existing" type="radio" name="registration_choice" value="existing_account" checked>
                             <span class="account-type-radio"></span>
                             <img src="{{ asset('images/Existing_Conce.png') }}" alt="Existing Sta. Rita account">
                             <span class="account-type-details">
-                                <strong>Existing Sta. Rita Account</strong>
-                                <span>You already have a water meter installed at your location, but don't have an online account yet.</span>
-                                <small>(You're a registered concessionaire and need to create your online account.)</small>
+                                <strong>Existing account</strong>
+                                <span>You already have a Sta. Rita water meter and need online access to your account.</span>
+                                <small>Have your account number and latest SOA ready.</small>
                             </span>
                         </label>
-                        <label class="account-type-card">
-                            <input type="radio" name="registration_choice" value="new_connection">
+                        <label class="account-type-card" for="registration-new">
+                            <input id="registration-new" type="radio" name="registration_choice" value="new_connection">
                             <span class="account-type-radio"></span>
                             <img src="{{ asset('images/New_Concessionaire.png') }}" alt="New concessionaire">
                             <span class="account-type-details">
-                                <strong>New Concessionaire</strong>
-                                <span>You are a new applicant, either for a new connection or without a meter yet.</span>
-                                <small>(Your application will be subject to approval.)</small>
+                                <strong>New connection</strong>
+                                <span>You are applying for a new water service connection.</span>
+                                <small>Your application will be reviewed by the district.</small>
                             </span>
                         </label>
                     </div>
 
-                    <p class="registration-type-note"><i class="bx bx-info-circle"></i> If you're unsure which option to choose, contact Sta. Rita Water District support.</p>
-                    <button type="button" id="continueRegistration" class="btn-registration-next">Next <i class="bx bx-right-arrow-alt"></i></button>
+                    <div class="registration-type-note"><i class="bx bx-info-circle"></i><span>Not sure which to choose? Contact Sta. Rita Water District before submitting an application.</span></div>
+                    <button type="button" id="continueRegistration" class="btn-registration-next">Continue <i class="bx bx-right-arrow-alt"></i></button>
                 </div>
 
                 <div id="registrationFormStep" class="registration-form-step d-none">
                 <input type="hidden" name="registration_type" id="registration_type" value="existing_account">
                 <input type="hidden" name="data_privacy_consent" id="data_privacy_consent" value="">
-                <img class="mobile-logo" src="{{ asset('images/client1nobg.png') }}" alt="Sta Rita Logo" />
-                <h1 class="fw-bold mb-1">Create Account</h1>
-                <span>Register as a concessionaire</span>
+                <div class="register-form-heading">
+                    <div class="register-form-brand">
+                        <img class="mobile-logo" src="{{ asset('images/client1nobg.png') }}" alt="Sta. Rita Water District">
+                        <div>
+                            <div class="register-step-label"><span>STEP 2 OF 2</span><span>Account details</span></div>
+                            <h1>Create your online account</h1>
+                            <p id="registrationTypeSummary">Existing account registration</p>
+                        </div>
+                    </div>
+                    <button type="button" id="backToRegistrationType" class="register-back-button"><i class="bx bx-left-arrow-alt"></i> Change type</button>
+                </div>
 
                 <div id="registerAlert" class="alert d-none w-100 py-2 px-3 mb-2" role="alert"></div>
 
                 <div class="register-fields w-100">
-                    <div class="w-100">
-                        <input type="text" class="form-control" name="name" id="name" placeholder="LASTNAME, FIRSTNAME M.I. (e.g. DELA CRUZ, JUAN P.) *" style="text-transform: uppercase;" required/>
+                    <div class="register-name-group register-field-wide">
+                        <div class="register-field">
+                            <label class="register-field-label" for="first_name">First name <i class="register-required-mark">*</i></label>
+                            <input type="text" class="form-control name-part-input" name="first_name" id="first_name" placeholder="First name" maxlength="100" autocomplete="given-name" required />
+                        </div>
+                        <div class="register-field">
+                            <label class="register-field-label" for="middle_initial">Middle initial</label>
+                            <input type="text" class="form-control name-part-input" name="middle_initial" id="middle_initial" placeholder="Initial or NA" maxlength="50" autocomplete="additional-name" aria-describedby="middle-initial-help" />
+                            <small id="middle-initial-help" class="form-text text-muted">Optional. Enter NA if none.</small>
+                        </div>
+                        <div class="register-field">
+                            <label class="register-field-label" for="last_name">Last name <i class="register-required-mark">*</i></label>
+                            <input type="text" class="form-control name-part-input" name="last_name" id="last_name" placeholder="Last name" maxlength="100" autocomplete="family-name" required />
+                        </div>
                     </div>
-                    <div class="w-100">
-                        <input type="email" class="form-control" name="email" id="email" placeholder="Email *" required />
+                    <div class="register-field">
+                        <label class="register-field-label" for="email">Email address <i class="register-required-mark">*</i></label>
+                        <input type="email" class="form-control" name="email" id="email" placeholder="you@example.com" autocomplete="email" required />
                     </div>
-                    <div class="w-100">
-                        <input type="tel" class="form-control" name="contact_no" id="contact_no" placeholder="Contact No. *" maxlength="11" inputmode="numeric" required />
+                    <div class="register-field">
+                        <label class="register-field-label" for="contact_no">Mobile number <i class="register-required-mark">*</i></label>
+                        <input type="tel" class="form-control" name="contact_no" id="contact_no" placeholder="09XXXXXXXXX" maxlength="11" inputmode="numeric" autocomplete="tel" required />
                     </div>
-                    <div class="w-100 existing-account-field">
-                        <input type="text" class="form-control" name="account_no" id="account_no" placeholder="Account No. *" required />
+                    <div class="register-field existing-account-field">
+                        <label class="register-field-label" for="account_no">Account number <i class="register-required-mark">*</i></label>
+                        <input type="text" class="form-control" name="account_no" id="account_no" placeholder="000-00-000000" maxlength="13" inputmode="numeric" autocomplete="off" aria-describedby="account-no-help" required />
+                        <small class="form-text text-muted" id="account-no-help">Enter the account number in the format 000-00-000000.</small>
                     </div>
-                    <div class="w-100">
-                        <input type="text" class="form-control" name="address" id="address" placeholder="Service Address *" required />
+                    <div class="register-field register-field-wide">
+                        <label class="register-field-label" for="address">Service address <i class="register-required-mark">*</i></label>
+                        <input type="text" class="form-control" name="address" id="address" placeholder="House number, street, barangay, municipality" autocomplete="street-address" required />
                     </div>
-                    <div class="w-100">
-                        <input type="password" class="form-control" name="password" id="password" placeholder="Password *" minlength="8" required />
+                    <div class="register-field">
+                        <label class="register-field-label" for="password">Password <i class="register-required-mark">*</i></label>
+                        <input type="password" class="form-control" name="password" id="password" placeholder="Create a password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="Your password must have at least 8 characters, one capital letter, one number, and one special character (like !, @, or #)." autocomplete="new-password" aria-describedby="registration-password-help" required />
+                        <small class="form-text text-muted" id="registration-password-help" aria-live="polite">Password must contain at least 8 characters, one capital letter, one number, and one special character (like !, @, or #).</small>
                     </div>
-                    <div class="w-100">
-                        <input type="password" class="form-control" name="password_confirmation" id="password_confirmation" placeholder="Confirm Password *" minlength="8" required />
+                    <div class="register-field">
+                        <label class="register-field-label" for="password_confirmation">Confirm password <i class="register-required-mark">*</i></label>
+                        <input type="password" class="form-control" name="password_confirmation" id="password_confirmation" placeholder="Enter your password again" minlength="8" autocomplete="new-password" required />
                     </div>
 
-                    <div class="file-upload w-100 existing-account-field">
+                    <div class="register-section-heading register-field-wide existing-account-field">
+                        <div><strong>Verify your existing account</strong><small style="color: #ca0505;">Upload your latest SOA and a 1x1 or 2x2 photo. PDF, JPG, or PNG; up to 2 MB each.</small></div>
+                    </div>
+                    <div class="register-document-grid register-field-wide existing-account-field">
+                    <div class="file-upload">
                         <label for="soa_file" class="file-label">
-                            <i class="bx bx-file"></i>
-                            <span class="file-text">Last SOA <span class="text-danger">*</span></span>
+                            <i class="bx bx-receipt"></i>
+                            <span class="file-text">Latest statement of account <span class="text-danger">*</span></span>
                             <span class="file-name" id="soa_file_name">Choose file</span>
                         </label>
                         <input type="file" id="soa_file" name="soa_file" accept=".pdf,.jpg,.jpeg,.png" required />
                     </div>
 
-                    <div class="file-upload w-100 existing-account-field">
+                    <div class="file-upload">
                         <label for="id_file" class="file-label">
                             <i class="bx bx-id-card"></i>
                             <span class="file-text">1x1 or 2x2 Picture <span class="text-danger">*</span></span>
@@ -90,9 +128,14 @@
                         </label>
                         <input type="file" id="id_file" name="id_file" accept=".pdf,.jpg,.jpeg,.png" required />
                     </div>
+                    </div>
 
                     <div class="new-connection-fields d-none w-100">
-                        <div class="file-upload w-100">
+                        <div class="register-section-heading">
+                            <div><strong>Application documents</strong><small style="color: #ca0505;">Upload clear copies of the required documents. PDF, JPG, or PNG; up to 2 MB each.</small></div>
+                        </div>
+                        <div class="register-document-grid">
+                        <div class="file-upload">
                             <label for="picture_1x1" class="file-label">
                                 <i class="bx bx-file"></i>
                                 <span class="file-text">1x1 or 2x2 Picture <span class="text-danger">*</span></span>
@@ -103,7 +146,7 @@
                                 name="picture_1x1"
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
-                        <div class="file-upload w-100">
+                        <div class="file-upload">
                             <label for="cedula_file" class="file-label">
                                 <i class="bx bx-file"></i>
                                 <span class="file-text">Cedula / Residence Certificate <span class="text-danger">*</span></span>
@@ -114,7 +157,7 @@
                                 name="cedula_file"
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
-                        <div class="file-upload w-100">
+                        <div class="file-upload">
                             <label for="billing_file" class="file-label">
                                 <i class="bx bx-receipt"></i>
                                 <span class="file-text">Proof of Billing <span class="text-danger">*</span></span>
@@ -125,10 +168,10 @@
                                 name="billing_file"
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
-                        <div class="file-upload w-100">
+                        <div class="file-upload">
                             <label for="authorization_file" class="file-label overflow-hidden">
                                 <i class="bx bx-file"></i>
-                                <span class="file-text">Authorization Letter</span>
+                                <span class="file-text">Authorization Letter (if applicable)</span>
                                 <span class="file-name" id="authorization_file_name">Choose file</span>
                             </label>
                             <input type="file"
@@ -136,11 +179,12 @@
                                 name="authorization_file"
                                 accept=".pdf,.jpg,.jpeg,.png">
                         </div>
+                        </div>
                     </div>
 
-                    <p class="file-hint mb-0">Accepted: PDF, JPG, PNG</p>
                 </div>
 
+                <div class="register-security-note"><i class="bx bx-lock-alt"></i><span>Your details are used to verify your account and application.</span></div>
                 <div class="w-100 mt-2 recaptcha-wrapper">
                     <div
                         class=" g-recaptcha"
@@ -148,9 +192,8 @@
                     </div>
                 </div>
 
-                <button type="submit" class="mt-3 text-center">Submit Registration</button>
-                </br >
-                <a href="{{ route('auth.index') }}" class="mt-2 mb-0 text-center">Already have an account? Sign in</a>
+                <button type="submit" class="register-submit"><span>Submit application</span><i class="bx bx-right-arrow-alt"></i></button>
+                <a href="{{ route('auth.index') }}" class="register-signin-link">Already have an account? Sign in</a>
                 </div>
             </form>
         </div>
@@ -483,6 +526,416 @@
     .register-page .file-size-error.show {
         display: block;
     }
+
+    /* Registration refresh: use the shared module palette with a focused, responsive layout. */
+    .login.register-page {
+        --register-blue: var(--module-blue, #32667e);
+        --register-blue-dark: var(--module-blue-dark, #285467);
+        --register-ink: var(--module-ink, #172b36);
+        --register-muted: var(--module-muted, #7184a5);
+        --register-border: var(--module-border, #dce7ec);
+        width: 100%;
+        min-height: 100vh;
+        height: auto;
+        margin: 0 auto !important;
+        padding: clamp(1rem, 4vw, 3rem);
+        background: radial-gradient(circle at top left, #e8f2f5 0, transparent 38%), #f5f8fa;
+    }
+
+    .login.register-page .container#container {
+        width: min(100%, 900px);
+        max-width: 900px;
+        min-height: 0;
+        height: auto;
+        overflow: hidden;
+        border: 1px solid var(--register-border);
+        border-radius: 1.25rem;
+        background: #fff;
+        box-shadow: 0 20px 60px rgba(22, 47, 62, .12);
+    }
+
+    .register-page .overlay-container { display: none; }
+
+    .register-page .sign-up-container {
+        position: relative;
+        inset: auto;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        transform: none !important;
+        opacity: 1;
+        z-index: 1;
+        animation: none !important;
+    }
+
+    .register-page .sign-up-container form {
+        display: flex;
+        align-items: stretch;
+        justify-content: flex-start;
+        width: 100%;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        padding: clamp(1.25rem, 4vw, 2.75rem);
+        background: #fff;
+    }
+
+    .register-page .registration-type-step {
+        min-height: 0;
+        justify-content: flex-start;
+    }
+
+    .register-page .register-step-label {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        margin-bottom: .75rem;
+        color: var(--register-muted);
+        font-size: .69rem;
+        font-weight: 750;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+    }
+
+    .register-page .register-step-label span:first-child {
+        padding: .28rem .5rem;
+        border-radius: 999px;
+        background: #edf4f6;
+        color: var(--register-blue);
+        font-size: .65rem;
+        font-weight: 800;
+    }
+
+    .register-page .register-step-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: .9rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .register-page .register-heading-icon,
+    .register-page .register-section-icon {
+        display: grid;
+        place-items: center;
+        flex: 0 0 46px;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: #edf4f6;
+        color: var(--register-blue);
+        font-size: 1.5rem;
+    }
+
+    .register-page .registration-type-step h1,
+    .register-page .register-form-heading h1 {
+        margin: 0;
+        color: var(--register-ink);
+        font-size: clamp(1.35rem, 3vw, 1.8rem);
+        font-weight: 750;
+        letter-spacing: -.035em;
+        line-height: 1.2;
+        text-align: left;
+        text-transform: none;
+    }
+
+    .register-page .registration-type-subtitle {
+        margin: .4rem 0 0;
+        color: var(--register-muted);
+        font-size: .88rem;
+        line-height: 1.5;
+    }
+
+    .register-page .account-type-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 0 0 1rem;
+    }
+
+    .register-page .account-type-card {
+        position: relative;
+        align-items: flex-start;
+        min-height: 205px;
+        padding: 1.2rem;
+        border: 1px solid var(--register-border);
+        border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 3px 12px rgba(22, 47, 62, .035);
+        transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .16s ease;
+    }
+
+    .register-page .account-type-card:hover {
+        transform: translateY(-2px);
+        border-color: #a8c5cf;
+        box-shadow: 0 10px 24px rgba(22, 47, 62, .08);
+    }
+
+    .register-page .account-type-card.selected {
+        border: 2px solid var(--register-blue);
+        padding: calc(1.2rem - 1px);
+        background: #f3f8fa;
+        box-shadow: 0 0 0 3px rgba(50, 102, 126, .08);
+    }
+
+    .register-page .account-type-card:focus-within {
+        outline: 3px solid rgba(50, 102, 126, .2);
+        outline-offset: 2px;
+    }
+
+    .register-page .account-type-card input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: 0;
+        opacity: 0;
+    }
+
+    .register-page .account-type-radio {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 20px;
+        height: 20px;
+        flex-basis: 20px;
+        border: 1px solid #b9c9ce;
+        background: #fff;
+    }
+
+    .register-page .account-type-card.selected .account-type-radio {
+        border: 6px solid var(--register-blue);
+    }
+
+    .register-page .account-type-card img {
+        width: 60px;
+        height: 60px;
+        flex-basis: 60px;
+        border-radius: 16px;
+        background: #f4f7f8;
+        object-fit: contain;
+    }
+
+    .register-page .account-type-details {
+        gap: .55rem;
+        padding-right: 1rem;
+    }
+
+    .register-page .account-type-details strong {
+        color: var(--register-ink);
+        font-size: 1rem;
+        font-weight: 750;
+    }
+
+    .register-page .account-type-details span {
+        color: #536872;
+        font-size: .82rem;
+        line-height: 1.5;
+    }
+
+    .register-page .account-type-details small {
+        color: var(--register-muted);
+        font-size: .75rem;
+        line-height: 1.45;
+    }
+
+    .register-page .registration-type-note {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        margin: .35rem 0 1.25rem;
+        padding: .75rem .85rem;
+        border-radius: .7rem;
+        background: #f5f8fa;
+        color: var(--register-muted);
+        font-size: .77rem;
+        line-height: 1.45;
+    }
+
+    .register-page .registration-type-note span { margin: 0; color: var(--register-muted); font-size: .77rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+    .register-page .registration-type-note i { color: var(--register-blue); font-size: 1.05rem; }
+
+    .register-page .btn-registration-next,
+    .register-page .register-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
+        min-height: 46px;
+        align-self: flex-end;
+        padding: .7rem 1.15rem;
+        border: 1px solid var(--register-blue);
+        border-radius: .7rem;
+        background: var(--register-blue);
+        box-shadow: 0 5px 14px rgba(50, 102, 126, .16);
+        color: #fff;
+        font-size: .88rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-transform: none;
+        transition: background-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+
+    .register-page .btn-registration-next:hover,
+    .register-page .register-submit:hover:not(:disabled) {
+        transform: translateY(-1px);
+        border-color: var(--register-blue-dark);
+        background: var(--register-blue-dark);
+    }
+
+    .register-page .btn-registration-next i,
+    .register-page .register-submit i { font-size: 1.2rem; }
+
+    .register-page .registration-form-step { align-items: stretch; }
+
+    .register-page .register-form-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        width: 100%;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1.1rem;
+        border-bottom: 1px solid var(--register-border);
+    }
+
+    .register-page .register-form-brand { display: flex; align-items: center; gap: .9rem; min-width: 0; }
+    .register-page .register-form-brand .mobile-logo { display: block; width: 66px; height: 66px; flex: 0 0 66px; margin: 0; object-fit: contain; }
+    .register-page .register-form-heading .register-step-label { margin-bottom: .25rem; }
+    .register-page .register-form-heading h1 { font-size: clamp(1.25rem, 2.6vw, 1.6rem); }
+    .register-page .register-form-heading p { margin: .3rem 0 0; color: var(--register-muted); font-size: .82rem; font-weight: 500; letter-spacing: 0; line-height: 1.4; text-transform: none; }
+
+    .register-page .register-back-button {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        flex: 0 0 auto;
+        padding: .5rem .65rem;
+        border: 1px solid var(--register-border);
+        border-radius: .6rem;
+        background: #fff;
+        color: var(--register-blue);
+        font-size: .78rem;
+        font-weight: 650;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .register-page .register-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        align-items: start;
+        width: 100%;
+    }
+
+    .register-page .register-name-group { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(90px, .65fr) minmax(0, 1.25fr); gap: .75rem; grid-column: 1 / -1; min-width: 0; }
+    .register-page .register-field { min-width: 0; width: 100%; }
+    .register-page .register-field-wide { grid-column: 1 / -1; }
+    #app main .register-page .register-field-label { display: flex; justify-content: flex-start; align-items: baseline; gap: .25rem; margin: 0 0 .4rem; color: var(--register-ink); font-size: .8rem; font-weight: 700; text-transform: none; }
+    .register-page .register-field-label span { margin-left: auto; color: var(--register-muted); font-size: .7rem; font-weight: 500; text-transform: none; }
+    .register-page .register-required-mark { color: #c93645; font-size: .85rem; font-style: normal; }
+
+    #app main .register-page .register-field .form-control {
+        min-height: 46px;
+        margin: 0;
+        padding: .7rem .8rem;
+        border: 1px solid #d8e3e7;
+        border-radius: .65rem;
+        background: #fff;
+        color: var(--register-ink);
+        font-size: .87rem;
+        box-shadow: none;
+        transition: border-color .15s ease, box-shadow .15s ease;
+    }
+
+    #app main .register-page .register-field .form-control::placeholder { color: #9aa9ae; opacity: 1; }
+    #app main .register-page .register-field .form-control:focus { border-color: var(--register-blue); box-shadow: 0 0 0 .2rem rgba(50, 102, 126, .12); }
+    #app main .register-page .register-field .form-control.is-invalid { border-color: #c93645; background: #fff8f8; }
+    .register-page .register-field .form-text { display: block; margin-top: .4rem; color: var(--register-muted); font-size: .72rem; line-height: 1.4; }
+
+    .register-page .register-section-heading {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin: .35rem 0 0;
+        padding: .85rem;
+        border: 1px solid #e8eff1;
+        border-radius: .75rem;
+        background: #f8fafb;
+    }
+
+    .register-page .register-section-icon { flex-basis: 38px; width: 38px; height: 38px; border-radius: 11px; font-size: 1.2rem; }
+    .register-page .register-section-heading strong { display: block; color: var(--register-ink); font-size: .82rem; font-weight: 750; }
+    .register-page .register-section-heading small { display: block; margin-top: .2rem; color: var(--register-muted); font-size: .72rem; line-height: 1.4; }
+    .register-page .register-document-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-column: 1 / -1; gap: .75rem; }
+    .register-page .new-connection-fields { grid-column: 1 / -1; }
+    .register-page .new-connection-fields .register-document-grid { margin-top: .75rem; }
+
+    .register-page .file-upload { min-width: 0; margin: 0; }
+    .register-page .file-label {
+        min-height: 70px;
+        gap: .65rem;
+        padding: .75rem;
+        border: 1px dashed #c5d5da;
+        border-radius: .7rem;
+        background: #fbfcfc;
+        color: var(--register-ink);
+    }
+    .register-page .file-label:hover { border-color: var(--register-blue); background: #f2f7f8; }
+    .register-page .file-label:focus-within { outline: 3px solid rgba(50, 102, 126, .18); }
+    .register-page .file-label i { color: var(--register-blue); font-size: 1.3rem; }
+    .register-page .file-text { min-width: 0; flex: 1 1 auto; font-size: .77rem; line-height: 1.35; }
+    .register-page .file-name { max-width: 42%; color: var(--register-muted); font-size: .68rem; }
+    .register-page .file-name.has-file { color: var(--register-blue); }
+    .register-page .file-size-error { padding: .4rem .2rem 0; color: #b42332; font-size: .72rem; }
+
+    .register-page .register-security-note {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        width: 100%;
+        margin-top: 1rem;
+        color: var(--register-muted);
+        font-size: .74rem;
+        line-height: 1.4;
+    }
+    .register-page .register-security-note i { color: var(--register-blue); font-size: 1rem; }
+    .register-page .recaptcha-wrapper { display: flex; justify-content: center; width: 100%; min-height: 58px; margin-top: .75rem !important; overflow: visible; }
+    .register-page .recaptcha-wrapper .g-recaptcha { transform: scale(.88); transform-origin: top center; }
+    .register-page .register-submit { width: min(100%, 320px); align-self: center; margin-top: .35rem !important; }
+    .register-page .register-submit:disabled { opacity: .65; cursor: wait; }
+    .register-page .register-signin-link { align-self: center; margin: .9rem 0 0; color: var(--register-blue); font-size: .82rem; font-weight: 650; text-transform: none; }
+    .register-page #registerAlert { font-size: .82rem; line-height: 1.45; }
+
+    @media (max-width: 650px) {
+        .login.register-page { padding: .75rem; }
+        .login.register-page .container#container { border-radius: 1rem; }
+        .register-page .sign-up-container form { padding: 1.25rem; }
+        .register-page .account-type-options { grid-template-columns: 1fr; }
+        .register-page .account-type-card { min-height: 0; padding: 1rem; }
+        .register-page .account-type-card.selected { padding: calc(1rem - 1px); }
+        .register-page .register-form-heading { flex-direction: column; align-items: stretch; gap: .65rem; }
+        .register-page .register-form-brand { align-items: flex-start; gap: .65rem; width: 100%; }
+        .register-page .register-form-brand > div { flex: 1 1 auto; min-width: 0; }
+        .register-page .register-form-brand .mobile-logo { width: 50px; height: 50px; flex-basis: 50px; }
+        .register-page .register-form-heading .register-step-label { flex-wrap: wrap; gap: .3rem; line-height: 1.3; }
+        .register-page .register-form-heading h1 { font-size: clamp(1.05rem, 5vw, 1.35rem); line-height: 1.25; overflow-wrap: anywhere; }
+        .register-page .register-form-heading p { overflow-wrap: anywhere; }
+        .register-page .register-back-button { align-self: flex-start; padding: .4rem .65rem; font-size: .78rem; }
+        .register-page .register-back-button i { font-size: 1rem; }
+        .register-page .register-fields { grid-template-columns: 1fr; gap: .8rem; }
+        .register-page .register-name-group { grid-template-columns: minmax(0, 1fr) 90px; gap: .7rem; }
+        .register-page .register-name-group .register-field:last-child { grid-column: 1 / -1; }
+        .register-page .register-field-wide,
+        .register-page .register-document-grid,
+        .register-page .new-connection-fields { grid-column: auto; }
+        .register-page .register-document-grid { grid-template-columns: 1fr; }
+        .register-page .register-section-heading { grid-column: auto; }
+        .register-page .recaptcha-wrapper .g-recaptcha { transform: scale(.78); }
+    }
+
+    @media (max-width: 380px) {
+        .register-page .register-name-group { grid-template-columns: 1fr; }
+        .register-page .register-name-group .register-field:last-child { grid-column: auto; }
+    }
 </style>
 
 <script src="https://www.google.com/recaptcha/api.js" async defer></script>
@@ -556,16 +1009,22 @@
         const acceptConsent = document.getElementById('acceptConsent');
         const declineConsent = document.getElementById('declineConsent');
         const confirmConsent = document.getElementById('confirmConsent');
-        const nameInput = document.getElementById('name');
+        const namePartInputs = form.querySelectorAll('.name-part-input');
+        const firstNameInput = document.getElementById('first_name');
+        const lastNameInput = document.getElementById('last_name');
         const registrationTypeInputs = form.querySelectorAll('input[name="registration_choice"]');
         const registrationTypeValue = document.getElementById('registration_type');
         const registrationTypeStep = document.getElementById('registrationTypeStep');
         const registrationFormStep = document.getElementById('registrationFormStep');
         const continueRegistration = document.getElementById('continueRegistration');
+        const backToRegistrationType = document.getElementById('backToRegistrationType');
+        const registrationTypeSummary = document.getElementById('registrationTypeSummary');
         const existingAccountFields = form.querySelectorAll('.existing-account-field');
 
-        nameInput.addEventListener('input', function () {
-            this.value = this.value.toUpperCase();
+        namePartInputs.forEach(function (input) {
+            input.addEventListener('input', function () {
+                this.value = this.value.toUpperCase();
+            });
         });
 
         function selectedRegistrationType() {
@@ -576,6 +1035,10 @@
 
         function syncRegistrationTypeFields() {
             const isExisting = selectedRegistrationType() === 'existing_account';
+
+            registrationTypeSummary.textContent = isExisting
+                ? 'Existing account registration'
+                : 'New water service connection';
 
             existingAccountFields.forEach(function (field) {
                 field.classList.toggle('d-none', !isExisting);
@@ -614,13 +1077,19 @@
             registrationFormStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
 
+        backToRegistrationType.addEventListener('click', function () {
+            registrationFormStep.classList.add('d-none');
+            registrationTypeStep.classList.remove('d-none');
+            registrationTypeStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
         function bindFileLabel(inputId, nameId) {
             const input = document.getElementById(inputId);
             const nameEl = document.getElementById(nameId);
             const label = input.closest('.file-upload').querySelector('.file-label');
             const errorEl = document.createElement('div');
             errorEl.className = 'file-size-error';
-            errorEl.textContent = 'File size must not exceed 2 MB.';
+            errorEl.textContent = 'Choose a PDF, JPG, or PNG file up to 2 MB.';
             input.closest('.file-upload').appendChild(errorEl);
 
             input.addEventListener('change', function () {
@@ -663,6 +1132,58 @@
             this.value = this.value.replace(/\D/g, '').slice(0, 11);
         });
 
+        const accountNoInput = document.getElementById('account_no');
+        const passwordHelp = document.getElementById('registration-password-help');
+        const passwordInput = document.getElementById('password');
+
+        function passwordRequirementsMissing(password) {
+            const missing = [];
+            if (password.length < 8) missing.push('at least 8 characters');
+            if (!/[A-Z]/.test(password)) missing.push('one capital letter');
+            if (!/[0-9]/.test(password)) missing.push('one number');
+            if (!/[^A-Za-z0-9]/.test(password)) missing.push('one special character');
+            return missing;
+        }
+
+        function updatePasswordHelp() {
+            const missing = passwordRequirementsMissing(passwordInput.value);
+            const isPasswordProvided = passwordInput.value.length > 0;
+            passwordHelp.classList.toggle('text-danger', isPasswordProvided && missing.length > 0);
+            passwordHelp.classList.toggle('text-success', isPasswordProvided && missing.length === 0);
+            passwordHelp.textContent = !isPasswordProvided
+                ? 'Password must contain at least 8 characters, one capital letter, one number, and one special character (like !, @, or #).'
+                : missing.length
+                    ? 'Password must contain ' + missing.join(', ').replace(/, ([^,]*)$/, ' and $1') + '.'
+                    : 'Password meets all requirements.';
+            passwordInput.classList.toggle('is-invalid', isPasswordProvided && missing.length > 0);
+        }
+
+        passwordInput.addEventListener('input', updatePasswordHelp);
+
+        accountNoInput.addEventListener('input', function () {
+            const cursor = this.selectionStart ?? this.value.length;
+            const digitsBeforeCursor = this.value.slice(0, cursor).replace(/\D/g, '').length;
+            const digits = this.value.replace(/\D/g, '').slice(0, 11);
+            let formatted = digits;
+
+            if (digits.length > 3) {
+                formatted = digits.slice(0, 3) + '-' + digits.slice(3);
+            }
+            if (digits.length > 5) {
+                formatted = digits.slice(0, 3) + '-' + digits.slice(3, 5) + '-' + digits.slice(5);
+            }
+
+            this.value = formatted;
+            let nextCursor = 0;
+            let countedDigits = 0;
+            while (nextCursor < formatted.length && countedDigits < digitsBeforeCursor) {
+                if (/\d/.test(formatted[nextCursor])) countedDigits++;
+                nextCursor++;
+            }
+            if (formatted[nextCursor] === '-') nextCursor++;
+            this.setSelectionRange(nextCursor, nextCursor);
+        });
+
         function showAlert(type, message) {
             alertBox.className = 'alert alert-' + type + ' w-100 py-2 px-3 mb-2';
             alertBox.textContent = message;
@@ -678,7 +1199,8 @@
         }
 
         function validateRegistrationForm() {
-            const name = form.name.value.trim();
+            const firstName = firstNameInput.value.trim();
+            const lastName = lastNameInput.value.trim();
             const email = form.email.value.trim();
             const contact = form.contact_no.value.trim();
             const accountNo = form.account_no.value.trim();
@@ -702,9 +1224,8 @@
                 }
             }
 
-            if (!name) {
-                markInvalid(form.name);
-            }
+            if (!firstName) markInvalid(firstNameInput);
+            if (!lastName) markInvalid(lastNameInput);
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 markInvalid(form.email);
             }
@@ -714,7 +1235,8 @@
             if (!address) {
                 markInvalid(form.address);
             }
-            if (!password || password.length < 8) {
+            const missingPasswordRequirements = passwordRequirementsMissing(password);
+            if (missingPasswordRequirements.length) {
                 markInvalid(form.password);
             }
             if (!passwordConfirm || password !== passwordConfirm) {
@@ -746,10 +1268,10 @@
             }
 
             if (firstInvalid) {
-                showAlert(
-                    'danger',
-                    'Please fill in all required fields correctly.'
-                );
+                const message = firstInvalid === form.password && missingPasswordRequirements.length
+                    ? 'Password must contain ' + missingPasswordRequirements.join(', ').replace(/, ([^,]*)$/, ' and $1') + '.'
+                    : 'Please fill in all required fields correctly.';
+                showAlert('danger', message);
                 firstInvalid.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
@@ -761,6 +1283,7 @@
 
         function submitRegistration() {
             const submitButton = form.querySelector('button[type="submit"]');
+            const submitButtonLabel = submitButton.querySelector('span');
 
             const recaptchaResponse = grecaptcha.getResponse();
 
@@ -776,7 +1299,7 @@
             }
 
             submitButton.disabled = true;
-            submitButton.textContent = 'Submitting...';
+            submitButtonLabel.textContent = 'Submitting...';
 
             const fileInputs = [
                 form.soa_file,
@@ -792,7 +1315,7 @@
 
                 if (!validateFile(input, input.required)) {
                     submitButton.disabled = false;
-                    submitButton.textContent = 'Submit Registration';
+                    submitButtonLabel.textContent = 'Submit application';
                     return;
                 }
             }
@@ -821,9 +1344,9 @@
                 if (!response.ok) {
                     const errors = payload.errors || {};
 
-                    if (errors.name) {
-                        form.name.classList.add('is-invalid');
-                    }
+                    if (errors.first_name) firstNameInput.classList.add('is-invalid');
+                    if (errors.middle_initial) document.getElementById('middle_initial').classList.add('is-invalid');
+                    if (errors.last_name) lastNameInput.classList.add('is-invalid');
 
                     if (errors.email) {
                         form.email.classList.add('is-invalid');
@@ -880,7 +1403,7 @@
                 );
 
                 submitButton.disabled = false;
-                submitButton.textContent = 'Submit Registration';
+                submitButtonLabel.textContent = 'Submit application';
                 
                 if (typeof grecaptcha !== 'undefined') {
                     grecaptcha.reset();
@@ -893,7 +1416,9 @@
             clearErrors();
             consentInput.value = '';
 
-            form.name.value = form.name.value.toUpperCase();
+            namePartInputs.forEach(function (input) {
+                input.value = input.value.trim().toUpperCase();
+            });
 
             if (!validateRegistrationForm()) {
                 return;
