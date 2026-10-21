@@ -61,12 +61,14 @@ class RegisterController extends Controller
     {
         return Validator::make($data, [
             'registration_type' => ['required', 'in:existing_account,new_connection'],
-            'name' => ['required', 'string', 'max:50'],
+            'first_name' => ['required', 'string', 'max:100'],
+            'middle_initial' => ['nullable', 'string', 'max:50'],
+            'last_name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'string', 'email', 'max:50', 'unique:users'],
             'contact_no' => ['required', 'string', 'max:20'],
-            'account_no' => ['required_if:registration_type,existing_account', 'nullable', 'string', 'max:255'],
+            'account_no' => ['required_if:registration_type,existing_account', 'nullable', 'regex:/^\d{3}-\d{2}-\d{6}$/'],
             'address' => ['required', 'string', 'max:100'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'min:8', 'regex:/[A-Z]/', 'regex:/[0-9]/', 'regex:/[^A-Za-z0-9]/', 'confirmed'],
             'soa_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             'id_file' => ['required_if:registration_type,existing_account', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             'picture_1x1' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
@@ -74,6 +76,9 @@ class RegisterController extends Controller
             'billing_file' => ['required_if:registration_type,new_connection', 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             'authorization_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:2048'],
             'data_privacy_consent' => ['accepted'],
+        ], [
+            'password.min' => 'The password must be at least 8 characters long.',
+            'password.regex' => 'The password must include at least one capital letter, one number, and one special character.',
         ]);
     }
 
@@ -102,10 +107,28 @@ class RegisterController extends Controller
             ], 422);
         }
 
+        if ($request->input('registration_type') === 'existing_account') {
+            $accountDigits = preg_replace('/\D+/', '', (string) $request->input('account_no', ''));
+            $request->merge([
+                'account_no' => strlen($accountDigits) === 11
+                    ? substr($accountDigits, 0, 3).'-'.substr($accountDigits, 3, 2).'-'.substr($accountDigits, 5)
+                    : (string) $request->input('account_no', ''),
+            ]);
+        }
+
         $this->validator($request->all())->validate();
 
+        $firstName = mb_strtoupper(trim((string) $request->first_name));
+        $middleInitial = trim((string) $request->input('middle_initial', ''));
+        $middleInitial = $middleInitial !== '' ? mb_strtoupper($middleInitial) : null;
+        $lastName = mb_strtoupper(trim((string) $request->last_name));
+        $fullName = trim($lastName.', '.$firstName.($middleInitial ? ' '.$middleInitial : ''));
+
         $request->merge([
-            'name' => mb_strtoupper(trim((string) $request->name)),
+            'first_name' => $firstName,
+            'middle_initial' => $middleInitial,
+            'last_name' => $lastName,
+            'name' => $fullName,
         ]);
 
         $user = DB::transaction(function () use ($request) {
@@ -125,13 +148,28 @@ class RegisterController extends Controller
                 ]);
             }
 
-            $account = $matchingAccounts->first(function (UserAccounts $account) use ($request) {
-                return $this->namesMatch((string) ($account->user?->name ?? ''), $request->name);
+            $nameCandidates = array_unique(array_filter([
+                $request->name,
+                trim($request->last_name.', '.$request->first_name),
+                trim($request->first_name.' '.$request->last_name),
+                trim($request->last_name.' '.$request->first_name),
+            ]));
+
+            $account = $matchingAccounts->first(function (UserAccounts $account) use ($nameCandidates, $request) {
+                $storedName = (string) ($account->user?->name ?? '');
+
+                foreach ($nameCandidates as $candidate) {
+                    if ($this->namesMatch($storedName, $candidate)) {
+                        return true;
+                    }
+                }
+
+                return $this->legacyNameMatches($storedName, $request->first_name, $request->last_name);
             });
 
             if (!$account) {
                 throw ValidationException::withMessages([
-                    'name' => 'The name does not match the account no.',
+                    'first_name' => 'The name does not match the account number. Check the first and last name and try again.',
                 ]);
             }
 
@@ -413,6 +451,9 @@ class RegisterController extends Controller
     {
         return User::create([
             'name'      => $data['name'],
+            'first_name' => $data['first_name'],
+            'middle_initial' => $data['middle_initial'],
+            'last_name' => $data['last_name'],
             'contact_no' => $data['contact_no'],
             'email' => $data['email'],
             'user_type' => 'concessionaire',
@@ -427,6 +468,9 @@ class RegisterController extends Controller
         if (!$user) {
             return User::create([
                 'name' => $data['name'],
+                'first_name' => $data['first_name'],
+                'middle_initial' => $data['middle_initial'],
+                'last_name' => $data['last_name'],
                 'registrants' => $data['name'],
                 'contact_no' => $data['contact_no'],
                 'email' => $data['email'],
@@ -436,6 +480,10 @@ class RegisterController extends Controller
         }
 
         $user->forceFill([
+            'name' => $data['name'],
+            'first_name' => $data['first_name'],
+            'middle_initial' => $data['middle_initial'],
+            'last_name' => $data['last_name'],
             'registrants' => $data['name'],
             'contact_no' => $data['contact_no'],
             'email' => $data['email'],
@@ -457,16 +505,49 @@ class RegisterController extends Controller
 
     private function namesMatch(string $firstName, string $secondName): bool
     {
-        $normalize = static function (string $name): string {
-            $normalized = preg_replace('/[^a-z0-9]/u', '', mb_strtolower(trim($name)));
-
-            return $normalized ?? '';
-        };
-
-        $first = $normalize($firstName);
-        $second = $normalize($secondName);
+        $first = $this->normalizeNameForMatch($firstName);
+        $second = $this->normalizeNameForMatch($secondName);
 
         return $first !== '' && $first === $second;
+    }
+
+    private function legacyNameMatches(string $storedName, string $firstName, string $lastName): bool
+    {
+        $first = $this->normalizeNameTokens($firstName);
+        $last = $this->normalizeNameTokens($lastName);
+        $stored = $this->normalizeNameTokens($storedName);
+
+        if ($first === '' || $last === '' || $stored === '') {
+            return false;
+        }
+
+        if (str_contains($storedName, ',')) {
+            [$storedLast, $storedFirstAndMiddle] = explode(',', $storedName, 2);
+            $storedLast = $this->normalizeNameTokens($storedLast);
+            $storedFirstAndMiddle = $this->normalizeNameTokens($storedFirstAndMiddle);
+
+            return $storedLast === $last
+                && ($storedFirstAndMiddle === $first || str_starts_with($storedFirstAndMiddle, $first.' '));
+        }
+
+        return (str_starts_with($stored, $first.' ') && str_ends_with($stored, ' '.$last))
+            || $stored === $first.' '.$last
+            || (str_starts_with($stored, $last.' ') && str_contains($stored, ' '.$first.' '));
+    }
+
+    private function normalizeNameForMatch(string $name): string
+    {
+        $normalized = preg_replace('/[^a-z0-9]/u', '', mb_strtolower(trim($name)));
+
+        return $normalized ?? '';
+    }
+
+    private function normalizeNameTokens(string $name): string
+    {
+        $normalized = preg_replace('/[^a-z0-9]+/u', ' ', mb_strtolower(trim($name)));
+        $normalized = preg_replace('/\s+/u', ' ', $normalized ?? '');
+
+        return trim($normalized ?? '');
     }
 
     private function hasRegistrationApplication(UserAccounts $account): bool

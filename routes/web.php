@@ -415,7 +415,6 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
-            ->middleware('check.default.password')
             ->name('account-overview.index');
         Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
             ->name('account-overview.accounts.store');
