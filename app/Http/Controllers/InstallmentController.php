@@ -15,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 class InstallmentController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
         $totalInstallments = Installment::count();
 
@@ -33,9 +33,17 @@ class InstallmentController extends Controller
             return optional($installment->schedules->first())->amount ?? 0;
         });
 
-        $installments = Installment::with('bill.reading.concessionaire.user','schedules')
-                        ->latest()
-                        ->paginate(10);
+        $installmentRelations = ['bill.reading.concessionaire.user', 'schedules'];
+        $activeInstallmentRecords = Installment::with($installmentRelations)
+            ->where('status', 'active')
+            ->latest()
+            ->paginate(10, ['*'], 'active_page')
+            ->withQueryString();
+        $completedInstallmentRecords = Installment::with($installmentRelations)
+            ->where('status', 'completed')
+            ->latest()
+            ->paginate(10, ['*'], 'completed_page')
+            ->withQueryString();
 
         $bills = Bill::where('isPaid',0)
                 ->where('isInstallment',false)
@@ -51,7 +59,8 @@ class InstallmentController extends Controller
             'activeInstallments',
             'completedInstallments',
             'monthlyCollectible',
-            'installments',
+            'activeInstallmentRecords',
+            'completedInstallmentRecords',
             'bills',
             'installmentAdjustments'
         ));
