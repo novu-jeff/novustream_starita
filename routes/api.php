@@ -108,6 +108,10 @@ Route::middleware(['log.offline.api', 'auth.offline'])->group(function () {
 Route::match(['get', 'post'], '/novustream/starita/payment-request', [NovuPayController::class, 'paymentRequest'])
     ->name('novustream.starita.payment-request');
 
+// Partner SOA inquiry for NovuPay /srwd (X-API-KEY).
+Route::post('/novustream/starita/soa-inquiry', [NovuPayController::class, 'soaInquiry'])
+    ->name('novustream.starita.soa-inquiry');
+
 // Fallback last so it does not catch POST /offline/sync, /readings/sync, etc.
 Route::fallback(function () {
     abort(404);

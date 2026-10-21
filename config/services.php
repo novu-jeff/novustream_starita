@@ -48,6 +48,12 @@ return [
     | Keep API key and client secret server-side only. Never send client_secret
     | on checkout requests. QR Ph biller name is set by NovuPay, not staging.
     */
+    /*
+    | Shared secret for NovuPay → Starita partner calls (SOA inquiry).
+    | Sent as X-API-KEY. Server-side only.
+    */
+    'starita_partner_api_key' => env('STARITA_PARTNER_API_KEY'),
+
     'novupay' => [
         'api_url' => rtrim((string) env('NOVUPAY_API_URL', 'https://api.novu-pay.com'), '/'),
         'checkout_base' => rtrim((string) env('NOVUPAY_CHECKOUT_BASE', 'https://novu-pay.com'), '/'),

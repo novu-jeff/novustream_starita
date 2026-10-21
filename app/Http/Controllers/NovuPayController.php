@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Bill;
 use App\Models\Reading;
+use App\Models\UserAccounts;
+use App\Services\MeterService;
 use App\Services\NovuPayCheckoutService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -14,6 +16,121 @@ class NovuPayController extends Controller
 {
     public function __construct(private NovuPayCheckoutService $novuPay)
     {
+    }
+
+    /**
+     * Partner SOA inquiry for NovuPay /srwd checkout.
+     * Body: account_number, account_name. Header: X-API-KEY.
+     */
+    public function soaInquiry(Request $request)
+    {
+        $expectedKey = (string) config('services.starita_partner_api_key', '');
+        $providedKey = (string) $request->header('X-API-KEY', '');
+
+        if ($expectedKey === '' || !hash_equals($expectedKey, $providedKey)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized',
+            ], 401);
+        }
+
+        $accountNumber = trim((string) $request->input('account_number', ''));
+        $accountName = trim((string) $request->input('account_name', ''));
+
+        if ($accountNumber === '' || $accountName === '') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Account number and account name are required.',
+            ], 422);
+        }
+
+        $resolvedAccountNo = $this->resolveSoaAccountNo($accountNumber);
+        if ($resolvedAccountNo === null) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Account not found.',
+            ], 404);
+        }
+
+        $account = UserAccounts::with('user')->where('account_no', $resolvedAccountNo)->first();
+        if (!$account) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Account not found.',
+            ], 404);
+        }
+
+        $storedName = (string) ($account->user->name ?? '');
+        if (!$this->namesMatch($storedName, $accountName)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'The name does not match the account number.',
+            ], 404);
+        }
+
+        $bills = MeterService::getBills($resolvedAccountNo, true, false);
+        if (!is_array($bills) || count($bills) === 0) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No unpaid statement of account found.',
+            ], 404);
+        }
+
+        usort($bills, static function ($a, $b) {
+            $aId = (int) ($a['id'] ?? 0);
+            $bId = (int) ($b['id'] ?? 0);
+            if ($aId !== $bId) {
+                return $bId <=> $aId;
+            }
+
+            $aPeriod = (string) ($a['bill_period_to'] ?? '');
+            $bPeriod = (string) ($b['bill_period_to'] ?? '');
+
+            return strcmp($bPeriod, $aPeriod);
+        });
+
+        $latest = $bills[0];
+        $dueDateRaw = $latest['due_date'] ?? null;
+        $amount = round((float) ($latest['amount'] ?? 0), 2);
+        $amountAfterDue = round((float) ($latest['amount_after_due'] ?? $amount), 2);
+
+        $payable = $amount;
+        if ($dueDateRaw) {
+            try {
+                $due = Carbon::parse($dueDateRaw)->startOfDay();
+                if (now()->startOfDay()->gt($due)) {
+                    $payable = $amountAfterDue > 0 ? $amountAfterDue : $amount;
+                }
+            } catch (\Throwable $e) {
+                // keep billed amount
+            }
+        }
+
+        if ($payable <= 0) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No payable amount on the latest statement.',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'account_number' => $resolvedAccountNo,
+                'account_name' => $storedName,
+                'reference_no' => (string) ($latest['reference_no'] ?? ''),
+                'amount' => $payable,
+                'due_date' => $dueDateRaw
+                    ? Carbon::parse($dueDateRaw)->toDateString()
+                    : null,
+                'bill_period_from' => isset($latest['bill_period_from'])
+                    ? Carbon::parse($latest['bill_period_from'])->toDateString()
+                    : null,
+                'bill_period_to' => isset($latest['bill_period_to'])
+                    ? Carbon::parse($latest['bill_period_to'])->toDateString()
+                    : null,
+            ],
+        ]);
     }
 
     /**
@@ -290,5 +407,19 @@ class NovuPayController extends Controller
                 'status' => 'error',
             ],
         ], $status);
+    }
+
+    private function namesMatch(string $firstName, string $secondName): bool
+    {
+        $normalize = static function (string $name): string {
+            $normalized = preg_replace('/[^a-z0-9]/u', '', mb_strtolower(trim($name)));
+
+            return $normalized ?? '';
+        };
+
+        $first = $normalize($firstName);
+        $second = $normalize($secondName);
+
+        return $first !== '' && $first === $second;
     }
 }
