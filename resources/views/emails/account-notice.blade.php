@@ -45,9 +45,17 @@
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8fc;border-radius:8px;">
                                 @foreach($details as $label => $value)
                                     @if($value !== null && $value !== '')
+                                    @php($isVerificationCode = strcasecmp((string) $label, 'Verification code') === 0)
                                     <tr>
-                                        <td style="padding:10px 16px;width:42%;font-size:13px;color:#5c6b7a;border-bottom:1px solid #e2e8f0;">{{ $label }}</td>
-                                        <td style="padding:10px 16px;font-size:14px;font-weight:700;color:#0b2540;border-bottom:1px solid #e2e8f0;">{{ $value }}</td>
+                                        @if($isVerificationCode)
+                                            <td colspan="2" style="padding:16px;text-align:center;border-bottom:1px solid #e2e8f0;">
+                                                <div style="font-size:12px;color:#5c6b7a;margin-bottom:6px;">{{ $label }}</div>
+                                                <div style="font-size:34px;font-weight:700;color:#0b2540;letter-spacing:8px;line-height:1.2;">{{ $value }}</div>
+                                            </td>
+                                        @else
+                                            <td style="padding:10px 16px;width:42%;font-size:13px;color:#5c6b7a;border-bottom:1px solid #e2e8f0;">{{ $label }}</td>
+                                            <td style="padding:10px 16px;font-size:14px;font-weight:700;color:#0b2540;border-bottom:1px solid #e2e8f0;">{{ $value }}</td>
+                                        @endif
                                     </tr>
                                     @endif
                                 @endforeach
