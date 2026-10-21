@@ -19,7 +19,7 @@
                             <small v-if="errors.name" class="text-danger px-1">{{ errors.name[0] }}</small>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="contact_no" class="form-label">Contact No <small class="text-danger"> ( required )</small></label>
+                            <label for="contact_no" class="form-label">Contact No <small v-if="!concessioner.id" class="text-danger"> ( required )</small><small v-else class="text-muted"> ( optional )</small></label>
                             <input type="text"
                                 class="form-control"
                                 id="contact_no"
@@ -34,7 +34,7 @@
                     <div class="text-uppercase fw-bold py-4">Login Information</div>
                     <div class="row mt-3">
                         <div class="col-md-4 mb-3">
-                            <label for="email" class="form-label">Email <small class="text-danger"> ( required )</small></label>
+                            <label for="email" class="form-label">Email <small v-if="!concessioner.id" class="text-danger"> ( required )</small><small v-else class="text-muted"> ( optional )</small></label>
                             <input type="text"
                                     class="form-control" id="email"
                                     v-model="concessioner.email"
@@ -620,22 +620,22 @@ export default {
     let errorMessages = [];
 
     // Contact No validation (required + 11 digits)
-    if (!this.concessioner.contact_no) {
+    if (!this.concessioner.id && !this.concessioner.contact_no) {
         this.errors.contact_no = ['Contact number is required.'];
         errorMessages.push('Contact number is required.');
         valid = false;
-    } else if (!/^\d{11}$/.test(this.concessioner.contact_no)) {
+    } else if (this.concessioner.contact_no && !/^\d{11}$/.test(this.concessioner.contact_no)) {
         this.errors.contact_no = ['Contact number must be 11 digits.'];
         errorMessages.push('Contact number must be 11 digits.');
         valid = false;
     }
 
-    // Email validation (required + format)
-    if (!this.concessioner.email) {
+    // Email is required for new concessionaires and optional when updating.
+    if (!this.concessioner.id && !this.concessioner.email) {
         this.errors.email = ['Email is required.'];
         errorMessages.push('Email is required.');
         valid = false;
-    } else {
+    } else if (this.concessioner.email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.(com|net|org|edu|gov|ph)$/i;
         if (!emailRegex.test(this.concessioner.email)) {
         this.errors.email = ['Email must be a valid format (example:name@gmail.com).'];
