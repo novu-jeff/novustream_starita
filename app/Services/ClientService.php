@@ -115,9 +115,14 @@ class ClientService {
         $user = User::with('accounts')->where('isActive', true)->findOrFail($id);
         $updateData = [
             'name'       => $payload['name'],
-            'email'      => $payload['email'],
-            'contact_no' => $payload['contact_no'],
         ];
+
+        if (!empty($payload['email'])) {
+            $updateData['email'] = $payload['email'];
+        }
+        if (!empty($payload['contact_no'])) {
+            $updateData['contact_no'] = $payload['contact_no'];
+        }
 
         if (!empty($payload['password'])) {
             $updateData['password'] = Hash::make($payload['password']);
