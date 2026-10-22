@@ -15,6 +15,12 @@ class LoginController extends Controller
 {
     public function index()
     {
+        // Password reset links must display the login page so its reset modal
+        // can consume the token, even if this browser has an older session.
+        if (request()->filled('reset_token')) {
+            return view('auth.login');
+        }
+
         if (Auth::guard('admins')->check()) {
             return redirect()->to(
                 $this->absoluteUrl(
