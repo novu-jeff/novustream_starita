@@ -15,49 +15,56 @@
             <form method="GET" action="{{ route('dashboard') }}" class="dashboard-filters" id="dashboardFilters">
                 <div class="dashboard-filters__top">
                     <h2 class="dashboard-filters__title">Filters</h2>
-                    @if($hasFilters)
-                        <a href="{{ route('dashboard') }}" class="dashboard-filters__clear">Clear</a>
-                    @endif
-                </div>
-                <div class="dashboard-filters__grid">
-                    <div>
-                        <label for="date_from">Date from</label>
-                        <input type="date" id="date_from" name="date_from" value="{{ $filters['date_from'] }}">
-                    </div>
-                    <div>
-                        <label for="date_to">Date to</label>
-                        <input type="date" id="date_to" name="date_to" value="{{ $filters['date_to'] }}">
-                    </div>
-                    <div>
-                        <label for="zone">Zone</label>
-                        <select id="zone" name="zone">
-                            <option value="">All zones</option>
-                            @foreach($zones ?? [] as $zone)
-                                <option value="{{ $zone->zone }}" {{ $filters['zone'] === $zone->zone ? 'selected' : '' }}>
-                                    {{ $zone->zone }} — {{ $zone->area }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="payment_method">Payment method</label>
-                        <select id="payment_method" name="payment_method">
-                            <option value="">All methods</option>
-                            <option value="cash" {{ $filters['payment_method'] === 'cash' ? 'selected' : '' }}>Cash</option>
-                            <option value="online" {{ $filters['payment_method'] === 'online' ? 'selected' : '' }}>Online</option>
-                        </select>
-                    </div>
-                    <div class="dashboard-filters__actions">
-                        <button type="submit" class="dashboard-filters__apply">Apply</button>
+                    <div class="dashboard-filters__top-actions">
+                        @if($hasFilters)
+                            <a href="{{ route('dashboard') }}" class="dashboard-filters__clear">Clear</a>
+                        @endif
+                        <button type="button" class="dashboard-filters__toggle" data-bs-toggle="collapse" data-bs-target="#dashboardFilterFields" aria-expanded="false" aria-controls="dashboardFilterFields">
+                            <span>Show filters</span><i class="bx bx-chevron-down" aria-hidden="true"></i>
+                        </button>
                     </div>
                 </div>
-                <div class="dashboard-filters__presets">
-                    <button type="button" class="dashboard-filters__preset" data-range="today">Today</button>
-                    <button type="button" class="dashboard-filters__preset" data-range="month">This month</button>
-                    <button type="button" class="dashboard-filters__preset" data-range="30">Last 30 days</button>
-                    <button type="button" class="dashboard-filters__preset" data-range="365">Last 12 months</button>
+                <div class="collapse" id="dashboardFilterFields">
+                    <div class="dashboard-filters__grid">
+                        <div>
+                            <label for="date_from">Date from</label>
+                            <input type="date" id="date_from" name="date_from" value="{{ $filters['date_from'] }}">
+                        </div>
+                        <div>
+                            <label for="date_to">Date to</label>
+                            <input type="date" id="date_to" name="date_to" value="{{ $filters['date_to'] }}">
+                        </div>
+                        <div>
+                            <label for="zone">Zone</label>
+                            <select id="zone" name="zone">
+                                <option value="">All zones</option>
+                                @foreach($zones ?? [] as $zone)
+                                    <option value="{{ $zone->zone }}" {{ $filters['zone'] === $zone->zone ? 'selected' : '' }}>
+                                        {{ $zone->zone }} — {{ $zone->area }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="payment_method">Payment method</label>
+                            <select id="payment_method" name="payment_method">
+                                <option value="">All methods</option>
+                                <option value="cash" {{ $filters['payment_method'] === 'cash' ? 'selected' : '' }}>Cash</option>
+                                <option value="online" {{ $filters['payment_method'] === 'online' ? 'selected' : '' }}>Online</option>
+                            </select>
+                        </div>
+                        <div class="dashboard-filters__actions">
+                            <button type="submit" class="dashboard-filters__apply">Apply</button>
+                        </div>
+                    </div>
+                    <div class="dashboard-filters__presets">
+                        <button type="button" class="dashboard-filters__preset" data-range="today">Today</button>
+                        <button type="button" class="dashboard-filters__preset" data-range="month">This month</button>
+                        <button type="button" class="dashboard-filters__preset" data-range="30">Last 30 days</button>
+                        <button type="button" class="dashboard-filters__preset" data-range="365">Last 12 months</button>
+                    </div>
+                    <p class="dashboard-filters__hint">Collections use payment date. Unpaid bills and readings use the reading date. Staff and account totals stay unfiltered.</p>
                 </div>
-                <p class="dashboard-filters__hint">Collections use payment date. Unpaid bills and readings use the reading date. Staff and account totals stay unfiltered.</p>
             </form>
 
             <div class="dashboard-stats-grid">
@@ -148,8 +155,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (zoneData.length > 0) { new ApexCharts(document.querySelector('#chartZone'), { series: [{ name: 'Readings', data: zoneData }], chart: { type: 'bar', height: 320 }, colors: ['#434ce8'], plotOptions: { bar: { borderRadius: 4, horizontal: zoneHorizontal, barHeight: '60%', columnWidth: '55%' } }, dataLabels: { enabled: true }, xaxis: { categories: @json($data['chart_zone_labels'] ?? []), labels: { style: { fontSize: '11px' } } }, grid: { borderColor: '#eff1f6', strokeDashArray: 4 } }).render(); } else { document.querySelector('#chartZone').innerHTML = '<div class="chart-empty"><span>No readings for this period</span></div>'; }
 
     const filterForm = document.getElementById('dashboardFilters');
+    const filterFields = document.getElementById('dashboardFilterFields');
+    const filterToggle = document.querySelector('.dashboard-filters__toggle');
     const fromInput = document.getElementById('date_from');
     const toInput = document.getElementById('date_to');
+    filterFields.addEventListener('show.bs.collapse', function () {
+        document.querySelector('.dashboard-filters__top').classList.add('is-open');
+        filterToggle.querySelector('span').textContent = 'Hide filters';
+        filterToggle.querySelector('i').classList.replace('bx-chevron-down', 'bx-chevron-up');
+    });
+    filterFields.addEventListener('hide.bs.collapse', function () {
+        document.querySelector('.dashboard-filters__top').classList.remove('is-open');
+        filterToggle.querySelector('span').textContent = 'Show filters';
+        filterToggle.querySelector('i').classList.replace('bx-chevron-up', 'bx-chevron-down');
+    });
     const formatDate = function (date) {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
