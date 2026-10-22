@@ -48,12 +48,16 @@
         line-height: 1.3;
     }
 
-    p { margin: 3px 0; }
+    p { 
+        margin: 0; 
+        font-size: 7pt;
+    }
 
     .district-name {
         font-size: 10pt;
         font-weight: bold;
         text-transform: uppercase;
+        padding-bottom: 0;
     }
 
     .receipt-title {
@@ -128,6 +132,7 @@
         display: flex;
         gap: 12px;
         margin-top: 30px;
+        margin-bottom: 20px;
     }
 
     .signature {
@@ -203,7 +208,6 @@
 <main class="receipt-sheet">
 
     <header class="receipt-header">
-        <p>Republic of the Philippines</p>
         <p class="district-name">Sta. Rita Water District</p>
         <p>Zone 6 Dila-Dila, Santa Rita, Pampanga</p>
         <p class="receipt-title">Acknowledgment Receipt</p>

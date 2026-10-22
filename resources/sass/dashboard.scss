@@ -784,8 +784,28 @@ label {
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem;
-	margin-bottom: 0.85rem;
+	margin-bottom: 0;
 }
+.dashboard-filters__top-actions { display: flex; align-items: center; gap: .5rem; }
+.dashboard-filters__toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: .35rem;
+	min-height: 38px;
+	padding: 0 .8rem;
+	border: 1px solid var(--c-border-primary);
+	border-radius: 8px;
+	background: var(--c-background-primary);
+	color: var(--c-text-action);
+	font-size: .75rem;
+	font-weight: 700;
+	cursor: pointer;
+}
+.dashboard-filters__toggle:hover { border-color: var(--c-accent-primary); color: var(--c-accent-primary); }
+.dashboard-filters__toggle:focus-visible { outline: 3px solid rgba(50, 102, 126, .2); outline-offset: 2px; }
+.dashboard-filters__toggle i { font-size: 1.05rem; }
+.dashboard-filters__top.is-open { margin-bottom: .85rem; }
 .dashboard-filters__title {
 	margin: 0;
 	font-size: 0.8rem;
