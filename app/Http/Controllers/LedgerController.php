@@ -100,11 +100,26 @@ class LedgerController extends Controller
             $bill->computed_status = ($dueDate && $today->gt($dueDate)) ? 'OVERDUE' : 'UNPAID';
         }
 
+        // Only count the newest outstanding bill for each account in the ledger total.
+        $latestOutstandingByAccount = [];
+        foreach ($bills->reverse() as $bill) {
+            $accountNo = optional($bill->reading)->account_no;
+            if ($bill->computed_balance > 0 && !isset($latestOutstandingByAccount[$accountNo])) {
+                $latestOutstandingByAccount[$accountNo] = $bill->id;
+            }
+        }
+        foreach ($bills as $bill) {
+            $accountNo = optional($bill->reading)->account_no;
+            $bill->computed_is_latest_outstanding = isset($latestOutstandingByAccount[$accountNo])
+                && $latestOutstandingByAccount[$accountNo] === $bill->id;
+        }
+        $outstandingBalance = $bills->where('computed_is_latest_outstanding', true)->sum('computed_balance');
+
         $applications = ServiceApplication::where('user_id', $userId)
         ->orderByDesc('created_at')
         ->get();
 
-        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years', 'applications'));
+        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years', 'applications', 'outstandingBalance'));
     }
 
     private function buildLedgerMetrics(Bill $bill): array

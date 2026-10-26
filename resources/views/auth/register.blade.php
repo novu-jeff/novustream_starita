@@ -920,8 +920,7 @@
         .register-page .register-back-button { align-self: flex-start; padding: .4rem .65rem; font-size: .78rem; }
         .register-page .register-back-button i { font-size: 1rem; }
         .register-page .register-fields { grid-template-columns: 1fr; gap: .8rem; }
-        .register-page .register-name-group { grid-template-columns: minmax(0, 1fr) 90px; gap: .7rem; }
-        .register-page .register-name-group .register-field:last-child { grid-column: 1 / -1; }
+        .register-page .register-name-group { grid-template-columns: 1fr; gap: .7rem; }
         .register-page .register-field-wide,
         .register-page .register-document-grid,
         .register-page .new-connection-fields { grid-column: auto; }
@@ -931,7 +930,6 @@
     }
 
     @media (max-width: 380px) {
-        .register-page .register-name-group { grid-template-columns: 1fr; }
         .register-page .register-name-group .register-field:last-child { grid-column: auto; }
     }
 </style>

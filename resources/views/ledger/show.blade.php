@@ -41,7 +41,7 @@
             <div class="card border-start border-danger border-4 shadow-sm">
                 <div class="card-body">
                     <h6 class="text-muted uppercase small fw-bold">Outstanding Balance</h6>
-                    <h3 class="mb-0 text-danger">PHP {{ number_format($bills->sum('computed_balance'), 2) }}</h3>
+                    <h3 class="mb-0 text-danger">PHP {{ number_format($outstandingBalance, 2) }}</h3>
                 </div>
             </div>
         </div>
@@ -113,7 +113,9 @@
                         <tbody>
                             @php $runningBalance = 0; @endphp
                             @forelse($bills as $bill)
-                            @php $runningBalance += $bill->computed_balance; @endphp
+                            @if($bill->computed_is_latest_outstanding)
+                                @php $runningBalance += $bill->computed_balance; @endphp
+                            @endif
                             <tr>
                                 <td class="ps-3">
                                     <div class="fw-bold text-dark">{{ \Carbon\Carbon::parse($bill->bill_period_to)->format('M d, Y') }}</div>
