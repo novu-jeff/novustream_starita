@@ -26,7 +26,7 @@
                     <label for="login-email">Email address</label>
                     <div class="auth-input-wrap">
                         <i class="bx bx-envelope" aria-hidden="true"></i>
-                        <input id="login-email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" placeholder="name@example.com" autocomplete="username" required />
+                        <input id="login-email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" placeholder="Enter your email" autocomplete="username" required />
                     </div>
                     @error('email')
                         <span class="invalid-feedback d-block" role="alert">
@@ -91,7 +91,7 @@
                 <label for="forgot-password-email">Email address</label>
                 <div class="forgot-password-input">
                     <i class="bx bx-envelope" aria-hidden="true"></i>
-                    <input id="forgot-password-email" type="email" name="email" class="form-control" placeholder="name@example.com" autocomplete="email" required>
+                    <input id="forgot-password-email" type="email" name="email" class="form-control" placeholder="Enter your email" autocomplete="email" required>
                 </div>
                 <button class="forgot-password-submit" type="submit">
                     <span>Send reset link</span><i class="bx bx-right-arrow-alt" aria-hidden="true"></i>
