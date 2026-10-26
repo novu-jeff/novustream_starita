@@ -401,7 +401,7 @@
                                                 <p class="small text-muted mb-0">Optional — enter a percentage if a discount applies.</p>
                                             </div>
                                         </div>
-                                        <input type="number" step="0.01" min="0" max="100" name="appliedDiscount" class="form-control" placeholder="Discount percentage (0–100)" aria-label="Discount percentage">
+                                        <input type="number" step="0.01" min="0" max="100" name="appliedDiscount" class="form-control" placeholder="Discount percentage (1–100)" aria-label="Discount percentage">
                                         <button type="submit" class="btn btn-primary"><i class="bx bx-check me-1" aria-hidden="true"></i> Apply</button>
                                     </div>
                                 </form>
