@@ -11,6 +11,37 @@ use Illuminate\Support\Facades\Schema;
 class BillArrearsService
 {
     /**
+     * Find the newest bill with a positive ledger balance for an account.
+     * Bills must be ordered newest first, matching the ledger's balance rule.
+     *
+     * @return array{bill: Bill, balance: float}|null
+     */
+    public function latestOutstandingBill(iterable $bills): ?array
+    {
+        foreach ($bills as $bill) {
+            if ((int) $bill->isPaid === 1) {
+                continue;
+            }
+
+            $debit = max(0, round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2));
+            $credit = round(max(
+                (float) ($bill->amount_paid ?? 0) - (float) ($bill->change ?? 0),
+                (float) ($bill->partial_payment ?? 0)
+            ), 2);
+            $balance = max(0, round($debit - $credit, 2));
+
+            if ($balance > 0) {
+                return [
+                    'bill' => $bill,
+                    'balance' => $balance,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Remaining balance to carry into the next bill.
      *
      * Uses only the latest unpaid/partial bill and credits both

@@ -4,8 +4,11 @@
 <div class="container">
 
     {{-- Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
-        <h4 class="mb-0">Reading Adjustments</h4>
+    <div class="d-flex justify-content-between align-items-center mb-5 mt-5">
+        <div class="d-flex align-items-start gap-3">
+            <div class="report-title-icon"><i class="bx bx-edit-alt" aria-hidden="true"></i></div>
+            <div><h1 class="report-page-title mb-1 text-uppercase">Reading Adjustments</h1><p class="report-page-subtitle mb-0">Review and correct meter reading records.</p></div>
+        </div>
         <div class="d-flex justify-content-between mb-3">
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#globalHistoryModal">
                 View Adjustment History

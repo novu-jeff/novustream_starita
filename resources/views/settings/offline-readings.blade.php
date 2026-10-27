@@ -3,10 +3,12 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper pb-5">
-            <div class="main-header d-flex justify-content-between flex-wrap align-items-center gap-2">
-                <h1>Offline Readings</h1>
+            <div class="main-header d-flex justify-content-between flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-mobile-alt" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Offline Readings</h1><p class="report-page-subtitle mb-0">Merge pending readings from Offline Device into readings and bills.</p></div>
+                </div>
             </div>
-            <p class="text-muted small mt-1">Merge pending readings from <code>Offline Device</code> into readings and bills.</p>
 
             <div class="inner-content mt-4">
                 {{-- Filters --}}

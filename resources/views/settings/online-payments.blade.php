@@ -3,12 +3,14 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper pb-5">
-            <div class="main-header d-flex justify-content-between flex-wrap align-items-center gap-2">
-                <h1>Online Payments</h1>
+            <div class="main-header d-flex justify-content-between flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-credit-card" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Online Payments</h1><p class="report-page-subtitle mb-0">Monitor payment sync activity and reconcile recent transactions.</p></div>
+                </div>
             </div>
-            <p class="text-muted small mt-1 mb-0">
-                <strong>Automatic sync:</strong> When a payment is marked paid in Novupay, sync runs automatically every 3 minutes.
-                Use <strong>Sync Now</strong> below if you want to run immediately or if the automatic sync failed.
+            <p class="text-muted small mt-2 mb-0">
+                <strong>Automatic sync:</strong> Novupay payments sync every 3 minutes. Use <strong>Sync Now</strong> to run it immediately or retry a failed sync.
             </p>
             <div class="inner-content mt-4">
                 {{-- Filters --}}

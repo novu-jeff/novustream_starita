@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Base Rate</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-money" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Base Rate</h1><p class="report-page-subtitle mb-0">Set the base charge for each property type.</p></div>
+                </div>
                 @if (config('app.product') == 'novustream')
                     <a class="btn btn-outline-primary px-5 py-3 text-uppercase" href="{{ route('rates.index') }}">
                         GO TO WATER RATES

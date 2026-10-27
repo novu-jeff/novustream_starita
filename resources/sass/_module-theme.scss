@@ -257,9 +257,9 @@
     }
     .report-builder * { box-sizing: border-box; }
     .report-page-header { padding: .25rem 0 .5rem; }
-    .report-title-icon { width: 58px; height: 58px; display: grid; place-items: center; flex: 0 0 58px; border-radius: 17px; background: #eaf1ff; color: #2867d8; font-size: 2rem; }
+    .report-title-icon { width: 58px; height: 58px; display: grid; place-items: center; flex: 0 0 58px; border-radius: 17px; background: #eaf1ff; color: #32667e; font-size: 2rem; }
     .eyebrow { color: #7188b0; font-size: .72rem; font-weight: 800; letter-spacing: .12em; }
-    .report-page-title { color: #172b4d; font-size: clamp(1.8rem, 2.6vw, 2.45rem); font-weight: 750; letter-spacing: -.045em; }
+    .report-page-title { color: #000000; font-size: clamp(1.8rem, 2.6vw, 2.45rem); font-weight: 750; letter-spacing: -.045em; }
     .report-page-subtitle, .section-subtitle { color: var(--report-muted); font-size: .88rem; }
     .preset-tools { max-width: 100%; }
     .preset-tools .form-control, .preset-tools .form-select { min-height: 42px; border-color: #dce5f3; border-radius: 9px; font-size: .84rem; }
