@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Submit Ticket</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-support" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Submit Ticket</h1><p class="report-page-subtitle mb-0">Tell our support team about an issue or request.</p></div>
+                </div>
             </div>
             <div class="inner-content mt-5 pb-5">
                 @if(!Auth::guard('admins')->check())

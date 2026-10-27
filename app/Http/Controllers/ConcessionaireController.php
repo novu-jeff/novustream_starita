@@ -9,8 +9,11 @@ use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\MeterService;
 use App\Models\UserAccounts;
+use App\Models\Reading;
 use App\Models\ServiceApplication;
 use App\Models\ConcessionerAccountLink;
+use App\Services\BillArrearsService;
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -732,6 +735,47 @@ class ConcessionaireController extends Controller
         return view('concessionaires.form', compact('data', 'status_code', 'property_types', 'registrantId'));
     }
 
+    public function activationReview(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+        $reading = Reading::where('account_no', $account->account_no)
+            ->where('isReRead', false)
+            ->latest('created_at')
+            ->first();
+        $outstanding = app(BillArrearsService::class)->latestOutstandingBill(
+            \App\Models\Bill::with('reading')
+                ->whereHas('reading', function ($query) use ($account) {
+                    $query->where('account_no', $account->account_no);
+                })
+                ->orderByDesc('bill_period_to')
+                ->orderByDesc('id')
+                ->get()
+        );
+        $sourceBill = $outstanding['bill'] ?? null;
+
+        return response()->json([
+            'account' => [
+                'account_no' => $account->account_no,
+                'name' => $account->user->name ?? '',
+                'address' => $account->address,
+                'contact_no' => $account->user->contact_no ?? '',
+                'property_type' => $account->property_type,
+                'rate_code' => $account->rate_code,
+            ],
+            'reading' => $reading ? [
+                'date' => Carbon::parse($reading->bill?->bill_period_to ?? $reading->created_at)->format('Y-m-d'),
+                'previous_reading' => $reading->previous_reading,
+                'present_reading' => $reading->present_reading,
+                'consumption' => $reading->consumption,
+            ] : null,
+            'outstanding_balance' => (float) ($outstanding['balance'] ?? 0),
+            'arrears_period' => $sourceBill ? [
+                'from' => $sourceBill->bill_period_from,
+                'to' => $sourceBill->bill_period_to,
+            ] : null,
+        ]);
+    }
+
     public function update(int $id, UpdateClientRequest $request)
     {
         $payload = $request->validated();
@@ -740,6 +784,20 @@ class ConcessionaireController extends Controller
 
         $existingClient = $this->clientService::getData($id);
         $oldAccountNo = $existingClient->accounts[0]->account_no ?? null;
+
+        $requiresActivationConfirmation = collect($payload['accounts'] ?? [])->contains(function ($account) use ($existingClient) {
+            $existingAccount = $existingClient->accounts->firstWhere('id', $account['id'] ?? null);
+
+            return $existingAccount
+                && strtoupper(trim((string) $existingAccount->status)) !== 'AB'
+                && strtoupper(trim((string) ($account['status'] ?? ''))) === 'AB';
+        });
+
+        if ($requiresActivationConfirmation && empty($payload['activation_confirmed'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'activation_confirmed' => ['Review and confirm the account details before activation.'],
+            ]);
+        }
 
         if (isset($payload['accounts']) && is_array($payload['accounts'])) {
             foreach ($payload['accounts'] as &$account) {

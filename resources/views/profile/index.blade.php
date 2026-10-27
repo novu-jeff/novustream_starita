@@ -11,7 +11,10 @@
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
             <div class="main-header d-flex justify-content-between">
-                <h1>Update My Profile</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-user" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Update My Profile</h1><p class="report-page-subtitle mb-0">Review and update your account information.</p></div>
+                </div>
             </div>
             
             <div class="inner-content mt-5 pb-5">

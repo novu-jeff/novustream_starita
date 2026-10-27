@@ -18,7 +18,13 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>{{$filter}} Bills</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-file" aria-hidden="true"></i></div>
+                    <div>
+                        <h1 class="report-page-title mb-1">{{$filter}} Bills</h1>
+                        <p class="report-page-subtitle mb-0">Find and select the bills you need to pay.</p>
+                    </div>
+                </div>
                 <div class="d-flex align-items-center gap-3">
                     <a href="{{ route('payments.index', array_merge(request()->query(), ['filter' => $filter === 'paid' ? 'unpaid' : 'paid'])) }}"
                         class="btn btn-primary px-5 py-3 text-uppercase">

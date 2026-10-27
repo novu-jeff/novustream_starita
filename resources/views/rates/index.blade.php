@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>{{ $app_type }} Rate</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-water" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">{{ $app_type }} Rate</h1><p class="report-page-subtitle mb-0">Manage water rates by property type and consumption range.</p></div>
+                </div>
                 <a href="{{route('rates.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
                     Add New Rate
                 </a>

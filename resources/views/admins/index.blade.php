@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Accounts Lists</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-user-circle" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Accounts Lists</h1><p class="report-page-subtitle mb-0">Manage staff accounts and their access to the portal.</p></div>
+                </div>
                 <a href="{{route('admins.create')}}" class="btn btn-primary px-5 py-3 text-uppercase">
                     Add New
                 </a>

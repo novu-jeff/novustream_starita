@@ -9,8 +9,7 @@
                         <i class="bx bx-receipt" aria-hidden="true"></i>
                     </div>
                     <div>
-                        <p class="payment-eyebrow mb-1">PAYMENTS</p>
-                        <h1 class="mb-1">Cash Payment Consolidation</h1>
+                        <h1 class="mb-1 text-black report-page-title text-uppercase">Cash Payment Consolidation</h1>
                         <p class="payment-page-subtitle mb-0">Review cash payment service fees and access credited receipts.</p>
                     </div>
                 </div>

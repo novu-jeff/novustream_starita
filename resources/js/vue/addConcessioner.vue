@@ -427,6 +427,80 @@
           </div>
         </button>
       </div>
+
+      <div v-if="activationReviewOpen" class="activation-review-backdrop" role="presentation">
+        <section class="activation-review-modal" role="dialog" aria-modal="true" aria-labelledby="activation-review-title">
+          <header class="activation-review-header">
+            <div class="activation-review-avatar"><i class="bx bx-user"></i></div>
+            <div class="flex-grow-1">
+              <h2 id="activation-review-title">Activate Account</h2>
+              <p>Please review the account details before activating.</p>
+            </div>
+            <button type="button" class="btn-close" aria-label="Close" @click="cancelActivation"></button>
+          </header>
+
+          <div v-if="activationReviewLoading" class="activation-review-loading">
+            <span class="spinner-border spinner-border-sm" role="status"></span> Loading account details...
+          </div>
+          <div v-else-if="activationReviewError" class="alert alert-danger m-3">{{ activationReviewError }}</div>
+          <div v-else-if="activationReview" class="activation-review-content">
+            <section class="activation-review-section">
+              <h3><i class="bx bx-id-card"></i> Concessionaire Details</h3>
+              <div class="activation-review-grid">
+                <div><span>Account No.</span><strong>{{ activationReview.account.account_no }}</strong></div>
+                <div><span>Property Type</span><strong>{{ activationReview.account.property_type || 'N/A' }}</strong></div>
+                <div><span>Concessionaire Name</span><strong>{{ activationReview.account.name || 'N/A' }}</strong></div>
+                <div><span>Rate Code</span><strong>{{ activationReview.account.rate_code || 'N/A' }}</strong></div>
+                <div><span>Address</span><strong>{{ activationReview.account.address || 'N/A' }}</strong></div>
+                <div><span>Contact No.</span><strong>{{ activationReview.account.contact_no || 'N/A' }}</strong></div>
+              </div>
+            </section>
+
+            <section class="activation-review-section reading-section">
+              <h3><i class="bx bx-tachometer"></i> Last Meter Reading</h3>
+              <div v-if="activationReview.reading" class="activation-review-reading-grid">
+                <div><span>Reading Date</span><strong>{{ formatReviewDate(activationReview.reading.date) }}</strong></div>
+                <div><span>Previous Reading</span><strong>{{ formatReviewNumber(activationReview.reading.previous_reading) }}</strong></div>
+                <div><span>Present Reading</span><strong>{{ formatReviewNumber(activationReview.reading.present_reading) }}</strong></div>
+                <div><span>Consumption</span><strong>{{ formatReviewNumber(activationReview.reading.consumption) }}</strong></div>
+              </div>
+              <p v-else class="activation-review-empty mb-0">No meter reading has been recorded for this account.</p>
+            </section>
+
+            <section class="activation-review-section" :class="activationReview.outstanding_balance > 0 ? 'balance-warning' : 'balance-clear'">
+              <h3>
+                <i :class="activationReview.outstanding_balance > 0 ? 'bx bx-error-circle' : 'bx bx-check-circle'"></i>
+                {{ activationReview.outstanding_balance > 0 ? 'Outstanding Balance' : 'No Outstanding Balance' }}
+              </h3>
+              <div v-if="activationReview.outstanding_balance > 0" class="activation-review-balance">
+                <span>Unpaid balance</span>
+                <strong>{{ formatReviewCurrency(activationReview.outstanding_balance) }}</strong>
+                <small v-if="activationReview.arrears_period">
+                  Billing period: {{ formatReviewDate(activationReview.arrears_period.from) }} - {{ formatReviewDate(activationReview.arrears_period.to) }}
+                </small>
+              </div>
+              <div v-else class="activation-review-balance">This account has no unpaid bills.</div>
+            </section>
+
+            <div v-if="activationReview.outstanding_balance > 0" class="activation-review-warning">
+              <i class="bx bx-error"></i>
+              <span>This account has unpaid bills. Activating the account will not remove the outstanding balance.</span>
+            </div>
+          </div>
+
+          <footer class="activation-review-footer">
+            <button type="button" class="btn btn-outline-secondary" :disabled="loading" @click="cancelActivation">Cancel</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="activationReviewLoading || !!activationReviewError || !activationReview || loading"
+              @click="confirmActivation"
+            >
+              {{ activationIndex + 1 < pendingActivations.length ? 'Continue' : 'Confirm Activation' }}
+            </button>
+          </footer>
+        </section>
+      </div>
   </form>
 </template>
 
@@ -506,6 +580,14 @@ export default {
       },
       errors: [],
       maxIndex: 0,
+      originalAccountStatuses: {},
+      pendingActivations: [],
+      activationIndex: 0,
+      activationReview: null,
+      activationReviewOpen: false,
+      activationReviewLoading: false,
+      activationReviewError: '',
+      activationConfirmed: false,
     };
   },
     created() {
@@ -528,6 +610,10 @@ export default {
 
             this.concessioner.connection_type =
               this.data.service_applications?.[0]?.connection_type || 'on_line';
+
+            this.originalAccountStatuses = Object.fromEntries(
+              this.concessioner.accounts.map((account) => [String(account.id), String(account.status || '').toUpperCase()])
+            );
 
             console.log(this.concessioner);
         }
@@ -659,14 +745,75 @@ export default {
     //return valid;
     return true;
     },
-    saveConcessioner() {
-        this.loading = true;
+    async saveConcessioner() {
+        if (this.loading) return;
         this.errors = [];
 
-        if (!this.validateForm()) {
-            this.loading = false;
-            return; // stop submission if invalid
+        if (!this.validateForm()) return;
+
+        this.pendingActivations = this.concessioner.id
+          ? this.concessioner.accounts.filter((account) =>
+              account.id
+              && String(account.status || '').toUpperCase() === 'AB'
+              && this.originalAccountStatuses[String(account.id)] !== 'AB'
+            )
+          : [];
+
+        this.activationConfirmed = false;
+        if (this.pendingActivations.length) {
+          this.activationIndex = 0;
+          this.activationReviewOpen = true;
+          await this.loadActivationReview();
+          return;
         }
+
+        this.persistConcessioner();
+    },
+    async loadActivationReview() {
+      this.activationReview = null;
+      this.activationReviewError = '';
+      this.activationReviewLoading = true;
+
+      try {
+        const account = this.pendingActivations[this.activationIndex];
+        const response = await axios.get(`${baseURL}/admin/users/concessionaires/${account.id}/activation-review`);
+        this.activationReview = response.data;
+      } catch (error) {
+        this.activationReviewError = error.response?.data?.message || 'Unable to load account details. Please try again.';
+      } finally {
+        this.activationReviewLoading = false;
+      }
+    },
+    async confirmActivation() {
+      if (this.activationIndex + 1 < this.pendingActivations.length) {
+        this.activationIndex += 1;
+        await this.loadActivationReview();
+        return;
+      }
+
+      this.activationConfirmed = true;
+      this.activationReviewOpen = false;
+      this.persistConcessioner();
+    },
+    cancelActivation() {
+      this.activationReviewOpen = false;
+      this.pendingActivations = [];
+      this.activationReview = null;
+      this.activationReviewError = '';
+    },
+    formatReviewNumber(value) {
+      return value == null ? 'N/A' : Number(value).toLocaleString('en-PH');
+    },
+    formatReviewCurrency(value) {
+      return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
+    },
+    formatReviewDate(value) {
+      if (!value) return 'N/A';
+      const date = new Date(`${value}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' });
+    },
+    persistConcessioner() {
+        this.loading = true;
 
         // --- continue existing saveConcessioner logic ---
         this.concessioner.accounts.forEach((account, index) => {
@@ -718,6 +865,9 @@ export default {
       if (this.concessioner.id != null) {
         formData.append('_method', 'PUT');
       }
+      if (this.activationConfirmed) {
+        formData.append('activation_confirmed', '1');
+      }
 
       axios({
         method: method,
@@ -733,6 +883,10 @@ export default {
         .then((response) => {
           if (this.concessioner.id == null) {
             this.resetForm();
+          } else {
+            this.originalAccountStatuses = Object.fromEntries(
+              this.concessioner.accounts.map((account) => [String(account.id), String(account.status || '').toUpperCase()])
+            );
           }
           alert(response.data.status, response.data.message);
         })
@@ -749,6 +903,8 @@ export default {
         })
         .finally(() => {
           this.loading = false;
+          this.activationConfirmed = false;
+          this.pendingActivations = [];
         });
     },
     removeAccount(index) {
@@ -791,6 +947,219 @@ export default {
 </script>
 
 <style>
+  .activation-review-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(15, 33, 54, 0.62);
+    backdrop-filter: blur(4px);
+  }
+
+  .activation-review-modal {
+    width: min(100%, 760px);
+    max-height: min(92vh, 900px);
+    overflow-y: auto;
+    border: 1px solid #d6e5f3;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(8, 31, 57, 0.3);
+  }
+
+  .activation-review-header,
+  .activation-review-footer {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .activation-review-header {
+    border-bottom: 1px solid #e6edf4;
+  }
+
+  .activation-review-avatar {
+    display: grid;
+    width: 48px;
+    aspect-ratio: 1;
+    place-items: center;
+    border-radius: 50%;
+    background: #e7f2ff;
+    color: #1672e8;
+    font-size: 1.6rem;
+  }
+
+  .activation-review-header h2 {
+    margin: 0;
+    color: #123b70;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .activation-review-header p {
+    margin: 0.15rem 0 0;
+    color: #60758d;
+    font-size: 0.85rem;
+  }
+
+  .activation-review-content {
+    display: grid;
+    gap: 0.8rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .activation-review-section {
+    overflow: hidden;
+    border: 1px solid #cfe2f5;
+    border-radius: 7px;
+    background: #fbfdff;
+  }
+
+  .activation-review-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0.65rem 0.8rem;
+    background: #eff7ff;
+    color: #164b87;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .activation-review-section h3 i {
+    font-size: 1.25rem;
+  }
+
+  .activation-review-grid,
+  .activation-review-reading-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1.25rem;
+    padding: 0.85rem;
+  }
+
+  .activation-review-grid > div,
+  .activation-review-reading-grid > div {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .activation-review-grid span,
+  .activation-review-reading-grid span,
+  .activation-review-balance span {
+    color: #637d99;
+    font-size: 0.77rem;
+  }
+
+  .activation-review-grid strong,
+  .activation-review-reading-grid strong {
+    overflow-wrap: anywhere;
+    color: #163f71;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+
+  .reading-section {
+    border-color: #b9dafa;
+  }
+
+  .reading-section h3 {
+    background: #eaf5ff;
+  }
+
+  .activation-review-empty,
+  .activation-review-balance {
+    padding: 0.85rem;
+    color: #526a83;
+    font-size: 0.86rem;
+  }
+
+  .balance-warning {
+    border-color: #ffcbd0;
+    background: #fffafb;
+  }
+
+  .balance-warning h3 {
+    background: #fff0f1;
+    color: #bd2436;
+  }
+
+  .balance-clear {
+    border-color: #c4eadc;
+    background: #fbfefc;
+  }
+
+  .balance-clear h3 {
+    background: #effaf5;
+    color: #167b58;
+  }
+
+  .activation-review-balance {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .activation-review-balance strong {
+    color: #bd2436;
+    font-size: 1.2rem;
+  }
+
+  .activation-review-balance small {
+    color: #718198;
+  }
+
+  .activation-review-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #f5d28d;
+    border-radius: 7px;
+    background: #fff8e9;
+    color: #80540a;
+    font-size: 0.82rem;
+  }
+
+  .activation-review-warning i {
+    flex: 0 0 auto;
+    font-size: 1.35rem;
+  }
+
+  .activation-review-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 180px;
+    color: #526a83;
+  }
+
+  .activation-review-footer {
+    justify-content: flex-end;
+    border-top: 1px solid #e6edf4;
+  }
+
+  @media (max-width: 575px) {
+    .activation-review-grid,
+    .activation-review-reading-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+
+    .activation-review-header,
+    .activation-review-footer {
+      padding: 0.85rem;
+    }
+
+    .activation-review-content {
+      padding: 0.75rem;
+    }
+  }
+
   img.image-inspected {
     width: 100%;
     height: 500px;

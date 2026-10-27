@@ -2,10 +2,13 @@
 
 @section('content')
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="fw-bold mb-0">Penalty Exemption Management</h4>
-            <small class="text-muted">Manage accounts exempted from penalty computation</small>
+    <div class="d-flex justify-content-between align-items-center mb-5 mt-5">
+        <div class="d-flex align-items-start gap-3">
+            <div class="report-title-icon"><i class="bx bx-shield-quarter" aria-hidden="true"></i></div>
+            <div>
+                <h1 class="report-page-title mb-1 text-uppercase">Penalty Exemption Management</h1>
+                <p class="report-page-subtitle mb-0">Manage accounts exempt from penalty charges.</p>
+            </div>
         </div>
     </div>
     @if(session('success'))

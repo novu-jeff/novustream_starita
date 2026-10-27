@@ -33,4 +33,29 @@ class BillArrearsServiceTest extends TestCase
 
         $this->assertSame(0.0, (new BillArrearsService())->remainingUnpaid($bill, 0));
     }
+
+    public function test_latest_outstanding_skips_newer_zero_balance_bills(): void
+    {
+        $newerZeroBill = new Bill([
+            'total' => 0,
+            'previous_unpaid' => 0,
+            'isPaid' => 0,
+        ]);
+        $olderOutstandingBill = new Bill([
+            'total' => 336,
+            'previous_unpaid' => 176,
+            'amount_paid' => 0,
+            'partial_payment' => 0,
+            'change' => 0,
+            'isPaid' => 0,
+        ]);
+
+        $outstanding = (new BillArrearsService())->latestOutstandingBill([
+            $newerZeroBill,
+            $olderOutstandingBill,
+        ]);
+
+        $this->assertSame($olderOutstandingBill, $outstanding['bill']);
+        $this->assertSame(160.0, $outstanding['balance']);
+    }
 }

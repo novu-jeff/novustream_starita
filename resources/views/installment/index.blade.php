@@ -321,10 +321,13 @@
 <div class="container mt-4 installment-page">
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4 installment-page-header">
-        <div>
-            <h4 class="mb-1 installment-page-title">Installment Dashboard</h4>
+    <div class="d-flex justify-content-between align-items-center mb-4 installment-page-header mt-5">
+        <div class="d-flex align-items-start gap-3">
+            <div class="report-title-icon"><i class="bx bx-calendar-check" aria-hidden="true"></i></div>
+            <div>
+            <h4 class="mb-1 installment-page-title text-uppercase">Installment Dashboard</h4>
             <p class="mb-0 text-muted small">Manage installment accounts, schedules, and payment arrangements.</p>
+            </div>
         </div>
 
         <div class="d-flex gap-2 header-actions">

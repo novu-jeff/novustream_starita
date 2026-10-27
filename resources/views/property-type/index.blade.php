@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper pb-5">
             <div class="main-header d-flex justify-content-between">
-                <h1>Property Types</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-buildings" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Property Types</h1><p class="report-page-subtitle mb-0">Manage property categories used for rates and billing.</p></div>
+                </div>
                 <div class="d-flex align-items-center gap-3">
                     <a href="{{  route('base-rate.index') }}" class="btn btn-outline-primary px-5 py-3 text-uppercase">
                         Go to Base Rates

@@ -3,8 +3,14 @@
 @section('content')
 <div class="container">
 
-    <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3 mt-4">
-        <h4>Billing Adjustments</h4>
+    <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-5 mt-5">
+        <div class="d-flex align-items-start gap-3">
+            <div class="report-title-icon"><i class="bx bx-edit-alt" aria-hidden="true"></i></div>
+            <div>
+                <h1 class=" mb-1 report-page-title text-uppercase">Billing Adjustments</h1>
+                <p class="report-page-subtitle mb-0">Review and update bill records, or view adjustment history.</p>
+            </div>
+        </div>
         <div class="d-flex flex-column flex-sm-row gap-2 mb-3 mb-sm-0">
             <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#billHistoryModal">
                 View Adjustment History

@@ -3,7 +3,10 @@
 @section('content')
 <div class="container py-4">
 
-    <h4 class="fw-bold mb-4">Reading Date Management</h4>
+    <div class="d-flex align-items-start gap-3 mb-5 mt-5">
+        <div class="report-title-icon"><i class="bx bx-calendar" aria-hidden="true"></i></div>
+        <div><h1 class="report-page-title mb-1 text-uppercase">Reading Date Management</h1><p class="report-page-subtitle mb-0">Set the reading schedule used for billing periods.</p></div>
+    </div>
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show shadow-sm">

@@ -4,11 +4,13 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <div>
-                    <h1>Import Previous Billing</h1>
-                    <p class="text-muted mt-2 mb-0">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-file" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Import Previous Billing</h1>
+                    <p class="report-page-subtitle mb-0">
                         Upload an Excel workbook containing previous billing records by zone.
                     </p>
+                    </div>
                 </div>
             </div>
 
