@@ -117,8 +117,9 @@ class ClientService {
             'name'       => $payload['name'],
         ];
 
-        if (!empty($payload['email'])) {
-            $updateData['email'] = $payload['email'];
+        $email = trim((string) ($payload['email'] ?? ''));
+        if ($email !== '' && strtolower($email) !== 'null') {
+            $updateData['email'] = $email;
         }
         if (!empty($payload['contact_no'])) {
             $updateData['contact_no'] = $payload['contact_no'];

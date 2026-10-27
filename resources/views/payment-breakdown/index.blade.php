@@ -4,7 +4,10 @@
     <main class="main">
         <div class="responsive-wrapper">
             <div class="main-header d-flex justify-content-between">
-                <h1>Payment Breakdown</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-list-ul" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Payment Breakdown</h1><p class="report-page-subtitle mb-0">Configure bill charges, penalties, discounts, and service fees.</p></div>
+                </div>
                 <div class="d-flex align-items-center gap-2">
                     <div class="dropdown">
                         <a class="btn btn-primary px-5 py-3 dropdown-toggle text-uppercase" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">

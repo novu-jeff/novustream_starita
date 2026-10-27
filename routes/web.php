@@ -259,6 +259,10 @@ Route::middleware('auth:admins')->prefix('admin')->group(function () {
         Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
             ->name('account-links.deny');
 
+        Route::get('concessionaires/{account}/activation-review', [ConcessionaireController::class, 'activationReview'])
+            ->whereNumber('account')
+            ->name('concessionaires.activation-review');
+
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
             ->except('show');

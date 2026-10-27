@@ -22,6 +22,13 @@ class UpdateClientRequest extends FormRequest
      */
     protected function prepareForValidation()
     {
+        $email = trim((string) $this->input('email', ''));
+        if ($email === '' || strtolower($email) === 'null') {
+            $this->merge(['email' => null]);
+        } else {
+            $this->merge(['email' => $email]);
+        }
+
         if ($this->has('accounts')) {
             $accounts = $this->input('accounts');
 
@@ -49,12 +56,19 @@ class UpdateClientRequest extends FormRequest
 
         $rules = [
             'name' => 'nullable|string|max:255',
-            'email' => 'nullable|string',
+            'email' => [
+                'nullable',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($this->route('concessionaire')),
+            ],
             'password' => 'nullable|min:8|confirmed',
             'confirm_password' => 'nullable|same:password',
             'contact_no' => 'nullable|string',
             'registrant_id' => 'nullable|exists:concessioner_accounts,id',
             'connection_type' => ['nullable', Rule::in(['on_line', 'traverse'])],
+            'activation_confirmed' => 'sometimes|accepted',
 
             'accounts' => 'nullable|array',
         ];
