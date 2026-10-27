@@ -60,7 +60,53 @@ class PaymentController extends Controller
 
     public static function buildNovupayCheckoutUrl(string $referenceNo): string
     {
-        return rtrim((string) env('NOVUPAY_URL'), '/') . '/payment-checkout/srwd/' . rawurlencode($referenceNo);
+        $base = rtrim((string) env('NOVUPAY_URL'), '/');
+        $slug = trim((string) env('NOVUPAY_MERCHANT_SLUG', 'srwd'), '/');
+
+        return $base . '/payment-checkout/' . $slug . '/' . rawurlencode($referenceNo);
+    }
+
+    /**
+     * Offline / SOA QR. NovuPay PH checks the bill and creates one when the
+     * reading has not been synced yet, then opens NovuPay checkout.
+     *
+     * @param  array<string, mixed>  $billData
+     * @param  array<string, mixed>  $paymentPayload
+     */
+    public static function buildOfflinePaymentRequestUrl(string $referenceNo, array $billData, array $paymentPayload): string
+    {
+        $slug = trim((string) env('NOVUPAY_MERCHANT_SLUG', 'srwd'), '/');
+        $canonical = match ($slug) {
+            'srwd', 'starita' => 'starita',
+            'pelco', 'pelco2' => 'pelco2',
+            '' => 'starita',
+            default => $slug,
+        };
+        $product = (env('APP_PRODUCT') === 'novusurge' || in_array($canonical, ['pelco2', 'cagelco2'], true))
+            ? 'novusurge'
+            : 'novustream';
+        $present = $billData['present_reading'] ?? ($billData['reading']['present_reading'] ?? null);
+        $amount = self::resolveCurrentAmount($billData);
+        $query = array_filter([
+            'rn' => $referenceNo,
+            'an' => $paymentPayload['customer']['account_no'] ?? ($billData['account_no'] ?? ($billData['reading']['account_no'] ?? null)),
+            'am' => $amount > 0 ? $amount : null,
+            'pr' => $present,
+            'dd' => $billData['due_date'] ?? null,
+            'aad' => $billData['amount_after_due'] ?? null,
+            'penalty' => $billData['penalty'] ?? null,
+            'name' => $paymentPayload['customer']['name'] ?? null,
+            'hc' => !empty($billData['isHighConsumption']) ? 1 : 0,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        $base = rtrim((string) env('NOVUPAY_URL'), '/');
+        if ($base === '') {
+            $base = rtrim((string) config('app.url'), '/');
+        }
+
+        $url = $base . '/api/' . $product . '/' . $canonical . '/payment-request';
+
+        return $query === [] ? $url : $url . '?' . http_build_query($query);
     }
 
     /**
@@ -237,7 +283,7 @@ class PaymentController extends Controller
 
         if (!self::isHitpayEnabled()) {
             return [
-                'url' => self::buildNovupayCheckoutUrl($referenceNo),
+                'url' => self::buildOfflinePaymentRequestUrl($referenceNo, $billData, $paymentPayload),
                 'voided' => false,
             ];
         }
@@ -252,7 +298,7 @@ class PaymentController extends Controller
         }
 
         return [
-            'url' => self::buildNovupayCheckoutUrl($referenceNo),
+            'url' => self::buildOfflinePaymentRequestUrl($referenceNo, $billData, $paymentPayload),
             'voided' => false,
         ];
     }
