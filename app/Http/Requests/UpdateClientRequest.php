@@ -29,6 +29,14 @@ class UpdateClientRequest extends FormRequest
             $this->merge(['email' => $email]);
         }
 
+        $activationReviews = $this->input('activation_reviews');
+        if (is_string($activationReviews)) {
+            $decodedReviews = json_decode($activationReviews, true);
+            if (is_array($decodedReviews)) {
+                $this->merge(['activation_reviews' => $decodedReviews]);
+            }
+        }
+
         if ($this->has('accounts')) {
             $accounts = $this->input('accounts');
 
@@ -69,6 +77,14 @@ class UpdateClientRequest extends FormRequest
             'registrant_id' => 'nullable|exists:concessioner_accounts,id',
             'connection_type' => ['nullable', Rule::in(['on_line', 'traverse'])],
             'activation_confirmed' => 'sometimes|accepted',
+            'activation_reviews' => 'required_if:activation_confirmed,1|array',
+            'activation_reviews.*.account_id' => 'required|integer|exists:concessioner_accounts,id',
+            'activation_reviews.*.has_unpaid_bills' => 'required|boolean',
+            'activation_reviews.*.bill_id' => 'nullable|integer|exists:bill,id',
+            'activation_reviews.*.total_arrears' => 'required|numeric|min:0',
+            'activation_reviews.*.change_last_reading' => 'required|boolean',
+            'activation_reviews.*.reading_id' => 'nullable|integer|exists:readings,id',
+            'activation_reviews.*.corrected_present_reading' => 'nullable|numeric|min:0',
 
             'accounts' => 'nullable|array',
         ];

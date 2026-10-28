@@ -459,30 +459,85 @@
             <section class="activation-review-section reading-section">
               <h3><i class="bx bx-tachometer"></i> Last Meter Reading</h3>
               <div v-if="activationReview.reading" class="activation-review-reading-grid">
-                <div><span>Reading Date</span><strong>{{ formatReviewDate(activationReview.reading.date) }}</strong></div>
-                <div><span>Previous Reading</span><strong>{{ formatReviewNumber(activationReview.reading.previous_reading) }}</strong></div>
-                <div><span>Present Reading</span><strong>{{ formatReviewNumber(activationReview.reading.present_reading) }}</strong></div>
-                <div><span>Consumption</span><strong>{{ formatReviewNumber(activationReview.reading.consumption) }}</strong></div>
+                <div class="activation-reading-metric">
+                  <i class="bx bx-calendar" aria-hidden="true"></i>
+                  <span><small>Reading Date</small><strong>{{ formatReviewDate(activationReview.reading.date) }}</strong></span>
+                </div>
+                <div class="activation-reading-metric">
+                  <i class="bx bx-book-reader" aria-hidden="true"></i>
+                  <span><small>Previous Reading</small><strong>{{ formatReviewNumber(activationReview.reading.previous_reading) }}</strong></span>
+                </div>
+                <div class="activation-reading-metric">
+                  <i class="bx bx-tachometer" aria-hidden="true"></i>
+                  <span><small>Present Reading</small><strong>{{ formatReviewNumber(activationReview.reading.present_reading) }}</strong></span>
+                </div>
+                <div class="activation-reading-metric">
+                  <i class="bx bx-water" aria-hidden="true"></i>
+                  <span><small>Consumption</small><strong>{{ formatReviewNumber(activationReview.reading.consumption) }}</strong></span>
+                </div>
               </div>
               <p v-else class="activation-review-empty mb-0">No meter reading has been recorded for this account.</p>
-            </section>
-
-            <section class="activation-review-section" :class="activationReview.outstanding_balance > 0 ? 'balance-warning' : 'balance-clear'">
-              <h3>
-                <i :class="activationReview.outstanding_balance > 0 ? 'bx bx-error-circle' : 'bx bx-check-circle'"></i>
-                {{ activationReview.outstanding_balance > 0 ? 'Outstanding Balance' : 'No Outstanding Balance' }}
-              </h3>
-              <div v-if="activationReview.outstanding_balance > 0" class="activation-review-balance">
-                <span>Unpaid balance</span>
-                <strong>{{ formatReviewCurrency(activationReview.outstanding_balance) }}</strong>
-                <small v-if="activationReview.arrears_period">
-                  Billing period: {{ formatReviewDate(activationReview.arrears_period.from) }} - {{ formatReviewDate(activationReview.arrears_period.to) }}
-                </small>
+              <div v-if="activationReview.reading" class="activation-reading-edit">
+                <label class="form-check d-flex align-items-center gap-2 mb-2">
+                  <input v-model="activationReview.change_last_reading" class="form-check-input mt-0" type="checkbox">
+                  <span>Change Last Reading <small>(if the current reading is incorrect)</small></span>
+                </label>
+                <div class="activation-reading-edit-fields">
+                  <label for="activation-present-reading">Enter corrected present reading</label>
+                  <input
+                    id="activation-present-reading"
+                    v-model.number="activationReview.corrected_present_reading"
+                    class="form-control form-control-sm"
+                    type="number"
+                    :min="activationReview.reading.previous_reading || 0"
+                    step="1"
+                    :disabled="!activationReview.change_last_reading"
+                  >
+                  <p>This will be used as the current reading for the next meter reading.</p>
+                </div>
               </div>
-              <div v-else class="activation-review-balance">This account has no unpaid bills.</div>
             </section>
 
-            <div v-if="activationReview.outstanding_balance > 0" class="activation-review-warning">
+            <section class="activation-review-section" :class="hasUnpaidBills ? 'balance-warning' : 'balance-clear'">
+              <h3>
+                <i :class="hasUnpaidBills ? 'bx bx-error-circle' : 'bx bx-check-circle'"></i>
+                {{ hasUnpaidBills ? 'Outstanding Balance' : 'No Outstanding Balance' }}
+              </h3>
+              <div v-if="activationReview.unpaid_bills.length" class="activation-balance-fields">
+                <fieldset class="activation-unpaid-choice">
+                  <legend>Has Unpaid Bills</legend>
+                  <label><input v-model="activationReview.has_unpaid_bills" type="radio" :value="true"> Yes</label>
+                  <label><input v-model="activationReview.has_unpaid_bills" type="radio" :value="false"> No</label>
+                </fieldset>
+                <div v-if="activationReview.has_unpaid_bills" class="activation-balance-inputs">
+                  <label>
+                    <span>Billing Period (Arrears)</span>
+                    <select v-model.number="activationReview.selected_bill_id" class="form-select form-select-sm" @change="selectActivationBill">
+                      <option v-for="bill in activationReview.unpaid_bills" :key="bill.id" :value="bill.id">
+                        {{ formatReviewDate(bill.period_from) }} - {{ formatReviewDate(bill.period_to) }} · {{ bill.reference_no }} · {{ formatReviewCurrency(bill.balance) }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Total Arrears</span>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">PHP</span>
+                      <input v-model.number="activationReview.total_arrears" class="form-control" type="number" min="0" step="0.01">
+                    </div>
+                  </label>
+                </div>
+                <div v-if="!activationReview.has_unpaid_bills" class="activation-no-unpaid">
+                  <i class="bx bx-check-circle"></i>
+                  <span>This account has no unpaid bills.</span>
+                </div>
+              </div>
+              <div v-else class="activation-no-unpaid">
+                <i class="bx bx-check-circle"></i>
+                <span>This account has no unpaid bills.</span>
+              </div>
+            </section>
+
+            <div v-if="hasUnpaidBills" class="activation-review-warning">
               <i class="bx bx-error"></i>
               <span>This account has unpaid bills. Activating the account will not remove the outstanding balance.</span>
             </div>
@@ -588,7 +643,13 @@ export default {
       activationReviewLoading: false,
       activationReviewError: '',
       activationConfirmed: false,
+      activationDecisions: [],
     };
+  },
+  computed: {
+    hasUnpaidBills() {
+      return !!this.activationReview?.has_unpaid_bills;
+    },
   },
     created() {
         if (this.data) {
@@ -760,6 +821,7 @@ export default {
           : [];
 
         this.activationConfirmed = false;
+        this.activationDecisions = [];
         if (this.pendingActivations.length) {
           this.activationIndex = 0;
           this.activationReviewOpen = true;
@@ -777,14 +839,71 @@ export default {
       try {
         const account = this.pendingActivations[this.activationIndex];
         const response = await axios.get(`${baseURL}/admin/users/concessionaires/${account.id}/activation-review`);
-        this.activationReview = response.data;
+        const review = response.data;
+        const unpaidBills = Array.isArray(review.unpaid_bills) ? review.unpaid_bills : [];
+        const prepareBill = (bill) => {
+          const payableAmount = Number(bill.amount_after_due) > 0
+            ? Number(bill.amount_after_due)
+            : Number(bill.amount || 0);
+          const computedBalance = Math.max(0, payableAmount - Number(bill.credited_amount || 0));
+
+          return {
+            ...bill,
+            balance: bill.amount_after_due != null || bill.amount != null
+              ? computedBalance
+              : Number(bill.balance || 0),
+          };
+        };
+        const fallbackOutstandingBill = Number(review.outstanding_balance || 0) > 0
+          ? [{
+              id: review.outstanding_bill_id ?? null,
+              reference_no: review.outstanding_bill_reference || '',
+              period_from: review.arrears_period?.from || null,
+              period_to: review.arrears_period?.to || null,
+              amount: Number(review.outstanding_balance),
+              amount_after_due: Number(review.outstanding_balance),
+              credited_amount: 0,
+              balance: Number(review.outstanding_balance),
+            }]
+          : [];
+        const availableUnpaidBills = unpaidBills.length
+          ? unpaidBills.map(prepareBill)
+          : fallbackOutstandingBill;
+        const latestUnpaidBill = availableUnpaidBills[0] || null;
+        this.activationReview = {
+          ...review,
+          unpaid_bills: availableUnpaidBills,
+          has_unpaid_bills: !!latestUnpaidBill,
+          selected_bill_id: latestUnpaidBill?.id ?? null,
+          total_arrears: latestUnpaidBill?.balance ?? 0,
+          change_last_reading: false,
+          corrected_present_reading: review.reading?.present_reading ?? null,
+        };
       } catch (error) {
         this.activationReviewError = error.response?.data?.message || 'Unable to load account details. Please try again.';
       } finally {
         this.activationReviewLoading = false;
       }
     },
+    selectActivationBill() {
+      const selectedBill = this.activationReview.unpaid_bills.find(
+        (bill) => Number(bill.id) === Number(this.activationReview.selected_bill_id)
+      );
+      this.activationReview.total_arrears = selectedBill?.balance ?? 0;
+    },
     async confirmActivation() {
+      this.activationDecisions.push({
+        account_id: this.pendingActivations[this.activationIndex].id,
+        has_unpaid_bills: !!this.activationReview.has_unpaid_bills,
+        bill_id: this.activationReview.selected_bill_id,
+        total_arrears: this.activationReview.has_unpaid_bills ? Number(this.activationReview.total_arrears || 0) : 0,
+        change_last_reading: !!this.activationReview.change_last_reading,
+        reading_id: this.activationReview.reading?.id ?? null,
+        corrected_present_reading: this.activationReview.change_last_reading
+          ? Number(this.activationReview.corrected_present_reading)
+          : null,
+      });
+
       if (this.activationIndex + 1 < this.pendingActivations.length) {
         this.activationIndex += 1;
         await this.loadActivationReview();
@@ -867,6 +986,7 @@ export default {
       }
       if (this.activationConfirmed) {
         formData.append('activation_confirmed', '1');
+        formData.append('activation_reviews', JSON.stringify(this.activationDecisions));
       }
 
       axios({
@@ -905,6 +1025,7 @@ export default {
           this.loading = false;
           this.activationConfirmed = false;
           this.pendingActivations = [];
+          this.activationDecisions = [];
         });
     },
     removeAccount(index) {
@@ -959,7 +1080,7 @@ export default {
   }
 
   .activation-review-modal {
-    width: min(100%, 760px);
+    width: min(100%, 850px);
     max-height: min(92vh, 900px);
     overflow-y: auto;
     border: 1px solid #d6e5f3;
@@ -1036,27 +1157,51 @@ export default {
   .activation-review-grid,
   .activation-review-reading-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 1.25rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
     padding: 0.85rem;
   }
 
   .activation-review-grid > div,
-  .activation-review-reading-grid > div {
+  .activation-reading-metric > span {
     display: grid;
     gap: 0.15rem;
     min-width: 0;
   }
 
+  .activation-reading-metric {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding-right: 0.45rem;
+    border-right: 1px solid #d5e7f8;
+  }
+
+  .activation-reading-metric:last-child {
+    border-right: 0;
+  }
+
+  .activation-reading-metric > i {
+    flex: 0 0 auto;
+    color: #1672e8;
+    font-size: 1.25rem;
+  }
+
+  .activation-reading-metric small {
+    color: #637d99;
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
   .activation-review-grid span,
-  .activation-review-reading-grid span,
   .activation-review-balance span {
     color: #637d99;
     font-size: 0.77rem;
   }
 
   .activation-review-grid strong,
-  .activation-review-reading-grid strong {
+  .activation-reading-metric strong {
     overflow-wrap: anywhere;
     color: #163f71;
     font-size: 0.88rem;
@@ -1069,6 +1214,101 @@ export default {
 
   .reading-section h3 {
     background: #eaf5ff;
+  }
+
+  .activation-reading-edit {
+    margin: 0 0.75rem 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #cfe2f5;
+    border-radius: 6px;
+    background: #f2f8fe;
+    color: #164b87;
+    font-size: 0.8rem;
+  }
+
+  .activation-reading-edit .form-check-input {
+    border-color: #1672e8;
+  }
+
+  .activation-reading-edit small {
+    color: #627d99;
+  }
+
+  .activation-reading-edit-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.9fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+    padding-left: 1.65rem;
+  }
+
+  .activation-reading-edit-fields label,
+  .activation-balance-inputs label {
+    display: grid;
+    gap: 0.3rem;
+    color: #607995;
+    font-size: 0.75rem;
+  }
+
+  .activation-reading-edit-fields p {
+    margin: 0;
+    color: #607995;
+    font-size: 0.75rem;
+  }
+
+  .activation-balance-fields {
+    padding: 0.8rem;
+  }
+
+  .activation-unpaid-choice {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0 0 0.7rem;
+    border: 0;
+    padding: 0;
+  }
+
+  .activation-unpaid-choice legend {
+    float: left;
+    width: auto;
+    margin: 0 0.25rem 0 0;
+    color: #637d99;
+    font-size: 0.75rem;
+  }
+
+  .activation-unpaid-choice label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #164b87;
+    font-size: 0.8rem;
+  }
+
+  .activation-unpaid-choice input {
+    accent-color: #1672e8;
+  }
+
+  .activation-balance-inputs {
+    display: grid;
+    grid-template-columns: 1fr 0.8fr;
+    gap: 0.75rem;
+  }
+
+  .activation-no-unpaid {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.7rem;
+    border: 1px solid #c4eadc;
+    border-radius: 6px;
+    background: #effaf5;
+    color: #167b58;
+    font-size: 0.82rem;
+  }
+
+  .activation-no-unpaid i {
+    font-size: 1.35rem;
   }
 
   .activation-review-empty,
@@ -1144,10 +1384,24 @@ export default {
   }
 
   @media (max-width: 575px) {
-    .activation-review-grid,
-    .activation-review-reading-grid {
-      grid-template-columns: 1fr 1fr;
+    .activation-review-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.65rem;
+    }
+
+    .activation-review-reading-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem 0.45rem;
+    }
+
+    .activation-reading-metric:nth-child(2) {
+      border-right: 0;
+    }
+
+    .activation-reading-metric:nth-child(3),
+    .activation-reading-metric:nth-child(4) {
+      padding-top: 0.45rem;
+      border-top: 1px solid #d5e7f8;
     }
 
     .activation-review-header,
@@ -1157,6 +1411,16 @@ export default {
 
     .activation-review-content {
       padding: 0.75rem;
+    }
+
+    .activation-reading-edit-fields,
+    .activation-balance-inputs {
+      grid-template-columns: 1fr;
+      padding-left: 0;
+    }
+
+    .activation-unpaid-choice {
+      flex-wrap: wrap;
     }
   }
 
