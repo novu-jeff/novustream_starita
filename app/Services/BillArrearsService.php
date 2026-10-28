@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Bill;
+use App\Models\BillBreakdown;
 use App\Models\InstallmentSchedule;
 use App\Models\PartialPayment;
 use App\Models\Reading;
@@ -58,6 +59,36 @@ class BillArrearsService
         }
 
         return $carriedBalanceFallback;
+    }
+
+    public function updateReviewedArrears(Bill $bill, float $arrears, float $basicCharge): void
+    {
+        $arrears = round(max(0, $arrears), 2);
+        $basicCharge = round(max(0, $basicCharge), 2);
+        $penalty = round($basicCharge * 0.10, 2);
+        $total = round($arrears + $basicCharge, 2);
+        $amountAfterDue = round($total + $penalty, 2);
+
+        $bill->fill([
+            'previous_unpaid' => $arrears,
+            'total' => $total,
+            'penalty' => $penalty,
+            'hasPenalty' => $penalty > 0,
+            'amount' => $amountAfterDue,
+            'amount_after_due' => $amountAfterDue,
+        ]);
+
+        if ($bill->exists) {
+            $bill->save();
+
+            BillBreakdown::updateOrCreate([
+                'bill_id' => $bill->id,
+                'name' => 'Basic Charge',
+            ], [
+                'amount' => number_format($basicCharge, 2, '.', ''),
+                'description' => 'Updated during account activation',
+            ]);
+        }
     }
 
     /**

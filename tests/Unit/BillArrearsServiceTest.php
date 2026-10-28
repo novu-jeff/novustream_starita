@@ -117,6 +117,24 @@ class BillArrearsServiceTest extends TestCase
         $this->assertSame(1504.86, $outstanding['balance']);
     }
 
+    public function test_reviewed_arrears_sets_previous_unpaid_total_penalty_and_due_amount(): void
+    {
+        $bill = new Bill([
+            'amount' => 1520.86,
+            'amount_after_due' => 1520.86,
+            'total' => 1504.86,
+            'penalty' => 16,
+        ]);
+
+        (new BillArrearsService())->updateReviewedArrears($bill, 1200, 300);
+
+        $this->assertSame(1200.0, (float) $bill->previous_unpaid);
+        $this->assertSame(1500.0, (float) $bill->total);
+        $this->assertSame(30.0, (float) $bill->penalty);
+        $this->assertSame(1530.0, (float) $bill->amount);
+        $this->assertSame(1530.0, (float) $bill->amount_after_due);
+    }
+
     public function test_paid_latest_bill_does_not_backtrack_to_older_unpaid_bills(): void
     {
         $latestPaidBill = new Bill([
