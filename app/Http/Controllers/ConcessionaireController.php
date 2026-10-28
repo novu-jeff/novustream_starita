@@ -762,6 +762,8 @@ class ConcessionaireController extends Controller
                     'reference_no' => $bill->reference_no,
                     'period_from' => $bill->bill_period_from,
                     'period_to' => $bill->bill_period_to,
+                    'total' => (float) ($bill->total ?? 0),
+                    'previous_unpaid' => (float) ($bill->previous_unpaid ?? 0),
                     'amount' => (float) ($bill->amount ?? 0),
                     'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
                     'credited_amount' => (float) max(
@@ -888,21 +890,26 @@ class ConcessionaireController extends Controller
                     ->firstOrFail();
 
                 if (!empty($review['change_last_reading'])) {
-                    $reading = Reading::where('id', $review['reading_id'] ?? null)
-                        ->where('account_no', $reviewAccount->account_no)
-                        ->firstOrFail();
-                    $correctedPresentReading = (float) $review['corrected_present_reading'];
-                    $previousReading = (float) ($reading->previous_reading ?? 0);
-
-                    if ($correctedPresentReading < $previousReading) {
+                    if (!isset($review['corrected_present_reading']) || !is_numeric($review['corrected_present_reading'])) {
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'activation_reviews' => ['The corrected present reading cannot be less than the previous reading.'],
+                            'activation_reviews' => ['Enter a valid new previous reading.'],
                         ]);
                     }
 
-                    $reading->update([
+                    $correctedPresentReading = (float) $review['corrected_present_reading'];
+                    do {
+                        $reconnectionReference = 'RR-' . now()->year . '-' . random_int(100000, 999999);
+                    } while (Reading::where('reference_no', $reconnectionReference)->exists());
+
+                    Reading::create([
+                        'reference_no' => $reconnectionReference,
+                        'zone' => $reviewAccount->zone,
+                        'account_no' => $reviewAccount->account_no,
+                        'previous_reading' => $correctedPresentReading,
                         'present_reading' => $correctedPresentReading,
-                        'consumption' => $correctedPresentReading - $previousReading,
+                        'consumption' => 0,
+                        'reader_name' => auth()->user()?->name,
+                        'isReRead' => false,
                     ]);
                 }
 
@@ -922,12 +929,19 @@ class ConcessionaireController extends Controller
                         ]);
                     }
                 } elseif (!empty($review['bill_id'])) {
-                    Bill::where('id', $review['bill_id'])
+                    $bill = Bill::where('id', $review['bill_id'])
                         ->where('isPaid', false)
                         ->whereHas('reading', function ($query) use ($reviewAccount) {
                             $query->where('account_no', $reviewAccount->account_no);
                         })
+                        ->lockForUpdate()
                         ->firstOrFail();
+
+                    app(BillArrearsService::class)->updateReviewedArrears(
+                        $bill,
+                        (float) $review['arrears'],
+                        (float) $review['basic_charge']
+                    );
                 }
             }
 
