@@ -9,6 +9,7 @@ use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\MeterService;
 use App\Models\UserAccounts;
+use App\Models\Bill;
 use App\Models\Reading;
 use App\Models\ServiceApplication;
 use App\Models\ConcessionerAccountLink;
@@ -318,7 +319,6 @@ class ConcessionaireController extends Controller
             'Latest SOA' => $account->application_soa_path,
             'Valid ID' => $account->application_id_path,
         ];
-
         if ($account->user_id) {
             $applications = ServiceApplication::with('documents')
                 ->where('user_id', $account->user_id)
@@ -738,20 +738,40 @@ class ConcessionaireController extends Controller
     public function activationReview(int $account)
     {
         $account = UserAccounts::with('user')->findOrFail($account);
-        $reading = Reading::where('account_no', $account->account_no)
+        $bills = \App\Models\Bill::with('reading')
+            ->whereHas('reading', function ($query) use ($account) {
+                $query->where('account_no', $account->account_no);
+            })
+            ->orderByDesc('bill_period_to')
+            ->orderByDesc('id')
+            ->get();
+        $latestBill = $bills->first();
+        $reading = $latestBill?->reading ?? Reading::where('account_no', $account->account_no)
             ->where('isReRead', false)
             ->latest('created_at')
             ->first();
-        $outstanding = app(BillArrearsService::class)->latestOutstandingBill(
-            \App\Models\Bill::with('reading')
-                ->whereHas('reading', function ($query) use ($account) {
-                    $query->where('account_no', $account->account_no);
-                })
-                ->orderByDesc('bill_period_to')
-                ->orderByDesc('id')
-                ->get()
-        );
+        $arrearsService = app(BillArrearsService::class);
+        $outstanding = $arrearsService->latestOutstandingBill($bills);
         $sourceBill = $outstanding['bill'] ?? null;
+        $unpaidBills = (!$latestBill || !$latestBill->isPaid)
+            ? $bills->filter(fn ($bill) => !$bill->isPaid)->map(function ($bill) use ($arrearsService) {
+                $billBalance = $arrearsService->latestOutstandingBill([$bill]);
+
+                return [
+                    'id' => $bill->id,
+                    'reference_no' => $bill->reference_no,
+                    'period_from' => $bill->bill_period_from,
+                    'period_to' => $bill->bill_period_to,
+                    'amount' => (float) ($bill->amount ?? 0),
+                    'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
+                    'credited_amount' => (float) max(
+                        (float) ($bill->amount_paid ?? 0) - (float) ($bill->change ?? 0),
+                        (float) ($bill->partial_payment ?? 0)
+                    ),
+                    'balance' => (float) ($billBalance['balance'] ?? 0),
+                ];
+            })->values()
+            : collect();
 
         return response()->json([
             'account' => [
@@ -763,12 +783,16 @@ class ConcessionaireController extends Controller
                 'rate_code' => $account->rate_code,
             ],
             'reading' => $reading ? [
+                'id' => $reading->id,
                 'date' => Carbon::parse($reading->bill?->bill_period_to ?? $reading->created_at)->format('Y-m-d'),
                 'previous_reading' => $reading->previous_reading,
                 'present_reading' => $reading->present_reading,
                 'consumption' => $reading->consumption,
             ] : null,
             'outstanding_balance' => (float) ($outstanding['balance'] ?? 0),
+            'outstanding_bill_id' => $sourceBill?->id,
+            'outstanding_bill_reference' => $sourceBill?->reference_no,
+            'unpaid_bills' => $unpaidBills,
             'arrears_period' => $sourceBill ? [
                 'from' => $sourceBill->bill_period_from,
                 'to' => $sourceBill->bill_period_to,
@@ -797,6 +821,28 @@ class ConcessionaireController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'activation_confirmed' => ['Review and confirm the account details before activation.'],
             ]);
+        }
+
+        $activationReviews = collect($payload['activation_reviews'] ?? [])->keyBy('account_id');
+        if ($requiresActivationConfirmation) {
+            $accountsToActivate = collect($payload['accounts'] ?? [])
+                ->filter(function ($account) use ($existingClient) {
+                    $existingAccount = $existingClient->accounts->firstWhere('id', $account['id'] ?? null);
+                    return $existingAccount
+                        && strtoupper(trim((string) $existingAccount->status)) !== 'AB'
+                        && strtoupper(trim((string) ($account['status'] ?? ''))) === 'AB';
+                })
+                ->pluck('id')
+                ->map(fn ($accountId) => (int) $accountId)
+                ->sort()
+                ->values();
+            $reviewedAccountIds = $activationReviews->keys()->map(fn ($accountId) => (int) $accountId)->sort()->values();
+
+            if ($accountsToActivate->all() !== $reviewedAccountIds->all()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'activation_reviews' => ['Review details are missing for one or more accounts being activated.'],
+                ]);
+            }
         }
 
         if (isset($payload['accounts']) && is_array($payload['accounts'])) {
@@ -835,6 +881,55 @@ class ConcessionaireController extends Controller
 
         try {
             $client = $this->clientService::update($payload, $id);
+
+            foreach ($activationReviews as $accountId => $review) {
+                $reviewAccount = UserAccounts::where('id', $accountId)
+                    ->where('user_id', $id)
+                    ->firstOrFail();
+
+                if (!empty($review['change_last_reading'])) {
+                    $reading = Reading::where('id', $review['reading_id'] ?? null)
+                        ->where('account_no', $reviewAccount->account_no)
+                        ->firstOrFail();
+                    $correctedPresentReading = (float) $review['corrected_present_reading'];
+                    $previousReading = (float) ($reading->previous_reading ?? 0);
+
+                    if ($correctedPresentReading < $previousReading) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'activation_reviews' => ['The corrected present reading cannot be less than the previous reading.'],
+                        ]);
+                    }
+
+                    $reading->update([
+                        'present_reading' => $correctedPresentReading,
+                        'consumption' => $correctedPresentReading - $previousReading,
+                    ]);
+                }
+
+                if (empty($review['has_unpaid_bills'])) {
+                    $bill = !empty($review['bill_id']) ? Bill::whereHas('reading', function ($query) use ($reviewAccount) {
+                            $query->where('account_no', $reviewAccount->account_no);
+                        })
+                        ->where('id', $review['bill_id'])
+                        ->where('isPaid', false)
+                        ->lockForUpdate()
+                        ->firstOrFail() : null;
+
+                    if ($bill) {
+                        $bill->update([
+                            'isPaid' => true,
+                            'amount_paid' => $bill->amount,
+                        ]);
+                    }
+                } elseif (!empty($review['bill_id'])) {
+                    Bill::where('id', $review['bill_id'])
+                        ->where('isPaid', false)
+                        ->whereHas('reading', function ($query) use ($reviewAccount) {
+                            $query->where('account_no', $reviewAccount->account_no);
+                        })
+                        ->firstOrFail();
+                }
+            }
 
             if ($request->filled('registrant_id')) {
                 $connectionType = $payload['connection_type'] ?? 'on_line';

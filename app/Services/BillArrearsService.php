@@ -18,17 +18,36 @@ class BillArrearsService
      */
     public function latestOutstandingBill(iterable $bills): ?array
     {
+        $carriedBalanceFallback = null;
+        $isLatestBill = true;
+
         foreach ($bills as $bill) {
+            if ($isLatestBill && (int) $bill->isPaid === 1) {
+                return null;
+            }
+            $isLatestBill = false;
+
             if ((int) $bill->isPaid === 1) {
                 continue;
             }
 
-            $debit = max(0, round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2));
+            $amountAfterDue = (float) ($bill->amount_after_due ?? 0);
+            $billAmount = (float) ($bill->amount ?? 0);
+            $payableAmount = $amountAfterDue > 0 ? $amountAfterDue : $billAmount;
             $credit = round(max(
                 (float) ($bill->amount_paid ?? 0) - (float) ($bill->change ?? 0),
                 (float) ($bill->partial_payment ?? 0)
             ), 2);
-            $balance = max(0, round($debit - $credit, 2));
+            $balance = max(0, round($payableAmount - $credit, 2));
+
+            if ($carriedBalanceFallback === null) {
+                if ($balance > 0) {
+                    $carriedBalanceFallback = [
+                        'bill' => $bill,
+                        'balance' => $balance,
+                    ];
+                }
+            }
 
             if ($balance > 0) {
                 return [
@@ -38,7 +57,7 @@ class BillArrearsService
             }
         }
 
-        return null;
+        return $carriedBalanceFallback;
     }
 
     /**

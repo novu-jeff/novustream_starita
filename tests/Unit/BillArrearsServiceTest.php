@@ -38,11 +38,15 @@ class BillArrearsServiceTest extends TestCase
     {
         $newerZeroBill = new Bill([
             'total' => 0,
+            'amount' => 0,
+            'amount_after_due' => 0,
             'previous_unpaid' => 0,
             'isPaid' => 0,
         ]);
         $olderOutstandingBill = new Bill([
             'total' => 336,
+            'amount' => 336,
+            'amount_after_due' => 336,
             'previous_unpaid' => 176,
             'amount_paid' => 0,
             'partial_payment' => 0,
@@ -56,6 +60,83 @@ class BillArrearsServiceTest extends TestCase
         ]);
 
         $this->assertSame($olderOutstandingBill, $outstanding['bill']);
-        $this->assertSame(160.0, $outstanding['balance']);
+    $this->assertSame(336.0, $outstanding['balance']);
+    }
+
+    public function test_latest_outstanding_uses_bill_amount_when_previous_unpaid_matches_total(): void
+    {
+        $unpaidBill = new Bill([
+            'total' => 6722.66,
+            'amount' => 6722.66,
+            'amount_after_due' => 6722.66,
+            'previous_unpaid' => 6722.66,
+            'amount_paid' => 0,
+            'change' => 0,
+            'isPaid' => 0,
+            'isPartial' => 0,
+        ]);
+
+        $outstanding = (new BillArrearsService())->latestOutstandingBill([$unpaidBill]);
+
+        $this->assertSame($unpaidBill, $outstanding['bill']);
+        $this->assertSame(6722.66, $outstanding['balance']);
+    }
+
+    public function test_latest_outstanding_uses_amount_after_due_instead_of_basic_charge_only(): void
+    {
+        $bill = new Bill([
+            'total' => 160,
+            'previous_unpaid' => 0,
+            'amount' => 1504.86,
+            'amount_after_due' => 1520.86,
+            'amount_paid' => 0,
+            'partial_payment' => 0,
+            'change' => 0,
+            'isPaid' => 0,
+        ]);
+
+        $outstanding = (new BillArrearsService())->latestOutstandingBill([$bill]);
+
+        $this->assertSame($bill, $outstanding['bill']);
+        $this->assertSame(1520.86, $outstanding['balance']);
+    }
+
+    public function test_latest_outstanding_uses_amount_when_amount_after_due_is_empty(): void
+    {
+        $bill = new Bill([
+            'total' => 160,
+            'previous_unpaid' => 0,
+            'amount' => 1504.86,
+            'amount_after_due' => 0,
+            'amount_paid' => 0,
+            'isPaid' => 0,
+        ]);
+
+        $outstanding = (new BillArrearsService())->latestOutstandingBill([$bill]);
+
+        $this->assertSame(1504.86, $outstanding['balance']);
+    }
+
+    public function test_paid_latest_bill_does_not_backtrack_to_older_unpaid_bills(): void
+    {
+        $latestPaidBill = new Bill([
+            'total' => 688,
+            'previous_unpaid' => 528,
+            'amount_paid' => 688,
+            'isPaid' => 1,
+        ]);
+        $olderUnpaidBill = new Bill([
+            'total' => 336,
+            'previous_unpaid' => 176,
+            'amount_paid' => 0,
+            'isPaid' => 0,
+        ]);
+
+        $outstanding = (new BillArrearsService())->latestOutstandingBill([
+            $latestPaidBill,
+            $olderUnpaidBill,
+        ]);
+
+        $this->assertNull($outstanding);
     }
 }
