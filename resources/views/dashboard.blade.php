@@ -2,7 +2,7 @@
 
 @section('content')
     <main class="main">
-        <div class="responsive-wrapper">
+        <div class="responsive-wrapper pt-0">
             <div class="main-header">
                 <h1>Dashboard</h1>
                 <span class="dashboard-badge">{{ \Carbon\Carbon::now()->format('M d, Y \a\t h:i A') }}</span>
@@ -67,6 +67,15 @@
                 </div>
             </form>
 
+            <div class="dashboard-stats-row">
+                <div class="stat-pill"><i class="bx bx-user"></i><span>{{ $data['admins'] ?? 0 }} Admins</span></div>
+                <div class="stat-pill"><i class="bx bx-group"></i><span>{{ $data['concessionaires'] ?? 0 }} Concessionaires</span></div>
+                <div class="stat-pill"><i class="bx bx-wrench"></i><span>{{ $data['technicians'] ?? 0 }} Technicians</span></div>
+                <div class="stat-pill"><i class="bx bx-receipt"></i><span>{{ $data['total_transactions_count'] ?? 0 }} Paid Bills</span></div>
+                <div class="stat-pill stat-pill--accent"><i class="bx bx-credit-card"></i><span>{{ $data['unique_online_payments'] ?? 0 }} Online Payments</span></div>
+                <div class="stat-pill stat-pill--accent"><i class="bx bx-log-in-circle"></i><span>{{ $data['concessionaire_accounts'] ?? 0 }} Concessionaire Accounts</span></div>
+            </div>
+
             <div class="dashboard-stats-grid">
                 <div class="stat-card stat-card--primary">
                     <div class="stat-card__icon"><i class="bx bx-wallet"></i></div>
@@ -107,14 +116,7 @@
                     </div>
                 </div>
             </div>
-            <div class="dashboard-stats-row">
-                <div class="stat-pill"><i class="bx bx-user"></i><span>{{ $data['admins'] ?? 0 }} Admins</span></div>
-                <div class="stat-pill"><i class="bx bx-group"></i><span>{{ $data['concessionaires'] ?? 0 }} Concessionaires</span></div>
-                <div class="stat-pill"><i class="bx bx-wrench"></i><span>{{ $data['technicians'] ?? 0 }} Technicians</span></div>
-                <div class="stat-pill"><i class="bx bx-receipt"></i><span>{{ $data['total_transactions_count'] ?? 0 }} Paid Bills</span></div>
-                <div class="stat-pill stat-pill--accent"><i class="bx bx-credit-card"></i><span>{{ $data['unique_online_payments'] ?? 0 }} Online Payments</span></div>
-                <div class="stat-pill stat-pill--accent"><i class="bx bx-log-in-circle"></i><span>{{ $data['concessionaire_accounts'] ?? 0 }} Concessionaire Accounts</span></div>
-            </div>
+            
             <div class="dashboard-charts-grid">
                 <div class="chart-card chart-card--wide">
                     <div class="chart-card__header"><h3>Revenue Trend</h3><span class="chart-card__sub">{{ $data['revenue_sub'] ?? 'Last 12 months' }}</span></div>
@@ -131,7 +133,6 @@
                     <div id="chartZone" class="chart-card__body chart-card__body--tall"></div>
                 </div>
             </div>
-
         </div>
     </main>
 @endsection
