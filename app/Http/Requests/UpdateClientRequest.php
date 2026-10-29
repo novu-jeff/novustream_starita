@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class UpdateClientRequest extends FormRequest
 {
@@ -15,125 +17,148 @@ class UpdateClientRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * Prepare the data for validation.
+     * Normalize or transform incoming data before validation.
      */
     protected function prepareForValidation()
-{
-    if ($this->has('accounts')) {
-        $accounts = $this->input('accounts');
-        foreach ($accounts as &$account) {
-            if (isset($account['status'])) {
-                // Convert to uppercase and trim
-                $account['status'] = strtoupper(trim($account['status']));
+    {
+        $email = trim((string) $this->input('email', ''));
+        if ($email === '' || strtolower($email) === 'null') {
+            $this->merge(['email' => null]);
+        } else {
+            $this->merge(['email' => $email]);
+        }
 
-                // Optional: map human-readable names to codes
-                $map = [
-                    'ACTIVE'   => 'AB',
-                    'BLOCKED'  => 'BL',
-                    'INACTIVE' => 'ID',
-                    'INVALID'  => 'IV',
-                ];
-                if (isset($map[$account['status']])) {
-                    $account['status'] = $map[$account['status']];
-                }
+        $activationReviews = $this->input('activation_reviews');
+        if (is_string($activationReviews)) {
+            $decodedReviews = json_decode($activationReviews, true);
+            if (is_array($decodedReviews)) {
+                $this->merge(['activation_reviews' => $decodedReviews]);
             }
         }
-        $this->merge(['accounts' => $accounts]);
+
+        if ($this->has('accounts')) {
+            $accounts = $this->input('accounts');
+
+            foreach ($accounts as &$account) {
+                if (isset($account['status'])) {
+                    $account['status'] = strtoupper(trim($account['status']));
+                }
+            }
+
+            // Reindex and merge back
+            $this->merge(['accounts' => array_values($accounts)]);
+        }
     }
-}
 
-
-
+    /**
+     * Get the validation rules that apply to the request.
+     */
     public function rules(): array
     {
-        $id = $this->route('concessionaire');
-        return [
-            'name' => 'required|string|max:255',
-            'email' => 'required|unique:users,email,' . $id,
-            'password' => 'required|min:8|confirmed',
+        // Get current valid status codes from database
+        $validStatusCodes = DB::table('status_code')
+            ->pluck('code')
+            ->map(fn ($code) => strtoupper(trim($code)))
+            ->toArray();
+
+        $rules = [
+            'name' => 'nullable|string|max:255',
+            'email' => [
+                'nullable',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($this->route('concessionaire')),
+            ],
+            'password' => 'nullable|min:8|confirmed',
             'confirm_password' => 'nullable|same:password',
-            'contact_no' => 'required',
+            'contact_no' => 'nullable|string',
+            'registrant_id' => 'nullable|exists:concessioner_accounts,id',
+            'connection_type' => ['nullable', Rule::in(['on_line', 'traverse'])],
+            'activation_confirmed' => 'sometimes|accepted',
+            'activation_reviews' => 'required_if:activation_confirmed,1|array',
+            'activation_reviews.*.account_id' => 'required|integer|exists:concessioner_accounts,id',
+            'activation_reviews.*.has_unpaid_bills' => 'required|boolean',
+            'activation_reviews.*.bill_id' => 'nullable|integer|exists:bill,id',
+            'activation_reviews.*.arrears' => 'required|numeric|min:0',
+            'activation_reviews.*.basic_charge' => 'required|numeric|min:0',
+            'activation_reviews.*.penalty' => 'required|numeric|min:0',
+            'activation_reviews.*.amount_after_due' => 'required|numeric|min:0',
+            'activation_reviews.*.change_last_reading' => 'required|boolean',
+            'activation_reviews.*.reading_id' => 'nullable|integer|exists:readings,id',
+            'activation_reviews.*.corrected_present_reading' => 'nullable|numeric|min:0',
 
-            'accounts' => 'required|array',
-            'accounts.*.id' => 'nullable|exists:concessioner_accounts,id',
-            'accounts.*.account_no' => 'required|string',
-            'accounts.*.address' => 'required|string|max:255',
-            'accounts.*.property_type' => 'required|exists:property_types,id',
-            'accounts.*.rate_code' => 'required|numeric|gt:0',
-            'accounts.*.status' => 'required|in:AB,BL,ID,IV',
-            'accounts.*.sc_no' => 'required',
-            'accounts.*.meter_brand' => 'nullable|string|max:256',
-            'accounts.*.meter_serial_no' => 'required',
-            'accounts.*.date_connected' => 'required',
-            'accounts.*.sequence_no' => 'required',
-
-            'accounts.*.meter_type' => 'nullable|string|max:120',
-            'accounts.*.meter_wire' => 'nullable|string|max:120',
-            'accounts.*.meter_form' => 'nullable|string|max:120',
-            'accounts.*.meter_class' => 'nullable|string|max:120',
-            'accounts.*.lat_long' => 'nullable|string|max:120',
-            'accounts.*.isErcSealed' => 'nullable|boolean',
-            'accounts.*.inspectionImage' => 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048',
+            'accounts' => 'nullable|array',
         ];
+
+        foreach ($this->input('accounts', []) as $index => $account) {
+            $isSelectedRegistrant = $this->filled('registrant_id')
+                && (string) ($account['id'] ?? '') === (string) $this->input('registrant_id');
+            $accountRule = $isSelectedRegistrant ? 'required' : 'nullable';
+            $prefix = "accounts.{$index}.";
+
+            $rules[$prefix . 'id'] = 'nullable|exists:concessioner_accounts,id';
+            $rules[$prefix . 'account_no'] = $accountRule . '|string';
+            $rules[$prefix . 'address'] = $accountRule . '|string|max:255';
+            $rules[$prefix . 'property_type'] = $accountRule . '|exists:property_types,id';
+            $rules[$prefix . 'rate_code'] = $accountRule . '|numeric|gt:0';
+            $rules[$prefix . 'status'] = [$accountRule, Rule::in($validStatusCodes)];
+            $rules[$prefix . 'sc_no'] = $accountRule . '|string';
+            $rules[$prefix . 'meter_brand'] = 'nullable|string|max:256';
+            $rules[$prefix . 'meter_serial_no'] = $accountRule . '|string';
+            $rules[$prefix . 'date_connected'] = $accountRule . '|date';
+            $rules[$prefix . 'sequence_no'] = $accountRule . '|string';
+            $rules[$prefix . 'meter_type'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_wire'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_form'] = 'nullable|string|max:120';
+            $rules[$prefix . 'meter_class'] = 'nullable|string|max:120';
+            $rules[$prefix . 'lat_long'] = 'nullable|string|max:120';
+            $rules[$prefix . 'isErcSealed'] = 'nullable|boolean';
+            $rules[$prefix . 'inspectionImage'] = 'nullable|image|mimes:jpg,png,jpeg,gif|max:2048';
+            $rules[$prefix . 'has_sc_discount'] = ['nullable', 'boolean'];
+            $rules[$prefix . 'sc_id_no'] = ['nullable'];
+        }
+
+        return $rules;
+
     }
 
+    /**
+     * Custom error messages for validation failures.
+     */
     public function messages(): array
     {
         return [
             'name.required' => 'The name field is required.',
-            'name.string' => 'The name must be a valid string.',
-            'name.max' => 'The name must not exceed 255 characters.',
-
-            'address.required' => 'The address field is required.',
-            'address.string' => 'The address must be a valid string.',
-            'address.max' => 'The address must not exceed 255 characters.',
-
             'email.required' => 'The email field is required.',
             'email.email' => 'Please provide a valid email address.',
             'email.unique' => 'This email is already in use.',
-
             'password.min' => 'The password must be at least 8 characters long.',
-
             'confirm_password.same' => 'The confirm password must match the password.',
-
             'contact_no.required' => 'The contact number field is required.',
 
             'accounts.required' => 'At least one account must be provided.',
-            'accounts.array' => 'Accounts must be in a valid array format.',
+            'accounts.array' => 'Accounts must be a valid array.',
 
-            'accounts.*.id.exists' => 'The selected account ID does not exist.',
             'accounts.*.account_no.required' => 'The account number is required.',
+            'accounts.*.address.required' => 'The address is required.',
             'accounts.*.property_type.required' => 'The property type is required.',
             'accounts.*.property_type.exists' => 'The selected property type does not exist.',
             'accounts.*.rate_code.required' => 'The rate code is required.',
-            'accounts.*.rate_code.numeric' => 'The rate code must be a valid number.',
+            'accounts.*.rate_code.numeric' => 'The rate code must be a number.',
             'accounts.*.rate_code.gt' => 'The rate code must be greater than 0.',
+
             'accounts.*.status.required' => 'The status field is required.',
-            'accounts.*.status.in' => 'The status must be one of the following: AB, BL, ID, IV.',
+            'accounts.*.status.in' => 'The selected status is invalid. Please choose a valid status from the list.',
+
             'accounts.*.sc_no.required' => 'The SC number is required.',
-            'accounts.*.meter_brand.string' => 'The meter brand must be a valid string.',
-            'accounts.*.meter_brand.max' => 'The meter brand must not exceed 256 characters.',
             'accounts.*.meter_serial_no.required' => 'The meter serial number is required.',
             'accounts.*.date_connected.required' => 'The date connected field is required.',
             'accounts.*.sequence_no.required' => 'The sequence number field is required.',
 
-            'accounts.*.meter_type.string' => 'The meter type must be a valid string.',
-            'accounts.*.meter_type.max' => 'The meter type must not exceed 120 characters.',
-            'accounts.*.meter_wire.string' => 'The meter wire must be a valid string.',
-            'accounts.*.meter_wire.max' => 'The meter wire must not exceed 120 characters.',
-            'accounts.*.meter_form.string' => 'The meter form must be a valid string.',
-            'accounts.*.meter_form.max' => 'The meter form must not exceed 120 characters.',
-            'accounts.*.meter_class.string' => 'The meter class must be a valid string.',
-            'accounts.*.meter_class.max' => 'The meter class must not exceed 120 characters.',
-            'accounts.*.lat_long.string' => 'The latitude/longitude must be a valid string.',
-            'accounts.*.lat_long.max' => 'The latitude/longitude must not exceed 120 characters.',
             'accounts.*.inspectionImage.image' => 'The uploaded file must be an image.',
-            'accounts.*.inspectionImage.mimes' => 'The image must be a file of type: jpg, png, jpeg, gif.',
+            'accounts.*.inspectionImage.mimes' => 'The image must be a JPG, PNG, JPEG, or GIF file.',
         ];
-
     }
-
-    
 }

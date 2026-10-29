@@ -126,6 +126,20 @@ return [
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
+
+        'starita_sync_novupay' => [
+            'driver' => 'single',
+            'path' => env('STARITA_SYNC_NOVUPAY_LOG_PATH', storage_path('logs/laravel.log')),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
+        'online_payments_sync' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/online-payments-sync.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
     ],
 
 ];

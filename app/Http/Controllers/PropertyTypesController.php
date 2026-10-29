@@ -19,11 +19,11 @@ class PropertyTypesController extends Controller
     public function __construct(PropertyTypesService $propertyTypeService) {
 
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
 
@@ -79,7 +79,7 @@ class PropertyTypesController extends Controller
     public function edit(int $id) {
 
         $data = $this->propertyTypeService::getData($id);
-        
+
         return view('property-type.form', compact('data'));
     }
 
@@ -115,7 +115,7 @@ class PropertyTypesController extends Controller
                 'message' => $response['message']
             ]);
         }
-        
+
     }
 
     public function destroy(int $id) {
@@ -123,12 +123,12 @@ class PropertyTypesController extends Controller
         $response = $this->propertyTypeService::delete($id);
 
         if ($response['status'] === 'success') {
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => $response['message']
             ]);
-            
+
         } else {
             return response()->json([
                 'status' => 'error',
@@ -145,7 +145,7 @@ class PropertyTypesController extends Controller
             ->addColumn('actions', function ($row) {
                 return '
                     <div class="d-flex align-items-center gap-3">
-                        <a href="' . route('property-types.edit', ['property_type' => $row->id]) . '" 
+                        <a href="' . route('property-types.edit', ['property_type' => $row->id]) . '"
                             class="btn btn-primary text-white text-uppercase fw-bold">
                             <i class="bx bx-edit" ></i>
                         </a>
@@ -158,5 +158,5 @@ class PropertyTypesController extends Controller
             ->rawColumns(['status', 'actions'])
             ->make(true);
     }
-    
+
 }

@@ -21,6 +21,28 @@ return [
     'name' => env('APP_NAME', 'Laravel'),
     'product' => env('APP_PRODUCT', 'novustream'),
     'client' => env('CLIENT'),
+    'offline_api_key' => env('OFFLINE_API_KEY'),
+
+    /*
+    | Label for this app in offline API messages (e.g. "sta-rita"). Used by novustream_offline_starita.
+    */
+    'offline_app_label' => env('OFFLINE_APP_LABEL', 'sta-rita'),
+
+    /*
+    | Require Bearer token for offline API. Set to false to disable (for development only).
+    */
+    'offline_require_token' => env('OFFLINE_REQUIRE_TOKEN', true),
+
+    /*
+    | When OFFLINE_REQUIRE_TOKEN=false, use this admin ID as the request user. Leave empty to use first technician/admin.
+    */
+    'offline_default_admin_id' => env('OFFLINE_DEFAULT_ADMIN_ID', null),
+
+    /*
+    | Partner app URL: only set if accepting tokens from another NovuStream offline app (multi-branch).
+    | For dedicated apps (novustream_offline_starita / novustream_offline_morong) leave empty.
+    */
+    'offline_partner_app_url' => env('OFFLINE_PARTNER_APP_URL', ''),
 
     /*
     |--------------------------------------------------------------------------

@@ -12,16 +12,17 @@ class Reading extends Model
     protected $table = 'readings';
 
     protected $fillable = [
-    'zone',
-    'account_no',
-    'previous_reading',
-    'present_reading',
-    'consumption',
-    'reader_name',
-    'isReRead',
-    'reread_reference_no',
-    'created_at',
-    'updated_at',
+        'zone',
+        'account_no',
+        'reference_no',
+        'previous_reading',
+        'present_reading',
+        'consumption',
+        'reader_name',
+        'isReRead',
+        'reread_reference_no',
+        'created_at',
+        'updated_at',
     ];
 
 
@@ -39,5 +40,13 @@ class Reading extends Model
         return $this->belongsTo(SCDiscount::class);
     }
 
+    public function propertyType() {
+        return $this->belongsTo(PropertyTypes::class, 'property_type_id');
+    }
+
+    public function adjustments()
+    {
+        return $this->hasMany(ReadingAdjustment::class)->latest();
+    }
 
 }

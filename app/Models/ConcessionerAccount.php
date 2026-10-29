@@ -31,6 +31,20 @@ class ConcessionerAccount extends Model
         'lat_long',
         'isErcSealed',
         'inspection_image',
+        'isApproved',
+        'application_status',
+        'application_type',
+        'approved_at',
+        'denied_at',
+        'application_soa_path',
+        'application_id_path',
+        'approval_denial_reason',
+    ];
+
+    protected $casts = [
+        'isApproved' => 'boolean',
+        'approved_at' => 'datetime',
+        'denied_at' => 'datetime',
     ];
 
     public function propertyType()
@@ -48,6 +62,12 @@ class ConcessionerAccount extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function statusCode()
+    {
+        return $this->belongsTo(StatusCode::class, 'status', 'code');
+    }
+
 }
 
 ?>

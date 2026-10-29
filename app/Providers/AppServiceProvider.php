@@ -3,10 +3,12 @@
 namespace App\Providers;
 
 use App\Models\Admin;
+use App\Models\UserAccounts;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,19 +27,34 @@ class AppServiceProvider extends ServiceProvider
     public function boot(Request $request): void
     {
         Paginator::useBootstrapFive();
-        
+
+        View::composer('layouts.navbar', function ($view) {
+            $pendingRegistrantsCount = UserAccounts::where('application_status', 'pending')->count();
+            $pendingAccountLinksCount = \App\Models\ConcessionerAccountLink::where('status', 'pending')->count();
+
+            $view->with([
+                'pendingRegistrantsCount' => $pendingRegistrantsCount,
+                'pendingAccountLinksCount' => $pendingAccountLinksCount,
+                'pendingRegistrationTotal' => $pendingRegistrantsCount + $pendingAccountLinksCount,
+            ]);
+        });
+
         if(Request::is('admin/*')) {
 
             Auth::shouldUse('admins');
 
-            Gate::define('admin', function ($user) {
-                return $user->user_type === 'admin';
+            Gate::define('superadmin', function ($user) {
+                return $user->user_type === 'superadmin';
             });
-            
+
+            Gate::define('admin', function ($user) {
+                return in_array($user->user_type, ['admin', 'superadmin']);
+            });
+
             Gate::define('technician', function ($user) {
                 return $user->user_type === 'technician';
             });
-            
+
             Gate::define('cashier', function ($user) {
                 return $user->user_type === 'cashier';
             });
@@ -45,7 +62,7 @@ class AppServiceProvider extends ServiceProvider
             Gate::define('inspector', function ($user) {
                 return $user->user_type === 'inspector';
             });
-    
+
         }
 
         if(Request::is('concessionaire/*')) {
@@ -55,11 +72,11 @@ class AppServiceProvider extends ServiceProvider
                 return true;
             });
 
-            
-            
+
+
         }
 
-        
-        
+
+
     }
 }

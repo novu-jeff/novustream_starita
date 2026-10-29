@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PaymentBreakdown;
+use App\Services\PaymentBreakdownService;
 use App\Models\PaymentServiceFee;
 use App\Models\User;
 use App\Models\Bill;
 use App\Models\BillBreakdown;
 use App\Models\Rates;
 use App\Models\Reading;
+use App\Services\AccountMailer;
 use App\Services\GenerateService;
 use App\Services\MeterService;
 use Carbon\Carbon;
@@ -19,7 +20,15 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Log;
-use App\Models\Zone; // make sure this is at the top
+use App\Models\Zones; // make sure this is at the top
+use App\Models\PaymentDiscount;
+use App\Models\BillDiscount;
+use App\Models\Discount;
+use App\Models\DiscountType;
+use App\Models\PaymentBreakdownPenalty;
+use App\Models\PenaltyExemption;
+use App\Models\InstallmentSchedule;
+use App\Models\ReadingAdjustment;
 
 
 class ReadingController extends Controller
@@ -32,7 +41,7 @@ class ReadingController extends Controller
     public $isTesting = false;
 
     public function __construct(MeterService $meterService,
-        PaymentBreakdown $paymentBreakdownService,
+        PaymentBreakdownService $paymentBreakdownService,
         PaymentServiceFee $paymentServiceFee,
         GenerateService $generateService)
     {
@@ -41,7 +50,7 @@ class ReadingController extends Controller
             $method = $request->route()->getActionMethod();
 
             if (!in_array($method, ['show'])) {
-                if (!Gate::any(['admin', 'technician'])) {
+                if (!Gate::any(['admin', 'technician', 'cashier'])) {
                     abort(403, 'Unauthorized');
                 }
             }
@@ -63,7 +72,11 @@ class ReadingController extends Controller
 
         $user = auth()->user();
         if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
+            // zone_assigned = "2,3,5"
+            $assignedZoneIds = explode(',', $user->zone_assigned);
+
+            // Convert IDs to zone codes (e.g. 2 -> "021")
+            $assignedZones = Zones::whereIn('id', $assignedZoneIds)->pluck('zone')->toArray();
             $payload['zones'] = $assignedZones;
 
             if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
@@ -75,12 +88,14 @@ class ReadingController extends Controller
             }
         }
 
+
         if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
             try {
-                $response = $this->meterService->getPreviousReading($payload['account_no']);
+                $response = !empty($payload['is_missing_reading']) && !empty($payload['reading_month'])
+                    ? $this->meterService->getPreviousReadingBefore($payload['account_no'], $payload['reading_month'])
+                    : $this->meterService->getPreviousReading($payload['account_no']);
                 return response()->json($response);
             } catch (\Exception $e) {
-                Log::error('getPreviousReading failed: ' . $e->getMessage());
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Unable to get previous reading.'
@@ -88,6 +103,20 @@ class ReadingController extends Controller
             }
         }
 
+        if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+            try {
+                $response = $this->meterService->getPreviousReading(
+                    $payload['account_no']
+                );
+                return response()->json($response);
+
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unable to get previous reading.'
+                ], 500);
+            }
+        }
 
         if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
             $response = $this->meterService->getReRead($payload['reference_no']);
@@ -121,14 +150,20 @@ class ReadingController extends Controller
         $user = auth()->user();
 
         if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
-
-            $zones = Zone::whereIn('zone', $assignedZones)->get();
-            $showAllOption = false;
+            if (empty($user->zone_assigned)) {
+                // Treat as admin if no zones assigned
+                $zones = Zones::all();
+                $showAllOption = true;
+            } else {
+                $assignedZoneIds = explode(',', $user->zone_assigned);
+                $zones = Zones::whereIn('id', $assignedZoneIds)->get();
+                $showAllOption = false;
+            }
         } else {
-            $zones = Zone::all();
+            $zones = Zones::all();
             $showAllOption = true;
         }
+
 
         return view('reading.index', [
             'isReRead' => $isReRead,
@@ -140,13 +175,12 @@ class ReadingController extends Controller
     }
 
 
-    public function show(string $reference_no) {
-
+    public function show(string $reference_no)
+    {
         $data = $this->meterService::getBill($reference_no);
 
-        if(isset($data['status']) && $data['status'] == 'error') {
-
-            if(empty($data['client']['account_no'])) {
+        if (isset($data['status']) && $data['status'] == 'error') {
+            if (empty($data['client']['account_no'])) {
                 return redirect()->back()->with('alert', [
                     'status' => 'error',
                     'message' => 'No concessionaire found'
@@ -159,88 +193,305 @@ class ReadingController extends Controller
             ]);
         }
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+        // Get base amount from bill
+        $amount = (float)($data['current_bill']['amount'] ?? 0);
+        $discount = (float)($data['current_bill']['discount'] ?? 0);
 
-        $qr_code = $this->generateService::qr_code($url, 80);
+        // Get today's penalty config
+        $currentDay = now()->day;
 
-        $amount = $data['current_bill']['amount' ?? 0];
-        $assumed_penalty = $amount * 0.15;
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+            ->where('due_to', '>', $currentDay)
+            ->first();
+
+        $assumed_penalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumed_penalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback penalty if no match
+            $assumed_penalty = $amount * 0.15;
+        }
+
         $assumed_amount_after_due = $amount + $assumed_penalty;
 
+        // Append to data array for Blade
         $data['current_bill']['assumed_penalty'] = $assumed_penalty;
         $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
 
+        // 💰 Add service fees (same as pay())
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+
+        $billData = $data['current_bill'] ?? [];
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl($reference_no, $billData, $paymentPayload);
+        $url = $qrResolved['url'];
+
+        if (!empty($qrResolved['hitpay']) && !empty($billData['id'])) {
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $hitpayData = $qrResolved['hitpay'];
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
+            }
+        }
+
+        $qr_code = $this->generateService::qr_code($url, 80);
+
         $isReRead = [
             'status' => $data['current_bill']['reading']['isReRead'] ?? false,
-            'reference_no' => $data['current_bill']['reading']['reread_reference_no']
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
         ];
 
         return view('reading.show', compact('data', 'isReRead', 'reference_no', 'qr_code'));
     }
 
-    public function report(Request $request) {
-        $user = auth()->user();
-        $zone = $request->zone ?? 'all';
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
-        $date = $request->date ?? $this->meterService->getLatestReadingMonth();
+    public function orShow(string $reference_no)
+    {
+        // dd('HERE', auth()->user()->role);
 
-        $zonesQuery = DB::table('concessioner_accounts');
+        $data = $this->meterService::getBill($reference_no);
 
-        // 🔹 Apply technician restriction
-        if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
-            $zonesQuery->whereIn('zone', $assignedZones);
+        if (isset($data['status']) && $data['status'] == 'error') {
+            if (empty($data['client']['account_no'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'No concessionaire found'
+                ]);
+            }
+
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
         }
 
-        $zonesRaw = $zonesQuery
+        // Get base amount from bill
+        $amount = (float)($data['current_bill']['amount'] ?? 0);
+        $discount = (float)($data['current_bill']['discount'] ?? 0);
+
+        // Get today's penalty config
+        $currentDay = now()->day;
+
+        $penaltyEntry = \App\Models\PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+            ->where('due_to', '>', $currentDay)
+            ->first();
+
+        $assumed_penalty = 0;
+
+        if ($penaltyEntry) {
+            $penaltyBase = $amount - $discount;
+
+            if ($penaltyEntry->amount_type === 'percentage') {
+                $assumed_penalty = $penaltyBase * floatval($penaltyEntry->amount);
+            } elseif ($penaltyEntry->amount_type === 'fixed') {
+                $assumed_penalty = floatval($penaltyEntry->amount);
+            }
+        } else {
+            // fallback penalty if no match
+            $assumed_penalty = $amount * 0.15;
+        }
+
+        $assumed_amount_after_due = $amount + $assumed_penalty;
+
+        // Append to data array for Blade
+        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+
+        // 💰 Add service fees (same as pay())
+        $hitpay_fee = 20;
+        $novupay_fee = 10;
+        $additional_service_fee = $hitpay_fee + $novupay_fee;
+
+        $final_amount = $amount + $additional_service_fee;
+        $final_amount_with_penalty = $assumed_amount_after_due + $additional_service_fee;
+
+        // 🧾 Build payment payload
+        $paymentPayload = [
+            'reference_no' => $reference_no,
+            'amount' => $final_amount,
+            'customer' => [
+                'name' => $data['client']['name'] ?? '',
+                'account_no' => $data['client']['account_no'] ?? '',
+                'address' => $data['client']['address'] ?? '',
+            ],
+        ];
+
+
+        $billData = $data['current_bill'] ?? [];
+        $paymentController = app(\App\Http\Controllers\PaymentController::class);
+        $qrResolved = $paymentController->resolveSoaPaymentQrUrl($reference_no, $billData, $paymentPayload);
+        $url = $qrResolved['url'];
+
+        if (!empty($qrResolved['hitpay']) && !empty($billData['id'])) {
+            $bill = \App\Models\Bill::find($billData['id']);
+            if ($bill) {
+                $hitpayData = $qrResolved['hitpay'];
+                $bill->update([
+                    'initiated_at' => now(),
+                    'hitpay_reference' => $hitpayData['reference'] ?? $hitpayData['reference_number'] ?? null,
+                    'hitpay_payment_id' => $hitpayData['id'] ?? null,
+                ]);
+            }
+        }
+
+        $qr_code = $this->generateService::qr_code($url, 80);
+
+        $isReRead = [
+            'status' => $data['current_bill']['reading']['isReRead'] ?? false,
+            'reference_no' => $data['current_bill']['reading']['reread_reference_no'] ?? null,
+        ];
+
+        return view('reading.orshow', compact('data', 'isReRead', 'reference_no', 'qr_code'));
+    }
+
+
+
+    public function report(Request $request)
+    {
+        $zone     = $request->zone ?? 'all';
+        $entries  = $request->entries ?? 10;
+        $toSearch = trim($request->search ?? '');
+        $date     = $request->date ?? $this->meterService->getLatestReadingMonth();
+        $user     = auth()->user();
+
+        $month = \Carbon\Carbon::parse($date)->month;
+        $year  = \Carbon\Carbon::parse($date)->year;
+
+        $assignedZones = [];
+
+        if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
+            $assignedZoneIds = explode(',', $user->zone_assigned);
+            $assignedZones = Zones::whereIn('id', $assignedZoneIds)
+                ->pluck('zone')
+                ->toArray();
+        }
+
+        $zonesRaw = DB::table('concessioner_accounts')
+            ->when(!empty($assignedZones), fn($q) =>
+                $q->whereIn('zone', $assignedZones)
+            )
             ->select('zone', DB::raw('COUNT(*) as total_accounts'))
             ->groupBy('zone')
             ->get();
 
         $readingsPerZone = DB::table('readings')
+            ->join('bill', 'bill.reading_id', '=', 'readings.id')
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
+            ->whereMonth('bill.bill_period_to', $month)
+            ->whereYear('bill.bill_period_to', $year)
+            ->when(!empty($assignedZones), fn($q) =>
+                $q->whereIn('concessioner_accounts.zone', $assignedZones)
+            )
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
-            ->whereMonth('readings.created_at', Carbon::parse($date)->month)
-            ->whereYear('readings.created_at', Carbon::parse($date)->year);
-
-        if ($user->user_type === 'technician') {
-            $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
-        }
-
-        $readingsPerZone = $readingsPerZone->groupBy('concessioner_accounts.zone')->pluck('read_count', 'zone');
+            ->groupBy('concessioner_accounts.zone')
+            ->pluck('read_count', 'zone');
 
         $zoneAreas = DB::table('zones')->pluck('area', 'zone');
 
-        $zones = $zonesRaw->map(function ($zone) use ($readingsPerZone, $zoneAreas) {
-            $zone->read_count = $readingsPerZone[$zone->zone] ?? 0;
-            $zone->area = $zoneAreas[$zone->zone] ?? 'Unknown';
-            return $zone;
-        });
+        $zones = $zonesRaw->map(function ($z) use ($readingsPerZone, $zoneAreas) {
+            $z->read_count = $readingsPerZone[$z->zone] ?? 0;
+            $z->area       = $zoneAreas[$z->zone] ?? 'Unknown';
+            return $z;
+        })->values();
 
-        $collection = collect($this->meterService::getReport($zone, $date, $toSearch))->flatten(2);
+        $tokens = $toSearch ? preg_split('/\s+/', $toSearch) : [];
 
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        $accountsQuery = \App\Models\ConcessionerAccount::query();
 
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
+        if (!empty($assignedZones)) {
+            $accountsQuery->whereIn('zone', $assignedZones);
+        }
 
-        return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
+        if ($zone !== 'all') {
+            $accountsQuery->where('zone', $zone);
+        }
+
+        if (!empty($toSearch)) {
+            $accountsQuery->where(function ($q) use ($toSearch, $tokens) {
+
+                $q->where('account_no', 'like', "%{$toSearch}%")
+                ->orWhereHas('user', function ($uq) use ($tokens) {
+                    foreach ($tokens as $token) {
+                        $uq->where('name', 'like', "%{$token}%");
+                    }
+                });
+            });
+        }
+
+        $accountNos = $accountsQuery->pluck('account_no');
+
+        $query = Reading::with(['bill', 'concessionaire.user'])
+            ->whereHas('bill', function ($q) use ($month, $year) {
+                $q->whereMonth('bill_period_to', $month)
+                    ->whereYear('bill_period_to', $year);
+            });
+
+        if ($accountNos->isNotEmpty()) {
+            $query->whereIn('account_no', $accountNos);
+        } else {
+            $query->whereRaw('1 = 0');
+        }
+
+        $data = $query
+            ->orderByDesc('created_at')
+            ->paginate($entries);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'data' => $data->items(),
+                'zones' => $zones,
+                'pagination' => [
+                    'current_page' => $data->currentPage(),
+                    'last_page'    => $data->lastPage(),
+                    'per_page'     => $data->perPage(),
+                    'total'        => $data->total(),
+                    'next_page_url'=> $data->nextPageUrl(),
+                    'prev_page_url'=> $data->previousPageUrl(),
+                ],
+            ]);
+        }
+
+        return view('reading.report', compact(
+            'data',
+            'entries',
+            'zones',
+            'zone',
+            'date',
+            'toSearch'
+        ));
     }
 
 
     public function store(Request $request) {
+
         $payload = $request->all();
-
-        Log::info('Reading Store Request', $request->all());
-
-
         if(isset($payload['isClearRecent']) && $payload['isClearRecent'] == true) {
             session()->forget('recent_reading');
             return response()->json([
@@ -251,8 +502,10 @@ class ReadingController extends Controller
 
         $validator = Validator::make($payload, [
         'reading_month' => [
+            'nullable',
+            'date',
             function ($attribute, $value, $fail) {
-                if ($this->isTesting && empty($value)) {
+                if (!empty(request('is_missing_reading')) && empty($value)) {
                     return $fail('Reading month is required.');
                 }
             }
@@ -269,22 +522,79 @@ class ReadingController extends Controller
         'present_reading' => 'required|integer|min:0',
         'is_high_consumption' => 'required|in:yes,no',
         'isReRead' => 'required|in:true,false',
-        'reference_no' => 'nullable|exists:bill,reference_no'
+        'reference_no' => [
+            'nullable',
+            function ($attribute, $value, $fail) use ($payload) {
+                if (!empty($payload['from_offline']) && !str_starts_with($value, 'NST-SRWD')) {
+                    $fail('Invalid offline reference format.');
+                }
+            },
+        ],
+        'high_consumption_note' => 'nullable|string|max:255',
+        'is_missing_reading' => 'nullable|boolean',
+        'missing_reading_reason' => filter_var($payload['is_missing_reading'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            ? 'required|string|max:1000'
+            : 'nullable',
+        'missing_bill_period_from' => 'required_if:is_missing_reading,true|date',
+        'missing_bill_period_to' => 'required_if:is_missing_reading,true|date',
+        'missing_previous_unpaid' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_basic_charge' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_total' => 'nullable|numeric|min:0',
+        'missing_discount' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_penalty' => 'nullable|numeric|min:0',
+        'missing_amount' => 'nullable|numeric|min:0',
+        'missing_amount_after_due' => 'nullable|numeric|min:0',
+        'missing_amount_paid' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_change' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_partial_payment' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_advances' => 'required_if:is_missing_reading,true|numeric|min:0',
+        'missing_date_paid' => 'nullable|date',
+        'missing_due_date' => 'required_if:is_missing_reading,true|date',
+        'missing_is_paid' => 'required_if:is_missing_reading,true|boolean',
+        'missing_is_partial' => 'required_if:is_missing_reading,true|boolean',
+        'missing_is_change_for_advance' => 'required_if:is_missing_reading,true|boolean',
+    ], [
+        'missing_reading_reason.required_if' => 'Reason for adding the missing reading is required.',
+        'missing_bill_period_from.required_if' => 'Bill From is required.',
+        'missing_bill_period_to.required_if' => 'Bill To is required.',
+        'missing_previous_unpaid.required_if' => 'Previous Unpaid is required.',
+        'missing_basic_charge.required_if' => 'Basic Charge is required.',
+        'missing_total.required_if' => 'Total is required.',
+        'missing_discount.required_if' => 'Discount is required.',
+        'missing_penalty.required_if' => 'Penalty is required.',
+        'missing_amount.required_if' => 'Amount is required.',
+        'missing_amount_after_due.required_if' => 'Amount After Due is required.',
+        'missing_amount_paid.required_if' => 'Amount Paid is required.',
+        'missing_change.required_if' => 'Change is required.',
+        'missing_partial_payment.required_if' => 'Partial Payment is required.',
+        'missing_advances.required_if' => 'Advances is required.',
+        'missing_is_paid.required_if' => 'Is Paid is required.',
+        'missing_is_partial.required_if' => 'Is Partial is required.',
+        'missing_is_change_for_advance.required_if' => 'Change for Advance is required.',
+        'missing_due_date.required_if' => 'Due Date is required.',
     ]);
 
 
     if ($validator->fails()) {
         return response()->json([
             'status' => 'error',
-            'message' => 'Validation failed.',
+            'message' => $validator->errors()->first(),
             'errors' => $validator->errors()
         ], 422);
     }
 
     try {
-        $date = $this->isTesting
-            ? Carbon::createFromFormat('Y-m-d', $payload['reading_month'])
-            : Carbon::now();
+        if (!empty($payload['reading_month'])) {
+            $parsed = null;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m-d', $payload['reading_month']);
+            } elseif (preg_match('/^\d{4}-\d{2}$/', $payload['reading_month'])) {
+                $parsed = Carbon::createFromFormat('Y-m', $payload['reading_month'])->startOfMonth();
+            }
+            $date = $parsed ?: app(\App\Services\BillingPeriodService::class)->activePeriod();
+        } else {
+            $date = app(\App\Services\BillingPeriodService::class)->activePeriod();
+        }
     } catch (\Exception $e) {
         return response()->json([
             'status' => 'error',
@@ -292,18 +602,37 @@ class ReadingController extends Controller
         ], 400);
     }
 
-    $month = $date->month;
-    $year = $date->year;
     $account_no = $payload['account_no'];
     $isReRead = $payload['isReRead'] === 'true' ? true : false;
+    $isMissingReading = filter_var($payload['is_missing_reading'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+    $account = $this->meterService->getAccount($account_no);
+    if (!$account) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Account not found.',
+        ], 404);
+    }
+
+    $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+    $readingDate = null;
+    if ($zone) {
+        $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+            ->where('is_active', 1)
+            ->first();
+    }
+
+    if ($readingDate && empty($payload['reading_month'])) {
+        $date = Carbon::parse($readingDate->bill_period_to);
+    }
+
+    $month = $date->month;
+    $year = $date->year;
 
     if (!$isReRead) {
-        $exists = Reading::whereMonth('created_at', $month)
-            ->whereYear('created_at', $year)
-            ->where('account_no', $account_no)
-            ->exists();
-
-        if ($exists) {
+        $mergeDates = app(\App\Services\MergeBillReadingDatesService::class);
+        $existing = $mergeDates->existingReadingForMergePeriod($account_no, $date);
+        if ($existing) {
             return response()->json([
                 'status' => 'error',
                 'message' => "Reading already exists for {$date->format('F Y')}."
@@ -311,11 +640,21 @@ class ReadingController extends Controller
         }
     }
 
+
     DB::beginTransaction();
 
     try {
         $account = $this->meterService->getAccount($account_no);
-        Log::info('Account info:', ['account' => $account]);
+
+        $zone = \App\Models\Zone::where('zone', $account->zone)->first();
+
+        $readingDate = null;
+
+        if ($zone && !$isMissingReading) {
+            $readingDate = \App\Models\ReadingDate::where('zone_id', $zone->id)
+                ->where('is_active', 1)
+                ->first();
+        }
 
         $present_reading = $payload['present_reading'];
         $previous_reading = $payload['previous_reading'];
@@ -326,8 +665,13 @@ class ReadingController extends Controller
         }
 
         $propertyTypeId = DB::table('property_types')
-            ->where('name', $account->property_type)
+            ->whereRaw("
+                LOWER(REPLACE(REPLACE(name, '''', ''), '\"', '')) = ?
+            ", [
+                strtolower(str_replace(['"', "'"], '', $account->property_type))
+            ])
             ->value('id');
+
 
         if (!$propertyTypeId) {
             return response()->json([
@@ -335,6 +679,11 @@ class ReadingController extends Controller
                 'message' => "No property type found for '{$account->property_type}'."
             ], 400);
         }
+
+        $referenceBefore = $payload['reference_no'] ?? null;
+        $billExisted = $referenceBefore
+            ? Bill::where('reference_no', $referenceBefore)->exists()
+            : false;
 
         $computed = $this->meterService->create_breakdown([
             'account_no' => $account_no,
@@ -345,7 +694,9 @@ class ReadingController extends Controller
             'date' => $date,
             'is_high_consumption' => $payload['is_high_consumption'],
             'isReRead' => $isReRead,
-            'reference_no' => $payload['reference_no'] ?? null
+            'reference_no' => $payload['reference_no'] ?? null,
+            'is_missing_reading' => $isMissingReading,
+            'force_zero_arrears' => $isMissingReading,
         ]);
 
         if ($computed['status'] !== 'success') {
@@ -353,12 +704,325 @@ class ReadingController extends Controller
             return response()->json($computed, 400);
         }
 
-        $reference_no = $computed['bill']['reference_no'];
-        $amount = $computed['bill']['amount'];
+        $billData = $computed['bill'];
+        $reference_no = $billData['reference_no'];
+        $amount = $billData['amount'];
 
+        if ($isMissingReading && !empty($billData['reading_id'])) {
+            \App\Models\ReadingAdjustment::create([
+                'reading_id' => $billData['reading_id'],
+                'old_present_reading' => 0,
+                'new_present_reading' => $present_reading,
+                'old_consumption' => 0,
+                'new_consumption' => $consumption,
+                'reason' => $payload['missing_reading_reason'],
+                'adjusted_by' => auth()->id(),
+            ]);
+        }
+
+        $basicCharge = $computed['basic_charge'];
+        $totalAmount = $computed['bill']['amount'];
+
+        $remainingUnpaid = (float) ($billData['previous_unpaid'] ?? 0);
+
+        $installmentArrears = InstallmentSchedule::where('is_paid', false)
+            ->whereHas('installment.bill.reading', function ($query) use ($payload) {
+                $query->where('account_no', $payload['account_no']);
+            })
+            ->orderBy('month_no')
+            ->value('amount') ?? 0;
+
+        $installmentArrears = (float) $installmentArrears;
+
+        // $partialPaymentTotal = PartialPayment::whereHas('reading.bill', function ($query) use ($payload) {
+        //     $query->where('account_no', $payload['account_no'])
+        //         ->where('isPaid', false);
+        // })->sum('partial_payment');
+
+        // $unpaidAmount = Bill::with('reading')
+        //     ->where('isPaid', false)
+        //     ->where('isInstallment', false)
+        //     ->whereNotNull('amount')
+        //     ->whereHas('reading', function ($query) use ($payload) {
+        //         $query->where('account_no', $payload['account_no'])
+        //             ->where('isReRead', false);
+        //     })
+        //     ->sum('amount') ?? 0;
+
+        // $installmentArrears = InstallmentSchedule::where('is_paid', false)
+        //     ->whereHas('installment.bill.reading', function ($query) use ($payload) {
+        //         $query->where('account_no', $payload['account_no']);
+        //     })
+        //     ->orderBy('month_no')
+        //     ->value('amount') ?? 0;
+
+        // $installmentArrears = (float) $installmentArrears;
+
+        // $totalArrears = ($unpaidAmount - $installmentArrears) - $partialPaymentTotal;
+
+        // $remainingUnpaid = max($totalArrears, 0);
+
+
+        // $penaltyRate = 0.15;
+        // $penaltyAmount = ($amount - $computed['bill']['discount']) * $penaltyRate;
+
+        // $currentDay = now()->day;
+
+        // // Get the applicable penalty entry
+        // $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<', $currentDay)
+        //     ->where('due_to', '>', $currentDay)
+        //     ->first();
+
+        // $penaltyAmount = 0;
+
+        $billPeriodFrom = null;
+        $billPeriodTo = null;
+        $billDate = $isMissingReading ? $date->copy() : now();
+        $dueDate = null;
+        $penaltyDate = null;
+        $disconnectionDate = null;
+
+        if ($readingDate) {
+
+            $billPeriodFrom = Carbon::parse($readingDate->bill_period_from);
+            $billPeriodTo   = Carbon::parse($readingDate->bill_period_to);
+
+            $billDate = $billPeriodTo->copy();
+
+            $dueDate = Carbon::parse($readingDate->due_date);
+
+            $penaltyDate = $dueDate->copy()->addDay();
+            $disconnectionDate = $dueDate->copy()->addDays(7);
+        }
+
+        $penaltyAmount = 0;
+        $penaltyEntry = null;
+
+        $isAfterDueDate = false;
+
+        if ($dueDate) {
+            $isAfterDueDate = $date->copy()
+                ->startOfDay()
+                ->gt($dueDate->copy()->startOfDay());
+        }
+
+        if ($isAfterDueDate) {
+
+            $currentDay = $date->day;
+
+            $penaltyEntry = PaymentBreakdownPenalty::where('due_from', '<=', $currentDay)
+                ->where('due_to', '>=', $currentDay)
+                ->first();
+        }
+
+        // Save bill — preserve existing HitPay data when updating
+        $existingBill = Bill::where('reference_no', $reference_no)->first();
+        $hitpayReference = $existingBill->hitpay_reference ?? null;
+        $hitpayPaymentId = $existingBill->hitpay_payment_id ?? null;
+        $hitpayInitiatedAt = $existingBill->initiated_at ?? null;
+        $payorName = optional($account->user)->name ?? optional($existingBill)->payor_name ?? null;
+
+        $bill = Bill::updateOrCreate(
+            ['reference_no' => $reference_no],
+            array_filter([
+                'account_no' => $account_no,
+                'amount' => $amount + $penaltyAmount,
+                'penalty' => $penaltyAmount,
+                'discount' => $computed['bill']['discount'] ?? 0,
+                'amount_after_due' => $amount + $penaltyAmount,
+                'high_consumption_note' => $payload['high_consumption_note'] ?? null,
+                'hitpay_reference' => $hitpayReference,
+                'hitpay_payment_id' => $hitpayPaymentId,
+                'initiated_at' => $hitpayInitiatedAt,
+                'payor_name' => $payorName,
+                'previous_unpaid' => $billData['previous_unpaid'] ?? 0,
+                'bill_period_from' => $billPeriodFrom,
+                'bill_period_to' => $billPeriodTo,
+                'created_at' => $billDate,
+                'due_date' => $dueDate,
+                'penalty_date' => $penaltyDate,
+                'disconnection_date' => $disconnectionDate,
+            ])
+        );
+
+        $bill->created_at = $billDate;
+        $bill->saveQuietly();
+
+        $today = Carbon::today();
+
+        $discountRecord = Discount::where('account_no', $account->account_no)
+            // ->whereDate('effective_date', '<=', $today)
+            // ->whereDate('expired_date', '>=', $today)
+            ->first();
+
+        // 1. Apply discount if account is eligible
+        $totalDiscount = 0;
+        $discountRecord = Discount::where('account_no', $account->account_no)->first();
+
+
+        $ruling = DB::table('global_ruling')->first();
+        $consumptionLimit = $ruling->snr_dc_rule ?? 0;
+
+        if ($discountRecord && $discountRecord->discount_type_id) {
+
+            // Only apply senior discount if consumption <= snr_dc_rule
+            if ($discountRecord->discount_type_id == 1 && $consumption <= $consumptionLimit) {
+                $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
+
+                if ($seniorDiscount) {
+                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $seniorAmount = $seniorDiscount->type === 'fixed'
+                        ? round(floatval($seniorDiscount->amount), 2)
+                        : round($baseAmount * floatval($seniorDiscount->amount), 2);
+
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $seniorDiscount->name,
+                        'description' => $seniorDiscount->type ?? null,
+                        'amount' => $seniorAmount,
+                    ]);
+
+                    $totalDiscount += $seniorAmount;
+                }
+            }
+
+            // Franchise Discount
+            if ($discountRecord->discount_type_id == 2) {
+                $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
+
+                if ($franchiseDiscount) {
+                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $franchiseAmount = $franchiseDiscount->type === 'fixed'
+                        ? round(floatval($franchiseDiscount->amount), 2)
+                        : round($baseAmount * floatval($franchiseDiscount->amount), 2);
+
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $franchiseDiscount->name,
+                        'description' => $franchiseDiscount->type ?? null,
+                        'amount' => $franchiseAmount,
+                    ]);
+
+                    $totalDiscount += $franchiseAmount;
+
+                }
+            }
+
+        }
+
+
+        $penaltyAmount = 0;
+        $today = Carbon::today();
+
+        $hasActivePenaltyExemption = PenaltyExemption::where('account_no', $account_no)
+            ->where(function ($query) use ($today) {
+                $query->where('penalty_exemption_type_id', 2)
+                    ->orWhere(function ($subQuery) use ($today) {
+                        $subQuery->where('penalty_exemption_type_id', 1)
+                            ->whereDate('effective_date', '<=', $today)
+                            ->where(function ($dateQuery) use ($today) {
+                                $dateQuery->whereNull('expired_date')
+                                    ->orWhereDate('expired_date', '>=', $today);
+                            });
+                    });
+            })
+            ->exists();
+
+        if (
+            !$hasActivePenaltyExemption &&
+            $installmentArrears <= 0
+        ) {
+
+            $penalties = PaymentBreakdownPenalty::query()->get();
+            $penaltyBase = max(
+                (float) $basicCharge - (float) $totalDiscount,
+                0
+            );
+
+            foreach ($penalties as $penalty) {
+
+                if (strtolower($penalty->amount_type) === 'percentage') {
+
+                    $penaltyAmount = round(
+                        $penaltyBase * (float) $penalty->amount,
+                        2
+                    );
+
+                } elseif (strtolower($penalty->amount_type) === 'fixed') {
+
+                    $penaltyAmount = round(
+                        (float) $penalty->amount,
+                        2
+                    );
+
+                }
+
+                break;
+            }
+        }
+
+        $total = (float) ($billData['total'] ?? 0);
+        $amountDue = round(
+            max($total - $totalDiscount, 0),
+            2
+        );
+
+        $amountAfterDue = round(
+            $amountDue + $penaltyAmount,
+            2
+        );
+
+        $bill->update([
+            'penalty' => $penaltyAmount,
+            'amount' => $amountAfterDue,
+            'discount' => $totalDiscount,
+            'amount_after_due' => $amountAfterDue,
+            'hasPenalty' => $penaltyAmount > 0,
+        ]);
+
+        $advanceAmount = (float) ($billData['advances'] ?? 0);
+        $canApplyAdvance = !$existingBill
+            || (!(bool) $existingBill->isPaid
+                && (float) ($existingBill->amount_paid ?? 0) <= 0
+                && !(bool) $existingBill->isPartial);
+
+        if ($advanceAmount > 0 && $canApplyAdvance && !$isMissingReading) {
+            $advanceAllocation = MeterService::resolveAdvanceAllocation($amountDue, $advanceAmount);
+
+            if ($advanceAllocation['isPaid']) {
+                $advanceAllocation['date_paid'] = now();
+            } elseif ($advanceAllocation['amount_paid'] > 0) {
+                $advanceAllocation['isPartial'] = true;
+                \App\Models\PartialPayment::create([
+                    'reading_id' => $bill->reading_id,
+                    'partial_payment' => $advanceAllocation['amount_paid'],
+                    'remaining_balance' => max($amountDue - $advanceAllocation['amount_paid'], 0),
+                ]);
+            }
+
+            $bill->update($advanceAllocation);
+        }
+
+        if ($isMissingReading) {
+            $this->applyMissingBillOverrides($bill, $payload);
+            $bill->update([
+                'missing_reading_reason' => $payload['missing_reading_reason'],
+            ]);
+            $bill->refresh();
+            if (!$bill->isPaid) {
+                $this->appendMissingBillToNextUnpaidBill($account_no, $date, $bill);
+            }
+        }
+
+        // NovuPay hosted checkout is created when the customer pays, not when the SOA is printed.
+        $baseAmount = (float) $bill->amount - (float) ($bill->penalty ?? 0);
+
+        // Generate payment QR (use base amount so Novupay/HitPay shows normal amount, not overdue)
         $paymentPayload = [
             'reference_no' => $reference_no,
-            'amount' => $amount,
+            'amount' => $baseAmount,
             'customer' => [
                 'name' => $account->user->name ?? '',
                 'account_no' => $account->account_no,
@@ -368,46 +1032,152 @@ class ReadingController extends Controller
 
         $qrResponse = $this->generatePaymentQR($reference_no, $paymentPayload);
 
-        if (!$qrResponse) {
-            DB::rollBack();
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to save this transaction. Please try again later.'
-            ], 500);
+                if (!$qrResponse) {
+                    DB::rollBack();
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Failed to save this transaction. Please try again later.'
+                    ], 500);
+                }
+
+
+                session(['recent_reading' => [
+                    'name' => $account->user->name ?? '',
+                    'address' => $account->address ?? '',
+                    'account_no' => $account->account_no ?? '',
+                    'timestamp' => Carbon::now()
+                ]]);
+
+                DB::commit();
+
+                if (empty($billExisted) && !$bill->isPaid) {
+                    app(AccountMailer::class)->notifyBillDue($bill);
+                }
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Bill has been created, redirecting...',
+                    'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
+                    'data' => [
+                        'reference_no' => $reference_no,
+                        'amount' => $amount,
+                        'customer' => $paymentPayload['customer']
+                    ]
+                ], 201);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Error occurred1: ' . $e->getMessage()
+                ], 500);
+            }
         }
 
 
-        session(['recent_reading' => [
-            'name' => $account->user->name ?? '',
-            'address' => $account->address ?? '',
-            'account_no' => $account->account_no ?? '',
-            'timestamp' => Carbon::now()
-        ]]);
+    private function appendMissingBillToNextUnpaidBill(string $accountNo, Carbon $missingDate, Bill $missingBill): void
+    {
+        $nextBill = Bill::where('isPaid', false)
+            ->where('id', '!=', $missingBill->id)
+            ->whereHas('reading', function ($query) use ($accountNo, $missingDate) {
+                $query->where('account_no', $accountNo)
+                    ->where('isReRead', false)
+                    ->where('created_at', '>', $missingDate->copy()->endOfMonth());
+            })
+            ->orderBy('bill_period_to')
+            ->first();
 
-        DB::commit();
+        if (!$nextBill) {
+            return;
+        }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Bill has been created, redirecting...',
-            'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
-            'data' => [
-                'reference_no' => $reference_no,
-                'amount' => $amount,
-                'customer' => $paymentPayload['customer']
-            ]
-        ], 201);
+        $createdAmount = (float) $missingBill->amount;
+        $previousBalance = BillBreakdown::firstOrNew([
+            'bill_id' => $nextBill->id,
+            'name' => 'Previous Balance',
+        ]);
+        $previousBalance->amount = round((float) ($previousBalance->amount ?? $nextBill->previous_unpaid ?? 0) + $createdAmount, 2);
+        $previousBalance->description = $previousBalance->description ?: 'Updated from missing historical bill';
+        $previousBalance->save();
 
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Reading Store Error:', ['exception' => $e]);
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Error occurred: ' . $e->getMessage()
-        ], 500);
+        $nextBill->update([
+            'previous_unpaid' => $previousBalance->amount,
+            'total' => round((float) $nextBill->total + $createdAmount, 2),
+            'amount' => round((float) $nextBill->amount + $createdAmount, 2),
+            'amount_after_due' => round((float) $nextBill->amount_after_due + $createdAmount, 2),
+        ]);
     }
-}
 
+    private function applyMissingBillOverrides(Bill $bill, array $payload): void
+    {
+        $fields = [
+            'bill_period_from' => 'missing_bill_period_from',
+            'bill_period_to' => 'missing_bill_period_to',
+            'previous_unpaid' => 'missing_previous_unpaid',
+            'total' => 'missing_total',
+            'discount' => 'missing_discount',
+            'penalty' => 'missing_penalty',
+            'amount' => 'missing_amount',
+            'amount_after_due' => 'missing_amount_after_due',
+            'amount_paid' => 'missing_amount_paid',
+            'change' => 'missing_change',
+            'partial_payment' => 'missing_partial_payment',
+            'advances' => 'missing_advances',
+            'date_paid' => 'missing_date_paid',
+            'due_date' => 'missing_due_date',
+            'isPaid' => 'missing_is_paid',
+            'isPartial' => 'missing_is_partial',
+            'isChangeForAdvancePayment' => 'missing_is_change_for_advance',
+        ];
+
+        $updates = [];
+        foreach ($fields as $billField => $payloadField) {
+            if (!array_key_exists($payloadField, $payload) || $payload[$payloadField] === '') {
+                continue;
+            }
+
+            $updates[$billField] = in_array($billField, ['isPaid', 'isPartial', 'isChangeForAdvancePayment'], true)
+                ? (int) filter_var($payload[$payloadField], FILTER_VALIDATE_BOOLEAN)
+                : $payload[$payloadField];
+        }
+
+        if (array_key_exists('missing_basic_charge', $payload)
+            && $payload['missing_basic_charge'] !== ''
+            && (!array_key_exists('missing_total', $payload) || $payload['missing_total'] === '')
+        ) {
+            $previousUnpaid = array_key_exists('missing_previous_unpaid', $payload)
+                ? (float) $payload['missing_previous_unpaid']
+                : (float) $bill->previous_unpaid;
+            $updates['total'] = round($previousUnpaid + (float) $payload['missing_basic_charge'], 2);
+        }
+
+        $previousUnpaid = array_key_exists('missing_previous_unpaid', $payload) && $payload['missing_previous_unpaid'] !== ''
+            ? (float) $payload['missing_previous_unpaid']
+            : (float) ($bill->previous_unpaid ?? 0);
+        $basicCharge = array_key_exists('missing_basic_charge', $payload) && $payload['missing_basic_charge'] !== ''
+            ? (float) $payload['missing_basic_charge']
+            : max((float) ($bill->total ?? 0) - $previousUnpaid, 0);
+        $discount = array_key_exists('missing_discount', $payload) && $payload['missing_discount'] !== ''
+            ? (float) $payload['missing_discount']
+            : (float) ($bill->discount ?? 0);
+        $advances = array_key_exists('missing_advances', $payload) && $payload['missing_advances'] !== ''
+            ? (float) $payload['missing_advances']
+            : (float) ($bill->advances ?? 0);
+        $penalty = round($basicCharge * 0.10, 2);
+        $total = round(max($basicCharge + $previousUnpaid - $discount - $advances, 0), 2);
+        $amount = round(max($basicCharge + $previousUnpaid - $discount + $penalty - $advances, 0), 2);
+
+        $updates['previous_unpaid'] = $previousUnpaid;
+        $updates['penalty'] = $penalty;
+        $updates['total'] = $total;
+        $updates['amount'] = $amount;
+        $updates['amount_after_due'] = $amount;
+
+        if ($updates) {
+            $bill->update($updates);
+        }
+    }
 
     private function convertAmount(float $amount): string
     {
@@ -422,58 +1192,10 @@ class ReadingController extends Controller
         }
     }
 
-    // private function generatePaymentQR(string $reference_no, array $payload) {
-
-    //     // $api = env('NOVUPAY_URL') . '/api/v1/save/transaction';
-    //     $api = 'http://localhost/api/v1/save/transaction';
-
-    //     $ch = curl_init($api);
-    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    //     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    //     curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    //         'Content-Type: application/json'
-    //     ]);
-    //     curl_setopt($ch, CURLOPT_POST, true);
-    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-
-    //     $response = curl_exec($ch);
-    //     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    //     $curlError = curl_errno($ch) ? curl_error($ch) : null;
-    //     curl_close($ch);
-
-    //     $decodedResponse = json_decode($response, true);
-
-    //     if(is_null($decodedResponse)) {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    //     if ($httpCode == 200) {
-
-    //         if ($decodedResponse['status'] == 'success' && isset($decodedResponse['reference_no'])) {
-    //             return true;
-    //         } else {
-    //             Log::error('error: ' . $decodedResponse);
-    //             return false;
-    //         }
-
-    //     } else {
-    //         Log::error('error: ' . $decodedResponse);
-    //         return false;
-    //     }
-
-    // }
-
     // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)
     {
-        // 🔹 Temporary stub for testing only
-        Log::info('generatePaymentQR TEST MODE', [
-            'reference_no' => $reference_no,
-            'payload' => $payload,
-        ]);
 
-        // Simulate a successful QR generation
         return [
             'status' => 'success',
             'reference_no' => $reference_no,
@@ -486,7 +1208,7 @@ class ReadingController extends Controller
 {
     $user = auth()->user();
 
-    if ($user->user_type === 'technician') {
+    if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
         $assignedZones = explode(',', $user->zone_assigned);
         $query->whereHas('account', function ($q) use ($assignedZones) {
             $q->whereIn('zone', $assignedZones);
@@ -518,8 +1240,6 @@ class ReadingController extends Controller
 
     public function create_breakdown(array $data) {
         try {
-            // Log inputs for debugging
-            Log::info('Creating breakdown with data:', $data);
 
             $rate = Rates::where('property_types_id', $data['property_types_id'])
             ->where('cu_m', '<=', $data['consumption'])
@@ -527,9 +1247,7 @@ class ReadingController extends Controller
             ->first();
 
         if (!$rate) {
-            Log::warning("No rate found for property type {$data['property_types_id']} and consumption {$data['consumption']}");
 
-            // Optional: fallback rate
             $rate = Rates::where('property_types_id', $data['property_types_id'])
                 ->orderBy('cu_m', 'desc')
                 ->first();
@@ -552,7 +1270,6 @@ class ReadingController extends Controller
             ]
         ];
         } catch (\Exception $e) {
-            Log::error('create_breakdown failed', ['error' => $e->getMessage()]);
 
             return [
                 'status' => 'error',
@@ -561,6 +1278,34 @@ class ReadingController extends Controller
         }
     }
 
+    public function orWalkinShow(string $reference_no)
+    {
+        $data = $this->meterService::getBill($reference_no);
+
+        if (isset($data['status']) && $data['status'] === 'error') {
+            return redirect()->route('reading.index')->with('alert', [
+                'status' => 'error',
+                'message' => 'Bill Not Found'
+            ]);
+        }
+
+        // 🔑 Property type from concessioner_accounts
+        $propertyType = strtoupper(
+            $data['current_bill']['reading']['concessioner_account']['property_type'] ?? ''
+        );
+
+        // 🧮 Walk-in fee logic
+        $isResidential = str_contains($propertyType, 'RESIDENTIAL 1/2');
+
+        $walkInFee = $isResidential ? 8.00 : 23.00;
+
+        return view('reading.orwalkin', [
+            'data'         => $data,
+            'reference_no' => $reference_no,
+            'walkInFee'    => $walkInFee,
+            'propertyType' => $propertyType,
+        ]);
+    }
 
 
 }

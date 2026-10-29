@@ -16,6 +16,8 @@ use App\Imports\RateCodesImport;
 use App\Imports\StatusCodeImport;
 use App\Imports\ClientInformationImport;
 use App\Imports\SettingsImport;
+use App\Imports\SequenceImport;
+
 
 class ImportController extends Controller
 {
@@ -36,6 +38,7 @@ class ImportController extends Controller
         $spreadsheet = IOFactory::load($file->getRealPath());
         $sheetNames = $spreadsheet->getSheetNames();
         $filename = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+        $isSequenceFile = str_contains($filename, 'sequence');
 
         $sheetToProcessMap = [
             'client informations'         => 'client_informations',
@@ -47,7 +50,8 @@ class ImportController extends Controller
             'concessionaire informations' => 'concessionaire',
             'concessionaire'              => 'concessionaire',
             'sc discount'                 => 'sc_discount',
-            'senior citizen discount'     => 'sc_discount',
+            'discount'                    => 'sc_discount',
+            'discounts'                   => 'sc_discount',
             'advances'                    => 'advances',
             'outstanding balance'         => 'outstanding_balance',
             'rates code'                  => 'rates_code',
@@ -86,7 +90,7 @@ class ImportController extends Controller
                 'import_class' => \App\Imports\OutstandingBalanceImport::class,
             ],
             'sc_discount' => [
-                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date'],
+                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date', 'type'],
                 'import_class' => SCDiscountImport::class,
             ],
             'rates_code' => [

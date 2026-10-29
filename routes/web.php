@@ -6,6 +6,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PaymentBreakdownController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PaymentConsolidationController;
+use App\Http\Controllers\NovuPayController;
+use App\Http\Controllers\HitpayController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyTypesController;
 use App\Http\Controllers\RoleController;
@@ -16,7 +19,25 @@ use App\Http\Controllers\RatesController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\ImportController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\ReportsController;
+use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\OfflineSyncController;
+use App\Http\Controllers\OfflineDataController;
+use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\NovupaySyncController;
+use App\Http\Controllers\OfflineReadingsController;
+use App\Http\Controllers\PenaltyExemptionController;
+use App\Http\Controllers\ReadingDateController;
+use App\Http\Controllers\InstallmentController;
+use App\Http\Controllers\ServiceApplicationController;
+use App\Http\Controllers\RegistrantDocumentController;
+use App\Http\Controllers\GuideController;
+use App\Http\Controllers\Admin\ReadingAdjustmentController;
+use App\Http\Controllers\Admin\BillingAdjustmentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +50,20 @@ use App\Http\Controllers\Auth\RegisterController;
 |
 */
 
+Route::get('/app-version', function () {
+    $path = public_path('app-version.json');
+    if (!is_readable($path)) {
+        $path = public_path('app-version');
+    }
+    if (is_readable($path)) {
+        $data = json_decode(file_get_contents($path), true);
+        if (is_array($data)) {
+            return response()->json($data)->header('Cache-Control', 'no-store');
+        }
+    }
+    return response()->json(['error' => 'No version info'], 404);
+});
+
 Route::get('/', function () {
     return redirect()->to('/login');
 });
@@ -38,8 +73,14 @@ Route::get('/login', [LoginController::class, 'index'])
 
 Route::post('/login', [LoginController::class, 'login'])
     ->name('auth.login');
-
-Route::get('/login', [LoginController::class, 'index']);
+Route::get('/login/verify', [LoginController::class, 'showLoginVerification'])
+    ->name('login.verify');
+Route::post('/login/verify', [LoginController::class, 'verifyLoginOtp'])
+    ->middleware('throttle:10,1')
+    ->name('login.verify.store');
+Route::post('/login/verify/resend', [LoginController::class, 'resendLoginOtp'])
+    ->middleware('throttle:3,1')
+    ->name('login.verify.resend');
 
 Route::any('/logout', [LoginController::class, 'logout'])
     ->name('auth.logout');
@@ -52,10 +93,39 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])
 Route::post('/register', [RegisterController::class, 'register'])
     ->name('auth.register.store');
 
-Route::middleware('admin')->prefix('admin')->group(function () {
+Route::get('/register/verify', [RegisterController::class, 'showVerification'])
+    ->name('register.verify');
+Route::post('/register/verify', [RegisterController::class, 'verifyOtp'])
+    ->middleware('throttle:10,1')
+    ->name('register.verify.store');
+Route::post('/register/verify/resend', [RegisterController::class, 'resendOtp'])
+    ->middleware('throttle:3,1')
+    ->name('register.verify.resend');
+
+Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkRequestForm'])
+    ->name('password.request');
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])
+    ->name('password.email');
+Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showResetForm'])
+    ->name('password.reset');
+Route::post('/reset-password', [ResetPasswordController::class, 'reset'])
+    ->name('password.update');
+
+Route::get('/email/verify', [VerificationController::class, 'show'])
+    ->name('verification.notice');
+Route::get('/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])
+    ->name('verification.verify');
+Route::post('/email/verification-notification', [VerificationController::class, 'resend'])
+    ->name('verification.resend');
+
+
+Route::middleware('auth:admins')->prefix('admin')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('/guide', [GuideController::class, 'index'])
+        ->name('guide.index');
 
     Route::get('reading', [ReadingController::class, 'index'])
         ->name('reading.index');
@@ -69,14 +139,129 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::get('reading/bill/{reference_no}', [ReadingController::class, 'show'])
         ->name('reading.show');
 
+    Route::get('reading/invoice/{reference_no}', [ReadingController::class, 'invoice'])
+        ->name('reading.invoice');
+
+    Route::get('/reading/or-walkin/{reference_no}', [ReadingController::class, 'orWalkinShow'])
+    ->name('reading.or.walkin');
+
+    Route::get('/reading/or/{reference_no}', [ReadingController::class, 'orShow'])
+        ->name('reading.orshow');
+
+    Route::get('/reports/download', [ReportsController::class, 'downloadSummary'])
+    ->name('reports.download');
+
     Route::get('reading/reports', [ReadingController::class, 'report'])
         ->name('reading.report');
+
+    Route::get('/reports/download', [ReportsController::class, 'filterAndDownload'])
+        ->name('reports.download');
+
+    Route::get('/reports/download', [ReportsController::class, 'downloadSummary'])
+        ->name('reports.download');
+
+    Route::get('/reports/downloadable-files', [ReportsController::class, 'downloadFilesIndex'])
+        ->name('reports.download-index');
+
+    Route::get('/reports/download/ageing/detailed', [ReportsController::class, 'downloadAgeingDetailed'])
+        ->name('reports.download.ageing.detailed');
+
+    Route::get('/reports/download/penalty/detailed', [ReportsController::class, 'downloadPenaltyDetailed'])
+        ->name('reports.download.penalty.detailed');
+
+    Route::get('/reports/download/franchise-tax/detailed', [ReportsController::class, 'downloadFranchiseTaxDetailed'])
+        ->name('reports.download.franchise-tax.detailed');
+
+    Route::get('/reports/download/disconnected-concessionaires', [ReportsController::class, 'downloadDisconnectedConcessionaires'])
+        ->name('reports.download.disconnected-concessionaires');
+
+    Route::get('/reports/download/ageing/summary', [ReportsController::class, 'downloadAgeingSummary'])
+        ->name('reports.download.ageing.summary');
+
+    Route::get('/reports/download/penalty/summary', [ReportsController::class, 'downloadPenaltySummary'])
+        ->name('reports.download.penalty.summary');
+
+    Route::get('/reports/download-options', [ReportsController::class, 'downloadFilesIndex'])->name('reports.download.index');
+    Route::post('/reports/download-generate', [ReportsController::class, 'generateFile'])->name('reports.download.generate');
+
+    Route::resource('penalty-exemption', PenaltyExemptionController::class)
+    ->except(['create', 'edit', 'show']);
+
+    Route::resource('reading-dates', ReadingDateController::class)
+    ->except(['create', 'show']);
+
+    Route::post('reading-dates/simulate-month', [ReadingDateController::class, 'simulateMonth'])
+        ->name('reading-dates.simulate-month');
+    Route::post('reading-dates/restore-calendar-month', [ReadingDateController::class, 'restoreCalendarMonth'])
+        ->name('reading-dates.restore-calendar-month');
+
+    Route::get('/admin/installment/details/{id}',
+    [InstallmentController::class,'details'])
+    ->name('installment.details');
+
+    Route::post('/installment/store', [InstallmentController::class,'store'])
+    ->name('installment.store');
+
+    Route::put('/installment/{installment}', [InstallmentController::class,'update'])
+    ->name('installment.update');
+
+    Route::delete('/installment/{installment}', [InstallmentController::class,'destroy'])
+    ->name('installment.destroy');
+
+    Route::get('/installment/bills-by-account', [InstallmentController::class,'getBillsByAccount'])
+    ->name('installment.bills.by.account');
+
+    Route::get('/installment', [InstallmentController::class,'index'])
+    ->name('installment.index');
 
     Route::prefix('users')->group(function() {
 
         Route::resource('roles', RoleController::class)
             ->names('roles')
             ->only('index', 'destroy');
+
+        Route::get('registrants', [ConcessionaireController::class, 'registrants'])
+            ->name('registrants.index');
+
+        Route::get('registrants/{account}/form', [RegistrantDocumentController::class, 'applicationForm'])
+            ->name('registrants.form');
+
+        Route::get('registrants/{account}/document/{field}', [RegistrantDocumentController::class, 'viewRegistrantDocument'])
+            ->name('registrants.document');
+
+        Route::get('registrants/{account}/documents', [RegistrantDocumentController::class, 'downloadRegistrantDocuments'])
+            ->name('registrants.documents');
+
+        Route::get('account-links/{link}/document/{field}', [RegistrantDocumentController::class, 'viewAccountLinkDocument'])
+            ->name('account-links.document');
+
+        Route::get('applications/{application}/contract', [ServiceApplicationController::class, 'contract'])
+            ->name('admin.application.contract');
+
+        Route::get('applications/{application}/contract/print', [ServiceApplicationController::class, 'printContract'])
+            ->name('admin.application.contract.print');
+
+        Route::get('registrants/{account}/complete', [ConcessionaireController::class, 'completeRegistrant'])
+            ->name('registrants.complete');
+
+        Route::patch('registrants/{account}/approve', [ConcessionaireController::class, 'approveApplication'])
+            ->name('registrants.approve');
+
+        Route::patch('registrants/{account}/deny', [ConcessionaireController::class, 'denyApplication'])
+            ->name('registrants.deny');
+
+        Route::patch('account-links/{link}/approve', [ConcessionaireController::class, 'approveAccountLink'])
+            ->name('account-links.approve');
+
+        Route::get('account-links/{link}/documents', [ConcessionaireController::class, 'downloadAccountLinkDocuments'])
+            ->name('account-links.documents');
+
+        Route::patch('account-links/{link}/deny', [ConcessionaireController::class, 'denyAccountLink'])
+            ->name('account-links.deny');
+
+        Route::get('concessionaires/{account}/activation-review', [ConcessionaireController::class, 'activationReview'])
+            ->whereNumber('account')
+            ->name('concessionaires.activation-review');
 
         Route::resource('concessionaires', ConcessionaireController::class)
             ->names('concessionaires')
@@ -92,12 +277,28 @@ Route::middleware('admin')->prefix('admin')->group(function () {
     Route::prefix('payments')->group(function() {
         Route::get('', [PaymentController::class, 'index'])
             ->name('payments.index');
+        Route::get('consolidation', [PaymentConsolidationController::class, 'index'])
+            ->name('payments.consolidation.index');
+        Route::get('consolidation/export', [PaymentConsolidationController::class, 'export'])
+            ->name('payments.consolidation.export');
+        Route::get('consolidation/{billId}/receipt', [PaymentConsolidationController::class, 'receipt'])
+            ->whereNumber('billId')
+            ->name('payments.consolidation.receipt');
         Route::any('previous-billing', [PaymentController::class, 'upload'])
             ->name('previous-billing.upload');
-        Route::get('process/{reference_no}', [PaymentController::class, 'pay'])
+        Route::match(['get', 'post'], 'process/{reference_no}', [PaymentController::class, 'pay'])
             ->name('payments.pay');
-        Route::post('process/{reference_no}', [PaymentController::class, 'pay'])
-            ->name('payments.pay');
+
+
+    Route::get('/admin/payments/application-fees', [PaymentController::class, 'applicationFees'])
+    ->name('payments.application-fees.index');
+
+    Route::match(['get', 'post'], '/admin/payments/application-fees/{application}/pay', [PaymentController::class, 'payApplicationFee'])
+    ->name('payments.application-fees.pay');
+
+    Route::post('/payments/{reference_no}/apply-discount', [PaymentController::class, 'applyDiscount'])
+        ->name('payments.applyDiscount');
+
     });
 
     Route::prefix('settings')->group(function() {
@@ -114,8 +315,46 @@ Route::middleware('admin')->prefix('admin')->group(function () {
 
         Route::resource('payment-breakdown', PaymentBreakdownController::class)
             ->names('payment-breakdown');
+
+        Route::get('online-payments', [NovupaySyncController::class, 'index'])
+            ->name('online-payments.index');
+        Route::get('offline-readings', [OfflineReadingsController::class, 'index'])
+            ->name('offline-readings.index');
     });
 
+
+    // web.php
+    Route::middleware(['auth'])->group(function () {
+
+        Route::get('/concessionaires/ledger',
+            [LedgerController::class, 'index']
+        )->name('ledger.index');
+
+        Route::get('/concessionaires/{concessionaire}/ledger',
+            [LedgerController::class, 'show']
+        )->name('concessionaires.ledger');
+
+    });
+
+    Route::prefix('admins/reading-adjustments')
+        ->name('admins.reading-adjustments.')
+        ->group(function () {
+
+        Route::get('/', [ReadingAdjustmentController::class, 'index'])->name('index');
+        Route::post('/create-initial', [ReadingAdjustmentController::class, 'createInitial'])->name('create-initial');
+        Route::get('/{id}/edit', [ReadingAdjustmentController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [ReadingAdjustmentController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ReadingAdjustmentController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('admins/billing-adjustments')
+        ->name('admins.billing-adjustments.')
+        ->group(function () {
+
+        Route::get('/', [BillingAdjustmentController::class, 'index'])->name('index');
+        Route::put('/{id}', [BillingAdjustmentController::class, 'update'])->name('update');
+        Route::delete('/{id}', [BillingAdjustmentController::class, 'destroy'])->name('destroy');
+    });
 
     Route::get('/transactions', [ConcessionaireController::class, 'index'])
         ->name('transactions');
@@ -140,16 +379,55 @@ Route::middleware('admin')->prefix('admin')->group(function () {
         });
     });
 
+    Route::get('/payments-ready-to-sync', [NovupaySyncController::class, 'paymentsReadyToSync'])
+        ->name('admin.payments-ready-to-sync');
+    Route::get('/recent-synced-payments', [NovupaySyncController::class, 'recentSyncedPayments'])
+        ->name('admin.recent-synced-payments');
+    Route::get('/download-recent-synced-payments', [NovupaySyncController::class, 'downloadRecentSyncedPayments'])
+        ->name('admin.download-recent-synced-payments');
+    Route::post('/sync-online-payments', [NovupaySyncController::class, 'syncOnlinePayments'])
+        ->name('admin.sync-online-payments');
+
+    Route::get('/readings-ready-to-merge', [OfflineReadingsController::class, 'readingsReadyToMerge'])
+        ->name('admin.readings-ready-to-merge');
+    Route::post('/run-merge', [OfflineReadingsController::class, 'runMerge'])
+        ->name('admin.run-merge');
+    Route::get('/recent-merged-readings', [OfflineReadingsController::class, 'recentMerged'])
+        ->name('admin.recent-merged-readings');
+
+    Route::get('/sync-novupay-to-starita', function () {
+        try {
+            Artisan::call('novupay:sync-readings', ['--limit' => 500]);
+            $syncOutput = Artisan::output();
+            Artisan::call('readings:merge', ['--limit' => 500]);
+            $mergeOutput = Artisan::output();
+            return redirect()
+                ->back()
+                ->with('status', 'Novupay sync to Sta-Rita completed. ' . trim($syncOutput) . ' | Merge: ' . trim($mergeOutput));
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Sync failed: ' . $e->getMessage());
+        }
+    })->name('admin.sync-novupay-to-starita');
+
 });
 
 Route::middleware('auth')->prefix('concessionaire')->group(function() {
+    Route::get('guide', [GuideController::class, 'concessionaire'])
+        ->name('guide.concessionaire');
+
     Route::prefix('my')->group(function() {
         Route::get('overview', [AccountOverviewController::class, 'index'])
             ->name('account-overview.index');
+        Route::post('overview/accounts', [AccountOverviewController::class, 'addAccount'])
+            ->name('account-overview.accounts.store');
         Route::get('bills', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills');
         Route::get('bills/{reference_no?}', [AccountOverviewController::class, 'bills'])
             ->name('account-overview.bills.reference_no');
+        Route::get('documents/{application}/{field}', [RegistrantDocumentController::class, 'viewApplicationDocument'])
+            ->name('account-overview.application-document');
     });
 
     Route::prefix('/support')->group(function() {
@@ -172,3 +450,97 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
+
+Route::delete('reading-dates/destroy-all', [ReadingDateController::class, 'destroyAll'])
+->name('reading-dates.destroy-all');
+
+Route::post('/payments/hitpay/create', [PaymentController::class, 'createHitPayPayment'])->name('payments.hitpay.create');
+Route::get('/payments/hitpay/callback', [PaymentController::class, 'hitpayCallback'])->name('payments.hitpay.callback');
+Route::post('/payments/hitpay/webhook', [PaymentController::class, 'hitpayWebhook'])->name('payments.hitpay.webhook');
+Route::get('/payments/redirect', [PaymentController::class, 'handleRedirect'])->name('payments.redirect');
+Route::get('/payments/qr-voided/{reference_no}', [PaymentController::class, 'showQrVoided'])->name('payments.qr-voided');
+Route::post('/webhooks/novupay', \App\Http\Controllers\NovuPayWebhookController::class)->name('webhooks.novupay');
+Route::get('/payments/novupay/return', \App\Http\Controllers\NovuPayReturnController::class)->name('payments.novupay.return');
+
+Route::post('/webhooks/novupay', [NovuPayController::class, 'webhook'])->name('webhooks.novupay');
+Route::get('/payments/{reference_no}/checkout', [NovuPayController::class, 'checkout'])
+    ->middleware('throttle:20,1')
+    ->name('payments.novupay.checkout');
+Route::get('/orders/{id}/complete', [NovuPayController::class, 'complete'])
+    ->whereNumber('id')
+    ->name('orders.complete');
+
+
+// Route::get('/payments/redirect', [HitpayController::class, 'redirect'])->name('hitpay.redirect');
+
+Route::put(
+    '/service-applications/{serviceApplication}/documents/replace',
+    [ServiceApplicationController::class, 'replaceDocument']
+)->name('service-application.documents.replace');
+// Offline Sync Routes
+
+Route::post('/readings', [OfflineSyncController::class, 'store']);
+Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
+
+Route::get('/admin/offline/download', [OfflineSyncController::class, 'download'])
+    ->name('offline.download')
+    ->middleware('auth');
+
+
+Route::get('/payment/test-status', function () {
+    return view('payments.status', [
+        'payload' => [
+            'title' => 'Test Payment',
+            'message' => 'This is a sample payment status screen.',
+            'amount' => '123.45',
+            'reference_no' => 'NOV-PELCO-TEST',
+            'status' => 'paid',
+            'date_paid' => now()->format('M d, Y h:i A'),
+            'payment_id' => 'PAY-TEST-001'
+        ]
+    ]);
+});
+
+
+    Route::middleware('auth')->group(function () {
+
+        Route::get('/application/create',
+            [ServiceApplicationController::class,'create'])
+            ->name('application.create');
+
+        Route::post('/application',
+            [ServiceApplicationController::class,'store'])
+            ->name('application.store');
+
+        Route::get('/application/print', function () {
+            return view('application.print');
+        })->name('application.print.preview');
+
+        Route::get('/application/contract', function () {
+            return view('application.contract');
+        })->name('application.contract.preview');
+
+        Route::get('/application/{application}/print',
+            [ServiceApplicationController::class, 'print'])
+            ->name('application.print');
+
+        Route::get('/application/{application}/contract/print',
+            [ServiceApplicationController::class, 'printContract'])
+            ->name('application.contract.print');
+
+        Route::get('/application/{application}/contract',
+            [ServiceApplicationController::class, 'contract'])
+            ->name('application.contract');
+
+        Route::post('/application/{application}/boring-permit',
+            [ServiceApplicationController::class, 'uploadBoringPermit'])
+            ->name('application.boring-permit.upload');
+
+        Route::get('/application/{application}',
+            [ServiceApplicationController::class, 'show'])
+            ->name('application.show');
+
+    });
+
+
+Route::get('/offline/download', [OfflineSyncController::class, 'download']);

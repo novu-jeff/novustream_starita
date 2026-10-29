@@ -51,10 +51,16 @@ return new class extends Migration
                 ->default(0);
             $table->string('amount_paid')
                 ->nullable();
-            $table->string('change')
-                ->nullable();
             $table->boolean('isPaid')
                 ->default(false);
+            $table->boolean('isInstallment')
+                ->default(false);
+            $table->string('partial_payment')
+                ->nullable();
+            $table->boolean('isPartial')
+                ->default(false);
+            $table->string('change')
+                ->nullable();
             $table->boolean('hasPenalty')
                 ->default(false);
             $table->string('advances')
@@ -67,14 +73,21 @@ return new class extends Migration
                 ->nullable();
             $table->string('due_date')
                 ->nullable();
+            $table->string('penalty_date')
+                ->nullable();
             $table->string('payor_name')
                 ->nullable();
             $table->string('paid_by_reference_no')
                 ->nullable();
+            $table->foreignId('cashier_id')
+                ->nullable()
+                ->constrained('admins')
+                ->onDelete('set null');
             $table->boolean('isChangeForAdvancePayment')
                 ->default(false);
             $table->boolean('isHighConsumption')
                 ->default(false);
+            $table->text('high_consumption_note')->nullable();
             $table->enum('payment_method', ['cash', 'online'])
                 ->nullable();
             $table->timestamps();

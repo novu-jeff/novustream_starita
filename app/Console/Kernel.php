@@ -12,7 +12,19 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Sync online payments every minute. Output goes to a dedicated log (not laravel.log).
+        $syncLog = storage_path('logs/online-payments-sync.log');
+        $schedule->command('online-payments:sync --limit=500')
+            ->everyMinute()
+            ->withoutOverlapping(2)
+            ->appendOutputTo($syncLog)
+            ->runInBackground();
+
+        $schedule->command('novupay:reconcile-paid --limit=100')
+            ->everyFiveMinutes()
+            ->withoutOverlapping(4)
+            ->appendOutputTo($syncLog)
+            ->runInBackground();
     }
 
     /**

@@ -81,7 +81,7 @@
 
 @section('script')
 <script>
-    
+
     $(function() {
 
         @if (session('alert'))
@@ -94,7 +94,7 @@
         $(document).on('click', '.btn-view', function() {
 
             const id = $(this).data('id');
-            const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'client'); 
+            const prefix = @json(Auth::guard('admins')->check() ? 'admin' : 'client');
             const url = `{{ url('${prefix}/support-ticket') }}/${id}`;
 
             show(url)
@@ -102,7 +102,7 @@
                 if(response.status == 'success') {
                 view(response.data)
                 }
-            }) 
+            })
             .catch(function(error) {
                 Swal.fire({
                 title: 'Error occurred',
@@ -129,7 +129,7 @@
         }
 
         function view(data) {
-            
+
             let div = `
                 <div class="modal fade" id="viewInfo" tabindex="-1">
                     <div class="modal-dialog modal-md modal-dialog-scrollable">
@@ -189,7 +189,7 @@
                 $(this).remove();
             });
 
-            }  
+            }
 
         });
 </script>

@@ -24,9 +24,13 @@
                 @endif
 
                 @if($viewer == 'receipt')
-                    <div class="print-controls d-md-flex justify-content-center text-center text-center gap-4 mt-5 mb-3">
+                    <div class="print-controls d-flex align-items-start justify-content-between gap-4 mt-5 mb-3">
                         @php
-                            $backUrl = route('account-overview.bills', ['account_no' => $data['client']['account_no'], 'view' => 'unpaid']);
+                            $backView = !empty($data['current_bill']['isPaid']) ? 'paid' : 'unpaid';
+                            $backUrl = route('account-overview.bills', [
+                                'account_no' => $data['client']['account_no'],
+                                'view' => $backView,
+                            ]);
                         @endphp
 
                         <a href="{{ $backUrl }}"
@@ -35,14 +39,24 @@
                             <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
                         </a>
 
-                        <button
-                            class="download-js btn btn-primary px-5 py-3 text-uppercase"
-                            data-target="#bill"
-                            data-filename="{{$data['current_bill']['reference_no']}}"
-                            style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
-                            <i style="font-size: 18px;" class='bx bxs-download'></i> Download
-                        </button>
-
+                        <div class="d-flex flex-column align-items-end gap-3">
+                            <button
+                                class="download-js btn btn-primary px-5 py-3 text-uppercase"
+                                data-target="#bill"
+                                data-filename="{{$data['current_bill']['reference_no']}}"
+                                style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                                <i style="font-size: 18px;" class='bx bxs-download'></i> Download
+                            </button>
+                            @if($data['current_bill']['isPaid'])
+                                <span class="text-uppercase fw-bold" style="font-size: 0.9rem; background-color: #198754; color: white; padding: 1rem 4.9rem; text-transform: uppercase; display: flex; align-items: center; border: none; font-weight: bold; gap: 0.5rem;"><i class="fa-solid fa-money-check-dollar" style="color: white;"></i>PAID</span>
+                            @elseif(!empty($payment_url))
+                                <a href="{{ $payment_url }}"
+                                    target="_blank"
+                                    class="btn btn-success px-5 py-3 text-uppercase fw-bold">
+                                    <i class="bx bx-credit-card"></i> Pay Online
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 @endif
             </div>
@@ -81,7 +95,7 @@
                                     { data: 'address', name: 'address' },
                                     { data: 'property_type', name: 'property_type' },
                                     { data: 'date_connected', name: 'date_connected' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false },
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -115,7 +129,7 @@
                                 <th>Billing Period</th>
                                 <th>Bill Date</th>
                                 <th>Amount</th>
-                                <th>Due Date</th>
+                                <th>Date Paid</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -123,6 +137,11 @@
                         <tbody>
                         </tbody>
                     </table>
+                    <form id="paymentForm" method="POST" action="">
+                        @csrf
+                        <input type="hidden" name="payment_type" id="payment_type" value="">
+                    </form>
+
                 </div>
                 @section('script')
                     <script>
@@ -144,9 +163,15 @@
                                     { data: 'billing_period', name: 'billing_period' },
                                     { data: 'bill_date', name: 'bill_date' },
                                     { data: 'amount', name: 'amount' },
-                                    { data: 'due_date', name: 'due_date' },
+                                    {
+                                        data: 'date_paid',
+                                        name: 'date_paid',
+                                        render: function(data, type, row) {
+                                            return data ? data.split(' ')[0] : '';
+                                        }
+                                    },
                                     { data: 'status', name: 'status' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false },
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -157,33 +182,28 @@
                 @endsection
             @endif
 
+
             @if($viewer == 'receipt')
-                <div style="padding-bottom: 50px; margin-top: 50px">
+                <div style="padding-bottom: 50px padding-top: 50px">
                     <div id="bill" style="margin-top: 30px">
-                        <div class="bill-container">
+                        <div class="bill-container d-flex flex-row align-items-start">
                             <div style="position: relative; width: 100%; max-width: 450px; margin: 0 auto; padding: 25px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
-                                @if($data['current_bill']['isPaid'] == true)
-                                    <div class="isPaid" style="padding: 10px 30px 10px 30px; position: absolute; right: -10px; top: 4px; text-transform: uppercase; color: red; letter-spacing: 3px; font-size: 12px; font-weight: 600">
-                                        PAID
-                                    </div>
-                                @endif
                                 @php
                                     $logoPath = public_path('images/client.png');
 
                                     $base64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
                                 @endphp
 
-                                <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                                <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 5px;">
                                     <div>
                                         <img src="{{ asset('images/client.png')}}"
-                                            style="width: 90px; margin: 0 auto 10px auto"
-                                            alt="logo" class="web-logo">
+                                            alt="logo" class="web-logo" style="width: 8rem; height: 8rem;">
                                     </div>
                                     <div style="width: fit-content;">
                                         <p style="font-size: 11px; text-transform: uppercase; margin: 0; font-weight: 600">Republic of the Philippines</p>
                                         <p style="font-size: 15px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Sta. Rita Water District</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 3px 0 0 0;">Zone 6 Dila-Dila, Santa Rita, Pampanga</p>
-                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Tel No. </p>
+                                        <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Facebook Page: Sta. Rita Water District</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 0917-103-2421 | 0917-104-7196</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 261-304-832-000 Non VAT</p>
                                     </div>
@@ -194,8 +214,8 @@
                                 <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                 <div>
                                     <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
-                                        <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
-                                            <div style="font-size: 20px; font-weight: 600">Account No.</div>
+                                        <div class="oversized" style="margin: 4px 0 0 0; display: flex; gap: 5px; align-items: center;">
+                                            <div style="font-size: 20px; font-weight: 600">Account No. </div>
                                             <div style="font-size: 20px; font-weight: 600">{{$data['client']['account_no'] ?? ''}}</div>
                                         </div>
                                         <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
@@ -227,15 +247,15 @@
                                             <div>Due Date</div>
                                             <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
                                         </div>
-                                        <div style="text-align: center; margin: 10px 0 10px 0; font-size: 12px; font-weight: 600; font-style: italic; color:rgb(91, 91, 91)">
-                                            <ul style="list-style: none !important;">
+                                        <!-- <div class="oversized-2" style="text-align: center; margin: 10px 0 10px 0; font-size: 10px; font-weight: 800; font-style: italic; color:rgb(91, 91, 91)">
+                                            <ul style="list-style: none !important">
                                                 <li>> Office - Last working day of the month</li>
                                                 <li>> Online - Last day of the month</li>
                                             </ul>
-                                        </div>
+                                        </div> -->
                                         <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                             <div>Disconnection Date</div>
-                                            <div>{{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}</div>
+                                            <div>{{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDays(7)->format('m/d/Y') }}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -249,20 +269,18 @@
                                         <div style="text-transform: uppercase">Present Reading</div>
                                         <div style="text-transform: uppercase">{{$data['current_bill']['reading']['present_reading'] ?? '0'}}</div>
                                     </div>
-                                    <div style="display: flex; justify-content: space-between; margin-top: 5px">
+                                    <div class="oversized" style="display: flex; justify-content: space-between; margin-top: 5px">
                                         <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Cub. M Used</div>
                                         <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                                     </div>
                                 </div>
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div>
-
                                     @php
                                         $breakdown = collect($data['current_bill']['breakdown']);
                                         $arrears = $breakdown->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
                                         $deductions = $breakdown->reject(fn($item) => $item['name'] === 'Previous Balance')->values();
                                     @endphp
-
 
                                     @forelse($deductions as $deduction)
                                         @php
@@ -284,15 +302,7 @@
                                     @endphp
 
                                     @forelse($discounts as $discount)
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <div style="text-transform: uppercase">{{$discount['name']}}</div>
-                                            <div style="text-transform: uppercase">({{$discount['amount']}})</div>
-                                        </div>
-                                    @empty
 
-                                    @endforelse
-
-                                    @forelse($discounts as $discount)
                                         <div style="display: flex; justify-content: space-between;">
                                             <div style="text-transform: uppercase">{{$discount['name']}}</div>
                                             <div style="text-transform: uppercase">- ({{$discount['amount']}})</div>
@@ -303,29 +313,68 @@
                                     @if(!empty($data['current_bill']['advances']))
                                         <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                             <div>Advances</div>
-                                            <div>- ({{$data['current_bill']['advances']}})</div>
+                                            <div>- ({{number_format($data['current_bill']['advances'], 2)}})</div>
                                         </div>
                                     @endif
-                                    <div style="display: flex; justify-content: space-between;">
-                                        <div style="text-transform: uppercase;">2% Franchise Tax:</div>
-                                        <div style="text-transform: uppercase;">0</div>
+                                </div>
+                                @php
+                                    $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                                    $discount = 0;
+                                        if (isset($data['current_bill']['discount'])) {
+                                            if (is_array($data['current_bill']['discount'])) {
+                                                $discount = collect($data['current_bill']['discount'])->sum('amount');
+                                            } else {
+                                                $discount = (float) $data['current_bill']['discount'];
+                                            }
+                                        }
+                                    $penalty = (float)($data['current_bill']['penalty'] ?? 0);
+                                    $dueDate = isset($data['current_bill']['due_date'])
+                                        ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
+                                        : null;
+
+                                    $today = \Carbon\Carbon::today();
+
+                                    $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
+                                @endphp
+
+                                @php
+                                    $prevUnpaid = $data['current_bill']['previous_unpaid'];
+                                    $advances = $data['current_bill']['advances'];
+                                    $isPaid = $data['current_bill']['isPaid'];
+
+                                    $advance = min(
+                                        (float) $advances,
+                                        max(0, (float) $data['current_bill']['total'] - (float) $discount - (float) ($franchise->amount ?? 0))
+                                    );
+
+                                    $amountDue = (float) $data['current_bill']['total']
+                                                - (float) $discount
+                                                - (float) $advance
+                                                - (float) ($franchise->amount ?? 0);
+
+                                    $amountDue = max(0, $amountDue);
+
+                                    $amountAfter = (float) $data['current_bill']['amount'] - (float) $advance;
+                                    $amountAfter = max(0, $amountAfter);
+                                @endphp
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
+                                <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
+                                    <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
+                                    <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">
+                                        {{number_format($data['current_bill']['total'] - $data['current_bill']['previous_unpaid'], 2)}}
                                     </div>
                                 </div>
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
-                                <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
-                                    <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
-                                    <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
-                                </div>
-                                @if($arrears != 0)
+
+                                @if($prevUnpaid != 0)
                                     <div style="display: flex; justify-content: space-between;">
                                         <div style="text-transform: uppercase;">Arrears:</div>
-                                        <div style="text-transform: uppercase;">{{$arrears}}</div>
+                                        <div style="text-transform: uppercase;">{{$prevUnpaid}}</div>
                                     </div>
                                 @endif
                                 <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
-                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
+                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{ number_format($amountDue, 2) }}</div>
                                 </div>
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase;">Payment After Due Date</div>
@@ -334,25 +383,19 @@
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase;">Penalty Date: </div>
                                     <div style="text-transform: uppercase;">
-                                        @if($data['current_bill']['hasPenalty'])
-                                            {{\Carbon\Carbon::parse($data['current_bill']['due_date'])->format('m/d/Y')}}
-                                        @endif
+                                        {{ \Carbon\Carbon::parse($data['current_bill']['due_date'])->addDay()->format('m/d/Y') }}
                                     </div>
                                 </div>
                                 <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase;">Penalty Amt: </div>
                                     <div style="text-transform: uppercase;">
-                                        @if($data['current_bill']['hasPenalty'])
-                                            {{number_format($data['current_bill']['penalty'], 2)}}
-                                        @endif
+                                        {{number_format($data['current_bill']['penalty'], 2)}}
                                     </div>
                                 </div>
-                                <div style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
-                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount After Due:</div>
-                                    <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">
-                                        @if($data['current_bill']['hasPenalty'])
-                                            {{number_format($data['current_bill']['amount_after_due'], 2)}}
-                                        @endif
+                                <div class="oversized" style="margin: 5px 0 0 0; display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="text-transform: uppercase; font-size: 20px;">Amount After Due:</div>
+                                    <div style="text-transform: uppercase; font-size: 20px;">
+                                        {{number_format($amountAfter, 2)}}
                                     </div>
                                 </div>
                                 <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
@@ -365,7 +408,7 @@
                                                 {{$prevConsump['month']}}
                                             </div>
                                             <div>
-                                                {{$prevConsump['value']}}
+                                                {{ !empty($prevConsump['value']) && $prevConsump['value'] != 0 ? $prevConsump['value'] : 'NA' }}
                                             </div>
                                         </div>
                                     @endforeach
@@ -394,7 +437,7 @@
                                         <h6 style="font-weight: bold; text-transform: uppercase; text-align: left; margin-top: 0; margin-bottom: 5px;">Pay Now</h6>
                                         <ol style="font-size: 10px; text-transform: uppercase; list-style-type: decimal; padding: 0; margin-top: 0px">
                                             <li>Scan the QR code.</li>
-                                            <li>Choose a merchant on NovuPay.</li>
+                                            <li>Pay with QR Ph on NovuPay.</li>
                                             <li>Pay the total amount due.</li>
                                             <li>Keep your receipt.</li>
                                         </ol>
@@ -424,6 +467,8 @@
                                         $remarks[] = 'high consumption';
                                     }
 
+                                    $note = $data['current_bill']['high_consumption_note'] ?? null;
+
                                 @endphp
 
                                 @if (!empty($remarks))
@@ -432,10 +477,15 @@
                                             REMARKS: {{ implodeWithAnd($remarks) }}
                                         </div>
                                     </div>
+                                    <div style="text-transform: uppercase; text-align: center; font-style: bold; font-weight: bold;">
+                                        Note: {{ $note }}
+                                    </div>
                                 @endif
-                                <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
-                                    <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>
+                                <p class="text-center mt-2 fw-bold">Please disregard any arrears if payment </br>has already been made.</p>
+                                <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
+                                    <div class="emp">This is NOT valid as Official Receipt</div>
                                 </div>
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                             </div>
                         </div>
                     </div>
@@ -490,11 +540,6 @@
                 display: none !important;
             }
 
-            .isPaid {
-                display: none;
-                visibility: hidden;
-            }
-
             svg {
                 width: 80px !important;
             }
@@ -511,5 +556,83 @@
 
         }
     </style>
-@endsection
+<!-- jQuery first -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
+<!-- Custom script -->
+@php
+    $pollReferenceNo = $reference_no ?? ($data['current_bill']['reference_no'] ?? '');
+    $pollStatusUrl = $pollReferenceNo !== ''
+        ? route('transaction.status', ['reference_no' => $pollReferenceNo])
+        : '';
+@endphp
+<script>
+$(function () {
+    const isPaid = @json((bool) ($data['current_bill']['isPaid'] ?? false));
+    const referenceNo = @json($pollReferenceNo);
+    const statusUrl = @json($pollStatusUrl);
+
+    async function checkPaymentStatus() {
+        if (!statusUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ isApi: true })
+            });
+
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+
+            const data = await response.json();
+            if (data.status === 'paid') {
+                window.location.reload();
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking payment status:', error);
+        }
+
+        window.setTimeout(checkPaymentStatus, 4000);
+    }
+
+    if (!isPaid && referenceNo && statusUrl) {
+        checkPaymentStatus();
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                checkPaymentStatus();
+            }
+        });
+    }
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted && referenceNo) {
+            window.location.reload();
+        }
+    });
+
+    $(document).on('click', '.pay-now-btn', function() {
+    const reference = $(this).data('reference');
+    if (!reference) return;
+
+    $('#payment_type').val('online');
+
+    const url = @json(url('concessionaire/my/pay')) + '/' + encodeURIComponent(reference);
+    $('#paymentForm').attr('action', url);
+
+    $('#paymentForm').submit();
+});
+
+});
+</script>
+
+
+@endsection

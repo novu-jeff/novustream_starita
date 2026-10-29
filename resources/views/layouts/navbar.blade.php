@@ -16,6 +16,7 @@
 				@can('concessionaire')
 					<a href="{{route('account-overview.index')}}"> Account Overview </a>
 					<a href="{{route('account-overview.bills')}}"> Bills & Payment </a>
+					<a href="{{route('guide.concessionaire')}}"> User Guide </a>
 				@endcan
 				@canany(['admin', 'technician'])
 					<div class="dropdown px-0 mx-0">
@@ -24,13 +25,47 @@
 						</button>
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('reading.index')}}">Meter Reading</a></li>
-							<li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading.report')}}">Reading Report</a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.reading-adjustments.index')}}">Change Readings</a></li>
+                            <li><a class="dropdown-item" href="{{route('offline-readings.index')}}">Offline Readings</a></li>
+                            <li><a class="dropdown-item" href="{{route('reading-dates.index')}}">Reading Dates</a></li>
 						</ul>
 					</div>
 				@endcan
-				@canany(['admin', 'cashier'])
-					<a href="{{route('payments.index')}}"> Payments </a>
+				@canany(['technician'])
+				<div class="dropdown px-0 mx-0">
+					<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+						Offline Mode
+					</button>
+					<ul class="dropdown-menu mt-3">
+						<li><button id="downloadOfflineData" class="btn btn-success">
+								<i class="bx bx-download"></i> Download Offline Data
+							</button>
+						</li>
+						<li><button id="installAppBtn" style="display:block;">📲 Install App</button></li>
+					</ul>
+				</div>
 				@endcanany
+
+				@canany(['admin', 'cashier'])
+                    <div class="dropdown px-0 mx-0">
+						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+							Payments
+						</button>
+						<ul class="dropdown-menu mt-3">
+                            <li><a class="dropdown-item" href="{{route('payments.index')}}"> Payments </a></li>
+							<li><a class="dropdown-item" href="{{route('payments.consolidation.index')}}">Consolidation</a></li>
+                            <li><a class="dropdown-item" href="{{route('installment.index')}}">Installment</a></li>
+                            <li><a class="dropdown-item" href="{{route('admins.billing-adjustments.index')}}">Billing Adjustment</a></li>
+                            <li><a class="dropdown-item" href="{{route('penalty-exemption.index')}}">Penalty Exemption</a></li>
+                            <li><a class="dropdown-item" href="{{route('online-payments.index')}}">Online Payments</a></li>
+						</ul>
+                    </div>
+                    <a href="{{route('reports.download-index')}}"> Files </a>
+				@endcanany
+                @can('cashier')
+                <a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a>
+                @endcan
 				@can('admin')
 					<div class="dropdown px-0 mx-0">
 						<button class="border-0 bg-transparent dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -39,7 +74,19 @@
 						<ul class="dropdown-menu mt-3">
 							<li><a class="dropdown-item" href="{{route('roles.index')}}">Roles</a></li>
 							<li><a class="dropdown-item" href="{{route('concessionaires.index')}}">Concessionaires</a></li>
+							<li>
+								<a class="dropdown-item d-flex align-items-center justify-content-between gap-3" href="{{route('registrants.index')}}">
+									<span>Registrants</span>
+									@if($pendingRegistrationTotal > 0)
+										<span class="badge rounded-pill bg-danger" style="min-width: 1.25rem;" aria-label="{{ $pendingRegistrationTotal }} pending registrants and linked accounts">
+											{{ $pendingRegistrationTotal }}
+										</span>
+									@endif
+								</a>
+							</li>
+							@can('superadmin')
 							<li><a class="dropdown-item" href="{{route('admins.index')}}">Personnels</a></li>
+							@endcan
 						</ul>
 					</div>
 					<div class="dropdown px-0 mx-0">
@@ -61,8 +108,8 @@
 
 							@can('app-novustream')
 								<li><a class="dropdown-item" href="{{route('rates.index')}}">Water Rates</a></li>
+								<li><a class="dropdown-item" href="{{route('guide.index')}}"> Guide </a></li>
 							@endcan
-
 							<li><a class="dropdown-item" href="{{route('payment-breakdown.index')}}">Payment Breakdown</a></li>
 						</ul>
 					</div>
@@ -96,3 +143,23 @@
 		</a>
 	</div>
 </header>
+
+<script>
+	let deferredPrompt;
+	const installAppBtn = document.getElementById('installAppBtn');
+	if (installAppBtn) {
+		window.addEventListener('beforeinstallprompt', (e) => {
+			e.preventDefault();
+			deferredPrompt = e;
+			installAppBtn.style.display = 'block';
+		});
+		installAppBtn.addEventListener('click', async () => {
+			if (deferredPrompt) {
+				deferredPrompt.prompt();
+				const choice = await deferredPrompt.userChoice;
+				console.log('User choice:', choice);
+				deferredPrompt = null;
+			}
+		});
+	}
+</script>

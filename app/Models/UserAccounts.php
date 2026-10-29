@@ -18,8 +18,19 @@ class UserAccounts extends Model
         'updated_at'
     ];
 
+    protected $casts = [
+        'isApproved' => 'boolean',
+        'approved_at' => 'datetime',
+        'denied_at' => 'datetime',
+    ];
+
     public function user() {
         return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+
+    public function accountLinks()
+    {
+        return $this->hasMany(ConcessionerAccountLink::class, 'account_id');
     }
 
     public function property_types() {
@@ -33,5 +44,14 @@ class UserAccounts extends Model
         return $this->hasMany(Reading::class, 'account_no', 'account_no');
     }
 
+    public function discount()
+    {
+        return $this->hasOne(Discount::class, 'account_no', 'account_no');
+    }
+
+    public function property_types_by_name() {
+        return $this->hasOne(PropertyTypes::class, 'name', 'property_type');
+    }
+
+
 }
-    

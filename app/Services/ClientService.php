@@ -15,37 +15,50 @@ class ClientService {
 
     public static function getData($id = null, $zone = null, $search = null)
     {
-
         if (!is_null($id)) {
-            return User::with(['accounts.sc_discount', 'accounts.property_types'])
+            return User::with(['accounts.sc_discount', 'accounts.property_types', 'accounts.user'])
                 ->where('id', $id)
                 ->first();
         }
 
-        $isAllZone = $zone === 'all';
+        $query = User::with(['accounts.property_types'])
+            ->where('isActive', true);
 
-        return User::with(['accounts.property_types'])
-            ->withCount('accounts')
-            ->where('isActive', true)
-            ->when(!empty($zone) && !$isAllZone, function ($query) use ($zone) {
-                $query->whereHas('accounts', function ($subQuery) use ($zone) {
-                    $subQuery->where('zone', 'like', '%' . $zone . '%');
+        // ZONE FILTER
+        if (!empty($zone) && $zone !== 'all') {
+            $query->whereHas('accounts', function ($subQuery) use ($zone) {
+                $subQuery->where('zone', 'like', "%{$zone}%");
+            });
+        }
+
+        if (!empty($search['value'])) {
+
+            $normalizedSearch = strtolower($search['value']);
+            $normalizedSearch = str_replace([',', '.'], ' ', $normalizedSearch);
+            $normalizedSearch = preg_replace('/\s+/', ' ', $normalizedSearch);
+
+            $keywords = explode(' ', trim($normalizedSearch));
+
+            foreach ($keywords as $keyword) {
+
+                $query->where(function ($q) use ($keyword) {
+
+                    $q->whereRaw("
+                        REPLACE(REPLACE(LOWER(users.name), ',', ' '), '.', ' ') LIKE ?
+                    ", ["%{$keyword}%"])
+
+                    ->orWhereHas('accounts', function ($subQ) use ($keyword) {
+                        $subQ->whereRaw("
+                            LOWER(account_no) LIKE ?
+                            OR LOWER(address) LIKE ?
+                        ", ["%{$keyword}%", "%{$keyword}%"]);
+                    });
+
                 });
-            })
-            ->when(!empty($search['value']) && !empty($search['parameter']), function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    foreach ($search['parameter'] as $param) {
-                        if (in_array($param, ['name'])) {
-                            $q->orWhere($param, 'like', '%' . $search['value'] . '%');
-                        } elseif (in_array($param, ['account_no', 'address'])) {
-                            $q->orWhereHas('accounts', function ($subQ) use ($param, $search) {
-                                $subQ->where($param, 'like', '%' . $search['value'] . '%');
-                            });
-                        }
-                    }
-                });
-            })
-            ->get();
+            }
+        }
+
+        return $query->get();
     }
 
     public static function getStatusCode()
@@ -102,9 +115,15 @@ class ClientService {
         $user = User::with('accounts')->where('isActive', true)->findOrFail($id);
         $updateData = [
             'name'       => $payload['name'],
-            'email'      => $payload['email'],
-            'contact_no' => $payload['contact_no'],
         ];
+
+        $email = trim((string) ($payload['email'] ?? ''));
+        if ($email !== '' && strtolower($email) !== 'null') {
+            $updateData['email'] = $email;
+        }
+        if (!empty($payload['contact_no'])) {
+            $updateData['contact_no'] = $payload['contact_no'];
+        }
 
         if (!empty($payload['password'])) {
             $updateData['password'] = Hash::make($payload['password']);
@@ -145,7 +164,7 @@ class ClientService {
                 ]
             );
         }
-        return $user->load('accounts'); 
+        return $user->load('accounts');
     }
 
     public static function delete(int $id) {
@@ -171,23 +190,17 @@ class ClientService {
     private static function getZoneFromAddress($address)
     {
         $zones = [
-            ['zone' => '101', 'area' => 'CABAMBANGAN'],
-            ['zone' => '201', 'area' => 'SAN VICENTE'],
-            ['zone' => '301', 'area' => 'STA. INES'],
-            ['zone' => '302', 'area' => 'SAN GUILLELRMO'],
-            ['zone' => '303', 'area' => 'TINAJERO'],
-            ['zone' => '401', 'area' => 'CABETICAN'],
-            ['zone' => '501', 'area' => 'STA. BARBARA'],
-            ['zone' => '601', 'area' => 'CABALANTIAN'],
-            ['zone' => '602', 'area' => 'WESTVILLE'],
-            ['zone' => '701', 'area' => 'SAN ISIDRO'],
-            ['zone' => '702', 'area' => 'SOLANDA'],
-            ['zone' => '801', 'area' => 'BANLIC'],
-            ['zone' => '802', 'area' => 'SPLENDEROSA-LA HACIENDA'],
-            ['zone' => '803', 'area' => 'LA TIERRA'],
-            ['zone' => '804', 'area' => 'MACABACLE'],
-            ['zone' => '805', 'area' => 'PARULOG'],
-            ['zone' => '806', 'area' => 'SAN ANTONIO'],
+            ['zone' => '011', 'area' => 'BOOK 1'],
+            ['zone' => '021', 'area' => 'BOOK 2'],
+            ['zone' => '031', 'area' => 'BOOK 3'],
+            ['zone' => '041', 'area' => 'BOOK 4'],
+            ['zone' => '051', 'area' => 'BOOK 5'],
+            ['zone' => '061', 'area' => 'BOOK 6'],
+            ['zone' => '071', 'area' => 'BOOK 7'],
+            ['zone' => '081', 'area' => 'BOOK 8'],
+            ['zone' => '091', 'area' => 'BOOK 9'],
+            ['zone' => '101', 'area' => 'BOOK 10'],
+            ['zone' => '111', 'area' => 'BOOK 11'],
         ];
 
         foreach ($zones as $zone) {
@@ -198,7 +211,5 @@ class ClientService {
 
         return null;
     }
-
-
 
 }

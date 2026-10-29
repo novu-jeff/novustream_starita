@@ -4,16 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
+use App\Services\AccountMailer;
 use App\Services\ClientService;
 use App\Services\PropertyTypesService;
 use App\Services\MeterService;
+use App\Models\UserAccounts;
+use App\Models\Bill;
+use App\Models\Reading;
+use App\Models\ServiceApplication;
+use App\Models\ConcessionerAccountLink;
+use App\Services\BillArrearsService;
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use setasign\Fpdi\Fpdi;
 use Yajra\DataTables\Facades\DataTables;
 
 
@@ -28,7 +39,7 @@ class ConcessionaireController extends Controller
 
         $this->middleware(function ($request, $next) {
 
-            if (!Gate::any(['admin'])) {
+            if (!Gate::any(['admin', 'cashier'])) {
                 abort(403, 'Unauthorized');
             }
 
@@ -40,49 +51,568 @@ class ConcessionaireController extends Controller
         $this->meterService = $meterService;
     }
 
-    public function index(Request $request) {
-        $zones = $this->meterService->getZones()->pluck('area', 'zone');
-
-        $zone = $request->zone ?? 'all';
-        $entries = $request->entries ?? 10;
-        $toSearch = $request->search ?? '';
-
-        $search = [
-            'parameter' => [
-                'name',
-                'account_no',
-                'address',
-            ],
-            'value' => $toSearch
-        ];
-
-        $collection = collect($this->clientService::getData(null, $zone, $search))
-            ->flatten(2)
-            ->map(function ($client) use ($zones) {
-                $client->zone = null;
-
-                foreach ($zones as $code => $area) {
-                    if (stripos($client->address, $area) !== false) {
-                        $client->zone = $code;
-                        break;
-                    }
-                }
-
-                return $client;
+    public function index(Request $request)
+    {
+        $zone       = $request->zone ?? 'all';
+        $entries    = $request->entries ?? 10;
+        $search     = trim($request->search ?? '');
+        $listFilter = $request->list_filter ?? 'all';
+        $zones      = $this->meterService->getZones()->pluck('area', 'zone');
+        $query      = \App\Models\User::with('accounts')
+            ->leftJoin(
+                'concessioner_accounts',
+                'users.id',
+                '=',
+                'concessioner_accounts.user_id'
+            )
+            ->select('users.*')
+            ->whereHas('accounts', function ($q) {
+                $q->whereNull('application_status')
+                    ->orWhere('application_status', 'approved');
             });
 
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $collection->slice(($currentPage - 1) * $entries, $entries)->values();
+        if ($zone !== 'all') {
+            $query->whereHas('accounts', function ($q) use ($zone) {
+                $q->where('zone', $zone);
+            });
+        }
 
-        $data = new LengthAwarePaginator(
-            $currentItems,
-            $collection->count(),
-            $entries,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
+        if ($listFilter === 'seniors') {
+            $query->whereHas('accounts', function ($q) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('discount')
+                        ->whereColumn(
+                            'discount.account_no',
+                            'concessioner_accounts.account_no'
+                        )
+                        ->where('discount.discount_type_id', 1);
+                });
+            });
+
+        } elseif ($listFilter === 'inactive') {
+            $query->whereHas('accounts', function ($q) {
+                $q->whereIn('status', ['BL', 'ID', 'IV']);
+            });
+        }
+
+        if (!empty($search)) {
+            if ($listFilter === 'sequence') {
+                $matchedAccountQuery = UserAccounts::query()
+                    ->whereNotNull('sequence_no')
+                    ->where(function ($q) use ($search) {
+                        $q->where(
+                            'account_no',
+                            'like',
+                            "%{$search}%"
+                        )
+
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where(
+                                'name',
+                                'like',
+                                "%{$search}%"
+                            );
+                        });
+                    });
+
+                if ($zone !== 'all') {
+                    $matchedAccountQuery->where('zone', $zone);
+                }
+
+                $matchedAccountQuery->where(function ($q) {
+                    $q->whereNull('application_status')
+                        ->orWhere('application_status', 'approved');
+                });
+
+                $matchedAccount = $matchedAccountQuery
+                    ->orderBy('sequence_no', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->first();
+
+                if ($matchedAccount) {
+                    $startSequence = $matchedAccount->sequence_no;
+                    $startId       = $matchedAccount->id;
+                    $ids = UserAccounts::query()
+                        ->where(function ($q) use (
+                            $startSequence,
+                            $startId
+                        ) {
+                            $q->where(
+                                'sequence_no',
+                                '>',
+                                $startSequence
+                            )
+                            ->orWhere(function ($sameSequence) use (
+                                $startSequence,
+                                $startId
+                            ) {
+                                $sameSequence
+                                    ->where(
+                                        'sequence_no',
+                                        '=',
+                                        $startSequence
+                                    )
+                                    ->where(
+                                        'id',
+                                        '>=',
+                                        $startId
+                                    );
+                            });
+                        })
+                        ->where(function ($q) {
+                            $q->whereNull('application_status')
+                                ->orWhere(
+                                    'application_status',
+                                    'approved'
+                                );
+                        })
+                        ->when($zone !== 'all', function ($q) use ($zone) {
+                            $q->where('zone', $zone);
+                        })
+                        ->orderBy('sequence_no', 'asc')
+                        ->orderBy('id', 'asc')
+                        ->limit(10)
+                        ->pluck('user_id');
+                    $query->whereIn('users.id', $ids);
+                    $entries = 10;
+                } else {
+                    $query->whereRaw('1 = 0');
+                    $entries = 10;
+                }
+                
+            } elseif (is_numeric($search)) {
+                $query->where(
+                    'concessioner_accounts.sequence_no',
+                    '>=',
+                    $search
+                );
+            } else {
+                $tokens = preg_split('/\s+/', $search);
+                $query->where(function ($q) use ($tokens, $search) {
+
+                    foreach ($tokens as $token) {
+                        $q->where(
+                            'name',
+                            'like',
+                            "%{$token}%"
+                        );
+                    }
+
+                    $q->orWhereHas('accounts', function ($aq) use ($search) {
+
+                        $aq->where(
+                            'account_no',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'address',
+                            'like',
+                            "%{$search}%"
+                        );
+                    });
+                });
+            }
+        }
+
+        $data = $query
+            ->orderBy('sequence_no', 'asc')
+            ->paginate($entries)
+            ->withQueryString();
+
+        return view(
+            'concessionaires.index',
+            compact(
+                'data',
+                'entries',
+                'zone',
+                'zones',
+                'listFilter'
+            )
+        )->with('toSearch', $search);
+    }
+
+    public function registrants(Request $request)
+    {
+        $entries = $request->entries ?? 10;
+        $search = trim($request->search ?? '');
+        $status = $request->status ?? 'pending';
+        $type = $request->type ?? 'all';
+
+        $query = UserAccounts::with(['user.serviceApplications' => function ($query) {
+                $query->latest();
+            }])
+            ->whereNotNull('application_status');
+
+        if ($status === 'pending') {
+            $query->where('application_status', 'pending');
+        } elseif ($status === 'approved') {
+            $query->where('application_status', 'approved');
+        } elseif ($status === 'denied') {
+            $query->where('application_status', 'denied');
+        }
+
+        if ($type === 'existing_account') {
+            $query->where(function ($q) {
+                $q->where('application_type', 'existing_account')
+                    ->orWhereNull('application_type');
+            });
+        } elseif ($type === 'new_connection') {
+            $query->where('application_type', 'new_connection');
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('account_no', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('registrants', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $data = $query
+            ->orderByDesc('created_at')
+            ->paginate($entries)
+            ->withQueryString();
+        $data->appends($request->except(['page', 'links_page']));
+
+        $accountLinkRequests = ConcessionerAccountLink::with(['account.user', 'user'])
+            ->where('status', 'pending')
+            ->when($request->filled('link_search'), function ($query) use ($request) {
+                $linkSearch = trim($request->link_search);
+
+                $query->where(function ($searchQuery) use ($linkSearch) {
+                    $searchQuery->whereHas('account', function ($accountQuery) use ($linkSearch) {
+                        $accountQuery->where('account_no', 'like', "%{$linkSearch}%")
+                            ->orWhereHas('user', function ($userQuery) use ($linkSearch) {
+                                $userQuery->where('name', 'like', "%{$linkSearch}%")
+                                    ->orWhere('registrants', 'like', "%{$linkSearch}%");
+                            });
+                    })
+                    ->orWhere('requested_name', 'like', "%{$linkSearch}%")
+                    ->orWhereHas('user', function ($userQuery) use ($linkSearch) {
+                        $userQuery->where('name', 'like', "%{$linkSearch}%")
+                            ->orWhere('email', 'like', "%{$linkSearch}%");
+                    });
+                });
+            })
+            ->latest()
+            ->paginate(10, ['*'], 'links_page')
+            ->withQueryString();
+        $accountLinkRequests->appends($request->except(['page', 'links_page']));
+        $pendingAccountLinkCount = ConcessionerAccountLink::where('status', 'pending')->count();
+
+        $linkSearch = trim($request->link_search ?? '');
+        $pendingRegistrantCount = UserAccounts::where('application_status', 'pending')->count();
+
+        return view('concessionaires.registrants', compact('data', 'entries', 'search', 'status', 'type', 'accountLinkRequests', 'linkSearch', 'pendingAccountLinkCount', 'pendingRegistrantCount'));
+    }
+
+    public function downloadRegistrantDocuments(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+        $documents = [
+            'Latest SOA' => $account->application_soa_path,
+            'Valid ID' => $account->application_id_path,
+        ];
+        if ($account->user_id) {
+            $applications = ServiceApplication::with('documents')
+                ->where('user_id', $account->user_id)
+                ->latest()
+                ->get();
+
+            foreach ($applications as $application) {
+                foreach ([
+                    'Valid ID' => 'valid_id',
+                    'Cedula' => 'cedula',
+                    'Proof of Billing' => 'proof_of_billing',
+                    'Authorization Letter' => 'authorization_letter',
+                    'Boring Permit' => 'boring_permit',
+                    'Proof of Ownership' => 'proof_of_ownership',
+                    'Tax Declaration' => 'tax_declaration',
+                    'Barangay Clearance' => 'barangay_clearance',
+                    'Other Document' => 'others',
+                ] as $label => $field) {
+                    if ($application->documents?->{$field}) {
+                        $documents[] = $application->documents->{$field};
+                    }
+                }
+            }
+        }
+
+        return $this->documentsPdf($account->account_no, $documents);
+    }
+
+    public function downloadAccountLinkDocuments(int $link)
+    {
+        $accountLink = ConcessionerAccountLink::with('account')->findOrFail($link);
+
+        return $this->documentsPdf($accountLink->account?->account_no ?? 'linked-account', [
+            'Latest SOA' => $accountLink->soa_path,
+            'Valid ID' => $accountLink->id_path,
+        ]);
+    }
+
+    private function documentsPdf(string $accountNo, array $documents)
+    {
+        $pdf = new Fpdi();
+        $pdf->SetAutoPageBreak(false);
+        $addedPages = 0;
+        $includedPaths = [];
+
+        foreach ($documents as $label => $path) {
+            if (!$path || isset($includedPaths[$path]) || !Storage::disk('public')->exists($path)) {
+                continue;
+            }
+            $includedPaths[$path] = true;
+            $filePath = Storage::disk('public')->path($path);
+            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+            if ($extension === 'pdf') {
+                $pageCount = $pdf->setSourceFile($filePath);
+                for ($page = 1; $page <= $pageCount; $page++) {
+                    $template = $pdf->importPage($page);
+                    $size = $pdf->getTemplateSize($template);
+                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $pdf->useTemplate($template);
+                    $addedPages++;
+                }
+                continue;
+            }
+
+            if (in_array($extension, ['jpg', 'jpeg', 'png'], true)) {
+                $imageSize = @getimagesize($filePath);
+                if (!$imageSize) {
+                    continue;
+                }
+
+                $pdf->AddPage('P', 'A4');
+                $pageWidth = 210;
+                $pageHeight = 297;
+                $maxWidth = 190;
+                $maxHeight = 277;
+                $ratio = min($maxWidth / $imageSize[0], $maxHeight / $imageSize[1]);
+                $width = $imageSize[0] * $ratio;
+                $height = $imageSize[1] * $ratio;
+                $pdf->Image($filePath, ($pageWidth - $width) / 2, ($pageHeight - $height) / 2, $width, $height);
+                $addedPages++;
+            }
+        }
+
+        if ($addedPages === 0) {
+            abort(404, 'No downloadable documents were found for this record.');
+        }
+
+        $safeAccountNo = preg_replace('/[^A-Za-z0-9._-]/', '-', $accountNo) ?: 'account';
+        $filename = $safeAccountNo . '-documents.pdf';
+        $content = $pdf->Output('S');
+
+        return response()->streamDownload(static function () use ($content) {
+            echo $content;
+        }, $filename, ['Content-Type' => 'application/pdf']);
+    }
+
+    public function approveAccountLink(int $link)
+    {
+        $accountLink = ConcessionerAccountLink::with('account')->findOrFail($link);
+
+        if ($accountLink->status !== 'pending') {
+            return back()->with('error', 'This account link request has already been processed.');
+        }
+
+        $accountLink->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+            'denied_at' => null,
+            'denial_reason' => null,
+            'notified_at' => null,
+        ]);
+
+        return back()
+            ->with('status', 'Account access approved.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Account access approved',
+                'message' => 'The linked account was approved successfully.',
+            ]);
+    }
+
+    public function denyAccountLink(Request $request, int $link)
+    {
+        $payload = $request->validate([
+            'denial_reason' => ['required', 'string', 'max:1000'],
+        ]);
+        $accountLink = ConcessionerAccountLink::findOrFail($link);
+
+        $accountLink->update([
+            'status' => 'denied',
+            'approved_at' => null,
+            'denied_at' => now(),
+            'denial_reason' => $payload['denial_reason'],
+            'notified_at' => null,
+        ]);
+
+        return back()
+            ->with('status', 'Account access denied.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Account access denied',
+                'message' => 'The linked account was denied successfully.',
+            ]);
+    }
+
+    public function completeRegistrant(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        if ($account->application_type !== 'new_connection') {
+            return redirect()
+                ->route('registrants.index')
+                ->with('error', 'Only new connection requests need remaining account details.');
+        }
+
+        if ($account->application_status !== 'pending') {
+            return redirect()
+                ->route('registrants.index', ['type' => 'new_connection'])
+                ->with('error', 'Only pending new connection requests can be completed.');
+        }
+
+        return redirect()
+            ->route('concessionaires.edit', ['concessionaire' => $account->user_id, 'registrant' => $account->id]);
+    }
+
+    public function printRegistrantForm(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        if ($account->application_type !== 'new_connection') {
+            return redirect()
+                ->route('registrants.index')
+                ->with('error', 'Only new connection requests have an application form.');
+        }
+
+        $user = $account->user;
+        $printData = [
+            'sc_no' => $account->sc_no ?? '',
+            'meter_no' => $account->meter_serial_no ?? '',
+            'account_no' => str_starts_with((string) $account->account_no, 'NEW-') ? '' : ($account->account_no ?? ''),
+            'cellphone' => $user->contact_no ?? '',
+            'applicant_name' => $user->registrants ?? $user->name ?? '',
+            'service_address' => $account->address ?? '',
+            'application_type' => 'Water Service Connection',
+            'connection_size' => '',
+            'installation_location' => $account->address ?? '',
+            'signature_name' => $user->registrants ?? $user->name ?? '',
+            'application_date' => optional($account->created_at)->format('Y-m-d'),
+            'property_owner' => $user->registrants ?? $user->name ?? '',
+            'promissory_amount' => '',
+        ];
+
+        return view('application.print', compact('printData'));
+    }
+
+    public function approveApplication(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+        $application = ServiceApplication::with('documents')
+            ->where('user_id', $account->user_id)
+            ->latest()
+            ->first();
+
+        if ($account->application_type === 'new_connection'
+            && ($application?->connection_type ?? 'on_line') === 'traverse'
+            && empty($application?->documents?->boring_permit)) {
+            return redirect()
+                ->back()
+                ->with('error', 'Traverse applications require a Boring/Cutting Permit before approval.')
+                ->with('registrant_action', [
+                    'icon' => 'warning',
+                    'title' => 'Permit required',
+                    'message' => 'Please wait for the concessionaire to upload the Boring/Cutting Permit before approval.',
+                ]);
+        }
+
+        if ($account->application_type === 'new_connection'
+            && $application
+            && $application->application_fee_status !== 'paid') {
+            return redirect()
+                ->back()
+                ->with('error', 'The application fee must be paid before this application can be approved.')
+                ->with('registrant_action', [
+                    'icon' => 'warning',
+                    'title' => 'Application fee unpaid',
+                    'message' => 'The application fee of PHP '
+                        . number_format((float) $application->application_fee_amount, 2)
+                        . ' has not been paid yet. Please settle the fee before approving this application.',
+                ]);
+        }
+
+        $account->update([
+            'isApproved' => true,
+            'application_status' => 'approved',
+            'approved_at' => now(),
+            'denied_at' => null,
+            'approval_denial_reason' => null,
+        ]);
+
+        $this->sendApplicationDecisionNotification($account, 'approved');
+
+        return redirect()
+            ->back()
+            ->with('status', 'Application approved.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Application approved',
+                'message' => 'The registrant application was approved successfully.',
+            ]);
+    }
+
+    public function denyApplication(Request $request, int $account)
+    {
+        $payload = $request->validate([
+            'approval_denial_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $account = UserAccounts::with('user')->findOrFail($account);
+
+        $account->update([
+            'isApproved' => false,
+            'application_status' => 'denied',
+            'approved_at' => null,
+            'denied_at' => now(),
+            'approval_denial_reason' => $payload['approval_denial_reason'] ?? null,
+        ]);
+
+        $this->sendApplicationDecisionNotification($account, 'denied');
+
+        return redirect()
+            ->back()
+            ->with('status', 'Application denied.')
+            ->with('registrant_action', [
+                'icon' => 'success',
+                'title' => 'Application denied',
+                'message' => 'The registrant application was denied successfully.',
+            ]);
+    }
+
+    private function sendApplicationDecisionNotification(UserAccounts $account, string $decision): void
+    {
+        $user = $account->user;
+
+        if (!$user || empty($user->email)) {
+            return;
+        }
+
+        app(AccountMailer::class)->notifyApplicationDecision(
+            $user->email,
+            $user->name,
+            $decision,
+            $account->approval_denial_reason
         );
-
-        return view('concessionaires.index', compact('data', 'entries', 'zone', 'zones', 'toSearch'));
     }
 
 
@@ -96,34 +626,51 @@ class ConcessionaireController extends Controller
 
     public function store(StoreClientRequest $request) {
 
-    $payload = $request->validated();
+        $payload = $request->validated();
 
-    // ADD THIS: set zone from account_no
-    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
-        foreach ($payload['accounts'] as &$account) {
-            $account['zone'] = isset($account['account_no'])
-                ? substr($account['account_no'], 0, 3)
-                : null;
+        // ADD THIS: set zone from account_no
+        if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+            foreach ($payload['accounts'] as &$account) {
+                $account['zone'] = isset($account['account_no'])
+                    ? substr($account['account_no'], 0, 3)
+                    : null;
+            }
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client = $this->clientService::create($payload);
+            foreach ($payload['accounts'] as $account) {
+
+                if (!empty($account['has_sc_discount']) && $account['has_sc_discount'] == 1) {
+
+                    DB::table('discount')->insert([
+                        'account_no'       => $account['account_no'],
+                        'id_no'            => $account['sc_id_no'] ?? null,
+                        'discount_type_id' => 1,
+                        'effective_date'   => null,
+                        'created_at'       => now(),
+                        'updated_at'       => now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            app(AccountMailer::class)->notifyAccountCreated($client->email ?? null, $client->name ?? null);
+
+            return response([
+                'data' => $client,
+                'status' => 'success',
+                'message' => 'Client ' . $payload['name'] . ' added.'
+            ]);
+
+        } catch  (\Exception $e)  {
+            DB::rollBack();
+            return response(['status' => 'error', 'message' => $e->getMessage()]);
         }
     }
-
-    DB::beginTransaction();
-
-    try {
-        $client = $this->clientService::create($payload);
-        DB::commit();
-
-        return response([
-            'data' => $client,
-            'status' => 'success',
-            'message' => 'Client ' . $payload['name'] . ' added.'
-        ]);
-
-    } catch  (\Exception $e)  {
-        DB::rollBack();
-        return response(['status' => 'error', 'message' => $e->getMessage()]);
-    }
-}
 
 
     private function getUploadErrorMessage($errorCode)
@@ -169,43 +716,359 @@ class ConcessionaireController extends Controller
     public function edit(int $id) {
 
         $data = $this->clientService::getData($id);
+        $data?->loadMissing('serviceApplications.documents');
+        $registrantId = request('registrant');
+
+        foreach ($data->accounts as $account) {
+
+            $hasSenior = DB::table('discount')
+                ->where('account_no', $account->account_no)
+                ->where('discount_type_id', 1)
+                ->exists();
+
+            $account->has_sc_discount = $hasSenior ? 1 : 0;
+        }
 
         $property_types = $this->propertyTypesService::getData();
         $status_code = $this->clientService::getStatusCode();
 
-        return view('concessionaires.form', compact('data', 'status_code', 'property_types'));
+        return view('concessionaires.form', compact('data', 'status_code', 'property_types', 'registrantId'));
     }
 
-    public function update(int $id, UpdateClientRequest $request) {
+    public function activationReview(int $account)
+    {
+        $account = UserAccounts::with('user')->findOrFail($account);
+        $bills = \App\Models\Bill::with('reading')
+            ->whereHas('reading', function ($query) use ($account) {
+                $query->where('account_no', $account->account_no);
+            })
+            ->orderByDesc('bill_period_to')
+            ->orderByDesc('id')
+            ->get();
+        $latestBill = $bills->first();
+        $reading = $latestBill?->reading ?? Reading::where('account_no', $account->account_no)
+            ->where('isReRead', false)
+            ->latest('created_at')
+            ->first();
+        $arrearsService = app(BillArrearsService::class);
+        $outstanding = $arrearsService->latestOutstandingBill($bills);
+        $sourceBill = $outstanding['bill'] ?? null;
+        $unpaidBills = (!$latestBill || !$latestBill->isPaid)
+            ? $bills->filter(fn ($bill) => !$bill->isPaid)->map(function ($bill) use ($arrearsService) {
+                $billBalance = $arrearsService->latestOutstandingBill([$bill]);
 
-    $payload = $request->validated();
+                return [
+                    'id' => $bill->id,
+                    'reference_no' => $bill->reference_no,
+                    'period_from' => $bill->bill_period_from,
+                    'period_to' => $bill->bill_period_to,
+                    'total' => (float) ($bill->total ?? 0),
+                    'previous_unpaid' => (float) ($bill->previous_unpaid ?? 0),
+                    'amount' => (float) ($bill->amount ?? 0),
+                    'amount_after_due' => (float) ($bill->amount_after_due ?? 0),
+                    'credited_amount' => (float) max(
+                        (float) ($bill->amount_paid ?? 0) - (float) ($bill->change ?? 0),
+                        (float) ($bill->partial_payment ?? 0)
+                    ),
+                    'balance' => (float) ($billBalance['balance'] ?? 0),
+                ];
+            })->values()
+            : collect();
 
-    // ADD THIS: set zone from account_no
-    if (isset($payload['accounts']) && is_array($payload['accounts'])) {
-        foreach ($payload['accounts'] as &$account) {
-            $account['zone'] = isset($account['account_no'])
-                ? substr($account['account_no'], 0, 3)
-                : null;
+        return response()->json([
+            'account' => [
+                'account_no' => $account->account_no,
+                'name' => $account->user->name ?? '',
+                'address' => $account->address,
+                'contact_no' => $account->user->contact_no ?? '',
+                'property_type' => $account->property_type,
+                'rate_code' => $account->rate_code,
+            ],
+            'reading' => $reading ? [
+                'id' => $reading->id,
+                'date' => Carbon::parse($reading->bill?->bill_period_to ?? $reading->created_at)->format('Y-m-d'),
+                'previous_reading' => $reading->previous_reading,
+                'present_reading' => $reading->present_reading,
+                'consumption' => $reading->consumption,
+            ] : null,
+            'outstanding_balance' => (float) ($outstanding['balance'] ?? 0),
+            'outstanding_bill_id' => $sourceBill?->id,
+            'outstanding_bill_reference' => $sourceBill?->reference_no,
+            'unpaid_bills' => $unpaidBills,
+            'arrears_period' => $sourceBill ? [
+                'from' => $sourceBill->bill_period_from,
+                'to' => $sourceBill->bill_period_to,
+            ] : null,
+        ]);
+    }
+
+    public function update(int $id, UpdateClientRequest $request)
+    {
+        $payload = $request->validated();
+
+        $payload['name'] = strtoupper(trim($payload['name']));
+
+        $existingClient = $this->clientService::getData($id);
+        $oldAccountNo = $existingClient->accounts[0]->account_no ?? null;
+
+        $requiresActivationConfirmation = collect($payload['accounts'] ?? [])->contains(function ($account) use ($existingClient) {
+            $existingAccount = $existingClient->accounts->firstWhere('id', $account['id'] ?? null);
+
+            return $existingAccount
+                && strtoupper(trim((string) $existingAccount->status)) !== 'AB'
+                && strtoupper(trim((string) ($account['status'] ?? ''))) === 'AB';
+        });
+
+        if ($requiresActivationConfirmation && empty($payload['activation_confirmed'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'activation_confirmed' => ['Review and confirm the account details before activation.'],
+            ]);
+        }
+
+        $activationReviews = collect($payload['activation_reviews'] ?? [])->keyBy('account_id');
+        if ($requiresActivationConfirmation) {
+            $accountsToActivate = collect($payload['accounts'] ?? [])
+                ->filter(function ($account) use ($existingClient) {
+                    $existingAccount = $existingClient->accounts->firstWhere('id', $account['id'] ?? null);
+                    return $existingAccount
+                        && strtoupper(trim((string) $existingAccount->status)) !== 'AB'
+                        && strtoupper(trim((string) ($account['status'] ?? ''))) === 'AB';
+                })
+                ->pluck('id')
+                ->map(fn ($accountId) => (int) $accountId)
+                ->sort()
+                ->values();
+            $reviewedAccountIds = $activationReviews->keys()->map(fn ($accountId) => (int) $accountId)->sort()->values();
+
+            if ($accountsToActivate->all() !== $reviewedAccountIds->all()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'activation_reviews' => ['Review details are missing for one or more accounts being activated.'],
+                ]);
+            }
+        }
+
+        if (isset($payload['accounts']) && is_array($payload['accounts'])) {
+            foreach ($payload['accounts'] as &$account) {
+                $account['zone'] = isset($account['account_no'])
+                    ? substr($account['account_no'], 0, 3)
+                    : null;
+            }
+        }
+
+        $newAccountNo = $payload['accounts'][0]['account_no'] ?? null;
+
+        if ($request->filled('registrant_id') && $newAccountNo) {
+            $newAccountId = $payload['accounts'][0]['id'] ?? null;
+
+            if (str_starts_with(strtoupper($newAccountNo), 'NEW-')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'accounts.0.account_no' => ['Please replace the temporary account number before approving this new connection.'],
+                ]);
+            }
+
+            $accountExists = UserAccounts::where('account_no', $newAccountNo)
+                ->when($newAccountId, fn ($q) => $q->where('id', '!=', $newAccountId))
+                ->exists();
+
+            if ($accountExists) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'accounts.0.account_no' => ['The account number is already registered.'],
+                ]);
+            }
+        }
+
+        DB::beginTransaction();
+
+        $newlyApprovedAccountId = null;
+
+        try {
+            $client = $this->clientService::update($payload, $id);
+
+            foreach ($activationReviews as $accountId => $review) {
+                $reviewAccount = UserAccounts::where('id', $accountId)
+                    ->where('user_id', $id)
+                    ->firstOrFail();
+
+                if (!empty($review['change_last_reading'])) {
+                    if (!isset($review['corrected_present_reading']) || !is_numeric($review['corrected_present_reading'])) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'activation_reviews' => ['Enter a valid new previous reading.'],
+                        ]);
+                    }
+
+                    $correctedPresentReading = (float) $review['corrected_present_reading'];
+                    do {
+                        $reconnectionReference = 'RR-' . now()->year . '-' . random_int(100000, 999999);
+                    } while (Reading::where('reference_no', $reconnectionReference)->exists());
+
+                    Reading::create([
+                        'reference_no' => $reconnectionReference,
+                        'zone' => $reviewAccount->zone,
+                        'account_no' => $reviewAccount->account_no,
+                        'previous_reading' => $correctedPresentReading,
+                        'present_reading' => $correctedPresentReading,
+                        'consumption' => 0,
+                        'reader_name' => auth()->user()?->name,
+                        'isReRead' => false,
+                    ]);
+                }
+
+                if (empty($review['has_unpaid_bills'])) {
+                    $bill = !empty($review['bill_id']) ? Bill::whereHas('reading', function ($query) use ($reviewAccount) {
+                            $query->where('account_no', $reviewAccount->account_no);
+                        })
+                        ->where('id', $review['bill_id'])
+                        ->where('isPaid', false)
+                        ->lockForUpdate()
+                        ->firstOrFail() : null;
+
+                    if ($bill) {
+                        $bill->update([
+                            'isPaid' => true,
+                            'amount_paid' => $bill->amount,
+                        ]);
+                    }
+                } elseif (!empty($review['bill_id'])) {
+                    $bill = Bill::where('id', $review['bill_id'])
+                        ->where('isPaid', false)
+                        ->whereHas('reading', function ($query) use ($reviewAccount) {
+                            $query->where('account_no', $reviewAccount->account_no);
+                        })
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    app(BillArrearsService::class)->updateReviewedArrears(
+                        $bill,
+                        (float) $review['arrears'],
+                        (float) $review['basic_charge']
+                    );
+                }
+            }
+
+            if ($request->filled('registrant_id')) {
+                $connectionType = $payload['connection_type'] ?? 'on_line';
+                $application = ServiceApplication::with('documents')
+                    ->where('user_id', $id)
+                    ->latest()
+                    ->first();
+
+                if ($application) {
+                    $application->update([
+                        'connection_type' => $connectionType,
+                        'application_fee_amount' => $application->application_fee_amount ?? 4000,
+                        'application_fee_status' => $application->application_fee_status ?? 'unpaid',
+                    ]);
+                }
+
+                $canApprove = $connectionType !== 'traverse'
+                    || !empty($application?->documents?->boring_permit);
+
+                $registrantAccount = UserAccounts::where('id', $request->registrant_id)
+                    ->where('user_id', $id)
+                    ->where('application_type', 'new_connection')
+                    ->first();
+                $wasApproved = $registrantAccount
+                    && ($registrantAccount->application_status === 'approved' || $registrantAccount->isApproved);
+
+                if ($canApprove && !$wasApproved && $registrantAccount) {
+                    $newlyApprovedAccountId = $registrantAccount->id;
+                }
+
+                UserAccounts::where('id', $request->registrant_id)
+                    ->where('user_id', $id)
+                    ->where('application_type', 'new_connection')
+                    ->update([
+                        'isApproved' => $canApprove,
+                        'application_status' => $canApprove ? 'approved' : 'pending',
+                        'approved_at' => $canApprove ? now() : null,
+                        'denied_at' => null,
+                        'approval_denial_reason' => null,
+                    ]);
+            }
+
+            if ($oldAccountNo && $newAccountNo && $oldAccountNo !== $newAccountNo) {
+                DB::table('readings')
+                    ->where('account_no', $oldAccountNo)
+                    ->update([
+                        'account_no' => $newAccountNo,
+                        'zone'       => substr($newAccountNo, 0, 3),
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            foreach ($payload['accounts'] as $index => $account) {
+
+                $newAccountNo = $account['account_no'];
+                $oldAccountNo = $existingClient->accounts[$index]->account_no ?? null;
+
+                if ((int)($account['has_sc_discount'] ?? 0) === 1) {
+
+                    DB::table('discount')->updateOrInsert(
+                        [
+                            'account_no' => $newAccountNo,
+                            'discount_type_id' => 1,
+                        ],
+                        [
+                            'id_no'          => $account['sc_id_no'] ?? null,
+                            'effective_date' => now(),
+                            'updated_at'     => now(),
+                        ]
+                    );
+
+                    // If account number changed, remove old senior row
+                    if ($oldAccountNo && $oldAccountNo !== $newAccountNo) {
+                        DB::table('discount')
+                            ->where('account_no', $oldAccountNo)
+                            ->where('discount_type_id', 1)
+                            ->delete();
+                    }
+
+                } else {
+
+                    DB::table('discount')
+                        ->where('discount_type_id', 1)
+                        ->where(function ($q) use ($newAccountNo, $oldAccountNo) {
+                            $q->where('account_no', $newAccountNo);
+
+                            if ($oldAccountNo) {
+                                $q->orWhere('account_no', $oldAccountNo);
+                            }
+                        })
+                        ->delete();
+                }
+            }
+
+            DB::commit();
+
+            app(AccountMailer::class)->notifyAccountUpdated($client->email ?? $payload['email'] ?? null, $client->name ?? $payload['name'] ?? null);
+
+            if ($newlyApprovedAccountId) {
+                $approvedAccount = UserAccounts::with('user')->find($newlyApprovedAccountId);
+                if ($approvedAccount) {
+                    $this->sendApplicationDecisionNotification($approvedAccount, 'approved');
+                }
+            }
+
+            $message = 'Client ' . $payload['name'] . ' updated successfully.';
+
+            if ($request->filled('registrant_id') && ($payload['connection_type'] ?? 'on_line') === 'traverse') {
+                $message = 'Client details saved. Traverse application remains pending until the Boring/Cutting Permit is uploaded and reviewed.';
+            }
+
+            return response([
+                'data' => $client,
+                'status' => 'success',
+                'message' => $message
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
         }
     }
-
-    DB::beginTransaction();
-
-    try {
-        $client = $this->clientService::update($payload, $id);
-        DB::commit();
-
-        return response([
-            'data' => $client,
-            'status' => 'success',
-            'message' => 'Client ' . $payload['name'] . ' updated successfully.'
-        ]);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response(['status' => 'error', 'message' => $e->getMessage()]);
-    }
-}
 
 
     public function destroy(int $id) {
@@ -227,5 +1090,7 @@ class ConcessionaireController extends Controller
         }
 
     }
+
+
 
 }

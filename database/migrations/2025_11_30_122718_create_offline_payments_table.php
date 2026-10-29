@@ -11,12 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('senior_discount', function (Blueprint $table) {
+        if (Schema::hasTable('offline_payments')) {
+            return;
+        }
+        Schema::create('offline_payments', function (Blueprint $table) {
             $table->id();
-            $table->string('account_no');
-            $table->string('id_no');
-            $table->string('effective_date');
-            $table->string('expired_date');
+            $table->string('reference_no')->unique();
+            $table->json('payload');
+            $table->boolean('synced')->default(false);
             $table->timestamps();
         });
     }
@@ -26,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('senior_discount');
+        Schema::dropIfExists('offline_payments');
     }
 };

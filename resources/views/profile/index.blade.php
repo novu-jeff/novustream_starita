@@ -3,9 +3,20 @@
 @section('content')
     <main class="main">
         <div class="responsive-wrapper">
+            <div id="profilePageData" data-alert="{{ e(json_encode(session('alert'))) }}"></div>
+            @if(session('status'))
+                <div class="alert alert-success">{{ session('status') }}</div>
+            @endif
+            @if(session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
             <div class="main-header d-flex justify-content-between">
-                <h1>Update My Profile</h1>
+                <div class="d-flex align-items-start gap-3">
+                    <div class="report-title-icon"><i class="bx bx-user" aria-hidden="true"></i></div>
+                    <div><h1 class="report-page-title mb-1">Update My Profile</h1><p class="report-page-subtitle mb-0">Review and update your account information.</p></div>
+                </div>
             </div>
+            
             <div class="inner-content mt-5 pb-5">
                 @php
                     $prefix = Auth::guard('admins')->check() ? 'admin' : 'concessionaire';
@@ -66,12 +77,24 @@
 @section('script')
     <script>
         $(function () {
-            @if (session('alert'))
-                setTimeout(() => {
-                    let alertData = @json(session('alert'));
-                    alert(alertData.status, alertData.message);
-                }, 100);
-            @endif
+            const pageDataEl = document.getElementById('profilePageData');
+            const rawAlert = pageDataEl ? pageDataEl.dataset.alert : null;
+
+            if (rawAlert && rawAlert !== 'null') {
+                try {
+                    const alertData = JSON.parse(rawAlert);
+                    setTimeout(() => {
+                        alert(alertData.status, alertData.message);
+                    }, 100);
+                } catch (error) {
+                    console.error('Invalid alert payload', error);
+                }
+            }
+
+            const syncNowBtn = document.getElementById('syncNowBtn');
+            if (syncNowBtn && typeof window.syncOfflineReadings === 'function') {
+                syncNowBtn.addEventListener('click', window.syncOfflineReadings);
+            }
         });
     </script>
 @endsection

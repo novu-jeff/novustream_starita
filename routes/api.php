@@ -9,6 +9,9 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\NovuPayController;
+use App\Http\Controllers\OfflineDataController;
+use App\Http\Controllers\OfflineSyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,12 +28,39 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::fallback(function () {
-    abort(404);
-});
-
 Route::post('login', [LoginController::class, 'login']);
+Route::post('auth/login', [LoginController::class, 'login']); // Flutter app: POST api/auth/login
+Route::post('api/login', [LoginController::class, 'login']); // allow /api/api/login when app base URL ends with /api
 Route::post('logout', [LoginController::class, 'logout']);
+Route::post('api/logout', [LoginController::class, 'logout']);
+
+// Flutter app: GET /api/app-version (set baseUrl / appVersionUrl in lib/config/merchant_config.dart)
+Route::get('app-version', function () {
+    $path = public_path('app-version.json');
+    if (!is_readable($path)) {
+        $path = public_path('app-version');
+    }
+    if (is_readable($path)) {
+        $data = json_decode(file_get_contents($path), true);
+        if (is_array($data)) {
+            return response()->json([
+                'version' => $data['latest_version_name'] ?? ($data['version'] ?? '1.0.0'),
+                'build_number' => (int) ($data['latest_version'] ?? $data['build_number'] ?? 1),
+                'latest_version' => (int) ($data['latest_version'] ?? $data['build_number'] ?? 1),
+                'latest_version_name' => $data['latest_version_name'] ?? ($data['version'] ?? ''),
+                'apk_url' => $data['apk_url'] ?? '',
+                'force_update' => (bool) ($data['force_update'] ?? false),
+                'release_notes' => $data['release_notes'] ?? '',
+            ]);
+        }
+    }
+
+    return response()->json([
+        'version' => config('app.apk_version', '1.0.0'),
+        'build_number' => (int) config('app.apk_build_number', 1),
+        'apk_url' => config('app.apk_url', ''),
+    ]);
+});
 
 Route::post('transaction/callback', [CallbackController::class, 'save'])
     ->name('transaction.callback');
@@ -61,4 +91,28 @@ Route::prefix('v1')->group(function() {
     Route::post('callback/{reference_no}', [PaymentController::class, 'callback']);
 });
 
+// Mobile app (novustream_offline_starita): auth via local token only. Single route for sync accepts GET and POST.
+Route::middleware(['log.offline.api', 'auth.offline'])->group(function () {
+    Route::post('/readings/sync', [OfflineSyncController::class, 'sync']);
+    Route::post('/readings', [OfflineSyncController::class, 'store']);
+    Route::post('/readings/merge', [OfflineSyncController::class, 'merge']);
+    // One route for both GET (?readings=...) and POST (body { "readings": [...] }) so cache/deploy always has it
+    Route::match(['get', 'post'], '/offline/sync', [OfflineSyncController::class, 'sync']);
+    Route::post('/offline/store', [OfflineSyncController::class, 'store']);
+    Route::post('/offline/merge', [OfflineSyncController::class, 'merge']);
+    Route::get('/offline/download', [OfflineSyncController::class, 'download']);
+    Route::get('/offline/reading-dates', [OfflineDataController::class, 'readingDates']);
+});
 
+// SOA QR from the offline app. Public: the customer scans this, they are not logged in.
+Route::match(['get', 'post'], '/novustream/starita/payment-request', [NovuPayController::class, 'paymentRequest'])
+    ->name('novustream.starita.payment-request');
+
+// Partner SOA inquiry for NovuPay /srwd (X-API-KEY).
+Route::post('/novustream/starita/soa-inquiry', [NovuPayController::class, 'soaInquiry'])
+    ->name('novustream.starita.soa-inquiry');
+
+// Fallback last so it does not catch POST /offline/sync, /readings/sync, etc.
+Route::fallback(function () {
+    abort(404);
+});

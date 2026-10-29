@@ -18,16 +18,16 @@ class BaseRateController extends Controller
     public $propertyTypeService;
 
     public function __construct(RatesService $RatesService, PropertyTypesService $propertyTypeService) {
-        
+
         $this->middleware(function ($request, $next) {
-    
+
             if (!Gate::any(['admin'])) {
                 abort(403, 'Unauthorized');
             }
-    
+
             return $next($request);
         });
-        
+
         $this->RatesService = $RatesService;
         $this->propertyTypeService = $propertyTypeService;
     }
@@ -51,44 +51,54 @@ class BaseRateController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $payload = $request->all();
+{
+    $payload = $request->all();
 
-        $validator = Validator::make($payload, [
-            'property_type' => 'required|exists:property_types,id',
-            'rate' => 'required|numeric|min:1|max:999999.99'
+    $validator = Validator::make($payload, [
+        'property_type' => 'required|exists:property_types,id',
+        'rate' => 'required|numeric|min:1|max:999999.99'
+    ]);
+
+    if ($validator->fails()) {
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput();
+    }
+
+    $activeRate = $this->RatesService->getActiveBaseRate($payload['property_type']);
+
+    if ($activeRate && (float)$activeRate === (float)$payload['rate']) {
+        return redirect()->back()
+            ->withInput()
+            ->withErrors(['rate' => 'Base rate already active. Enter a different value.']);
+    }
+
+    DB::beginTransaction();
+    try {
+        $createBaseRate = $this->RatesService->createBaseRate($payload);
+        $this->RatesService->recomputeRates($payload['property_type']);
+
+        DB::commit();
+
+        return redirect()->route('base-rate.index', [
+            'property_type' => $payload['property_type']
+        ])->with('alert', [
+            'data' => $createBaseRate,
+            'status' => 'success',
+            'message' => 'Water rate updated.'
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
+    } catch (\Exception $e) {
 
-        DB::beginTransaction();
-        try {
+        DB::rollBack();
 
-            $createBaseRate = $this->RatesService->createBaseRate($payload);
-            $this->RatesService->recomputeRates($payload['property_type']);
-
-            DB::commit();
-
-            return redirect()->back()->with('alert', [
-                'data' => $createBaseRate,
-                'status' => 'success',
-                'message' => 'Water rate updated.'
-            ]);
-
-        } catch (\Exception $e) {
-            
-            DB::rollBack();
-
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => 'Error occured: ' . $e->getMessage()
-            ]);
-        }
+        return redirect()->back()->withInput()->with('alert', [
+            'status' => 'error',
+            'message' => 'Error occurred: ' . $e->getMessage()
+        ]);
     }
+}
+
 
     public function datatable($query)
     {

@@ -15,7 +15,7 @@ class Zone extends Model
 
     public function concessionerAccounts()
     {
-        return $this->hasMany(ConcessionerAccount::class, 'zone', 'zone');
+        return $this->hasMany(ConcessionerAccount::class, 'zone', 'id');
     }
 
     public function accounts()

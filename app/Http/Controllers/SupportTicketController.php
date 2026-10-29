@@ -26,8 +26,8 @@ class SupportTicketController extends Controller {
     }
 
     public function show(int $id, Request $request) {
-        return $request->wantsJson() 
-            ? ['status' => 'success', 'data' => $this->supportTicketService->getTicketByID($id)] 
+        return $request->wantsJson()
+            ? ['status' => 'success', 'data' => $this->supportTicketService->getTicketByID($id)]
             : view('support-ticket.edit');
     }
 
@@ -35,8 +35,8 @@ class SupportTicketController extends Controller {
         $user = !Auth::guard('admins')->check() ? 'clients' : 'admins';
         $user_id = Auth::user()->id;
         $data = $user == 'clients' ? $this->supportTicketService->getTickets($user_id) : $this->supportTicketService->getTickets();
-        return $request->ajax() 
-            ? $this->datatable($data) 
+        return $request->ajax()
+            ? $this->datatable($data)
             : view('support-ticket.create', ['data' => $data, 'categories' => TicketsCategory::all()]);
     }
 
@@ -50,39 +50,39 @@ class SupportTicketController extends Controller {
             ];
 
             $payload = $request->all();
-    
+
             $validator = Validator::make($payload, $rules);
-    
+
             if($validator->fails()) {
                 return redirect()->back()->withInput()->with('alert', [
                     'status' => 'error',
                     'message' => $validator->errors()->first(),
                 ]);
             }
-    
+
             $ticket = SupportTicket::where('user_id', Auth::user()->id)
                 ->where('status', 'open');
-    
+
             if($ticket->count() >= 3) {
 
                 return redirect()->back()->withInput()->with('alert', [
                     'status' => 'error',
                     'message' => 'Unable to proceed as we noticed you still have ' . $ticket->count() . ' open tickets.',
                 ]);
-              
+
             }
-    
+
             SupportTicket::create([
                 'user_id' => Auth::user()->id,
                 'ticket_no' => $this->generate_code('TICKET'),
                 'status' => 'open',
                 'prioritization' => 0,
-                'category_id' => $payload['category'], 
+                'category_id' => $payload['category'],
                 'message' => $payload['message'],
                 'feedback' => null,
                 'assisted_by' => null,
             ]);
-    
+
             return redirect()->back()->with('alert', [
                 'status' => 'success',
                 'message' => 'Ticket created successfully',
@@ -104,7 +104,7 @@ class SupportTicketController extends Controller {
     public function update(Request $request, $id) {
 
         try {
-            
+
             $is_exists = SupportTicket::where('id', $id)->exists();
 
             if($is_exists) {
@@ -166,39 +166,40 @@ class SupportTicketController extends Controller {
     }
 
     public function datatable($query)
-    {
-        return DataTables::of($query)
-            ->addIndexColumn()
-            ->editColumn('status', function ($row) {
-                return $row->status == 'open'
-                    ? '<div class="alert alert-danger px-3 py-2 text-uppercase text-center fw-bold mb-0">Open</div>'
-                    : '<div class="alert alert-primary px-3 py-2 text-uppercase text-center fw-bold mb-0">Close</div>';
-            })
-            ->editColumn('created_at', function ($row) {
-                return Carbon::parse($row->created_at)->format('F d, Y');
-            })
-            ->addColumn('actions', function ($row) {
+{
+    return DataTables::of($query)
+        ->addIndexColumn()
+        ->addColumn('concessionnaire_name', function($row) {
+            return $row->user->name ?? 'N/A';
+        })
+        ->editColumn('status', function ($row) {
+            return $row->status == 'open'
+                ? '<div class="alert alert-danger px-3 py-2 text-uppercase text-center fw-bold mb-0">Open</div>'
+                : '<div class="alert alert-primary px-3 py-2 text-uppercase text-center fw-bold mb-0">Close</div>';
+        })
+        ->editColumn('created_at', function ($row) {
+            return Carbon::parse($row->created_at)->format('F d, Y');
+        })
+        ->addColumn('actions', function ($row) {
+            $prefix = Auth::user()->user_type == 'client' ? 'client' : 'admin';
 
-                $prefix = Auth::user()->user_type == 'client' ? 'client' : 'admin';
+            $viewBtn = '<button type="button" class="btn-view btn btn-primary fw-bold text-uppercase px-4 py-2 text-white view-btn" data-id="' . $row->id . '">View</button>';
+            $deleteBtn = '<button type="button" class="btn-delete btn btn-danger fw-bold text-uppercase px-4 py-2 text-white remove-btn" data-id="' . $row->id . '">Delete</button>';
+            $respondBtn = '<a href="'.route($prefix . '.support-ticket.edit', ['ticket' => $row->id]).'" class="text-uppercase px-4 py-2 fw-bold btn btn-success text-white" data-id="'.$row->id.'">Respond</a>';
 
-                $viewBtn = '<button type="button" class="btn-view btn btn-primary fw-bold text-uppercase px-4 py-2 text-white view-btn" data-id="' . $row->id . '">View</button>';
-                $deleteBtn = '<button type="button" class="btn-delete btn btn-danger fw-bold text-uppercase px-4 py-2 text-white remove-btn" data-id="' . $row->id . '">Delete</button>';
-                $respondBtn = '<a href="'.route($prefix . '.support-ticket.edit', ['ticket' => $row->id]).'" class="text-uppercase px-4 py-2 fw-bold btn btn-success text-white text"" data-id="'.$row->id.'">Respond</a>';
+            if (Auth::guard('admins')->check()) {
+                return Auth::user()->user_type == 'client'
+                    ? "<div class='d-flex gap-2'>{$viewBtn} {$deleteBtn}</div>"
+                    : "<div class='d-flex gap-2'>{$viewBtn} {$respondBtn} {$deleteBtn}</div>";
+            }
 
-                if (Auth::guard('admins')->check()) { 
-                    
-                    return Auth::user()->user_type == 'client'
-                        ? "<div class='d-flex gap-2'>{$viewBtn} {$deleteBtn}</div>"
-                        : "<div class='d-flex gap-2'>{$viewBtn} {$respondBtn} {$deleteBtn}</div>";
-                }
+            return "<div class='d-flex gap-2'>{$viewBtn}</div>";
+        })
+        ->rawColumns(['status', 'actions'])
+        ->make(true);
+}
 
-                return "<div class='d-flex gap-2'>{$viewBtn}</div>"; 
-            })
-            ->rawColumns(['status', 'actions']) 
-            ->make(true);
-    }
-    
-    
+
     private function generate_code($prefix) {
 
         $datePart = date('Ymds');
