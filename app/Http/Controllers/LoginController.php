@@ -235,29 +235,36 @@ class LoginController extends Controller
         $resendAvailableAt = $expiresAt?->copy()->subMinutes(4);
         $isLocked = $this->loginOtpIsLocked($user);
 
-        return view('auth.verify-otp', [
-            'maskedEmail' => $this->maskEmail($user->email),
-            'verifyRoute' => route('login.verify.store'),
-            'resendRoute' => route('login.verify.resend'),
-            'pageTitle' => 'Verify your login',
-            'submitLabel' => 'Verify and sign in',
-            'expiryMinutes' => 5,
-            'expiresAtTimestampMs' => $expiresAt
-                ? $expiresAt->getTimestamp() * 1000
-                : now()->getTimestamp() * 1000,
-            'resendAvailableAtTimestampMs' => $resendAvailableAt?->getTimestamp() * 1000,
-            'resendCooldownSeconds' => $resendAvailableAt
-                ? max(0, $resendAvailableAt->getTimestamp() - now()->getTimestamp())
-                : 0,
-            'lockedUntil' => $isLocked
-                ? Carbon::parse($user->login_otp_locked_until)->format('g:i A')
-                : null,
-            'lockoutRemainingSeconds' => $isLocked
-                ? max(1, now()->diffInSeconds(Carbon::parse($user->login_otp_locked_until)))
-                : 0,
-            'attemptsRemaining' => max(0, 5 - (int) $user->login_otp_failed_attempts),
-            'codeExpired' => !$expiresAt || $expiresAt->isPast(),
-        ]);
+        return response()
+            ->view('auth.verify-otp', [
+                'maskedEmail' => $this->maskEmail($user->email),
+                'verifyRoute' => route('login.verify.store'),
+                'resendRoute' => route('login.verify.resend'),
+                'pageTitle' => 'Verify your login',
+                'submitLabel' => 'Verify and sign in',
+                'expiryMinutes' => 5,
+                'expiresAtTimestampMs' => $expiresAt
+                    ? $expiresAt->getTimestamp() * 1000
+                    : now()->getTimestamp() * 1000,
+                'resendAvailableAtTimestampMs' => $resendAvailableAt?->getTimestamp() * 1000,
+                'resendCooldownSeconds' => $resendAvailableAt
+                    ? max(0, $resendAvailableAt->getTimestamp() - now()->getTimestamp())
+                    : 0,
+                'lockedUntil' => $isLocked
+                    ? Carbon::parse($user->login_otp_locked_until)->format('g:i A')
+                    : null,
+                'lockoutRemainingSeconds' => $isLocked
+                    ? max(1, now()->diffInSeconds(Carbon::parse($user->login_otp_locked_until)))
+                    : 0,
+                'attemptsRemaining' => max(0, 5 - (int) $user->login_otp_failed_attempts),
+                'codeExpired' => !$expiresAt || $expiresAt->isPast(),
+                ])
+            ->header(
+                'Cache-Control',
+                'no-store, no-cache, must-revalidate, max-age=0'
+            )
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     public function verifyLoginOtp(Request $request)
@@ -338,7 +345,14 @@ class LoginController extends Controller
         }
         app(AccountMailer::class)->notifyLoginOtp($user->email, $user->name, $code);
 
-        return back()->with('status', 'A new verification code was sent to your email.');
+        return redirect()
+            ->route('login.verify')
+            ->with('status', 'A new verification code was sent to your email.')
+            ->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+        ]);
     }
 
     private function maskEmail(?string $email): string
