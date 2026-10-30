@@ -53,6 +53,7 @@
                     </button>
 
                     <p class="auth-register-prompt">New to the portal? <a href="{{ route('register') }}">Create an account</a></p>
+                    <p class="auth-register-prompt">Want to Pay directly? <a href="{{ env('DIRECT_PAYMENT') }}">Click here!</a></p>
                     <div class="auth-legal">Powered by Novulutions Inc. <button type="button" data-bs-toggle="modal" data-bs-target="#privacyModal">Data Privacy Policy</button></div>
                 </div>
             </form>
@@ -352,7 +353,7 @@
     }
     .auth-login-page button.auth-submit:hover { transform: translateY(-1px); background: #285467; box-shadow: 0 10px 22px rgba(50, 102, 126, .24); }
     .auth-login-page button.auth-submit i { font-size: 1.2rem; }
-    .auth-login-page .auth-register-prompt { margin: 1.25rem 0 2rem; color: var(--auth-muted); font-size: .82rem; font-weight: 500; line-height: 1.5; letter-spacing: 0; text-align: center; }
+    .auth-login-page .auth-register-prompt { margin: 1rem 0 1rem; color: var(--auth-muted); font-size: .82rem; font-weight: 500; line-height: 1.5; letter-spacing: 0; text-align: center; }
     .auth-login-page .auth-legal { padding-top: 1rem; border-top: 1px solid #edf2f4; color: #84959d; font-size: .68rem; text-align: center; }
     .auth-login-page .auth-legal button { padding: 0; border: 0; background: none; color: var(--auth-primary); font: inherit; cursor: pointer; }
     .auth-login-page .overlay-container {
