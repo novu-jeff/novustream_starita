@@ -4,10 +4,22 @@ on:
   push:
     branches:
       - testing   # or main if deploying production
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-testing
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.SERVER_HOST }}
+      DEPLOY_USER: ${{ secrets.SERVER_USER }}
+      DEPLOY_PORT: ${{ secrets.SERVER_PORT || '22' }}
 
     steps:
       - name: 📦 Checkout code
@@ -15,14 +27,59 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 🔎 Validate SSH settings
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          if [ -z "${DEPLOY_HOST:-}" ]; then
+            echo "::error::Missing required deployment secret: SERVER_HOST"
+            missing=1
+          fi
+          if [ -z "${DEPLOY_USER:-}" ]; then
+            echo "::error::Missing required deployment secret: SERVER_USER"
+            missing=1
+          fi
+          if [ -z "${DEPLOY_KEY:-}" ]; then
+            echo "::error::Missing required deployment secret: SERVER_SSH_KEY"
+            missing=1
+          fi
+
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
+            echo "::error::SERVER_PORT must be numeric. Current value: '${DEPLOY_PORT}'"
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: 🔎 Check SSH reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking SSH reachability on the configured deployment host and port..."
+          if ! timeout 60 bash -c "cat < /dev/null > /dev/tcp/${DEPLOY_HOST}/${DEPLOY_PORT}" 2>/dev/null; then
+            echo "::error::Cannot reach the deployment server via SSH. Verify SERVER_HOST, SERVER_PORT, and firewall rules allow GitHub Actions runners."
+            exit 1
+          fi
+
       - name: 🔐 SSH into server and deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
+          port: ${{ env.DEPLOY_PORT }}
+          timeout: 120s
+          command_timeout: 30m
+          script_stop: true
           script: |
+            set -e
             echo "→ Starting deployment on server..."
             cd /var/www/html/novustream
 
@@ -32,7 +89,7 @@ jobs:
             sudo find storage bootstrap/cache -type f -exec chmod 664 {} \; || true
 
             echo "→ Pulling latest code..."
-            sudo -u www-data git fetch origin testing
+            sudo -u www-data git fetch --prune origin testing
             sudo -u www-data git reset --hard origin/testing
 
             echo "→ Installing PHP dependencies..."
