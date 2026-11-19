@@ -23,7 +23,6 @@ use App\Models\Discount;
 use App\Models\PaymentBreakdownPenalty;
 use App\Models\InstallmentSchedule;
 use App\Models\PenaltyExemption;
-use App\Models\PartialPayment;
 
 class MeterService {
 
@@ -822,74 +821,12 @@ class MeterService {
                 ->first();
 
             if ($latestUnpaidBill) {
-
-                $billTotal = (float) ($latestUnpaidBill->total ?? 0);
-                $billAmount = (float) ($latestUnpaidBill->amount ?? 0);
-
-                $partialPayments = PartialPayment::where(
-                    'reading_id',
-                    $latestUnpaidBill->reading_id
-                )
-                    ->orderBy('created_at', 'asc')
-                    ->get();
-
-                if ($partialPayments->isEmpty()) {
-                    $remainingUnpaid = max($billAmount, 0);
-
-                } else {
-
-                    $paidBeforeOrOnDue = 0;
-                    $paidAfterDue = 0;
-                    $hasAfterDuePayment = false;
-
-                    $dueDate = $latestUnpaidBill->due_date
-                        ? Carbon::parse($latestUnpaidBill->due_date)->startOfDay()
-                        : null;
-
-                    foreach ($partialPayments as $partialPayment) {
-
-                        $paymentAmount = (float) (
-                            $partialPayment->partial_payment ?? 0
-                        );
-
-                        if ($paymentAmount <= 0) {
-                            continue;
-                        }
-
-                        $paymentDate = $partialPayment->created_at
-                            ? Carbon::parse($partialPayment->created_at)->startOfDay()
-                            : null;
-
-                        if (
-                            $paymentDate &&
-                            $dueDate &&
-                            $paymentDate->lte($dueDate)
-                        ) {
-                            $paidBeforeOrOnDue += $paymentAmount;
-                        } else {
-                            $paidAfterDue += $paymentAmount;
-                            $hasAfterDuePayment = true;
-                        }
-                    }
-
-                    $partialPaymentTotal =
-                        $paidBeforeOrOnDue + $paidAfterDue;
-
-                    if ($hasAfterDuePayment) {
-
-                        $remainingUnpaid = max(
-                            $billAmount - $partialPaymentTotal,
-                            0
-                        );
-
-                    } else {
-
-                        $remainingUnpaid = max(
-                            $billTotal - $partialPaymentTotal,
-                            0
-                        );
-                    }
-                }
+                $arrearsService = app(BillArrearsService::class);
+                $partialPaymentTotal = $arrearsService->creditedPartial($latestUnpaidBill);
+                $remainingUnpaid = $arrearsService->remainingUnpaid(
+                    $latestUnpaidBill,
+                    $partialPaymentTotal
+                );
             }
         }
 
