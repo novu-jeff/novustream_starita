@@ -723,7 +723,7 @@ class ReadingController extends Controller
         $basicCharge = $computed['basic_charge'];
         $totalAmount = $computed['bill']['amount'];
 
-        $remainingUnpaid = (float) ($billData['previous_unpaid'] ?? 0);
+        $remainingUnpaid = round(max((float) ($billData['previous_unpaid'] ?? 0), 0), 2);
 
         $installmentArrears = InstallmentSchedule::where('is_paid', false)
             ->whereHas('installment.bill.reading', function ($query) use ($payload) {
@@ -835,7 +835,7 @@ class ReadingController extends Controller
                 'hitpay_payment_id' => $hitpayPaymentId,
                 'initiated_at' => $hitpayInitiatedAt,
                 'payor_name' => $payorName,
-                'previous_unpaid' => $billData['previous_unpaid'] ?? 0,
+                'previous_unpaid' => $remainingUnpaid,
                 'bill_period_from' => $billPeriodFrom,
                 'bill_period_to' => $billPeriodTo,
                 'created_at' => $billDate,
