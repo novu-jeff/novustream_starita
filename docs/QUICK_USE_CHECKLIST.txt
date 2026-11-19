@@ -1,0 +1,63 @@
+STA. RITA NOVUSTREAM - QUICK USE CHECKLIST
+==========================================
+
+Use only the menus your role can see. Confirm account number, name, amount, and period before every save. Log out when you leave the screen.
+
+LOGIN
+-----
+[ ] Open the Sta. Rita Novustream site
+[ ] Sign in with your email and password
+[ ] Enter the verification code if asked
+[ ] Land on your home page (Dashboard, Account Overview, or Meter Reading)
+
+CONCESSIONAIRE
+--------------
+[ ] Open Account Overview and check the account name and status
+[ ] Open the account you need (approved accounts only)
+[ ] Review the statement: period, consumption, balance, penalty, amount due
+[ ] Open Bills & Payment and switch between Unpaid and Paid
+[ ] Pay only the correct unpaid bill, then keep the receipt
+[ ] Add Account only when linking an existing account (SOA + valid ID)
+[ ] New Water Service Connection only for a new connection
+[ ] Profile to review your details or change your password
+[ ] Submit Ticket if something is wrong, then Logout
+
+CASHIER
+-------
+[ ] Open Dashboard and scan the shift totals
+[ ] Payments > Payments: search by account, name, zone, or month
+[ ] Confirm the bill is unpaid, then take the payment once
+[ ] Print or open the official receipt
+[ ] Application Fees: find the application, collect the fee, confirm it is paid
+[ ] Installment: create or view a schedule only for the correct bill
+[ ] Billing Adjustment or Penalty Exemption: apply only an approved change, then recheck the bill
+[ ] Online Payments: search the reference and confirm the bill shows Paid
+[ ] Files: pick the report, set the period, download, and spot-check the file
+[ ] Concessionaires: search the account before viewing or updating it
+[ ] Logout
+
+ADMIN
+-----
+[ ] Do the cashier checklist for payments and reports
+[ ] Meter Reading > Meter Reading: search the account, check the previous reading, enter the present reading, submit once
+[ ] Open the bill or invoice if you need to check or print it
+[ ] Reading Report: filter the period and review readings before billing
+[ ] Change Readings: edit only the approved record, then recheck the bill
+[ ] Offline Readings: review pending rows, fix errors, merge once, then confirm in Reading Report
+[ ] Reading Dates: add or update a schedule only if it is not already there
+[ ] Users > Registrants: check documents, complete missing details, then Approve or Deny
+[ ] Users > Concessionaires or Roles: open the correct record before saving
+[ ] Import: use the template, upload once, then check a few accounts
+[ ] Settings (Property Types, Base Rate, Water Rates, Payment Breakdown): change only with approval
+[ ] Submit Ticket or Profile if needed, then Logout
+
+TECHNICIAN
+----------
+[ ] Meter Reading > Meter Reading
+[ ] Search the account and confirm the name and previous reading
+[ ] Enter the present reading and submit once
+[ ] Offline Mode > Download Offline Data before going to the field
+[ ] Install App if you will work without a browser tab
+[ ] Encode readings while offline
+[ ] Sync when you are back online
+[ ] Logout

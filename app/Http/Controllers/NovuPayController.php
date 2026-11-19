@@ -91,20 +91,12 @@ class NovuPayController extends Controller
 
         $latest = $bills[0];
         $dueDateRaw = $latest['due_date'] ?? null;
-        $amount = round((float) ($latest['amount'] ?? 0), 2);
-        $amountAfterDue = round((float) ($latest['amount_after_due'] ?? $amount), 2);
-
-        $payable = $amount;
-        if ($dueDateRaw) {
-            try {
-                $due = Carbon::parse($dueDateRaw)->startOfDay();
-                if (now()->startOfDay()->gt($due)) {
-                    $payable = $amountAfterDue > 0 ? $amountAfterDue : $amount;
-                }
-            } catch (\Throwable $e) {
-                // keep billed amount
-            }
-        }
+        // bill.amount is stored as the after-due total (basic charge + penalty).
+        // NovuPay locks the payment to data.amount and does not compute a penalty,
+        // so this must be the amount due today in Asia/Manila: the unpaid total
+        // on or before due_date, and amount_after_due only from the next day.
+        // bill_period_to is the meter-reading period end and does not start the penalty.
+        $payable = round(PaymentController::resolveOnlinePayableAmount($latest), 2);
 
         if ($payable <= 0) {
             return response()->json([

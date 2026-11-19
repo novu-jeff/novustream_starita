@@ -56,7 +56,9 @@ return [
 
     'novupay' => [
         'api_url' => rtrim((string) env('NOVUPAY_API_URL', 'https://api.novu-pay.com'), '/'),
+        'api_base' => rtrim((string) env('NOVUPAY_API_BASE', env('NOVUPAY_API_URL', 'https://api.novu-pay.com')), '/'),
         'checkout_base' => rtrim((string) env('NOVUPAY_CHECKOUT_BASE', 'https://novu-pay.com'), '/'),
+        'hosted_base' => rtrim((string) env('NOVUPAY_HOSTED_BASE', env('NOVUPAY_CHECKOUT_BASE', 'https://novu-pay.com')), '/'),
         'api_key' => env('NOVUPAY_API_KEY'),
         'client_id' => env('NOVUPAY_CLIENT_ID'),
         'client_secret' => env('NOVUPAY_CLIENT_SECRET'),
@@ -65,7 +67,8 @@ return [
         'notification_url' => env('NOVUPAY_NOTIFICATION_URL'),
         // LAN IP for CURLOPT_RESOLVE when hairpin to the public VIP fails. Not DNS.
         // Leave empty for the Novulutions staging API; that pin is only for api.novu-pay.com.
-        'api_resolve' => env('NOVUPAY_API_RESOLVE'),
+        'api_resolve_ip' => env('NOVUPAY_API_RESOLVE_IP', env('NOVUPAY_API_RESOLVE')),
+        'api_resolve' => env('NOVUPAY_API_RESOLVE', env('NOVUPAY_API_RESOLVE_IP')),
         // Staging docs: minimum PHP 50. Production default stays 100 unless overridden.
         'min_amount' => (float) env('NOVUPAY_MIN_AMOUNT', 100),
         // Flat merchant fee added on top of the amount due. Not part of the water bill.
