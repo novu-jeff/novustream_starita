@@ -23,6 +23,21 @@ class BillArrearsServiceTest extends TestCase
         $this->assertSame(1711.88, $remaining);
     }
 
+    public function test_remaining_unpaid_carries_only_balance_after_partial_payment(): void
+    {
+        $bill = new Bill([
+            'amount' => 2000,
+            'partial_payment' => 1000,
+            'isPartial' => 1,
+            'isPaid' => 0,
+            'amount_paid' => 1000,
+        ]);
+
+        $remaining = (new BillArrearsService())->remainingUnpaid($bill, 1000);
+
+        $this->assertSame(1000.0, $remaining);
+    }
+
     public function test_fully_paid_bill_carries_no_arrears(): void
     {
         $bill = new Bill([
