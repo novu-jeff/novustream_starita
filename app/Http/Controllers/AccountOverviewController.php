@@ -17,6 +17,7 @@ use App\Models\Bill;
 use App\Models\ServiceApplication;
 use App\Models\UserAccounts;
 use App\Models\ConcessionerAccountLink;
+use App\Models\TicketsCategory;
 
 class AccountOverviewController extends Controller
 {
@@ -89,6 +90,7 @@ class AccountOverviewController extends Controller
             }
         }
         $accountNotifications = $this->accountNotifications($my, $accounts, $applicationNotification, $linkApprovalNotifications);
+        $supportTicketCategories = TicketsCategory::all();
         $canApplyForNewServiceConnection = $this->canApplyForNewServiceConnection($accounts);
         $serviceApplication = ServiceApplication::with('documents')
             ->where('user_id', $id)
@@ -120,48 +122,10 @@ class AccountOverviewController extends Controller
             }
         }
 
-        $statement['current_bill'] = collect($statement['transactions'])
-            ->filter(function ($bill) {
-                return ($bill['isPaid'] ?? 0) == 0
-                    && (
-                        empty($bill['amount_paid']) ||
-                        floatval($bill['amount_paid']) < floatval($bill['amount'])
-                    );
-            })
-            ->sortByDesc('due_date')
-            ->first();
-
-            if (!empty($statement['current_bill'])) {
-                $statement['current_bill'] =
-                    $this->computeBillPenalty($statement['current_bill']);
-            }
-
-        $statement['total'] = !empty($statement['transactions'])
-            ? array_sum(array_map(function($bill) {
-                $amount = $bill['total'] ?? 0;
-                $discount = $bill['discount'] ?? 0;
-                $advance = $bill['advances'] ?? 0;
-
-            $penalty = $statement['current_bill']['penalty'] ?? 0;
-            $dueDate = isset($data['current_bill']['due_date'])
-                            ? \Carbon\Carbon::parse($data['current_bill']['due_date'])
-                            : null;
-
-            $today = \Carbon\Carbon::today();
-
-            $applicablePenalty = ($dueDate && $today->gt($dueDate)) ? $penalty : 0;
-
-                return ($amount + $applicablePenalty) - ($discount + $advance);
-            }, $statement['transactions']))
-            : 0;
-
-        $statement['due_date'] = !empty($statement['transactions'])
-            ? collect($statement['transactions'])
-                ->pluck('due_date')
-                ->filter()
-                ->sortDesc()
-                ->first()
-            : '';
+        $statement['current_bill'] = null;
+        $statement['total'] = 0;
+        $statement['due_date'] = '';
+        $statement['current_bill_payment_url'] = null;
 
         $statement['measurement'] = env('APP_PRODUCT') == 'novusurge' ? 'kwh' : 'm³';
 
@@ -209,6 +173,54 @@ class AccountOverviewController extends Controller
             }
 
             $accountStatements[] = $accountStatement;
+        }
+
+        $latestUnpaidBill = collect($accountStatements)
+            ->flatMap(fn ($accountStatement) => $accountStatement['transactions'])
+            ->filter(fn ($bill) => empty($bill['isPaid']))
+            ->sort(function ($left, $right) {
+                $periodOrder = strcmp(
+                    (string) ($right['bill_period_to'] ?? ''),
+                    (string) ($left['bill_period_to'] ?? '')
+                );
+
+                return $periodOrder ?: strcmp(
+                    (string) ($right['created_at'] ?? ''),
+                    (string) ($left['created_at'] ?? '')
+                );
+            })
+            ->first();
+
+        if ($latestUnpaidBill) {
+            $latestUnpaidBill = $this->computeBillPenalty($latestUnpaidBill);
+            $latestDueDate = !empty($latestUnpaidBill['due_date'])
+                ? Carbon::parse($latestUnpaidBill['due_date'])->startOfDay()
+                : null;
+            $isDue = $latestDueDate && Carbon::today()->greaterThanOrEqualTo($latestDueDate);
+
+            $statement['current_bill'] = $latestUnpaidBill;
+            $statement['due_date'] = $latestUnpaidBill['due_date'] ?? '';
+            $statement['total'] = (float) ($isDue
+                ? ($latestUnpaidBill['amount'] ?? 0)
+                : ($latestUnpaidBill['total'] ?? $latestUnpaidBill['amount'] ?? 0));
+
+            $paymentPayload = [
+                'reference_no' => $latestUnpaidBill['reference_no'] ?? '',
+                'amount' => (float) ($latestUnpaidBill['amount'] ?? 0),
+                'customer' => [
+                    'name' => $data->name ?? '',
+                    'account_no' => $latestUnpaidBill['account_no'] ?? '',
+                    'address' => $latestUnpaidBill['address'] ?? '',
+                ],
+            ];
+
+            $paymentController = app(PaymentController::class);
+            $paymentResult = $paymentController->resolveSoaPaymentQrUrl(
+                (string) ($latestUnpaidBill['reference_no'] ?? ''),
+                $latestUnpaidBill,
+                $paymentPayload
+            );
+            $statement['current_bill_payment_url'] = $paymentResult['url'] ?? null;
         }
 
         $monthlyHistory = [];
@@ -288,32 +300,9 @@ class AccountOverviewController extends Controller
         }
 
         $sc_discounts = $accounts->pluck('sc_discount');
-        $statement['current_bill_qr'] = null;
+        $statement['current_bill_qr'] = $statement['current_bill_payment_url'];
 
-        if (!empty($statement['current_bill'])) {
-
-            $currentBill = $statement['current_bill'];
-
-            $payload = [
-                'reference_no' => $currentBill['reference_no'] ?? '',
-                'amount' => $currentBill['amount'] ?? 0,
-                'customer' => [
-                    'name' => $data->name ?? '',
-                    'account_no' => $currentBill['account_no'] ?? '',
-                    'address' => $currentBill['address'] ?? '',
-                ],
-            ];
-
-            $paymentController = app(\App\Http\Controllers\PaymentController::class);
-            $qrResolved = $paymentController->resolveSoaPaymentQrUrl(
-                $currentBill['reference_no'] ?? '',
-                $currentBill,
-                $payload
-            );
-            $statement['current_bill_qr'] = $qrResolved['url'];
-        }
-
-        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication', 'hideServiceApplicationContainer', 'chartMonthlyLabels', 'chartMonthlyConsumption', 'chartMonthlyBill', 'chartMonthlyPayment'));
+        return view('account-overview.index', compact('my', 'data', 'accounts', 'statement', 'accountStatements', 'sc_discounts', 'approvalNotice', 'applicationNotification', 'accountNotifications', 'supportTicketCategories', 'canApplyForNewServiceConnection', 'applicationStatus', 'serviceApplication', 'hideServiceApplicationContainer', 'chartMonthlyLabels', 'chartMonthlyConsumption', 'chartMonthlyBill', 'chartMonthlyPayment'));
     }
 
 public function addAccount(Request $request)
@@ -546,13 +535,16 @@ public function addAccount(Request $request)
 
         if ($isAccountNoValid && $isViewValid) {
             $data = $statements[$account_no] ?? [];
+            $selectedAccount = $accounts->firstWhere('account_no', $account_no);
 
             if ($request->ajax() && $request->has('account_no') && $request->has('view')) {
                 return $this->datatable('bills', $data);
             }
 
             $viewer = 'bills';
-            return view('account-overview.bill', compact('viewer', 'account_no', 'view'));
+            $portalSummary = $this->portalSummaryForAccount($selectedAccount, $accounts, $user);
+
+            return view('account-overview.bill', compact('viewer', 'account_no', 'view', 'portalSummary'));
         }
 
         if ($request->ajax()) {
@@ -560,7 +552,12 @@ public function addAccount(Request $request)
         }
 
         $viewer = 'accounts';
-        return view('account-overview.bill', compact('viewer'));
+        $primaryAccount = $accounts->first();
+        $portalSummary = $primaryAccount
+            ? $this->portalSummaryForAccount($primaryAccount, $accounts, $user)
+            : null;
+
+        return view('account-overview.bill', compact('viewer', 'portalSummary'));
     }
 
 
@@ -1053,6 +1050,99 @@ public function addAccount(Request $request)
         }
 
         return $this->isRegistrationApplication($account) ? 'pending' : null;
+    }
+
+    private function portalSummaryForAccount($account, $accounts, $user): array
+    {
+        $unpaidBills = collect($this->meterService::getBills($account->account_no, true, false) ?: [])
+            ->map(fn ($bill) => $this->computeBillPenalty($bill))
+            ->sort(function ($left, $right) {
+                $periodOrder = strcmp(
+                    (string) ($right['bill_period_to'] ?? ''),
+                    (string) ($left['bill_period_to'] ?? '')
+                );
+
+                return $periodOrder ?: strcmp(
+                    (string) ($right['created_at'] ?? ''),
+                    (string) ($left['created_at'] ?? '')
+                );
+            })
+            ->values();
+
+        $latestBill = $unpaidBills->first();
+        if (!$latestBill) {
+            $latestBill = collect($this->meterService::getBills($account->account_no, true, true) ?: [])
+                ->map(fn ($bill) => $this->computeBillPenalty($bill))
+                ->sort(function ($left, $right) {
+                    $periodOrder = strcmp(
+                        (string) ($right['bill_period_to'] ?? ''),
+                        (string) ($left['bill_period_to'] ?? '')
+                    );
+
+                    return $periodOrder ?: strcmp(
+                        (string) ($right['created_at'] ?? ''),
+                        (string) ($left['created_at'] ?? '')
+                    );
+                })
+                ->first();
+        }
+
+        $totalAmount = 0.0;
+        $paymentUrl = null;
+        if ($latestBill && empty($latestBill['isPaid'])) {
+            $dueDate = !empty($latestBill['due_date'])
+                ? Carbon::parse($latestBill['due_date'])->startOfDay()
+                : null;
+            $isDue = $dueDate && Carbon::today()->greaterThanOrEqualTo($dueDate);
+            $totalAmount = (float) ($isDue
+                ? ($latestBill['amount'] ?? 0)
+                : ($latestBill['total'] ?? $latestBill['amount'] ?? 0));
+
+            $payment = app(PaymentController::class)->resolveSoaPaymentQrUrl(
+                (string) ($latestBill['reference_no'] ?? ''),
+                $latestBill,
+                [
+                    'reference_no' => $latestBill['reference_no'] ?? '',
+                    'amount' => (float) ($latestBill['amount'] ?? 0),
+                    'customer' => [
+                        'name' => $user->name ?? 'Customer',
+                        'account_no' => $account->account_no,
+                        'address' => $account->address ?? '',
+                    ],
+                ]
+            );
+            $paymentUrl = $payment['url'] ?? null;
+        }
+
+        $accountCount = $accounts->count();
+        $approvedCount = $accounts->filter(fn ($linkedAccount) => $this->canUseAccount($linkedAccount))->count();
+        $address = trim((string) ($account->address ?? ''));
+
+        return [
+            'portalName' => $user->name ?? 'Account Holder',
+            'portalInitials' => collect(preg_split('/\s+/', trim((string) ($user->name ?? ''))))
+                ->filter()
+                ->take(2)
+                ->map(fn ($part) => mb_substr($part, 0, 1))
+                ->implode(''),
+            'portalAccountNo' => $account->account_no,
+            'portalAddress' => $address !== '' ? $address : 'N/A',
+            'portalEmail' => $user->email ?? null,
+            'portalCurrentBill' => $latestBill,
+            'portalTotalAmount' => $totalAmount,
+            'portalDueDate' => $latestBill['due_date'] ?? null,
+            'portalLatestConsumption' => (float) data_get($latestBill, 'reading.consumption', 0),
+            'portalAccountCount' => $accountCount,
+            'portalApprovedAccountCount' => $approvedCount,
+            'portalAccountNote' => $address !== '' ? $address . ' / Approved' : $approvedCount . ' approved',
+            'portalPaymentUrl' => $paymentUrl,
+            'portalStatementUrl' => !empty($latestBill['reference_no'])
+                ? route('account-overview.bills.reference_no', ['reference_no' => $latestBill['reference_no']])
+                : null,
+            'portalBalanceNote' => 'Current billing cycle',
+            'portalDueDateNote' => 'Latest bill due date',
+            'portalConsumptionNote' => 'Latest available reading',
+        ];
     }
 
 

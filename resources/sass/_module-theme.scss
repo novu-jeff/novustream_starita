@@ -20,6 +20,30 @@
     padding-top: 1.5rem;
 }
 
+/* Fix main content spacing */
+#app main.main-conce {
+    padding-top: 0;
+    padding-bottom: 2rem;
+}
+
+#app main.main-conce > .responsive-wrapper-conce {
+    width: min(94%, 1800px);
+    max-width: 1800px;
+    margin-inline: auto;
+    padding: 1.5rem 0 2rem;
+}
+
+/* Restore spacing for page header */
+#app main.main-conce .main-header {
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
+/* Restore spacing for content */
+#app main.main-conce .content {
+    margin-top: 1.5rem;
+}
+
 #app main .main-header {
     flex-wrap: wrap;
     align-items: center;
@@ -230,6 +254,14 @@
     #app main.main > .responsive-wrapper {
         width: 100%;
         padding: 1rem .75rem 2rem;
+    }
+
+    #app main.main > .responsive-wrapper-conce {
+        width: 100%;
+        padding: 1rem .75rem 2rem;
+    }
+    #app main.main-conce .main-header {
+        margin-bottom: 1rem;
     }
 
     #app main .inner-content,
