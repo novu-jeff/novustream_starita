@@ -3,7 +3,7 @@
 @section('content')
     <style>
         .guide-hero {
-            background: linear-gradient(125deg, #003b78 0%, #005eb8 52%, #1785d1 100%);
+            background: linear-gradient(125deg, #32667e 0%, #32667e 52%, #32667e 100%);
             border-radius: 1.5rem;
             color: #fff;
             overflow: hidden;
@@ -92,8 +92,8 @@
         .guide-toc a:hover,
         .guide-toc a:focus {
             background: #eaf4ff;
-            border-left-color: #006cc9;
-            color: #004aad;
+            border-left-color: #32667e;
+            color: #32667e;
             transform: translateX(2px);
         }
 
@@ -115,7 +115,7 @@
 
         .guide-section-heading {
             align-items: center;
-            color: #003b78;
+            color: #32667e;
             display: flex;
             font-size: 1.2rem;
             font-weight: 700;
@@ -125,7 +125,7 @@
 
         .guide-section-number {
             align-items: center;
-            background: linear-gradient(135deg, #006cc9, #1590dd);
+            background: linear-gradient(135deg, #1090cb, #32667e);
             border-radius: 50%;
             color: #fff;
             display: inline-flex;
@@ -141,7 +141,7 @@
             background: #f8fbfe;
             border-left: 4px solid #b7ddfb;
             border-radius: 0 .75rem .75rem 0;
-            color: #344454;
+            color: #32667e;
             font-size: .95rem;
             line-height: 1.8;
             padding: 1.25rem 1.4rem;
@@ -154,7 +154,7 @@
         }
 
         .guide-copy-label {
-            color: #004aad;
+            color: #32667e;
             font-size: .85rem;
             font-weight: 800;
             letter-spacing: .04em;
@@ -178,7 +178,7 @@
         }
 
         .guide-copy ol li::marker {
-            color: #006cc9;
+            color: #32667e;
             font-weight: 800;
         }
 
@@ -229,8 +229,9 @@
         }
     </style>
 
-    <main class="main">
-        <div class="responsive-wrapper">
+    <main class="main-conce">
+        <div class="responsive-wrapper-conce">
+            @include('account-overview.partials.portal-navigation')
             <div class="guide-hero shadow">
                 <div class="guide-hero-content d-flex align-items-center gap-3">
                     <div class="guide-hero-icon"><i class="bx bx-book-open"></i></div>

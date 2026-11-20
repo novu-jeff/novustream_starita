@@ -4,21 +4,51 @@
 
     <main class="main">
         <div class="responsive-wrapper">
-            <div class="main-header d-flex justify-content-between align-items-center">
+            @php
+                $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
+                $primaryAccount = $accounts->first();
+                $primaryStatement = $accountStatements[0] ?? null;
+                $portalAccountNo = $primaryAccount->account_no ?? '';
+                $portalName = $my->name ?? 'Account Holder';
+                $portalInitials = collect(preg_split('/\s+/', trim($portalName)))
+                    ->filter()
+                    ->take(2)
+                    ->map(fn ($part) => mb_substr($part, 0, 1))
+                    ->implode('');
+                $portalLatestConsumption = collect($chartMonthlyConsumption ?? [])->last() ?? 0;
+                $portalCurrentBill = $statement['current_bill'] ?? null;
+                $portalCurrentReference = $statement['current_bill']['reference_no']
+                    ?? data_get($primaryStatement, 'transactions.0.reference_no');
+                $portalDueDate = $portalCurrentBill['due_date'] ?? null;
+                $isDue = $portalDueDate
+                    ? \Carbon\Carbon::today()->greaterThanOrEqualTo(
+                        \Carbon\Carbon::parse($portalDueDate)->startOfDay()
+                    )
+                    : false;
 
-                <h1>Account Overview</h1>
+                $portalDiscount = (float) ($portalCurrentBill['discount'] ?? 0);
+                $portalAdvances = (float) ($portalCurrentBill['advances'] ?? 0);
+                $portalPenalty = (float) ($portalCurrentBill['penalty'] ?? 0);
 
-                @php
-                    $visibleApprovalNotice = session('approval_notice') ?? ($approvalNotice ?? null);
-                @endphp
+                $portalBasicCharge = (float) ($portalCurrentBill['total'] ?? 0);
 
-                @if(!empty($visibleApprovalNotice))
-                    <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-4 mt-4">
-                        {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
-                    </div>
-                @endif
+                $portalAmountToDisplay = $portalBasicCharge
+                    - $portalDiscount
+                    - $portalAdvances;
 
-            </div>
+                if ($isDue) {
+                    $portalAmountToDisplay += $portalPenalty;
+                }
+                $portalTotalAmount = max(0, $portalAmountToDisplay);
+                $portalApprovedAccountCount = $accounts->filter(fn ($account) => $account->isApproved || ($account->access_link_status ?? null) === 'approved')->count();
+            @endphp
+            @include('account-overview.partials.portal-navigation', ['portalAccount' => $primaryAccount])
+
+            @if(!empty($visibleApprovalNotice))
+                <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mb-3 mt-3">
+                    {{ $visibleApprovalNotice['message'] ?? 'Your application is currently in the approval stage.' }}
+                </div>
+            @endif
             @if(!empty($visibleApprovalNotice) && $accounts->contains('application_type', 'new_connection'))
                 <div class="d-flex justify-content-center w-100">
                     <div class="alert alert-{{ $visibleApprovalNotice['status'] ?? 'warning' }} text-uppercase fw-medium text-center mt-3 mb-4">
@@ -34,6 +64,122 @@
             @if($errors->any())
                 <div class="alert alert-danger text-uppercase fw-medium mt-4 mb-0">
                     {{ $errors->first() }}
+                </div>
+            @endif
+
+            @include('account-overview.partials.portal-welcome', [
+                'portalName' => $portalName,
+                'portalInitials' => $portalInitials,
+                'portalAccountNo' => $portalAccountNo,
+                'portalAddress' => $primaryAccount->address ?? null,
+                'portalEmail' => $my->email ?? null,
+                'portalCurrentBill' => $portalCurrentBill,
+                'portalTotalAmount' => $portalTotalAmount,
+                'portalPaymentUrl' => $statement['current_bill_payment_url'] ?? null,
+                'portalStatementUrl' => $portalCurrentReference
+                    ? route('account-overview.bills.reference_no', [
+                        'reference_no' => $portalCurrentReference
+                    ])
+                    : null,
+                'portalStatementModal' => true,
+            ])
+
+            @include('account-overview.partials.portal-kpis', [
+                'portalTotalAmount' => $portalTotalAmount,
+                'portalDueDate' => $portalDueDate,
+                'portalLatestConsumption' => $portalLatestConsumption,
+                'portalAccountCount' => $accounts->count(),
+                'portalApprovedAccountCount' => $portalApprovedAccountCount,
+                'portalAccountNote' => $portalApprovedAccountCount . ' approved',
+            ])
+
+            @if($portalCurrentBill)
+                @php
+                    $modalBillBreakdown = collect($portalCurrentBill['breakdown'] ?? []);
+                    $modalBillDiscounts = is_array($portalCurrentBill['discount'] ?? null)
+                        ? collect($portalCurrentBill['discount'])
+                        : collect();
+                    $modalBillingCharge = $modalBillBreakdown
+                        ->reject(fn ($item) => ($item['name'] ?? '') === 'Previous Balance')
+                        ->sum('amount');
+                @endphp
+                <div class="modal fade" id="latestStatementModal" tabindex="-1" aria-labelledby="latestStatementModalTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                        <div class="modal-content portal-statement-modal">
+                            <div class="modal-header">
+                                <div>
+                                    <span class="portal-modal-eyebrow">NOVUSTREAM E-STATEMENT</span>
+                                    <h2 class="modal-title" id="latestStatementModalTitle">Statement of Account</h2>
+                                    <span class="portal-modal-reference">{{ $portalCurrentBill['reference_no'] ?? '' }}</span>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="portal-statement-identity">
+                                    <div><small>Account Holder</small><strong>{{ $portalName }}</strong></div>
+                                    <div><small>Account Number</small><strong>{{ $portalCurrentBill['account_no'] ?? $portalAccountNo }}</strong></div>
+                                    <div><small>Service Address</small><strong>{{ $primaryAccount->address ?? 'N/A' }}</strong></div>
+                                </div>
+                                <div class="portal-statement-period">
+                                    <div><small>Billing Period</small><strong>{{ !empty($portalCurrentBill['bill_period_from']) ? \Carbon\Carbon::parse($portalCurrentBill['bill_period_from'])->format('M d, Y') : 'N/A' }} - {{ !empty($portalCurrentBill['bill_period_to']) ? \Carbon\Carbon::parse($portalCurrentBill['bill_period_to'])->format('M d, Y') : 'N/A' }}</strong></div>
+                                    <div><small>Due Date</small><strong>{{ !empty($portalCurrentBill['due_date']) ? \Carbon\Carbon::parse($portalCurrentBill['due_date'])->format('M d, Y') : 'N/A' }}</strong></div>
+                                    <div><small>Consumption</small><strong>{{ number_format((float) data_get($portalCurrentBill, 'reading.consumption', 0), 2) }} m³</strong></div>
+                                </div>
+                                <div class="portal-statement-lines">
+                                    @if($modalBillingCharge > 0)
+                                        <div><span>Current Billing</span></div>
+                                    @endif
+                                    @if((float) ($portalCurrentBill['previous_unpaid'] ?? 0) > 0)
+                                        <div><span>Previous Balance</span><strong>PHP {{ number_format((float) $portalCurrentBill['previous_unpaid'], 2) }}</strong></div>
+                                    @endif
+                                    @foreach($modalBillBreakdown as $line)
+                                        @if(($line['name'] ?? '') !== 'Previous Balance' && strtolower((string) ($line['name'] ?? '')) !== 'system fee')
+                                            <div><span>{{ $line['name'] ?? 'Charge' }}</span><strong>PHP {{ number_format((float) ($line['amount'] ?? 0), 2) }}</strong></div>
+                                        @endif
+                                    @endforeach
+                                    @foreach($modalBillDiscounts as $discount)
+                                        <div class="is-discount"><span>{{ $discount['name'] ?? 'Discount' }}</span><strong>- PHP {{ number_format((float) ($discount['amount'] ?? 0), 2) }}</strong></div>
+                                    @endforeach
+                                    @if((float) ($portalCurrentBill['advances'] ?? 0) > 0)
+                                        <div class="is-discount"><span>Advances</span><strong>- PHP {{ number_format((float) $portalCurrentBill['advances'], 2) }}</strong></div>
+                                    @endif
+                                     @if((float) ($portalCurrentBill['discount'] ?? 0) > 0)
+                                        <div class="is-discount"><span>Discount</span><strong>- PHP {{ number_format((float) $portalCurrentBill['discount'], 2) }}</strong></div>
+                                    @endif
+                                    @if($isDue && (float) ($portalCurrentBill['penalty'] ?? 0) > 0)
+                                        <div>
+                                            <span>Penalty</span>
+                                            <strong>PHP {{ number_format((float) $portalCurrentBill['penalty'], 2) }}</strong>
+                                        </div>
+                                    @endif
+                                </div>
+                                @php
+                                    $basicCharge = (float) ($statement['total'] ?? 0);
+                                    $discount = (float) ($portalDiscount ?? 0);
+                                    $advances = (float) ($portalAdvances ?? 0);
+                                    $penalty = (float) ($portalCurrentBill['penalty'] ?? 0);
+
+                                    $amountToDisplay = $basicCharge - $discount - $advances;
+
+                                    if ($isDue) {
+                                        $amountToDisplay += $penalty;
+                                    }
+                                @endphp
+
+                                <div class="portal-statement-total">
+                                    <span>{{ $isDue ? 'Amount Due' : 'Total Amount Due' }}</span>
+                                    <strong>PHP {{ number_format($amountToDisplay, 2) }}</strong>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <a href="{{ route('account-overview.bills.reference_no', ['reference_no' => $portalCurrentBill['reference_no']]) }}" target="_blank" rel="noopener" class="portal-button portal-button-outline"><i class="bx bx-file" aria-hidden="true"></i>Full Statement</a>
+                                @if(!empty($statement['current_bill_payment_url']) && empty($portalCurrentBill['isPaid']))
+                                    <a href="{{ $statement['current_bill_payment_url'] }}" target="_blank" rel="noopener" class="portal-button portal-button-pay"><i class="bx bx-credit-card" aria-hidden="true"></i>Pay Online</a>
+                                @endif
+                                <button type="button" class="portal-button portal-button-muted" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             @endif
 
@@ -102,39 +248,8 @@
                     </div>
                 </div>
             </div>
-            @php
-                $primaryNotification = $accountNotifications[0] ?? $applicationNotification ?? null;
-            @endphp
-
-            @if(!empty($accountNotifications))
-                <div class="application-notification">
-                    <button type="button" class="application-notification-button" id="applicationNotificationToggle" aria-label="View account notifications">
-                        <i class="bx bx-bell"></i>
-                        <span class="application-notification-dot bg-{{ $primaryNotification['status'] ?? 'primary' }}"></span>
-                    </button>
-                    <div class="application-notification-panel d-none" id="applicationNotificationPanel">
-                        <div class="fw-bold text-uppercase mb-3">Notifications</div>
-
-                        @foreach($accountNotifications as $notification)
-                            <div class="application-notification-item {{ $loop->last ? 'mb-0 pb-0 border-0' : '' }}">
-                                <div class="d-flex align-items-start justify-content-between gap-3">
-                                    <div>
-                                        <div class="fw-bold text-uppercase mb-1">{{ $notification['title'] }}</div>
-                                        <div class="small text-muted">{{ $notification['message'] }}</div>
-                                        @if(!empty($notification['date']))
-                                            <div class="small text-muted mt-2">{{ $notification['date'] }}</div>
-                                        @endif
-                                    </div>
-                                    <span class="badge bg-{{ $notification['status'] ?? 'primary' }}">
-                                        {{ ucfirst($notification['status'] ?? 'info') }}
-                                    </span>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
             <div class="inner-content mt-5 pb-5">
+                <section class="portal-view is-active" id="portal-view-overview" data-portal-view="overview">
                     @if(!empty($serviceApplication) && empty($hideServiceApplicationContainer))
                         <div class="card shadow border-0 p-4 mb-4">
                             <div class="card-body">
@@ -443,7 +558,7 @@
                     </div>
 
                     @if($accounts->isNotEmpty())
-                    <div class="card shadow border-0 p-4 mb-4">
+                    <div class="card shadow border-0 p-4 mb-4" id="accounts">
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <div>
                                 <small class="text-uppercase fw-bold text-muted">My Accounts</small>
@@ -548,7 +663,7 @@
                 @if($data->accounts)
                     <div class="row pb-5">
                         <div class="col-12 col-md-6 mb-3">
-                            <div class="bg-info mt-1 p-3 text-uppercase fw-bold text-white fs-5">
+                            <div class="mt-1 p-3 text-uppercase fw-bold text-white fs-5 rounded-4" style="background: #32667e;">
                                 Payment Due Date:
                                 <span class="ms-2 text-decoration-underline">
                                     @if($statement['total'] == 0)
@@ -687,7 +802,7 @@
                         <div class="col-12 col-md-6 mb-3">
                             <div class="card shadow border-0 p-3">
                                 <div class="card-body">
-                                    <div class="bg-primary mt-1 p-3 text-uppercase fw-bold text-white">
+                                    <div class="mt-1 p-3 text-uppercase fw-bold text-white rounded-4" style="background: #32667e;">
                                         Statement of Account as of
                                         <span class="text-decoration-underline">{{ \Carbon\Carbon::now()->format('F d, Y') }}</span>
                                     </div>
@@ -734,7 +849,7 @@
                                                         <div class="small text-muted text-uppercase">{{ $statementAccount->address ?: 'N/A' }}</div>
                                                     </div>
                                                 </div>
-                                                <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white">
+                                                <div class="bg-danger d-flex align-items-center justify-content-between mt-1 p-3 text-uppercase fw-bold text-white rounded-3">
                                                     <span>Total Amount Due</span>
                                                     <span>PHP {{ number_format($accountStatement['total'], 2) }}</span>
                                                 </div>
@@ -770,6 +885,130 @@
                 @else
                     <div class="alert alert-primary text-uppercase fw-medium text-center">No data found, Please make sure to have a meter no. connected to this account!</div>
                 @endif
+                </section>
+
+                <section class="portal-view" id="portal-view-bills" data-portal-view="bills" hidden>
+                    <div class="portal-section-heading">
+                        <div>
+                            <span class="portal-section-kicker">Billing</span>
+                            <h2>Bills & Payment</h2>
+                            <p>Current unpaid statements for your linked accounts.</p>
+                        </div>
+                    </div>
+
+                    @forelse($accountStatements as $accountStatement)
+                        @php
+                            $billAccount = $accountStatement['account'];
+                            $billAccountStatus = $billAccount->access_link_status
+                                ?: ($billAccount->application_status
+                                    ?: ($billAccount->isApproved ? 'approved' : ($billAccount->denied_at ? 'denied' : null)));
+                        @endphp
+                        <section class="portal-bill-account">
+                            <div class="portal-bill-account-heading">
+                                <div>
+                                    <span class="portal-account-number">{{ $billAccount->account_no }}</span>
+                                    <span class="portal-address">{{ $billAccount->address ?: 'N/A' }}</span>
+                                </div>
+                                <a class="portal-text-link" href="{{ route('account-overview.bills', ['account_no' => $billAccount->account_no, 'view' => 'unpaid']) }}">Full billing history <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
+                            </div>
+
+                            @if($billAccountStatus === 'pending')
+                                <div class="portal-empty-state">This account is pending approval. Bills will appear after approval.</div>
+                            @else
+                                <div class="portal-bill-list">
+                                    @forelse($accountStatement['transactions'] as $transaction)
+                                        <a class="portal-bill-row" href="{{ route('account-overview.bills.reference_no', ['reference_no' => $transaction['reference_no']]) }}">
+                                            <span class="portal-bill-mark"><i class="bx bx-receipt" aria-hidden="true"></i></span>
+                                            <span class="portal-bill-copy">
+                                                <strong>{{ $transaction['reference_no'] }}</strong>
+                                                <small>{{ !empty($transaction['bill_period_from']) ? \Carbon\Carbon::parse($transaction['bill_period_from'])->format('M d, Y') : 'N/A' }} - {{ !empty($transaction['bill_period_to']) ? \Carbon\Carbon::parse($transaction['bill_period_to'])->format('M d, Y') : 'N/A' }}</small>
+                                            </span>
+                                            <span class="portal-bill-status {{ !empty($transaction['isPaid']) ? 'is-paid' : '' }}">{{ !empty($transaction['isPaid']) ? 'Paid' : 'Due' }}</span>
+                                            <strong class="portal-bill-amount">PHP {{ number_format((float) ($transaction['amount'] ?? 0), 2) }}</strong>
+                                            <i class="bx bx-chevron-right portal-bill-chevron" aria-hidden="true"></i>
+                                        </a>
+                                    @empty
+                                        <div class="portal-empty-state">No unpaid bills found for this account.</div>
+                                    @endforelse
+                                </div>
+                            @endif
+                        </section>
+                    @empty
+                        <div class="portal-empty-state">No linked accounts are available yet.</div>
+                    @endforelse
+
+                    @if($primaryAccount)
+                        <div class="portal-history-link">
+                            <a class="portal-button portal-button-primary" href="{{ route('account-overview.bills', ['account_no' => $primaryAccount->account_no, 'view' => 'unpaid']) }}"><i class="bx bx-history" aria-hidden="true"></i>Open Payment History</a>
+                        </div>
+                    @endif
+                </section>
+
+                <section class="portal-view" id="portal-view-guide" data-portal-view="guide" hidden>
+                    <div class="portal-section-heading">
+                        <div>
+                            <span class="portal-section-kicker">Help Center</span>
+                            <h2>Novustream Portal User Guide</h2>
+                            <p>Account information and billing tools for your water service.</p>
+                        </div>
+                        <a class="portal-text-link" href="{{ route('guide.concessionaire') }}">Open full user guide <i class="bx bx-link-external" aria-hidden="true"></i></a>
+                    </div>
+                    <div class="portal-guide-grid">
+                        <article class="portal-guide-item">
+                            <span>01</span>
+                            <h3>Check your account</h3>
+                            <p>Your account number and service address appear in the welcome area. Use Manage Linked Accounts to submit another account for verification.</p>
+                        </article>
+                        <article class="portal-guide-item">
+                            <span>02</span>
+                            <h3>Review monthly usage</h3>
+                            <p>The consumption chart compares monthly water usage with billed amounts. Select an account statement to open its bill details.</p>
+                        </article>
+                        <article class="portal-guide-item">
+                            <span>03</span>
+                            <h3>View bills and payments</h3>
+                            <p>Open Bills & Payment to review due statements or use the full billing history for paid and unpaid transactions.</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="portal-view" id="portal-view-ticket" data-portal-view="ticket" hidden>
+                    <div class="portal-ticket-panel">
+                        <div class="portal-section-heading">
+                            <div>
+                                <span class="portal-section-kicker">Customer Support</span>
+                                <h2>Submit a Support Ticket</h2>
+                                <p>Tell the Sta. Rita Water District team about your concern.</p>
+                            </div>
+                            <a class="portal-text-link" href="{{ route('client.support-ticket.create') }}">View submitted tickets <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
+                        </div>
+                        <form method="POST" action="{{ route('client.support-ticket.store') }}" class="portal-ticket-form">
+                            @csrf
+                            <div class="mb-3">
+                                <label for="portal-ticket-category" class="form-label">Concern Category</label>
+                                <select id="portal-ticket-category" name="category" class="form-select @error('category') is-invalid @enderror" required>
+                                    <option value="">Select a category</option>
+                                    @foreach($supportTicketCategories->groupBy('category') as $categoryName => $categoryGroup)
+                                        <optgroup label="{{ $categoryName }}">
+                                            @foreach($categoryGroup as $category)
+                                                <option value="{{ $category->id }}" {{ old('category') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+                                @error('category')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="mb-3">
+                                <label for="portal-ticket-message" class="form-label">Description</label>
+                                <textarea id="portal-ticket-message" name="message" rows="5" class="form-control @error('message') is-invalid @enderror" placeholder="Describe your concern" required>{{ old('message') }}</textarea>
+                                @error('message')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="portal-ticket-actions">
+                                <button type="submit" class="portal-button portal-button-primary"><i class="bx bx-send" aria-hidden="true"></i>Submit Ticket</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -890,6 +1129,81 @@
         </div>
     </main>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+
+body { background: #f5f8fa; color: #172b3a; font-family: 'Inter', sans-serif; }
+.main { padding-top: 0; }
+.main > .responsive-wrapper { width: min(1280px, calc(100% - 32px)); max-width: 1280px; }
+.portal-statement-modal .modal-header { align-items: flex-start; }
+.portal-modal-eyebrow { display: block; margin-bottom: 4px; color: #0781a8; font-size: 9px; font-weight: 800; }
+.portal-statement-modal .modal-title { font-size: 18px; }
+.portal-modal-reference { display: block; margin-top: 4px; color: #71818c; font: 11px monospace; }
+.portal-statement-identity,.portal-statement-period { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 14px; border: 1px solid #e6ecef; border-radius: 7px; background: #f8fafb; }
+.portal-statement-identity > div,.portal-statement-period > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.portal-statement-identity small,.portal-statement-period small { color: #788791; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.portal-statement-identity strong,.portal-statement-period strong { overflow-wrap: anywhere; color: #263d4b; font-size: 11px; }
+.portal-statement-period { margin-top: 12px; background: #fff; }
+.portal-statement-lines { margin-top: 15px; }
+.portal-statement-lines > div,.portal-statement-after-due { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 2px; border-bottom: 1px solid #edf1f3; color: #536672; font-size: 11px; }
+.portal-statement-lines strong,.portal-statement-after-due strong { color: #263d4b; font-size: 11px; white-space: nowrap; }
+.portal-statement-lines .is-discount,.portal-statement-lines .is-discount strong { color: #25885d; }
+.portal-statement-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 13px 15px; border-radius: 7px; background: #c83d4b; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.portal-statement-total strong { font: 800 20px 'Plus Jakarta Sans',sans-serif; white-space: nowrap; }
+.portal-statement-after-due { padding: 11px 2px 0; border: 0; }
+.portal-button-outline { border-color: #d7e1e6; background: #fff; color: #405563; }
+.portal-button-outline:hover,.portal-button-muted:hover { background: #f0f5f7; color: #0a2940; }
+.portal-button-pay { background: #16875b; color: #fff; }
+.portal-button-pay:hover { background: #126d49; color: #fff; }
+.portal-button-muted { background: #eef2f4; color: #536573; }
+.inner-content { margin-top: 22px !important; }
+.portal-view { display: none; }
+.portal-view.is-active { display: block; animation: portal-enter .2s ease-out; }
+.portal-view[hidden] { display: none !important; }
+@keyframes portal-enter { from { opacity: .5; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.portal-view .card { overflow: hidden; border: 1px solid #e0e7eb !important; border-radius: 9px; box-shadow: 0 2px 7px rgba(15,61,94,.035) !important; }
+.portal-view .card-body { padding: 0; }
+.portal-view .table { margin-bottom: 0; }
+.portal-view .table > :not(caption) > * > * { padding: 11px 12px; border-color: #e7edf0; color: #415563; font-size: 11px; }
+.portal-view .table thead th { background: #f5f8fa; color: #62727d; font-size: 9px; text-transform: uppercase; }
+.portal-view .bg-primary,.portal-view .bg-info { background: #0f3d5e !important; }
+.portal-view .bg-danger { background: #c83d4b !important; }
+.portal-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.portal-section-kicker { color: #0781a8; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.portal-section-heading h2 { margin: 4px 0 0; color: #172b3a; font: 700 19px 'Plus Jakarta Sans',sans-serif; }
+.portal-section-heading p { margin: 5px 0 0; color: #70808a; font-size: 11px; }
+.portal-text-link { color: #087da5; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.portal-text-link:hover { color: #0a2940; text-decoration: underline; }
+.portal-bill-account { margin-bottom: 15px; overflow: hidden; border: 1px solid #e0e7eb; border-radius: 9px; background: #fff; }
+.portal-bill-account-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e8eef1; background: #fbfcfd; }
+.portal-bill-account-heading > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.portal-account-number { color: #0f3d5e; font: 700 12px monospace; }
+.portal-address { color: #71818c; font-size: 10px; }
+.portal-bill-row { display: flex; align-items: center; gap: 12px; min-height: 67px; padding: 11px 15px; border-bottom: 1px solid #edf1f3; color: inherit; text-decoration: none; }
+.portal-bill-row:last-child { border-bottom: 0; }
+.portal-bill-row:hover { background: #f8fbfc; }
+.portal-bill-mark { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 7px; background: #edf6f9; color: #14799d; font-size: 17px; }
+.portal-bill-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.portal-bill-copy strong { overflow: hidden; color: #263d4b; font: 600 11px monospace; text-overflow: ellipsis; }
+.portal-bill-copy small { color: #798892; font-size: 10px; }
+.portal-bill-status { padding: 4px 8px; border-radius: 20px; background: #fff0f1; color: #b83c49; font-size: 9px; font-weight: 700; }
+.portal-bill-status.is-paid { background: #eaf7f0; color: #267750; }
+.portal-bill-amount { color: #263d4b; font: 700 12px 'Plus Jakarta Sans',sans-serif; white-space: nowrap; }
+.portal-bill-chevron { color: #8b9aa3; font-size: 18px; }
+.portal-empty-state { padding: 20px; color: #77868f; font-size: 11px; text-align: center; }
+.portal-history-link { display: flex; justify-content: flex-end; margin-top: 18px; }
+.portal-guide-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; }
+.portal-guide-item { padding: 19px; border: 1px solid #e0e7eb; border-radius: 9px; background: #fff; }
+.portal-guide-item > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 7px; background: #eaf6fb; color: #087da5; font: 800 11px 'Plus Jakarta Sans',sans-serif; }
+.portal-guide-item h3 { margin: 13px 0 7px; color: #172b3a; font: 700 13px 'Plus Jakarta Sans',sans-serif; }
+.portal-guide-item p { margin: 0; color: #657782; font-size: 11px; line-height: 1.65; }
+.portal-ticket-panel { max-width: 760px; padding: 22px; border: 1px solid #e0e7eb; border-radius: 9px; background: #fff; }
+.portal-ticket-form .form-label { color: #344c5a; font-size: 11px; font-weight: 700; }
+.portal-ticket-form .form-control,.portal-ticket-form .form-select { border-color: #d6e0e5; border-radius: 7px; font-size: 12px; }
+.portal-ticket-form .form-control:focus,.portal-ticket-form .form-select:focus { border-color: #1684aa; box-shadow: 0 0 0 3px rgba(22,132,170,.13); }
+.portal-ticket-actions { display: flex; justify-content: flex-end; }
+.portal-modal .modal-content,.modal-content { border-color: #dfe7ec; border-radius: 10px; box-shadow: 0 18px 50px rgba(10,41,64,.18); }
+.modal-header,.modal-footer { border-color: #e8eef1; }
+.modal-title { color: #0f3d5e; font-family: 'Plus Jakarta Sans',sans-serif; }
 
 .add-account-consent-dialog {
         width: min(560px, calc(100% - 2rem));
@@ -950,61 +1264,6 @@
     border-color: #f59e0b;
     transform: translateY(-1px);
     box-shadow: 0 3px 8px rgba(245, 158, 11, 0.25);
-}
-
-.application-notification {
-    position: fixed;
-    right: 24px;
-    top: 8rem;
-    z-index: 1050;
-}
-
-.application-notification-button {
-    position: relative;
-    width: 52px;
-    height: 52px;
-    border: 0;
-    border-radius: 50%;
-    background: #0d6efd;
-    color: #fff;
-    box-shadow: 0 12px 30px rgba(13, 110, 253, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.application-notification-button i {
-    font-size: 1.55rem;
-}
-
-.application-notification-dot {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-}
-
-.application-notification-panel {
-    position: absolute;
-    right: 0;
-    top: 64px;
-    width: min(340px, calc(100vw - 32px));
-    max-height: min(520px, calc(100vh - 120px));
-    overflow-y: auto;
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 8px;
-    padding: 16px;
-    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
-}
-
-.application-notification-item {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    padding-bottom: 12px;
-    margin-bottom: 12px;
 }
 
 .dashboard-charts-grid {
@@ -1155,11 +1414,18 @@
     }
 }
 
-@media (max-width: 600px) {
-    .application-notification {
-        right: 16px;
-        bottom: 16px;
-    }
+@media (max-width: 820px) {
+    .portal-guide-grid { grid-template-columns: 1fr; }
+    .portal-section-heading { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 520px) {
+    .portal-bill-account-heading { align-items: flex-start; flex-direction: column; }
+    .portal-bill-row { flex-wrap: wrap; gap: 8px; }
+    .portal-bill-copy { min-width: calc(100% - 54px); }
+    .portal-bill-status { margin-left: 42px; }
+    .portal-bill-amount { margin-left: auto; }
+    .portal-ticket-panel { padding: 15px; }
 }
     </style>
 
@@ -1251,6 +1517,42 @@
 
 @section('script')
     <script>
+        window.switchPortalTab = function (tabName) {
+            document.querySelectorAll('[data-portal-view]').forEach(function (view) {
+                const isActive = view.dataset.portalView === tabName;
+                view.hidden = !isActive;
+                view.classList.toggle('is-active', isActive);
+            });
+
+            document.querySelectorAll('[data-portal-tab]').forEach(function (button) {
+                const isActive = button.dataset.portalTab === tabName;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-current', isActive ? 'page' : 'false');
+            });
+
+            const mobileNav = document.getElementById('portal-mobile-nav');
+            const mobileToggle = document.getElementById('portalMobileMenuToggle');
+            if (mobileNav && mobileToggle) {
+                mobileNav.hidden = true;
+                mobileToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            const profileMenu = document.getElementById('portal-profile-menu');
+            const profileToggle = document.getElementById('portalProfileToggle');
+            if (profileMenu && profileToggle) {
+                profileMenu.hidden = true;
+                profileToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            window.dispatchEvent(new Event('resize'));
+        };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            @if($errors->has('category') || $errors->has('message'))
+                window.switchPortalTab('ticket');
+            @endif
+        });
+
         @if(session('alert'))
         document.addEventListener('DOMContentLoaded', function () {
             if (typeof Swal === 'undefined') {
@@ -1446,16 +1748,6 @@
                 statementContent.slideDown('slow');
                 $(this).text('Hide Statement');
             }
-            });
-
-            $('#applicationNotificationToggle').on('click', function () {
-                $('#applicationNotificationPanel').toggleClass('d-none');
-            });
-
-            $(document).on('click', function (event) {
-                if (!$(event.target).closest('.application-notification').length) {
-                    $('#applicationNotificationPanel').addClass('d-none');
-                }
             });
 
             const accountNotifications = @json($accountNotifications ?? []);
