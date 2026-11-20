@@ -1,8 +1,15 @@
 @extends('layouts.app')
 
 @section('content')
-    <main class="main">
-        <div class="responsive-wrapper">
+    <main class="main-conce">
+        <div class="responsive-wrapper-conce">
+            @include('account-overview.partials.portal-navigation')
+
+            @if($viewer === 'accounts' && !empty($portalSummary))
+                @include('account-overview.partials.portal-welcome', $portalSummary)
+                @include('account-overview.partials.portal-kpis', $portalSummary)
+            @endif
+
             <div class="main-header d-flex justify-content-between">
                 <h1>
                      @php
@@ -14,6 +21,7 @@
                     @endphp
 
                     {!! $title[$viewer] ?? '' !!}
+
                 </h1>
 
                  @if($viewer == 'bills')
@@ -495,7 +503,7 @@
     </main>
     <style>
 
-        body * {
+        #bill * {
             font-family: Verdana, Geneva, Tahoma, sans-serif;
             font-size: 13px;
         }
@@ -527,7 +535,7 @@
                 margin: 0mm 5mm 0mm 0mm;
             }
 
-            body * {
+            #bill * {
                 padding: 0px !important;
                 box-shadow: none !important;
                 visibility: visible !important;

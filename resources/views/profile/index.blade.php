@@ -1,8 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
-    <main class="main">
-        <div class="responsive-wrapper">
+    <main class="main-conce">
+        <div class="responsive-wrapper-conce">
+            @include('account-overview.partials.portal-navigation')
             <div id="profilePageData" data-alert="{{ e(json_encode(session('alert'))) }}"></div>
             @if(session('status'))
                 <div class="alert alert-success">{{ session('status') }}</div>
