@@ -1,8 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
-    <main class="main">
-        <div class="responsive-wrapper">
+    <main class="main-conce">
+        <div class="responsive-wrapper-conce">
+            @include('account-overview.partials.portal-navigation')
             <div class="main-header d-flex justify-content-between">
                 <div class="d-flex align-items-start gap-3">
                     <div class="report-title-icon"><i class="bx bx-support" aria-hidden="true"></i></div>

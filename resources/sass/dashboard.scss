@@ -302,6 +302,10 @@ body {
 	padding-top: 3rem;
 }
 
+.main-conce {
+	padding-top: 0;
+}
+
 .main-header {
 	display: flex;
 	flex-wrap: wrap;
@@ -412,6 +416,16 @@ body {
 	align-items: center;
 	justify-content: space-between;
 	padding-top: 3rem;
+	margin-top: -1px;
+	border-top: 1px solid var(--c-border-primary);
+}
+
+.content-header-conce {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	padding-top: 0;
 	margin-top: -1px;
 	border-top: 1px solid var(--c-border-primary);
 }
