@@ -46,7 +46,7 @@
 
                 <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
                     <span class="text-muted small me-2">View:</span>
-                    <div class="btn-group btn-group-sm" role="group" id="viewGroup">
+                    <div class="btn-group btn-group-sm gap-2" role="group" id="viewGroup">
                         <input type="radio" class="btn-check" name="viewMode" id="viewReady" value="ready" checked autocomplete="off">
                         <label class="btn btn-outline-primary" for="viewReady">Ready to merge</label>
                         <input type="radio" class="btn-check" name="viewMode" id="viewRecent" value="recent" autocomplete="off">
@@ -236,36 +236,73 @@
             loadData();
 
             document.getElementById('runMergeBtn').addEventListener('click', function () {
-                if (!confirm('Run readings:merge now? This will merge pending readings_offline into readings and create/update bills.')) return;
-                const btn = this;
-                btn.disabled = true;
-                btn.textContent = 'Merging…';
-                const mergeLimit = document.getElementById('mergeLimit').value;
-                fetch('{{ route("admin.run-merge") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': getCsrfToken(),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({ limit: parseInt(mergeLimit, 10) })
+                Swal.fire({
+                    title: 'Run merge now?',
+                    text: 'This will merge pending offline readings and create or update their bills.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Run Merge',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#0d6efd'
                 })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data.status === 'error') {
-                            showMergeOutput(data.message || '', 'Error');
-                            return;
-                        }
-                        showMergeOutput(data.output || '', 'Merge output');
-                        if (data.count > 0) loadData();
-                    })
-                    .catch(function (err) {
-                        showMergeOutput('Request failed: ' + (err.message || 'Unknown error'), 'Error');
-                    })
-                    .finally(function () {
-                        btn.disabled = false;
-                        btn.textContent = 'Run Merge Now';
+                    .then(function (result) {
+                        if (!result.isConfirmed) return;
+
+                        const btn = document.getElementById('runMergeBtn');
+                        btn.disabled = true;
+                        btn.textContent = 'Merging…';
+                        const mergeLimit = document.getElementById('mergeLimit').value;
+                        fetch('{{ route("admin.run-merge") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': getCsrfToken(),
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({ limit: parseInt(mergeLimit, 10) })
+                        })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                if (data.status === 'error') {
+                                    showMergeOutput(data.message || '', 'Error');
+                                    Swal.fire({
+                                        title: 'Merge failed',
+                                        text: data.message || 'The merge could not be completed.',
+                                        icon: 'error'
+                                    });
+                                    return;
+                                }
+
+                                showMergeOutput(data.output || '', 'Merge output');
+                                if (data.count > 0) {
+                                    Swal.fire({
+                                        title: 'Merge successful',
+                                        text: data.count + ' offline reading' + (data.count === 1 ? '' : 's') + ' merged successfully.',
+                                        icon: 'success'
+                                    });
+                                    loadData();
+                                } else {
+                                    Swal.fire({
+                                        title: 'Nothing to merge',
+                                        text: 'No offline reading to merge yet.',
+                                        icon: 'info'
+                                    });
+                                }
+                            })
+                            .catch(function (err) {
+                                const message = 'Request failed: ' + (err.message || 'Unknown error');
+                                showMergeOutput(message, 'Error');
+                                Swal.fire({
+                                    title: 'Merge failed',
+                                    text: message,
+                                    icon: 'error'
+                                });
+                            })
+                            .finally(function () {
+                                btn.disabled = false;
+                                btn.textContent = 'Run Merge Now';
+                            });
                     });
             });
 
