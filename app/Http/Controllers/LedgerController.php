@@ -77,6 +77,7 @@ class LedgerController extends Controller
             $bill->computed_change = $metrics['change'];
             $bill->computed_date_paid = $metrics['date_paid'];
             $bill->computed_due_date = $metrics['due_date'];
+            $bill->computed_discount = $metrics['discount'] ?? 0;
             $bill->advances = $bill->isChangeForAdvancePayment === true ? (float) ($bill->change ?? 0) : 0;
         }
 
@@ -133,6 +134,8 @@ class LedgerController extends Controller
         $amountPaid = (float) ($bill->amount_paid ?? 0);
         $change = (float) ($bill->change ?? 0);
         $carriedArrears = round((float) ($bill->previous_unpaid ?? 0), 2);
+        $discount = (float) ($bill->discount ?? 0);
+        $advances = (float) ($bill->advances ?? 0);
 
         $paidDate = !empty($bill->date_paid) ? Carbon::parse($bill->date_paid)->startOfDay() : null;
         $dueDate = !empty($bill->due_date) ? Carbon::parse($bill->due_date)->startOfDay() : null;
@@ -142,9 +145,9 @@ class LedgerController extends Controller
             $amountAfterDue = $amount;
         }
 
-        $debit = max(0, round($total - $previousUnpaid, 2));
+        $debit = max(0, round($total - $previousUnpaid - $discount - $advances, 2));
 
-        $credit = round(max($amountPaid - $change, $partialPayment), 2);
+        $credit = round(max($amountPaid - $change, $partialPayment - $discount - $advances), 2);
         $balance = round(max(0, $debit - $credit), 2);
 
         if ((int) $bill->isPaid === 1) {
