@@ -159,7 +159,7 @@
                                     $advances = (float) ($portalAdvances ?? 0);
                                     $penalty = (float) ($portalCurrentBill['penalty'] ?? 0);
 
-                                    $amountToDisplay = $basicCharge - $discount - $advances;
+                                    $amountToDisplay = $basicCharge - $discount - $advances - $penalty;
 
                                     if ($isDue) {
                                         $amountToDisplay += $penalty;
