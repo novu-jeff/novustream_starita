@@ -3,7 +3,7 @@ name: 🚀 Deploy Novustream
 on:
   push:
     branches:
-      - testing   # or main if deploying production
+      - production   # or main if deploying production
 
 jobs:
   deploy:
@@ -32,8 +32,8 @@ jobs:
             sudo find storage bootstrap/cache -type f -exec chmod 664 {} \; || true
 
             echo "→ Pulling latest code..."
-            sudo -u www-data git fetch origin testing
-            sudo -u www-data git reset --hard origin/testing
+            sudo -u www-data git fetch origin production
+            sudo -u www-data git reset --hard origin/production
 
             echo "→ Installing PHP dependencies..."
             sudo -u www-data composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
