@@ -7,6 +7,7 @@ use App\Models\Reading;
 use App\Models\UserAccounts;
 use App\Services\MeterService;
 use App\Services\NovuPayCheckoutService;
+use App\Support\AccountName;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -61,7 +62,7 @@ class NovuPayController extends Controller
         }
 
         $storedName = (string) ($account->user->name ?? '');
-        if (!$this->namesMatch($storedName, $accountName)) {
+        if (!AccountName::from($accountName)->isConsistentWith($storedName)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'The name does not match the account number.',
@@ -409,17 +410,4 @@ class NovuPayController extends Controller
         ], $status);
     }
 
-    private function namesMatch(string $firstName, string $secondName): bool
-    {
-        $normalize = static function (string $name): string {
-            $normalized = preg_replace('/[^a-z0-9]/u', '', mb_strtolower(trim($name)));
-
-            return $normalized ?? '';
-        };
-
-        $first = $normalize($firstName);
-        $second = $normalize($secondName);
-
-        return $first !== '' && $first === $second;
-    }
 }

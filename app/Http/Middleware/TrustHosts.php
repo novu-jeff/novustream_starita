@@ -17,6 +17,7 @@ class TrustHosts extends Middleware
             $this->allSubdomainsOfApplicationUrl(),
             '^(.+\.)?staritawaterdistrictpamp\.gov\.ph$',
             'staritawaterdistrictpamp\.novulutions\.com',
+            'novustream-starita\.novulutions\.com',
             '127\.0\.0\.1',
             'localhost',
             '38\.226\.41\.3',
