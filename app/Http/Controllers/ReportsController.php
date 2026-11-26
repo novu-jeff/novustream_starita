@@ -1489,6 +1489,7 @@ class ReportsController extends Controller
                 case 'Monthly Billing Summary':
                 $readings = Reading::with(['bill', 'concessionaire'])
                     ->whereHas('bill')
+                    ->where('isReread', 0)
                     ->whereHas('bill', function ($q) use ($startDate, $endDate) {
                         if ($startDate && $endDate) {
                             $q->whereBetween('bill.bill_period_to', [

@@ -7,6 +7,7 @@ use App\Services\BillSettlementService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use App\Models\ServiceApplication;
 
 class LedgerController extends Controller
@@ -120,7 +121,21 @@ class LedgerController extends Controller
         ->orderByDesc('created_at')
         ->get();
 
-        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years', 'applications', 'outstandingBalance'));
+        $missingReadingHistories = DB::table('missing_reading_histories')
+            ->whereIn('account_no', $accountNumbers)
+            ->orderByDesc('created_at')
+            ->paginate(25, ['*'], 'missing_reading_page')
+            ->withQueryString();
+
+        return view('ledger.show', compact(
+            'user',
+            'bills',
+            'selectedYear',
+            'years',
+            'applications',
+            'outstandingBalance',
+            'missingReadingHistories'
+        ));
     }
 
     private function buildLedgerMetrics(Bill $bill): array
@@ -155,6 +170,7 @@ class LedgerController extends Controller
             $balance = 0.0;
         } elseif ((int) $bill->isPartial === 1 || $partialPayment > 0) {
             $status = 'PARTIAL';
+            $balance = $dueDate > $today ? round($total - $credit, 2) : round($amount - $partialPayment - $penalty, 2);
         } elseif ($dueDate && $today->gt($dueDate)) {
             $status = 'OVERDUE';
         } else {
@@ -164,6 +180,7 @@ class LedgerController extends Controller
         $displayPenalty = 0.0;
         if ($dueDate && $today->gt($dueDate)) {
             $displayPenalty = round($penalty, 2);
+            $balance += $displayPenalty;
         }
 
         return [

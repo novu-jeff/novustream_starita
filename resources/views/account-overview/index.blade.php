@@ -127,7 +127,7 @@
                                 </div>
                                 <div class="portal-statement-lines">
                                     @if($modalBillingCharge > 0)
-                                        <div><span>Current Billing</span></div>
+                                        <div><h6>Current Billing</h6></div>
                                     @endif
                                     @if((float) ($portalCurrentBill['previous_unpaid'] ?? 0) > 0)
                                         <div><span>Previous Balance</span><strong>PHP {{ number_format((float) $portalCurrentBill['previous_unpaid'], 2) }}</strong></div>
