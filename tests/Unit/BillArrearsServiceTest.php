@@ -38,6 +38,36 @@ class BillArrearsServiceTest extends TestCase
         $this->assertSame(1000.0, $remaining);
     }
 
+    public function test_remaining_unpaid_uses_amount_after_due_when_it_includes_penalty(): void
+    {
+        $bill = new Bill([
+            'amount' => 200,
+            'amount_after_due' => 220,
+            'isPaid' => 0,
+            'isPartial' => 0,
+        ]);
+
+        $remaining = (new BillArrearsService())->remainingUnpaid($bill, 0);
+
+        $this->assertSame(220.0, $remaining);
+    }
+
+    public function test_remaining_unpaid_subtracts_partial_payment_and_advances(): void
+    {
+        $bill = new Bill([
+            'amount' => 220,
+            'amount_after_due' => 220,
+            'partial_payment' => 50,
+            'advances' => 30,
+            'isPaid' => 0,
+            'isPartial' => 1,
+        ]);
+
+        $remaining = (new BillArrearsService())->remainingUnpaid($bill, 50);
+
+        $this->assertSame(140.0, $remaining);
+    }
+
     public function test_fully_paid_bill_carries_no_arrears(): void
     {
         $bill = new Bill([

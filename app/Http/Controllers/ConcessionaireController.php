@@ -746,9 +746,9 @@ class ConcessionaireController extends Controller
             ->orderByDesc('id')
             ->get();
         $latestBill = $bills->first();
-        $reading = $latestBill?->reading ?? Reading::where('account_no', $account->account_no)
-            ->where('isReRead', false)
-            ->latest('created_at')
+        $reading = Reading::where('account_no', $account->account_no)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->first();
         $arrearsService = app(BillArrearsService::class);
         $outstanding = $arrearsService->latestOutstandingBill($bills);
@@ -897,20 +897,32 @@ class ConcessionaireController extends Controller
                     }
 
                     $correctedPresentReading = (float) $review['corrected_present_reading'];
-                    do {
-                        $reconnectionReference = 'RR-' . now()->year . '-' . random_int(100000, 999999);
-                    } while (Reading::where('reference_no', $reconnectionReference)->exists());
+                    $latestReading = Reading::where('account_no', $reviewAccount->account_no)
+                        ->orderByDesc('created_at')
+                        ->orderByDesc('id')
+                        ->lockForUpdate()
+                        ->first();
 
-                    Reading::create([
-                        'reference_no' => $reconnectionReference,
-                        'zone' => $reviewAccount->zone,
-                        'account_no' => $reviewAccount->account_no,
-                        'previous_reading' => $correctedPresentReading,
-                        'present_reading' => $correctedPresentReading,
-                        'consumption' => 0,
-                        'reader_name' => auth()->user()?->name,
-                        'isReRead' => false,
-                    ]);
+                    if ($latestReading) {
+                        $latestReading->update([
+                            'present_reading' => $correctedPresentReading,
+                        ]);
+                    } else {
+                        do {
+                            $reconnectionReference = 'RR-' . now()->year . '-' . random_int(100000, 999999);
+                        } while (Reading::where('reference_no', $reconnectionReference)->exists());
+
+                        Reading::create([
+                            'reference_no' => $reconnectionReference,
+                            'zone' => $reviewAccount->zone,
+                            'account_no' => $reviewAccount->account_no,
+                            'previous_reading' => $correctedPresentReading,
+                            'present_reading' => $correctedPresentReading,
+                            'consumption' => 0,
+                            'reader_name' => auth()->user()?->name,
+                            'isReRead' => false,
+                        ]);
+                    }
                 }
 
                 if (empty($review['has_unpaid_bills'])) {

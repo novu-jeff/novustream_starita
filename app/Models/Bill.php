@@ -41,6 +41,7 @@ class Bill extends Model
         'high_consumption_note',
         'missing_reading_reason',
         'partial_payment',
+        'advances',
         'isPartial',
         'hitpay_reference',
         'hitpay_payment_id',
