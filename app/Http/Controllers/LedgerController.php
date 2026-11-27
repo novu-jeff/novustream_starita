@@ -117,6 +117,16 @@ class LedgerController extends Controller
         }
         $outstandingBalance = $bills->where('computed_is_latest_outstanding', true)->sum('computed_balance');
 
+        $totalPayments = Bill::whereHas('reading', function ($query) use ($accountNumbers) {
+                $query->whereIn('account_no', $accountNumbers);
+            })
+            ->get()
+            ->sum(function ($bill) {
+                $metrics = $this->buildLedgerMetrics($bill);
+
+                return max(0, $metrics['credit'] - (float) ($bill->partial_payment ?? 0));
+            });
+
         $applications = ServiceApplication::where('user_id', $userId)
         ->orderByDesc('created_at')
         ->get();
@@ -134,6 +144,7 @@ class LedgerController extends Controller
             'years',
             'applications',
             'outstandingBalance',
+            'totalPayments',
             'missingReadingHistories'
         ));
     }
@@ -160,7 +171,7 @@ class LedgerController extends Controller
             $amountAfterDue = $amount;
         }
 
-        $debit = max(0, round($total - $previousUnpaid - $discount - $advances, 2));
+        $debit = max(0, round($total - $discount - $advances, 2));
 
         $credit = round(max($amountPaid - $change, $partialPayment - $discount - $advances), 2);
         $balance = round(max(0, $debit - $credit), 2);
