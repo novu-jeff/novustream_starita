@@ -25,7 +25,7 @@
             <div class="card border-start border-primary border-4 shadow-sm">
                 <div class="card-body">
                     <h6 class="text-muted uppercase small fw-bold">Total Debit</h6>
-                    <h3 class="mb-0">PHP {{ number_format($outstandingBalance, 2) }}</h3>
+                    <h3 class="mb-0">PHP {{ number_format($totalDebit, 2) }}</h3>
                 </div>
             </div>
         </div>
