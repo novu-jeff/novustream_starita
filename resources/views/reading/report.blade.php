@@ -106,7 +106,7 @@
                                 <td>{{ $row->previous_reading }}</td>
                                 <td>{{ $row->present_reading }}</td>
                                 <td>{{ $row->consumption }} m³</td>
-                                <td>{{ \Carbon\Carbon::parse($row->created_at)->format('F d, Y') }}</td>
+                                <td>{{ \Carbon\Carbon::parse(optional($row->bill)->bill_period_to)->format('F d, Y') }}</td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <a href="{{ optional($row->bill) ? route('reading.show', optional($row->bill)->reference_no) : '#' }}"
@@ -192,6 +192,10 @@ $(function () {
         } else {
             rows.forEach(row => {
                 const referenceNo = row.bill?.reference_no ?? null;
+                const readingDate = row.bill?.bill_period_to ?? row.created_at;
+                const formattedReadingDate = readingDate
+                    ? new Date(`${String(readingDate).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })
+                    : 'N/A';
                 const link = referenceNo
                     ? `{{ route('reading.show', ':reference_no') }}`.replace(':reference_no', referenceNo)
                     : '#';
@@ -205,7 +209,7 @@ $(function () {
                         <td>${row.previous_reading}</td>
                         <td>${row.present_reading}</td>
                         <td>${row.consumption} m³</td>
-                        <td>${new Date(row.created_at).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' })}</td>
+                        <td>${formattedReadingDate}</td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <a href="${link}"

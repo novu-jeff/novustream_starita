@@ -40,14 +40,14 @@
 
                 <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
                     <span class="text-muted small me-2">View:</span>
-                    <div class="btn-group btn-group-sm" role="group" id="viewGroup">
+                    <div class="btn-group btn-group-sm gap-2" role="group" id="viewGroup">
                         <input type="radio" class="btn-check" name="viewMode" id="viewReady" value="ready" checked autocomplete="off">
                         <label class="btn btn-outline-primary" for="viewReady">Ready to sync</label>
                         <input type="radio" class="btn-check" name="viewMode" id="viewRecent" value="recent" autocomplete="off">
                         <label class="btn btn-outline-secondary" for="viewRecent">Recent synced</label>
                     </div>
                     <span class="text-muted small ms-2 me-1">Show:</span>
-                    <div class="btn-group btn-group-sm" role="group" id="limitGroup">
+                    <div class="btn-group btn-group-sm gap-2" role="group" id="limitGroup">
                         <input type="radio" class="btn-check" name="showLimit" id="limit20" value="20" autocomplete="off">
                         <label class="btn btn-outline-secondary" for="limit20">20</label>
                         <input type="radio" class="btn-check" name="showLimit" id="limit50" value="50" autocomplete="off">
