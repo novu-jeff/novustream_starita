@@ -573,6 +573,7 @@ document.querySelectorAll('.delete-bill-form').forEach(function (form) {
         });
     });
 });
+
 </script>
 
 @endsection

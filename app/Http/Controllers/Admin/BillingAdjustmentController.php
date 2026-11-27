@@ -65,7 +65,12 @@ class BillingAdjustmentController extends Controller
             ->limit(200)
             ->get();
 
-        return view('admins.billing-adjustments.index', compact('bills', 'month', 'billAdjustments', 'deletionHistories'));
+        return view('admins.billing-adjustments.index', compact(
+            'bills',
+            'month',
+            'billAdjustments',
+            'deletionHistories'
+        ));
     }
 
     public function update(Request $request, $id)

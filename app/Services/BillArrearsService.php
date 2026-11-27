@@ -168,7 +168,8 @@ class BillArrearsService
 
     public function remainingUnpaid(Bill $bill, ?float $credited = null): float
     {
-        if (filter_var($bill->isPaid, FILTER_VALIDATE_BOOLEAN)
+        if (
+            filter_var($bill->isPaid, FILTER_VALIDATE_BOOLEAN)
             && !filter_var($bill->isPartial, FILTER_VALIDATE_BOOLEAN)
         ) {
             return 0.0;
@@ -176,7 +177,18 @@ class BillArrearsService
 
         $credited ??= $this->creditedPartial($bill);
 
-        return max(round((float) ($bill->amount ?? 0) - $credited, 2), 0);
+        $amountAfterDue = (float) ($bill->amount_after_due ?? 0);
+
+        $payableAmount = $amountAfterDue > 0
+            ? $amountAfterDue
+            : (float) ($bill->amount ?? 0);
+
+        $advances = (float) ($bill->advances ?? 0);
+
+        return max(
+            round($payableAmount - $credited - $advances, 2),
+            0
+        );
     }
 
     private function emptyResult(): array

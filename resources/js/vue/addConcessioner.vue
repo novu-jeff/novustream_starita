@@ -48,16 +48,13 @@
                                 <small v-if="!concessioner.id" class="text-danger"> ( required )</small>
                                 <small v-else class="text-muted"> ( leave blank to keep current password )</small>
                             </label>
-                            <div class="input-group">
+                            <div class="password-field">
                                 <input :type="showPassword ? 'text' : 'password'"
-                                        class="form-control" id="password"
+                                  class="form-control password-input" id="password"
                                         v-model="concessioner.password"
                                         :class="{ 'is-invalid': errors && errors.password }"
                                         autocomplete="new-password"
                                         >
-                                <button type="button" class="btn btn-outline-secondary" @click="showPassword = !showPassword">
-                                    <i :class="showPassword ? 'bx bx-hide' : 'bx bx-show'"></i>
-                                </button>
                             </div>
                             <small v-if="errors.password" class="text-danger px-1">{{ errors.password[0] }}</small>
                         </div>
@@ -65,18 +62,14 @@
                             <label for="password_confirmation" class="form-label">
                                 Confirm Password
                                 <small v-if="!concessioner.id" class="text-danger"> ( required )</small>
-                                <small v-else class="text-muted"> ( only needed when changing password )</small>
                             </label>
-                            <div class="input-group">
+                            <div class="password-field">
                                 <input :type="showPasswordConfirm ? 'text' : 'password'"
-                                        class="form-control" id="password_confirmation"
+                                  class="form-control password-input" id="password_confirmation"
                                         v-model="concessioner.password_confirmation"
                                         :class="{ 'is-invalid': errors && errors.password_confirmation }"
                                         autocomplete="new-password"
                                         >
-                                <button type="button" class="btn btn-outline-secondary" @click="showPasswordConfirm = !showPasswordConfirm">
-                                    <i :class="showPasswordConfirm ? 'bx bx-hide' : 'bx bx-show'"></i>
-                                </button>
                             </div>
                             <small v-if="errors.password_confirmation" class="text-danger px-1">{{ errors.password_confirmation[0] }}</small>
                         </div>
@@ -1105,6 +1098,15 @@ export default {
 </script>
 
 <style>
+  .password-field {
+    position: relative;
+  }
+
+  .password-input {
+    padding-right: 3rem;
+  }
+
+
   .activation-review-backdrop {
     position: fixed;
     inset: 0;

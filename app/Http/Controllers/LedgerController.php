@@ -7,6 +7,7 @@ use App\Services\BillSettlementService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use App\Models\ServiceApplication;
 
 class LedgerController extends Controller
@@ -115,12 +116,44 @@ class LedgerController extends Controller
                 && $latestOutstandingByAccount[$accountNo] === $bill->id;
         }
         $outstandingBalance = $bills->where('computed_is_latest_outstanding', true)->sum('computed_balance');
+        $totalDebit = $bills->sum(function ($bill) {
+            return max(
+                0,
+                round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2)
+            );
+        });
+
+        $totalPayments = Bill::whereHas('reading', function ($query) use ($accountNumbers) {
+                $query->whereIn('account_no', $accountNumbers);
+            })
+            ->get()
+            ->sum(function ($bill) {
+                $metrics = $this->buildLedgerMetrics($bill);
+
+                return max(0, $metrics['credit'] - (float) ($bill->partial_payment ?? 0));
+            });
 
         $applications = ServiceApplication::where('user_id', $userId)
         ->orderByDesc('created_at')
         ->get();
 
-        return view('ledger.show', compact('user', 'bills', 'selectedYear', 'years', 'applications', 'outstandingBalance'));
+        $missingReadingHistories = DB::table('missing_reading_histories')
+            ->whereIn('account_no', $accountNumbers)
+            ->orderByDesc('created_at')
+            ->paginate(25, ['*'], 'missing_reading_page')
+            ->withQueryString();
+
+        return view('ledger.show', compact(
+            'user',
+            'bills',
+            'selectedYear',
+            'years',
+            'applications',
+            'totalDebit',
+            'outstandingBalance',
+            'totalPayments',
+            'missingReadingHistories'
+        ));
     }
 
     private function buildLedgerMetrics(Bill $bill): array
@@ -145,7 +178,7 @@ class LedgerController extends Controller
             $amountAfterDue = $amount;
         }
 
-        $debit = max(0, round($total - $previousUnpaid - $discount - $advances, 2));
+        $debit = max(0, round($total - $discount - $advances, 2));
 
         $credit = round(max($amountPaid - $change, $partialPayment - $discount - $advances), 2);
         $balance = round(max(0, $debit - $credit), 2);
@@ -155,6 +188,7 @@ class LedgerController extends Controller
             $balance = 0.0;
         } elseif ((int) $bill->isPartial === 1 || $partialPayment > 0) {
             $status = 'PARTIAL';
+            $balance = $dueDate > $today ? round($total - $credit, 2) : round($amount - $partialPayment - $penalty, 2);
         } elseif ($dueDate && $today->gt($dueDate)) {
             $status = 'OVERDUE';
         } else {
@@ -164,6 +198,7 @@ class LedgerController extends Controller
         $displayPenalty = 0.0;
         if ($dueDate && $today->gt($dueDate)) {
             $displayPenalty = round($penalty, 2);
+            $balance += $displayPenalty;
         }
 
         return [

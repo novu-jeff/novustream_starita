@@ -9,7 +9,18 @@ use Carbon\Carbon;
 
 class BillSettlementService
 {
-    public function settlePaidBillChain(Bill $bill, array $currentAttributes = [], array $priorAttributes = [], bool $notifyCustomer = false): void
+    public static function cashCurrentBillAmountPaid(float $collectible): float
+    {
+        return round(max($collectible, 0), 2);
+    }
+
+    public function settlePaidBillChain(
+        Bill $bill,
+        array $currentAttributes = [],
+        array $priorAttributes = [],
+        bool $notifyCustomer = false,
+        bool $excludeInstallments = false
+    ): void
     {
         $bill->loadMissing('reading');
 
@@ -41,6 +52,9 @@ class BillSettlementService
             })
             ->where('bill_period_from', '<', $bill->bill_period_from)
             ->where('isPaid', 0)
+            ->when($excludeInstallments, function ($query) {
+                $query->where('isInstallment', 0);
+            })
             ->orderBy('bill_period_from')
             ->get();
 

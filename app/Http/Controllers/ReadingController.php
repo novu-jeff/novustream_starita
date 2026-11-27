@@ -1040,6 +1040,29 @@ class ReadingController extends Controller
                     ], 500);
                 }
 
+                if ($isMissingReading) {
+                    DB::table('missing_reading_histories')->insert([
+                        'reading_id' => $bill->reading_id,
+                        'bill_id' => $bill->id,
+                        'reference_no' => $reference_no,
+                        'account_no' => $account->account_no,
+                        'name' => optional($account->user)->name,
+                        'reading_date' => $date->toDateString(),
+                        'previous_reading' => $previous_reading,
+                        'present_reading' => $present_reading,
+                        'consumption' => $consumption,
+                        'previous_unpaid' => $bill->previous_unpaid,
+                        'total' => $bill->total,
+                        'amount' => $bill->amount,
+                        'penalty' => $bill->penalty,
+                        'reason' => $payload['missing_reading_reason'],
+                        'created_by' => auth()->id(),
+                        'created_by_name' => auth()->user()->name ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
 
                 session(['recent_reading' => [
                     'name' => $account->user->name ?? '',

@@ -25,7 +25,7 @@
             <div class="card border-start border-primary border-4 shadow-sm">
                 <div class="card-body">
                     <h6 class="text-muted uppercase small fw-bold">Total Debit</h6>
-                    <h3 class="mb-0">PHP {{ number_format($bills->sum('computed_amount'), 2) }}</h3>
+                    <h3 class="mb-0">PHP {{ number_format($totalDebit, 2) }}</h3>
                 </div>
             </div>
         </div>
@@ -33,7 +33,7 @@
             <div class="card border-start border-success border-4 shadow-sm">
                 <div class="card-body">
                     <h6 class="text-muted uppercase small fw-bold">Total Credit</h6>
-                    <h3 class="mb-0 text-success">PHP {{ number_format($bills->sum('computed_paid'), 2) }}</h3>
+                    <h3 class="mb-0 text-success">PHP {{ number_format($totalPayments, 2) }}</h3>
                 </div>
             </div>
         </div>
@@ -47,7 +47,7 @@
         </div>
     </div>
 
-    <div class="d-flex justify-content-between mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <form method="GET">
             <div class="input-group">
                 <label class="input-group-text">Year</label>
@@ -62,9 +62,12 @@
                 </select>
             </div>
         </form>
-        <div class="ms-3">
+        <div class="d-flex flex-wrap gap-2 ms-3">
             <button type="button" class="btn btn-outline-primary" id="openLedgerMissingReading">
                 + Add Missing Reading
+            </button>
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#missingReadingHistoryModal">
+                Missing Reading History
             </button>
         </div>
     </div>
@@ -422,6 +425,57 @@
         </form>
     </div>
 </div>
+
+<div class="modal fade" id="missingReadingHistoryModal" tabindex="-1" aria-labelledby="missingReadingHistoryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="missingReadingHistoryTitle">Missing Reading History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Added</th>
+                                <th>Reading Date</th>
+                                <th>Account</th>
+                                <th>Reference No.</th>
+                                <th>Reading</th>
+                                <th>Previous Unpaid</th>
+                                <th>Amount</th>
+                                <th>Added By</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($missingReadingHistories as $history)
+                                <tr>
+                                    <td>{{ $history->created_at }}</td>
+                                    <td>{{ $history->reading_date ?? '-' }}</td>
+                                    <td>{{ $history->account_no }}</td>
+                                    <td>{{ $history->reference_no ?? '-' }}</td>
+                                    <td>{{ $history->previous_reading }} → {{ $history->present_reading }} ({{ $history->consumption }})</td>
+                                    <td>{{ number_format((float) ($history->previous_unpaid ?? 0), 2) }}</td>
+                                    <td>{{ number_format((float) ($history->amount ?? 0), 2) }}</td>
+                                    <td>{{ $history->created_by_name ?? ('User #' . ($history->created_by ?? 'unknown')) }}</td>
+                                    <td>{{ $history->reason }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="9" class="text-center text-muted">No missing readings have been added for this account.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                    <small class="text-muted">Showing {{ $missingReadingHistories->firstItem() ?? 0 }}–{{ $missingReadingHistories->lastItem() ?? 0 }} of {{ $missingReadingHistories->total() }} entries</small>
+                    {{ $missingReadingHistories->links() }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('script')
@@ -563,6 +617,12 @@ Swal.fire({
     title: 'Success',
     text: @json(session('success')),
     confirmButtonColor: '#198754',
+});
+@endif
+
+@if(request()->has('missing_reading_page'))
+document.addEventListener('DOMContentLoaded', function () {
+    new bootstrap.Modal(document.getElementById('missingReadingHistoryModal')).show();
 });
 @endif
 </script>
