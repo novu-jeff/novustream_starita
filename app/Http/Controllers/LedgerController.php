@@ -116,6 +116,12 @@ class LedgerController extends Controller
                 && $latestOutstandingByAccount[$accountNo] === $bill->id;
         }
         $outstandingBalance = $bills->where('computed_is_latest_outstanding', true)->sum('computed_balance');
+        $totalDebit = $bills->sum(function ($bill) {
+            return max(
+                0,
+                round((float) ($bill->total ?? 0) - (float) ($bill->previous_unpaid ?? 0), 2)
+            );
+        });
 
         $totalPayments = Bill::whereHas('reading', function ($query) use ($accountNumbers) {
                 $query->whereIn('account_no', $accountNumbers);
@@ -143,6 +149,7 @@ class LedgerController extends Controller
             'selectedYear',
             'years',
             'applications',
+            'totalDebit',
             'outstandingBalance',
             'totalPayments',
             'missingReadingHistories'

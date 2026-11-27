@@ -349,7 +349,7 @@ class PaymentController extends Controller
         return view('payments.qr-voided', [
             'payload' => [
                 'title' => 'QR Code No Longer Valid',
-                'message' => 'This payment QR has expired because the bill is past its due date. Penalties may apply. Please visit Sta. Rita Water District or request an updated Statement of Account (SOA) with a new QR code.',
+                'message' => 'This payment QR has expired because the bill is past its due date. Penalties may apply. Please visit Bacolor Water District or request an updated Statement of Account (SOA) with a new QR code.',
                 'reference_no' => $reference_no,
                 'account_no' => $client['account_no'] ?? ($bill->account_no ?? '-'),
                 'account_name' => $client['name'] ?? '-',
@@ -746,7 +746,7 @@ class PaymentController extends Controller
     );
     $url = $qrResolved['url'];
 
-    $qr_code = $this->generateService::qr_code($url, 80);
+    $qr_code = $this->generateService::qr_code($url, 140);
 
     $user = \App\Models\User::whereHas('accounts', function ($q) use ($data) {
         $q->where('account_no', $data['client']['account_no']);
@@ -1076,26 +1076,50 @@ class PaymentController extends Controller
             ]);
         }
 
-        Bill::whereHas('reading', function ($q) use ($account_no) {
-            $q->where('account_no', $account_no);
-        })
-        ->where('isPaid', 0)
-        ->where('bill_period_from', '<=', $currentBill->bill_period_from)
-        ->update([
-            'isPaid'        => 1,
-            'isPartial'     => 0,
-            'amount_paid'   => $paymentAmount,
-            'date_paid'     => now(),
-            'payment_method'=> 'cash',
-        ]);
-
-        app(AccountMailer::class)->notifyPaymentPosted($currentBill->fresh());
-
         $installment = \App\Models\Installment::where('status','active')
             ->whereHas('bill.reading', function ($q) use ($account_no) {
                 $q->where('account_no',$account_no);
             })
             ->first();
+
+        if ($installment || (bool) $currentBill->isInstallment) {
+            Bill::whereHas('reading', function ($q) use ($account_no) {
+                $q->where('account_no', $account_no);
+            })
+            ->where('isPaid', 0)
+            ->where('bill_period_from', '<=', $currentBill->bill_period_from)
+            ->update([
+                'isPaid'        => 1,
+                'isPartial'     => 0,
+                'amount_paid'   => $paymentAmount,
+                'date_paid'     => now(),
+                'payment_method'=> 'cash',
+            ]);
+        } else {
+            DB::transaction(function () use ($currentBill, $collectible) {
+                $lockedCurrentBill = Bill::whereKey($currentBill->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $currentBillAmountPaid = BillSettlementService::cashCurrentBillAmountPaid($collectible);
+
+                $this->billSettlementService->settlePaidBillChain(
+                    $lockedCurrentBill,
+                    [
+                        'amount_paid' => $currentBillAmountPaid,
+                        'date_paid' => now(),
+                        'payment_method' => 'cash',
+                    ],
+                    [
+                        'date_paid' => now(),
+                        'payment_method' => 'cash',
+                    ],
+                    false,
+                    true
+                );
+            });
+        }
+
+        app(AccountMailer::class)->notifyPaymentPosted($currentBill->fresh());
 
         if ($installment) {
 
@@ -1191,7 +1215,7 @@ class PaymentController extends Controller
 
         if (!self::isHitpayEnabled()) {
             $customer = [
-                'name' => $payload['payor'] ?? data_get($billResult, 'data.client.name') ?? 'Sta. Rita Customer',
+                'name' => $payload['payor'] ?? data_get($billResult, 'data.client.name') ?? 'Bacolor Customer',
                 'email' => $payload['email'] ?? data_get($billResult, 'data.client.email') ?? 'srwdsystem2023@gmail.com',
                 'contact' => $payload['contact'] ?? $payload['contact_no'] ?? data_get($billResult, 'data.client.contact_no'),
                 'account_no' => $payload['account_no'] ?? data_get($billResult, 'data.client.account_no'),
@@ -1360,7 +1384,7 @@ class PaymentController extends Controller
 
             // dd($amount, $discount);
 
-            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Sta. Rita Customer');
+            $payor = $result['data']['client']['name'] ?? ($payload['payor'] ?? 'Bacolor Customer');
             $email = $result['data']['client']['email'] ?? ($payload['email'] ?? 'srwdsystem2023@gmail.com');
             $account_no = $result['data']['client']['account_no'] ?? ($payload['account_no'] ?? '000000');
 
